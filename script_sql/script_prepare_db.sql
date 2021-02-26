@@ -76,6 +76,7 @@ COMMENT ON COLUMN noisemodelling.conf.confExportSourceId IS 'Keep source identif
 
 -- Insert values
 INSERT INTO noisemodelling.conf VALUES(1, 0, 250, 50, 5, 1, false, false, true, true, true, false, true);
+INSERT INTO noisemodelling.conf VALUES(2, 0, 250, 50, 5, 1, false, false, true, true, true, false, false);
 
 ----------------------------------
 -- CONF_ROAD table
