@@ -61,7 +61,9 @@ DROP TABLE IF EXISTS noisemodelling_work.roads;
 CREATE TABLE noisemodelling_work.roads 
 AS SELECT 
 	st_translate(st_force3dz(a.the_geom), 0, 0, 0.05) as the_geom,
-	a."IDTRONCON" as id_road,
+	a."IDTRONCON" as id_troncon, 
+	a."IDROUTE" as id_route, 
+	a."NOMRUEG" as nom_route,
 	b."TMHVLD" as lv_d, 
 	b."TMHVLS" as lv_e, 
 	b."TMHVLN" as lv_n,
