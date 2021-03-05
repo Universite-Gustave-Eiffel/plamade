@@ -73,8 +73,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.98994949"
-     inkscape:cx="557.75269"
-     inkscape:cy="414.40319"
+     inkscape:cx="460.14554"
+     inkscape:cy="454.20088"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -92,7 +92,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -222,64 +222,15 @@
              style="font-weight:bold">PK</tspan><tspan>
 </tspan></tspan><tspan
            x="52.412109"
-           y="172.12412"><tspan>BUILD_PK</tspan></tspan></text>
-    </g>
-    <g
-       id="g912"
-       transform="translate(3.0063093e-5)">
-      <rect
-         style="fill:#ececec;stroke:#ffffff;stroke-width:0.165;stroke-linecap:round;stroke-linejoin:round"
-         id="rect881"
-         width="64.67868"
-         height="61.600128"
-         x="213.87514"
-         y="9.7679014" />
-      <rect
-         style="fill:#4d4d4d;stroke:#ffffff;stroke-width:0.0737631;stroke-linecap:round;stroke-linejoin:round"
-         id="rect883"
-         width="64.76992"
-         height="12.293627"
-         x="213.82953"
-         y="9.7222853" />
-      <text
-         xml:space="preserve"
-         id="text887"
-         style="font-style:normal;font-weight:normal;font-size:10.5833px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect893);fill:#ffffff;fill-opacity:1;stroke:none;"
-         transform="matrix(0.76013097,0,0,0.76013097,179.10675,-102.07513)"><tspan
-           x="52.412109"
-           y="158.89499"><tspan
-             style="fill:#ffffff">BUILDINGS</tspan></tspan></text>
-      <text
-         xml:space="preserve"
-         id="text891"
-         style="font-style:normal;font-weight:normal;font-size:10.5833px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect895);fill:#000000;fill-opacity:1;stroke:none;"
-         transform="matrix(0.76013097,0,0,0.76013097,179.10675,-86.893486)"><tspan
-           x="52.412109"
-           y="158.89499"><tspan
-             style="font-weight:bold">PK</tspan><tspan
-             style="shape-inside:url(#rect895)">
+           y="172.12412"><tspan>BUILD_PK
 </tspan></tspan><tspan
            x="52.412109"
-           y="172.12412"><tspan
-             style="shape-inside:url(#rect895)">ID_BAT
-</tspan></tspan><tspan
-           x="52.412109"
-           y="185.35324"><tspan
-             style="shape-inside:url(#rect895)">HEIGHT
-</tspan></tspan><tspan
-           x="52.412109"
-           y="198.58237"><tspan
-             style="shape-inside:url(#rect895)">POP</tspan></tspan></text>
+           y="185.35324"><tspan>POP</tspan></tspan></text>
     </g>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        d="M 68.063876,107.72037 114.1726,69.888141"
        id="path945" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 157.88425,79.831207 217.20066,31.936073"
-       id="path947"
-       sodipodi:nodetypes="cc" />
     <path
        style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        d="M 68.063876,117.88299 114.1726,146.74658"
