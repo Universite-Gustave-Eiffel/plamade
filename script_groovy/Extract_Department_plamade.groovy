@@ -146,14 +146,23 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON DEPT (THE_GEOM);
     drop table if exists ign_admin_express_dept_l93;
     drop table if exists dept_meteo;
-    CREATE LINKED TABLE dept_meteo ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', '(SELECT codedept, temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, wall_alpha, ts_stud, pm_stud FROM echeance4."C_METEO_S_FRANCE" WHERE codedept=''0$codeDep'')');
+    CREATE LINKED TABLE dept_meteo ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', '(SELECT codedept, temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, ts_stud, pm_stud FROM echeance4."C_METEO_S_FRANCE" WHERE codedept=''0$codeDep'')');
     DROP TABLE IF EXISTS zone;
-    CREATE TABLE zone AS SELECT a.pfav_06_18, a.pfav_18_22, a.pfav_22_06, a.pfav_06_22, b.temp_d, b.temp_e, b.temp_n, b.hygro_d, b.hygro_e, b.hygro_n, b.wall_alpha, b.ts_stud, b.pm_stud FROM dept_pfav a, dept_meteo b;
+    CREATE TABLE zone AS SELECT a.pfav_06_18, a.pfav_18_22, a.pfav_22_06, a.pfav_06_22, b.temp_d, b.temp_e, b.temp_n, b.hygro_d, b.hygro_e, b.hygro_n, b.ts_stud, b.pm_stud FROM dept_pfav a, dept_meteo b;
     drop table if exists dept_pfav;
     drop table if exists dept_meteo;
     DROP TABLE IF EXISTS roads;
     DROP TABLE IF EXISTS roads_link;
-    CREATE LINKED TABLE roads_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', '(SELECT  st_translate(st_force3dz(a.the_geom), 0, 0, 0.05) as the_geom, a."IDTRONCON" as id_troncon, a."IDROUTE" as id_route, a."NOMRUEG" as nom_route, b."TMHVLD" as lv_d, b."TMHVLS" as lv_e, b."TMHVLN" as lv_n, b."TMHPLD" * b."PCENTMPL" as mv_d,b."TMHPLS" * b."PCENTMPL" as mv_e, b."TMHPLN" * b."PCENTMPL" as mv_n, b."TMHPLD" * b."PCENTHPL" as hgv_d, b."TMHPLS" * b."PCENTHPL" as hgv_e, b."TMHPLN" * b."PCENTHPL" as hgv_n, b."TMH2RD" * b."PCENT2R4A" as wav_d,b."TMH2RS" * b."PCENT2R4A" as wav_e, b."TMH2RN" * b."PCENT2R4A" as wav_n, b."TMH2RD" * b."PCENT2R4B" as wbv_d, b."TMH2RS" * b."PCENT2R4B" as wbv_e,b."TMH2RN" * b."PCENT2R4B" as wbv_n, c."VITESSEVL" as lv_spd_d, c."VITESSEVL" as lv_spd_e, c."VITESSEVL" as lv_spd_n, c."VITESSEPL" as mv_spd_d,c."VITESSEPL" as mv_spd_e, c."VITESSEPL" as mv_spd_n, c."VITESSEPL" as hgv_spd_d,c."VITESSEPL" as hgv_spd_e, c."VITESSEPL" as hgv_spd_n, c."VITESSEVL" as wav_spd_d, c."VITESSEVL" as wav_spd_e, c."VITESSEVL" as wav_spd_n, c."VITESSEVL" as wbv_spd_d, c."VITESSEVL" as wbv_spd_e, c."VITESSEVL" as wbv_spd_n,
+    CREATE LINKED TABLE roads_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
+    '(SELECT  st_translate(st_force3dz(a.the_geom), 0, 0, 0.05) as the_geom, 
+     a."IDTRONCON" as id_troncon, a."IDROUTE" as id_route, f."NOMROUTE" as nom_route,
+     b."TMHVLD" as lv_d, b."TMHVLS" as lv_e, b."TMHVLN" as lv_n, b."TMHPLD" * b."PCENTMPL" as mv_d,b."TMHPLS" * b."PCENTMPL" as mv_e, 
+     b."TMHPLN" * b."PCENTMPL" as mv_n, b."TMHPLD" * b."PCENTHPL" as hgv_d, b."TMHPLS" * b."PCENTHPL" as hgv_e, b."TMHPLN" * b."PCENTHPL" as hgv_n, 
+     b."TMH2RD" * b."PCENT2R4A" as wav_d,b."TMH2RS" * b."PCENT2R4A" as wav_e, b."TMH2RN" * b."PCENT2R4A" as wav_n, b."TMH2RD" * b."PCENT2R4B" as wbv_d, 
+     b."TMH2RS" * b."PCENT2R4B" as wbv_e,b."TMH2RN" * b."PCENT2R4B" as wbv_n, c."VITESSEVL" as lv_spd_d, c."VITESSEVL" as lv_spd_e, 
+     c."VITESSEVL" as lv_spd_n, c."VITESSEPL" as mv_spd_d,c."VITESSEPL" as mv_spd_e, c."VITESSEPL" as mv_spd_n, c."VITESSEPL" as hgv_spd_d, 
+     c."VITESSEPL" as hgv_spd_e, c."VITESSEPL" as hgv_spd_n, c."VITESSEVL" as wav_spd_d, c."VITESSEVL" as wav_spd_e, c."VITESSEVL" as wav_spd_n, 
+     c."VITESSEVL" as wbv_spd_d, c."VITESSEVL" as wbv_spd_e, c."VITESSEVL" as wbv_spd_n,
      d."REVETEMENT" as revetement,
      d."GRANULO" as granulo,
      d."CLASSACOU" as classacou,
@@ -170,12 +179,14 @@ def exec(Connection connection, input) {
      echeance4."N_ROUTIER_TRAFIC" b,
      echeance4."N_ROUTIER_VITESSE" c,
      echeance4."N_ROUTIER_REVETEMENT" d, 
-     (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.ign_admin_express_dept_l93 e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e
+     (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.ign_admin_express_dept_l93 e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e,
+     echeance4."N_ROUTIER_ROUTE" f 
     WHERE 
      a."CBS_GITT"=''O'' and
      a."IDTRONCON"=b."IDTRONCON" and
      a."IDTRONCON"=c."IDTRONCON" and
      a."IDTRONCON"=d."IDTRONCON" and 
+     a."IDROUTE"=f."IDROUTE" and
      a.the_geom && e.the_geom and 
      ST_INTERSECTS(a.the_geom, e.the_geom))');
     CREATE TABLE ROADS AS SELECT * FROM roads_link;

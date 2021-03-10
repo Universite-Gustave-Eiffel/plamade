@@ -63,7 +63,7 @@ AS SELECT
 	st_translate(st_force3dz(a.the_geom), 0, 0, 0.05) as the_geom,
 	a."IDTRONCON" as id_troncon, 
 	a."IDROUTE" as id_route, 
-	a."NOMRUEG" as nom_route,
+	f."NOMROUTE" as nom_route,
 	b."TMHVLD" as lv_d, 
 	b."TMHVLS" as lv_e, 
 	b."TMHVLN" as lv_n,
@@ -110,12 +110,14 @@ FROM
 	echeance4."N_ROUTIER_TRAFIC" b,
 	echeance4."N_ROUTIER_VITESSE" c,
 	echeance4."N_ROUTIER_REVETEMENT" d, 
-	noisemodelling_work.dept e 
+	noisemodelling_work.dept e,
+	echeance4."N_ROUTIER_ROUTE" f  
 WHERE 
 	a."CBS_GITT"='O' and
 	a."IDTRONCON"=b."IDTRONCON" and
 	a."IDTRONCON"=c."IDTRONCON" and
 	a."IDTRONCON"=d."IDTRONCON" and 
+	a."IDROUTE"=f."IDROUTE" and
 	a.the_geom && e.the_geom and 
 	ST_INTERSECTS(a.the_geom, e.the_geom);
 

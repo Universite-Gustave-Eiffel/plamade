@@ -59,7 +59,7 @@ CREATE INDEX c_batiment_s_geom_idx ON noisemodelling."C_BATIMENT_S_l93" USING gi
 DROP TABLE IF EXISTS noisemodelling.conf;
 CREATE TABLE noisemodelling.conf (confId integer Primary Key, confReflOrder integer, confMaxSrcDist integer, confMaxReflDist integer, 
 	confDistBuildingsReceivers integer, confThreadNumber integer, confDiffVertical boolean, confDiffHorizontal boolean, 
-	confSkipLday boolean, confSkipLevening boolean, confSkipLnight boolean, confSkipLden boolean, confExportSourceId boolean);
+	confSkipLday boolean, confSkipLevening boolean, confSkipLnight boolean, confSkipLden boolean, confExportSourceId boolean, wall_alpha real);
 COMMENT ON COLUMN noisemodelling.conf.confId IS 'Configuration identifier';
 COMMENT ON COLUMN noisemodelling.conf.confReflOrder IS 'Order of reflexion';
 COMMENT ON COLUMN noisemodelling.conf.confMaxSrcDist IS 'Maximum distance between source and receiver (in meters)';
@@ -73,10 +73,11 @@ COMMENT ON COLUMN noisemodelling.conf.confSkipLevening IS 'Skip the creation of 
 COMMENT ON COLUMN noisemodelling.conf.confSkipLnight IS 'Skip the creation of the Lnight table';
 COMMENT ON COLUMN noisemodelling.conf.confSkipLden IS 'Skip the creation of the Lden table';
 COMMENT ON COLUMN noisemodelling.conf.confExportSourceId IS 'Keep source identifier in output in order to get noise contribution of each noise source';
+COMMENT ON COLUMN noisemodelling.conf.wall_alpha IS 'Ground absorption coefficient';
 
 -- Insert values
-INSERT INTO noisemodelling.conf VALUES(1, 0, 250, 50, 5, 1, false, false, true, true, true, false, true);
-INSERT INTO noisemodelling.conf VALUES(2, 0, 250, 50, 5, 1, false, false, true, true, true, false, false);
+INSERT INTO noisemodelling.conf VALUES(1, 0, 250, 50, 5, 1, false, false, true, true, true, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(2, 0, 250, 50, 5, 1, false, false, true, true, true, false, false, 0.1);
 
 ----------------------------------
 -- CONF_ROAD table
