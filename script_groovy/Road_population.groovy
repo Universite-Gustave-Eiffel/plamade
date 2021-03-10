@@ -81,10 +81,10 @@ def exec(Connection connection, input) {
     // output string, the information given back to the user
     String resultString = null
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
-    logger.info(String.format("PARAM : You have chosen to filter population exposed to more than %d ", input.dbthreshold, " db"));
-
+    logger.info(String.format("PARAM : The threshold (in dB), choosed to filter the exposed population is %d ", input.dbthreshold));
+    
     dbthreshold = input["dbthreshold"]
-
+    
     //Statement sql = connection.createStatement()
     Sql sql = new Sql(connection)
 
