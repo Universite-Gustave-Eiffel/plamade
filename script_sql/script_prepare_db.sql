@@ -48,7 +48,17 @@ CREATE TABLE noisemodelling."C_BATIMENT_S_l93" AS SELECT
 CREATE INDEX c_batiment_s_idbat_idx ON noisemodelling."C_BATIMENT_S_l93" USING btree ("IDBAT");
 CREATE INDEX c_batiment_s_geom_idx ON noisemodelling."C_BATIMENT_S_l93" USING gist (the_geom);
 
+-- For rails
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_L93";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_L93" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
+	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
+	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';	
 
+CREATE INDEX n_ferroviaire_troncon_l_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_L93" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_L93" USING gist (the_geom);
 
 ---------------------------------------------------------------------------------
 -- 3- Generate configuration and parameters tables

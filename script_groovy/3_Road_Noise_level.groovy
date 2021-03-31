@@ -66,16 +66,6 @@ inputs = [
                         '</br> </br> <b> This table can be generated from the WPS Block "Import_Asc_File". </b>',
                 min        : 0, max: 1,
                 type       : String.class
-        ],
-        tableGroundAbs          : [
-                name       : 'Ground absorption table name',
-                title      : 'Ground absorption table name',
-                description: '<b>Name of the surface/ground acoustic absorption table.</b></br>  ' +
-                        '</br>The table shall contain : </br> ' +
-                        '- <b> THE_GEOM </b> : the 2D geometry of the sources (POLYGON or MULTIPOLYGON).</br> ' +
-                        '- <b> G </b> : the acoustic absorption of a ground (FLOAT between 0 : very hard and 1 : very soft).</br> ',
-                min        : 0, max: 1,
-                type       : String.class
         ]
 ]
 
@@ -252,10 +242,8 @@ def exec(Connection connection, input) {
         if (sridDEM != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+sources_table_name+" and "+dem_table_name+" are not the same.")
     }
 
-
-    String ground_table_name = ""
-    if (input['tableGroundAbs']) {
-        ground_table_name = input['tableGroundAbs']
+    // Pointing the 'landcover' table
+    String ground_table_name = "landcover"
         // do it case-insensitive
         ground_table_name = ground_table_name.toUpperCase()
         // Check if srid are in metric projection and are all the same.
@@ -263,7 +251,6 @@ def exec(Connection connection, input) {
         if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
         if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
         if (sridGROUND != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+ground_table_name+" and "+sources_table_name+" are not the same.")
-    }
 
     // -----------------------------------------------------------------------------
     // Define and set the parameters coming from the global configuration table (CONF)
@@ -281,6 +268,7 @@ def exec(Connection connection, input) {
     boolean confSkipLnight = row_conf.confskiplnight
     boolean confSkipLden = row_conf.confskiplden
     boolean confExportSourceId = row_conf.confexportsourceid 
+    double wall_alpha = row_conf.wall_alpha.toDouble()
 
     logger.info(String.format("PARAM : You have chosen the configuration number %d ", input.confId));
     logger.info(String.format("PARAM : Reflexion order equal to %d ", reflexion_order));
@@ -294,17 +282,17 @@ def exec(Connection connection, input) {
     logger.info(String.format("PARAM : The confSkipLnight parameter is %s ", confSkipLnight));
     logger.info(String.format("PARAM : The confSkipLden parameter is %s ", confSkipLden));
     logger.info(String.format("PARAM : The confExportSourceId parameter is %s ", confExportSourceId));
+    logger.info(String.format("PARAM : The wall_alpha is equal to %s ", wall_alpha));
 
     // -----------------------------------------------------------------------------
     // Define and set the parameters coming from the ZONE table
 
     def row_zone = sql.firstRow("SELECT * FROM ZONE")
-    double wall_alpha = row_zone.wall_alpha.toDouble()
+    
     double confHumidity = row_zone.hygro_d.toDouble()
     double confTemperature = row_zone.temp_d.toDouble()
     String confFavorableOccurrences = row_zone.pfav_06_18
    
-    logger.info(String.format("PARAM : The wall_alpha is equal to %s ", wall_alpha));
     logger.info(String.format("PARAM : The relative humidity is set to %s ", confHumidity));
     logger.info(String.format("PARAM : The temperature is set to %s ", confTemperature));
     logger.info(String.format("PARAM : The pfav values are %s ", confFavorableOccurrences));
