@@ -17,48 +17,272 @@
 
 CREATE SCHEMA IF NOT EXISTS noisemodelling;
 
+---------------------------------------------------------------------------------
+-- 2- Prepare department layers, depending on projection systems
+---------------------------------------------------------------------------------
+
+-- For metropole
+DROP TABLE IF EXISTS noisemodelling.departement_2154;
+CREATE TABLE noisemodelling.departement_2154 AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, id, nom_dep, insee_dep, insee_reg 
+	FROM noisemodelling.departement_4326
+	WHERE insee_dep='01' or insee_dep='02' or insee_dep='03' or insee_dep='04' or insee_dep='05' or insee_dep='06' 
+	or insee_dep='07' or insee_dep='08' or insee_dep='09' or insee_dep='10' or insee_dep='11' or insee_dep='12' 
+	or insee_dep='13' or insee_dep='14' or insee_dep='15' or insee_dep='16' or insee_dep='17' or insee_dep='18' 
+	or insee_dep='19' or insee_dep='21' or insee_dep='22' or insee_dep='23' or insee_dep='24' or insee_dep='25' 
+	or insee_dep='26' or insee_dep='27' or insee_dep='28' or insee_dep='29' or insee_dep='2A' or insee_dep='2B' 
+	or insee_dep='30' or insee_dep='31' or insee_dep='32' or insee_dep='33' or insee_dep='34' or insee_dep='35' 
+	or insee_dep='36' or insee_dep='37' or insee_dep='38' or insee_dep='39' or insee_dep='40' or insee_dep='41' 
+	or insee_dep='42' or insee_dep='43' or insee_dep='44' or insee_dep='45' or insee_dep='46' or insee_dep='47' 
+	or insee_dep='48' or insee_dep='49' or insee_dep='50' or insee_dep='51' or insee_dep='52' or insee_dep='53' 
+	or insee_dep='54' or insee_dep='55' or insee_dep='56' or insee_dep='57' or insee_dep='58' or insee_dep='59' 
+	or insee_dep='60' or insee_dep='61' or insee_dep='62' or insee_dep='63' or insee_dep='64' or insee_dep='65' 
+	or insee_dep='66' or insee_dep='67' or insee_dep='68' or insee_dep='69' or insee_dep='70' or insee_dep='71' 
+	or insee_dep='72' or insee_dep='73' or insee_dep='74' or insee_dep='75' or insee_dep='76' or insee_dep='77' 
+	or insee_dep='78' or insee_dep='79' or insee_dep='80' or insee_dep='81' or insee_dep='82' or insee_dep='83' 
+	or insee_dep='84' or insee_dep='85' or insee_dep='86' or insee_dep='87' or insee_dep='88' or insee_dep='89' 
+	or insee_dep='90' or insee_dep='91' or insee_dep='92' or insee_dep='93' or insee_dep='94' or insee_dep='95';
+
+CREATE INDEX departement_2154_geom_idx ON noisemodelling.departement_2154 USING gist (the_geom);
+CREATE INDEX departement_2154_insee_dep_idx ON noisemodelling.departement_2154 USING btree (insee_dep);
+
+-- For Guadeloupe and Martinique
+DROP TABLE IF EXISTS noisemodelling.departement_5490;
+CREATE TABLE noisemodelling.departement_5490 AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, id, nom_dep, insee_dep, insee_reg 
+	FROM noisemodelling.departement_4326
+	WHERE insee_dep='971' or insee_dep='972';
+
+CREATE INDEX departement_5490_geom_idx ON noisemodelling.departement_5490 USING gist (the_geom);
+CREATE INDEX departement_5490_insee_dep_idx ON noisemodelling.departement_5490 USING btree (insee_dep);
+
+-- For Guyane
+DROP TABLE IF EXISTS noisemodelling.departement_2972;
+CREATE TABLE noisemodelling.departement_2972 AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, id, nom_dep, insee_dep, insee_reg 
+	FROM noisemodelling.departement_4326
+	WHERE insee_dep='973';
+
+CREATE INDEX departement_2972_geom_idx ON noisemodelling.departement_2972 USING gist (the_geom);
+CREATE INDEX departement_2972_insee_dep_idx ON noisemodelling.departement_2972 USING btree (insee_dep);
+
+-- For La Réunion
+DROP TABLE IF EXISTS noisemodelling.departement_2975;
+CREATE TABLE noisemodelling.departement_2975 AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, id, nom_dep, insee_dep, insee_reg 
+	FROM noisemodelling.departement_4326
+	WHERE insee_dep='974';
+
+CREATE INDEX departement_2975_geom_idx ON noisemodelling.departement_2975 USING gist (the_geom);
+CREATE INDEX departement_2975_insee_dep_idx ON noisemodelling.departement_2975 USING btree (insee_dep);
+
+-- For Mayotte
+DROP TABLE IF EXISTS noisemodelling.departement_4471;
+CREATE TABLE noisemodelling.departement_4471 AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, id, nom_dep, insee_dep, insee_reg 
+	FROM noisemodelling.departement_4326
+	WHERE insee_dep='976';
+
+CREATE INDEX departement_4471_geom_idx ON noisemodelling.departement_4471 USING gist (the_geom);
+CREATE INDEX departement_4471_insee_dep_idx ON noisemodelling.departement_4471 USING btree (insee_dep);
 
 ---------------------------------------------------------------------------------
--- 2- Reproject Cerema tables into Lambert 93
+-- 2- Reproject Cerema tables into the differents projection systems
 ---------------------------------------------------------------------------------
 
+--------------------------------
 -- For roads
-DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_TRONCON_L_l93";
-CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_l93" AS SELECT 
+--------------------------------
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_TRONCON_L_2154";
+CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2154" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "IDTRONCON",
 	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
 	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
 	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
 	"VALIDEFIN", "CBS_GITT"
 	FROM echeance4."N_ROUTIER_TRONCON_L" 
-	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
+	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
 
-CREATE INDEX n_routier_troncon_l_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_l93" USING btree ("IDROUTE");
-CREATE INDEX n_routier_troncon_l_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_l93" USING gist (the_geom);
+CREATE INDEX n_routier_troncon_l_2154_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2154_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING gist (the_geom);
 
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_TRONCON_L_2972";
+CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2972" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, "IDTRONCON",
+	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
+	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
+	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
+	"VALIDEFIN", "CBS_GITT"
+	FROM echeance4."N_ROUTIER_TRONCON_L" 
+	where "CODEDEPT"='973';
+
+CREATE INDEX n_routier_troncon_l_2972_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2972_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING gist (the_geom);
+
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_TRONCON_L_2975";
+CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2975" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, "IDTRONCON",
+	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
+	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
+	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
+	"VALIDEFIN", "CBS_GITT"
+	FROM echeance4."N_ROUTIER_TRONCON_L" 
+	where "CODEDEPT"='974';
+
+CREATE INDEX n_routier_troncon_l_2975_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2975_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING gist (the_geom);
+
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_TRONCON_L_4471";
+CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_4471" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, "IDTRONCON",
+	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
+	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
+	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
+	"VALIDEFIN", "CBS_GITT"
+	FROM echeance4."N_ROUTIER_TRONCON_L" 
+	where "CODEDEPT"='976';
+
+CREATE INDEX n_routier_troncon_l_4471_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_4471_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING gist (the_geom);
+
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_TRONCON_L_5490";
+CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_5490" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, "IDTRONCON",
+	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
+	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
+	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
+	"VALIDEFIN", "CBS_GITT"
+	FROM echeance4."N_ROUTIER_TRONCON_L" 
+	where "CODEDEPT"='971' or "CODEDEPT"='972';
+
+CREATE INDEX n_routier_troncon_l_5490_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_5490_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING gist (the_geom);
+
+
+--------------------------------
 -- For buildings
-DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_l93";
-CREATE TABLE noisemodelling."C_BATIMENT_S_l93" AS SELECT 
+--------------------------------
+DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_2154";
+CREATE TABLE noisemodelling."C_BATIMENT_S_2154" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, 
 	"IDBAT", "ANNEE", "CODEDEPT", "REFPROD", "ORIGIN_BAT", "BAT_IDTOPO", "BAT_HAUT", 
 	"BAT_NB_NIV", "BAT_NATURE", "BAT_PNB", "BAT_PPBE", "BAT_UUEID"
 	FROM echeance4."C_BATIMENT_S" 
-	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
+	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
 
-CREATE INDEX c_batiment_s_idbat_idx ON noisemodelling."C_BATIMENT_S_l93" USING btree ("IDBAT");
-CREATE INDEX c_batiment_s_geom_idx ON noisemodelling."C_BATIMENT_S_l93" USING gist (the_geom);
+CREATE INDEX c_batiment_s__2154_idbat_idx ON noisemodelling."C_BATIMENT_S_2154" USING btree ("IDBAT");
+CREATE INDEX c_batiment_s__2154_geom_idx ON noisemodelling."C_BATIMENT_S_2154" USING gist (the_geom);
 
+
+DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_2972";
+CREATE TABLE noisemodelling."C_BATIMENT_S_2972" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, 
+	"IDBAT", "ANNEE", "CODEDEPT", "REFPROD", "ORIGIN_BAT", "BAT_IDTOPO", "BAT_HAUT", 
+	"BAT_NB_NIV", "BAT_NATURE", "BAT_PNB", "BAT_PPBE", "BAT_UUEID"
+	FROM echeance4."C_BATIMENT_S" 
+	where "CODEDEPT"='973';
+
+CREATE INDEX c_batiment_s_2972_idbat_idx ON noisemodelling."C_BATIMENT_S_2972" USING btree ("IDBAT");
+CREATE INDEX c_batiment_s_2972_geom_idx ON noisemodelling."C_BATIMENT_S_2972" USING gist (the_geom);
+
+
+DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_2975";
+CREATE TABLE noisemodelling."C_BATIMENT_S_2975" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, 
+	"IDBAT", "ANNEE", "CODEDEPT", "REFPROD", "ORIGIN_BAT", "BAT_IDTOPO", "BAT_HAUT", 
+	"BAT_NB_NIV", "BAT_NATURE", "BAT_PNB", "BAT_PPBE", "BAT_UUEID"
+	FROM echeance4."C_BATIMENT_S" 
+	where "CODEDEPT"='974';
+
+CREATE INDEX c_batiment_s_2975_idbat_idx ON noisemodelling."C_BATIMENT_S_2975" USING btree ("IDBAT");
+CREATE INDEX c_batiment_s_2975_geom_idx ON noisemodelling."C_BATIMENT_S_2975" USING gist (the_geom);
+
+
+DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_4471";
+CREATE TABLE noisemodelling."C_BATIMENT_S_4471" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, 
+	"IDBAT", "ANNEE", "CODEDEPT", "REFPROD", "ORIGIN_BAT", "BAT_IDTOPO", "BAT_HAUT", 
+	"BAT_NB_NIV", "BAT_NATURE", "BAT_PNB", "BAT_PPBE", "BAT_UUEID"
+	FROM echeance4."C_BATIMENT_S" 
+	where "CODEDEPT"='976';
+
+CREATE INDEX c_batiment_s_4471_idbat_idx ON noisemodelling."C_BATIMENT_S_4471" USING btree ("IDBAT");
+CREATE INDEX c_batiment_s_4471_geom_idx ON noisemodelling."C_BATIMENT_S_4471" USING gist (the_geom);
+
+
+DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_5490";
+CREATE TABLE noisemodelling."C_BATIMENT_S_5490" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, 
+	"IDBAT", "ANNEE", "CODEDEPT", "REFPROD", "ORIGIN_BAT", "BAT_IDTOPO", "BAT_HAUT", 
+	"BAT_NB_NIV", "BAT_NATURE", "BAT_PNB", "BAT_PPBE", "BAT_UUEID"
+	FROM echeance4."C_BATIMENT_S" 
+	where "CODEDEPT"='971' or "CODEDEPT"='972';
+
+CREATE INDEX c_batiment_s_5490_idbat_idx ON noisemodelling."C_BATIMENT_S_5490" USING btree ("IDBAT");
+CREATE INDEX c_batiment_s_5490_geom_idx ON noisemodelling."C_BATIMENT_S_5490" USING gist (the_geom);
+
+
+--------------------------------
 -- For rails
-DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_L93";
-CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_L93" AS SELECT 
+--------------------------------
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2154";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
 	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
-	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';	
+	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" ='973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';	
 
-CREATE INDEX n_ferroviaire_troncon_l_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_L93" USING btree ("IDTRONCON");
-CREATE INDEX n_ferroviaire_troncon_l_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_L93" USING gist (the_geom);
+CREATE INDEX n_ferroviaire_troncon_l_2154_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2154_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2972";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
+	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
+	where "CODEDEPT"='973';	
+
+CREATE INDEX n_ferroviaire_troncon_l_2972_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2972_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2975";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
+	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
+	where "CODEDEPT"='974';	
+
+CREATE INDEX n_ferroviaire_troncon_l_2975_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2975_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_4471";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
+	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
+	where "CODEDEPT"='976';	
+
+CREATE INDEX n_ferroviaire_troncon_l_4471_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_4471_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_5490";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
+	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
+	where "CODEDEPT"='971' or "CODEDEPT"='972';	
+
+CREATE INDEX n_ferroviaire_troncon_l_5490_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_5490_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING gist (the_geom);
 
 ---------------------------------------------------------------------------------
 -- 3- Generate configuration and parameters tables
@@ -173,49 +397,68 @@ order by nom
 
 
 -- Create the station table, with their POINT geometry
-DROP TABLE IF EXISTS noisemodelling.station;
-CREATE TABLE noisemodelling.station (the_geom geometry (POINT, 2154), name varchar, id varchar Primary Key, insee_station varchar);
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(616373.3907217126 7001744.583853569)', 2154),'Abbeville','SURFCOMM0000000088879389','80001');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(893919.0293355002 6273725.142621572)', 2154),'Aix-en-Provence','SURFCOMM0000000041520664','13001');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(674607.5701839515 6659131.366549444)', 2154),'Avord','SURFCOMM0000000028066429','18018');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(417799.9976869353 6423990.918437644)', 2154),'Bordeaux','SURFCOMM0000000052189828','33063');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(145530.00273641292 6837477.3869183585)', 2154),'Brest','SURFCOMM0000000030001423','29019');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(454371.5118771473 6903601.663448182)', 2154),'Caen','SURFCOMM0000000028305288','14118');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(646608.1611191704 6234689.5157902)', 2154),'Carcassonne','SURFCOMM0000000082026644','11069');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(865149.1206673698 6331088.0969790565)', 2154),'Carpentras','SURFCOMM0000000039657837','84031');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(853877.7920067526 6693376.86887768)', 2154),'Dijon','SURFCOMM0000000053362260','21231');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(327178.87603466475 6848017.307727337)', 2154),'Dinard','SURFCOMM0000000049126777','35093');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(653363.0240544211 7104019.048392724)', 2154),'Dunkerque','SURFCOMM0000000256883843','59183');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(564075.9883230523 6881586.733291183)', 2154),'Évreux','SURFCOMM0000000082908132','27229');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(1004552.3764158675 6270914.394926301)', 2154),'Fréjus','SURFCOMM0000000075370462','83061');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(571502.1816703166 6405288.202799344)', 2154),'Gourdon','SURFCOMM0000000034543660','46127');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(378105.88037093764 6571019.596784672)', 2154),'La Rochelle','SURFCOMM0000000035782630','17300');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(419583.9515651179 6780101.639063162)', 2154),'Laval','SURFCOMM0000000029679566','53130');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(703330.7171756831 7059432.721058839)', 2154),'Lille','SURFCOMM0000000057564909','59350');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(564123.4842605114 6529811.830314347)', 2154),'Limoges','SURFCOMM0000000034695959','87085');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(222544.97974805092 6758220.078977364)', 2154),'Lorient','SURFCOMM0000000087808502','56121');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(951634.272585947 6752395.312970484)', 2154),'Luxeuil-les-Bains','SURFCOMM0000000048265697','70311');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(842740.5769202277 6518916.568179048)', 2154),'Lyon','SURFCOMM0000000025564961','69123');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(839914.1670596567 6581750.749848031)', 2154),'Mâcon','SURFCOMM0000000043956231','71270');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(419640.23345633235 6317366.443854319)', 2154),'Mont-de-Marsan','SURFCOMM0000000030165836','40192');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(838860.8363883786 6385394.293790727)', 2154),'Montélimar','SURFCOMM0000000026655997','26198');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(770192.1200213472 6279753.20414169)', 2154),'Montpellier','SURFCOMM0000000046595170','34172');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(933662.8902057507 6848022.89884269)', 2154),'Nancy','SURFCOMM0000000054047095','54395');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(356071.7575110152 6691211.887896891)', 2154),'Nantes','SURFCOMM0000000029999037','44109');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(1041459.8849840319 6299535.359835112)', 2154),'Nice','SURFCOMM0000000075358432','06088');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(808376.2272716055 6305993.907192477)', 2154),'Nîmes','SURFCOMM0000000036253934','30189');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(619024.1861362043 6754096.477293332)', 2154),'Orléans','SURFCOMM0000000028065065','45234');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(428173.3901694165 6252531.915747433)', 2154),'Pau','SURFCOMM0000000028107759','64445');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(691711.445832622 6177430.403179263)', 2154),'Perpignan','SURFCOMM0000000039658911','66136');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(497854.1963258736 6612669.423452804)', 2154),'Poitiers','SURFCOMM0000002001872004','86194');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(775739.6248968422 6906283.006674417)', 2154),'Reims','SURFCOMM0000000066200172','51454');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(351768.41152412945 6789360.740158863)', 2154),'Rennes','SURFCOMM0000000049126597','35238');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(843642.9525351524 6838224.707560948)', 2154),'Saint-Dizier','SURFCOMM0000000066995929','52448');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(719990.6623170109 6972100.243269524)', 2154),'Saint-Quentin','SURFCOMM0000000064722261','02691');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(1051530.0080132915 6840730.093252666)', 2154),'Strasbourg','SURFCOMM0000000051649648','67482');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(573360.7726835464 6278698.498061831)', 2154),'Toulouse','SURFCOMM0000000073650926','31555');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(526250.5969930588 6702318.560193463)', 2154),'Tours','SURFCOMM0000000035784550','37261');
-INSERT INTO noisemodelling.station VALUES(ST_GeomFromText('POINT(376070.4581367768 6944038.247843531)', 2154),'Valognes','SURFCOMM0000000029538809','50615');
+DROP TABLE IF EXISTS noisemodelling.station_2154;
+CREATE TABLE noisemodelling.station_2154 (the_geom geometry (POINT, 2154), name varchar, id varchar Primary Key, insee_station varchar);
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(616373.3907217126 7001744.583853569)', 2154),'Abbeville','SURFCOMM0000000088879389','80001');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(893919.0293355002 6273725.142621572)', 2154),'Aix-en-Provence','SURFCOMM0000000041520664','13001');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(674607.5701839515 6659131.366549444)', 2154),'Avord','SURFCOMM0000000028066429','18018');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(417799.9976869353 6423990.918437644)', 2154),'Bordeaux','SURFCOMM0000000052189828','33063');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(145530.00273641292 6837477.3869183585)', 2154),'Brest','SURFCOMM0000000030001423','29019');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(454371.5118771473 6903601.663448182)', 2154),'Caen','SURFCOMM0000000028305288','14118');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(646608.1611191704 6234689.5157902)', 2154),'Carcassonne','SURFCOMM0000000082026644','11069');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(865149.1206673698 6331088.0969790565)', 2154),'Carpentras','SURFCOMM0000000039657837','84031');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(853877.7920067526 6693376.86887768)', 2154),'Dijon','SURFCOMM0000000053362260','21231');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(327178.87603466475 6848017.307727337)', 2154),'Dinard','SURFCOMM0000000049126777','35093');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(653363.0240544211 7104019.048392724)', 2154),'Dunkerque','SURFCOMM0000000256883843','59183');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(564075.9883230523 6881586.733291183)', 2154),'Évreux','SURFCOMM0000000082908132','27229');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(1004552.3764158675 6270914.394926301)', 2154),'Fréjus','SURFCOMM0000000075370462','83061');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(571502.1816703166 6405288.202799344)', 2154),'Gourdon','SURFCOMM0000000034543660','46127');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(378105.88037093764 6571019.596784672)', 2154),'La Rochelle','SURFCOMM0000000035782630','17300');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(419583.9515651179 6780101.639063162)', 2154),'Laval','SURFCOMM0000000029679566','53130');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(703330.7171756831 7059432.721058839)', 2154),'Lille','SURFCOMM0000000057564909','59350');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(564123.4842605114 6529811.830314347)', 2154),'Limoges','SURFCOMM0000000034695959','87085');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(222544.97974805092 6758220.078977364)', 2154),'Lorient','SURFCOMM0000000087808502','56121');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(951634.272585947 6752395.312970484)', 2154),'Luxeuil-les-Bains','SURFCOMM0000000048265697','70311');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(842740.5769202277 6518916.568179048)', 2154),'Lyon','SURFCOMM0000000025564961','69123');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(839914.1670596567 6581750.749848031)', 2154),'Mâcon','SURFCOMM0000000043956231','71270');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(419640.23345633235 6317366.443854319)', 2154),'Mont-de-Marsan','SURFCOMM0000000030165836','40192');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(838860.8363883786 6385394.293790727)', 2154),'Montélimar','SURFCOMM0000000026655997','26198');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(770192.1200213472 6279753.20414169)', 2154),'Montpellier','SURFCOMM0000000046595170','34172');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(933662.8902057507 6848022.89884269)', 2154),'Nancy','SURFCOMM0000000054047095','54395');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(356071.7575110152 6691211.887896891)', 2154),'Nantes','SURFCOMM0000000029999037','44109');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(1041459.8849840319 6299535.359835112)', 2154),'Nice','SURFCOMM0000000075358432','06088');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(808376.2272716055 6305993.907192477)', 2154),'Nîmes','SURFCOMM0000000036253934','30189');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(619024.1861362043 6754096.477293332)', 2154),'Orléans','SURFCOMM0000000028065065','45234');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(428173.3901694165 6252531.915747433)', 2154),'Pau','SURFCOMM0000000028107759','64445');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(691711.445832622 6177430.403179263)', 2154),'Perpignan','SURFCOMM0000000039658911','66136');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(497854.1963258736 6612669.423452804)', 2154),'Poitiers','SURFCOMM0000002001872004','86194');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(775739.6248968422 6906283.006674417)', 2154),'Reims','SURFCOMM0000000066200172','51454');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(351768.41152412945 6789360.740158863)', 2154),'Rennes','SURFCOMM0000000049126597','35238');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(843642.9525351524 6838224.707560948)', 2154),'Saint-Dizier','SURFCOMM0000000066995929','52448');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(719990.6623170109 6972100.243269524)', 2154),'Saint-Quentin','SURFCOMM0000000064722261','02691');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(1051530.0080132915 6840730.093252666)', 2154),'Strasbourg','SURFCOMM0000000051649648','67482');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(573360.7726835464 6278698.498061831)', 2154),'Toulouse','SURFCOMM0000000073650926','31555');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(526250.5969930588 6702318.560193463)', 2154),'Tours','SURFCOMM0000000035784550','37261');
+INSERT INTO noisemodelling.station_2154 VALUES(ST_GeomFromText('POINT(376070.4581367768 6944038.247843531)', 2154),'Valognes','SURFCOMM0000000029538809','50615');
+
+
+DROP TABLE IF EXISTS noisemodelling.station_2972;
+CREATE TABLE noisemodelling.station_2972 (the_geom geometry (POINT, 2972), name varchar, id varchar Primary Key, insee_station varchar);
+INSERT INTO noisemodelling.station_2972 VALUES(ST_GeomFromText('POINT(251476.72182143063 433769.3140909409)', 2972),'Guyane','Guyane','973');
+
+DROP TABLE IF EXISTS noisemodelling.station_2975;
+CREATE TABLE noisemodelling.station_2975 (the_geom geometry (POINT, 2975), name varchar, id varchar Primary Key, insee_station varchar);
+INSERT INTO noisemodelling.station_2975 VALUES(ST_GeomFromText('POINT(347598.7498991556 7662412.132290259)', 2975),'La Réunion','La Réunion','974');
+
+DROP TABLE IF EXISTS noisemodelling.station_4471;
+CREATE TABLE noisemodelling.station_4471 (the_geom geometry (POINT, 4471), name varchar, id varchar Primary Key, insee_station varchar);
+INSERT INTO noisemodelling.station_4471 VALUES(ST_GeomFromText('POINT(516000.04191931343 8582699.651614746)', 4471),'Mayotte','Mayotte','976');
+
+DROP TABLE IF EXISTS noisemodelling.station_5490;
+CREATE TABLE noisemodelling.station_5490 (the_geom geometry (POINT, 5490), name varchar, id varchar Primary Key, insee_station varchar);
+INSERT INTO noisemodelling.station_5490 VALUES(ST_GeomFromText('POINT(656091.8730272526 1791348.535236883)', 5490),'Guadeloupe','Guadeloupe','971');
+INSERT INTO noisemodelling.station_5490 VALUES(ST_GeomFromText('POINT(713316.9527703777 1621079.7857399185)', 5490),'Martinique','Martinique','972');
+
 
 -- Create and feed the PFAV table
 DROP TABLE IF EXISTS noisemodelling.pfav;
@@ -288,7 +531,12 @@ INSERT INTO noisemodelling.pfav(station,insee_station,
  ('Strasbourg','67482',31,29,26,23,22,25,30,34,39,42,45,46,47,45,40,36,35,34,58,54,51,49,50,53,52,48,49,52,56,60,65,70,71,70,67,63,47,43,39,36,35,40,45,49,53,57,61,66,73,77,73,64,58,51,38,35,32,29,28,32,35,38,41,45,47,49,51,51,47,44,43,41), 
  ('Toulouse','31555',34,22,17,22,26,28,31,32,33,38,46,49,47,48,47,46,45,42,63,52,48,49,43,39,38,38,40,49,61,69,68,67,67,68,67,67,44,30,27,32,34,39,43,46,49,60,75,82,77,72,67,61,57,53,41,29,25,28,30,31,32,33,35,41,50,54,52,52,52,51,50,48), 
  ('Tours','37261',34,34,34,34,35,37,39,39,40,43,45,46,46,46,43,39,35,34,56,52,50,48,46,47,49,50,51,53,55,58,60,61,62,62,62,59,52,50,50,49,47,47,49,50,49,50,51,52,53,55,55,54,54,54,39,38,38,38,38,39,41,42,43,45,47,49,49,49,48,44,42,40), 
- ('Valognes','50615',37,35,33,32,30,30,31,33,35,38,41,45,48,49,49,46,42,39,61,54,49,45,44,43,44,45,46,48,53,58,61,64,65,65,65,64,58,52,47,43,40,38,39,42,44,47,51,55,59,63,66,65,63,61,43,40,37,35,34,33,34,36,38,40,44,48,51,52,53,51,48,45);
+ ('Valognes','50615',37,35,33,32,30,30,31,33,35,38,41,45,48,49,49,46,42,39,61,54,49,45,44,43,44,45,46,48,53,58,61,64,65,65,65,64,58,52,47,43,40,38,39,42,44,47,51,55,59,63,66,65,63,61,43,40,37,35,34,33,34,36,38,40,44,48,51,52,53,51,48,45),
+ ('Guadeloupe','971',50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50),
+ ('Martinique','972',50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50),
+ ('Guyane','973',50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50),
+ ('La Réunion','974',50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50),
+ ('Mayotte','976',50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50);
 
 ALTER TABLE noisemodelling.pfav ADD COLUMN pfav_06_18 varchar;
 UPDATE noisemodelling.pfav SET pfav_06_18 = ROUND((pfav_06_18_020::numeric/100),2) || ', '|| ROUND((pfav_06_18_040::numeric/100),2) || ', '|| ROUND((pfav_06_18_060::numeric/100),2) || ', '|| ROUND((pfav_06_18_080::numeric/100),2) || ', '|| ROUND((pfav_06_18_100::numeric/100),2) || ', '|| ROUND((pfav_06_18_120::numeric/100),2) || ', '|| ROUND((pfav_06_18_140::numeric/100),2) || ', '|| ROUND((pfav_06_18_160::numeric/100),2) || ', '|| ROUND((pfav_06_18_180::numeric/100),2) || ', '|| ROUND((pfav_06_18_200::numeric/100),2) || ', '|| ROUND((pfav_06_18_220::numeric/100),2) || ', '|| ROUND((pfav_06_18_240::numeric/100),2) || ', '|| ROUND((pfav_06_18_260::numeric/100),2) || ', '|| ROUND((pfav_06_18_280::numeric/100),2) || ', '|| ROUND((pfav_06_18_300::numeric/100),2) || ', '|| ROUND((pfav_06_18_320::numeric/100),2) || ', '|| ROUND((pfav_06_18_340::numeric/100),2) || ', '|| ROUND((pfav_06_18_360::numeric/100),2);
@@ -305,13 +553,33 @@ UPDATE noisemodelling.pfav SET pfav_06_22 = ROUND((pfav_06_22_020::numeric/100),
 
 
 -- Join Stations and their PFAV values
-DROP TABLE IF EXISTS noisemodelling.station_pfav;
-CREATE TABLE  noisemodelling.station_pfav AS SELECT a.the_geom, a.id, b.* 
-FROM noisemodelling.station a, noisemodelling.pfav b
+DROP TABLE IF EXISTS noisemodelling.station_pfav_2154;
+CREATE TABLE  noisemodelling.station_pfav_2154 AS SELECT a.the_geom, a.id, b.* 
+FROM noisemodelling.station_2154 a, noisemodelling.pfav b
+WHERE a.insee_station = b.insee_station;
+
+DROP TABLE IF EXISTS noisemodelling.station_pfav_2972;
+CREATE TABLE  noisemodelling.station_pfav_2972 AS SELECT a.the_geom, a.id, b.* 
+FROM noisemodelling.station_2972 a, noisemodelling.pfav b
+WHERE a.insee_station = b.insee_station;
+
+DROP TABLE IF EXISTS noisemodelling.station_pfav_2975;
+CREATE TABLE  noisemodelling.station_pfav_2975 AS SELECT a.the_geom, a.id, b.* 
+FROM noisemodelling.station_2975 a, noisemodelling.pfav b
+WHERE a.insee_station = b.insee_station;
+
+DROP TABLE IF EXISTS noisemodelling.station_pfav_4471;
+CREATE TABLE  noisemodelling.station_pfav_4471 AS SELECT a.the_geom, a.id, b.* 
+FROM noisemodelling.station_4471 a, noisemodelling.pfav b
+WHERE a.insee_station = b.insee_station;
+
+DROP TABLE IF EXISTS noisemodelling.station_pfav_5490;
+CREATE TABLE  noisemodelling.station_pfav_5490 AS SELECT a.the_geom, a.id, b.* 
+FROM noisemodelling.station_5490 a, noisemodelling.pfav b
 WHERE a.insee_station = b.insee_station;
 
 
-DROP TABLE IF EXISTS noisemodelling.station, noisemodelling.pfav;
+DROP TABLE IF EXISTS noisemodelling.station_2154, noisemodelling.station_2972, noisemodelling.station_2975, noisemodelling.station_4471, noisemodelling.station_5490, noisemodelling.pfav;
 
 
 -- In the C_METEO_S table
