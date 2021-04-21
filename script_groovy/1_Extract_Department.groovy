@@ -28,6 +28,12 @@ import groovy.sql.Sql
 
 import java.sql.Connection
 
+
+
+import java.sql.Statement
+import org.h2gis.utilities.JDBCUtilities
+import org.h2gis.utilities.TableLocation
+
 title = 'Extract department'
 description = 'Connect to a distant PostGIS database and extract departments according to Plamade specification'
 
@@ -99,9 +105,39 @@ def run(input) {
 
 def exec(Connection connection, input) {
 
+
+    //------------------------------------------------------
+    // Clean the database before starting the importation
+
+    List<String> ignorelst = ["SPATIAL_REF_SYS", "GEOMETRY_COLUMNS"]
+
+    // Build the result string with every tables
+    StringBuilder sb = new StringBuilder()
+
+    // Get every table names
+    List<String> tables = JDBCUtilities.getTableNames(connection.getMetaData(), null, "PUBLIC", "%", null)
+
+    // Loop over the tables
+    tables.each { t ->
+        TableLocation tab = TableLocation.parse(t)
+            if (!ignorelst.contains(tab.getTable())) {
+                // Add the name of the table in the string builder
+                if (sb.size() > 0) {
+                    sb.append(" || ")
+                }
+                sb.append(tab.getTable())
+                // Create a connection statement to interact with the database in SQL
+                Statement stmt = connection.createStatement()
+                // Drop the table
+                stmt.execute("drop table if exists " + tab)
+            }
+    }
+
+    //------------------------------------------------------
+
+
     // output string, the information given back to the user
     String resultString = null
-
 
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
@@ -123,6 +159,7 @@ def exec(Connection connection, input) {
 
 
     // Declare table variables depending on the department and the projection system
+    def srid = "2154"
     def table_station = "station_pfav_2154"
     def table_dept = "ign_admin_express_dept_l93"
     def table_route = "N_ROUTIER_TRONCON_L_2154" 
@@ -131,6 +168,7 @@ def exec(Connection connection, input) {
     def table_land = "C_NATURESOL_S_2154"
 
     if(codeDep=='971' || codeDep=='972') {
+        srid="5490"
         table_station = "station_pfav_5490"
         table_dept = "departement_5490"
         table_route = "N_ROUTIER_TRONCON_L_5490"
@@ -139,6 +177,7 @@ def exec(Connection connection, input) {
         table_land = "C_NATURESOL_S_5490"
     }
     else if(codeDep=='973') {
+        srid="2972"
         table_station = "station_pfav_2972"
         table_dept = "departement_2972"
         table_route = "N_ROUTIER_TRONCON_L_2972"
@@ -147,6 +186,7 @@ def exec(Connection connection, input) {
         table_land = "C_NATURESOL_S_2972"
     }
     else if(codeDep=='974') {
+        srid="2975"
         table_station = "station_pfav_2975"
         table_dept = "departement_2975"
         table_route = "N_ROUTIER_TRONCON_L_2975"
@@ -155,6 +195,7 @@ def exec(Connection connection, input) {
         table_land = "C_NATURESOL_S_2975"
     }
     else if(codeDep=='976') {
+        srid="4471"
         table_station = "station_pfav_4471"
         table_dept = "departement_4471"
         table_route = "N_ROUTIER_TRONCON_L_4471"
@@ -162,6 +203,7 @@ def exec(Connection connection, input) {
         table_bati = "C_BATIMENT_S_4471"
         table_land = "C_NATURESOL_S_4471"
     }
+
 
     def sql = new Sql(connection)
 
@@ -394,6 +436,7 @@ def exec(Connection connection, input) {
     
 	DROP TABLE buildings_geom, buildings_erps, allbuildings_link, allbuildings_erps_link;
 
+
 	----------------------------------
 	-- Manage Landcover
     
@@ -417,8 +460,39 @@ def exec(Connection connection, input) {
     DROP TABLE alllandcover_link;
 
     DROP TABLE PVMT, INFRA;
-    """
 
+
+    ----------------------------------
+    -- Manage statitics
+    
+    DROP TABLE IF EXISTS stat_road_fr_link, stat_road_fr;
+    CREATE LINKED TABLE stat_road_fr_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
+        '(SELECT * 
+        FROM noisemodelling.stat_road 
+        WHERE codedept=lpad(''$codeDep'',3,''0''))');
+
+    CREATE TABLE stat_road_fr AS SELECT * FROM stat_road_fr_link;
+
+    DROP TABLE stat_road_fr_link;
+
+    DROP TABLE IF EXISTS stat_building_fr_link, stat_building_fr;
+    CREATE LINKED TABLE stat_building_fr_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
+        '(SELECT * 
+        FROM noisemodelling.stat_building 
+        WHERE codedept=lpad(''$codeDep'',3,''0''))');
+
+    CREATE TABLE stat_building_fr AS SELECT * FROM stat_building_fr_link;
+
+    DROP TABLE stat_building_fr_link;
+
+
+    DROP TABLE IF EXISTS departement_link;
+    CREATE LINKED TABLE departement_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+        '(SELECT id, nom_dep, insee_dep, insee_reg 
+        FROM noisemodelling.$table_dept 
+        WHERE insee_dep=''$codeDep'')');
+
+    """
 
     def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep]
 
@@ -426,8 +500,99 @@ def exec(Connection connection, input) {
     def template = engine.createTemplate(queries).make(binding)
 
     sql.execute(template.toString())
+
+    // ------------------------------------------------------------
+    // Rapport part
+    def dept_name=sql.firstRow("SELECT nom_dep FROM departement_link;")[0] as String
+
+    def stat_roads_track=sql.firstRow("SELECT NB_TRACK FROM stat_road_fr;")[0] as Integer
+    def stat_roads_track_cbsgitt=sql.firstRow("SELECT CBS_GITT_O FROM stat_road_fr;")[0] as Integer
+
+    def nb_roads_track=sql.firstRow("SELECT COUNT(*) FROM ROADS;")[0] as Integer
+    def nb_roads=sql.firstRow("SELECT COUNT(DISTINCT ID_ROUTE) FROM ROADS;")[0] as Integer
+
+    def stat_building_nb=sql.firstRow("SELECT nb_building FROM stat_building_fr;")[0] as Integer
+
+    def nb_build=sql.firstRow("SELECT COUNT(*) FROM BUILDINGS;")[0] as Integer
+    def nb_build_h0=sql.firstRow("SELECT COUNT(*) FROM BUILDINGS WHERE HEIGHT=0;")[0] as Integer
+    def nb_build_hnull=sql.firstRow("SELECT COUNT(*) FROM BUILDINGS WHERE HEIGHT is NULL;")[0] as Integer
+    def nb_build_id_erps=sql.firstRow("SELECT COUNT(*) FROM BUILDINGS WHERE id_erps is NOT NULL;")[0] as Integer
+    def nb_build_pop=sql.firstRow("SELECT SUM(pop) FROM BUILDINGS;")[0] as Integer
+
+    def nb_rail_sections=sql.firstRow("SELECT COUNT(*) FROM RAIL_SECTIONS;")[0] as Integer
+    def nb_rail_trafic=sql.firstRow("SELECT COUNT(*) FROM RAIL_TRAFIC;")[0] as Integer
+
+    def nb_land=sql.firstRow("SELECT COUNT(*) FROM LANDCOVER;")[0] as Integer
+
+    def rapport = """
+        <h3>Département n°$codeDep ($dept_name)</h3>
+        <hr>
+        - Les tables <code>BUILDINGS</code>, <code>ROADS</code>, <code>RAIL_SECTIONS</code>, <code>RAIL_TRAFIC</code>, 
+        <code>LANDCOVER</code>, <code>ZONE</code> et <code>CONF</code> ont bien été importées.
+        </br></br>
+        - Système de projection : EPSG:$srid 
+        </br></br>
+        - Distance de sélection autour du département et des infrastructures : $buffer m <br/>
+        
+        <hr>
+        <h4>Statistiques</h4>
+
+        À l'échelle du département seul (sans le buffer de $buffer m) et sans filtrage
+        <ul>
+            <li>Nombre de bâtiments : $stat_building_nb</li>
+            <li>Nombre de tronçons routier : $stat_roads_track</li>
+            <li>Nombre de tronçons routier utilisables : $stat_roads_track_cbsgitt</li>       
+        </ul>
+
+
+        Données retenues pour la production de CBS (À l'échelle du département plus les $buffer m de buffer plus les filtres attributaires)
+
+        <h5>Table <code>BUILDINGS</code></h5>
+        <ul>
+            <li>Nombre de bâtiments : $nb_build</li>
+            <li>Nombre avec hauteur = 0 : $nb_build_h0</li>
+            <li>Nombre sans hauteur : $nb_build_hnull</li>
+            <li>Nombre de bâtiments sensibles : $nb_build_id_erps</li>
+            <li>Total population considérée : $nb_build_pop</li>
+            
+        </ul>
+
+        <h5>Table <code>ROADS</code></h5>
+        <ul>
+            <li>Nombre de tronçons: $nb_roads_track</li>
+            <li>Nombre de tronçons utilisables pour la carte: $stat_roads_track_cbsgitt</li>
+            <li>Nombre de routes: $nb_roads</li>
+        </ul>
+
+        <h5>Table <code>RAIL_SECTIONS</code></h5>
+        <ul>
+            <li>Nombre de tronçons : $nb_rail_sections</li>
+        </ul>
+
+        <h5>Table <code>RAIL_TRAFIC</code></h5>
+        <ul>
+            <li>Nombre : $nb_rail_trafic</li>
+        </ul>
+
+        <h5>Table <code>LANDCOVER</code></h5>
+        <ul>
+            <li>Nombre de zones : $nb_land</li>
+        </ul>
+
+        <br>
+        Pour plus de détails, veuillez consulter les tables suivantes :
+        <ul>
+            <li>BUILDINGS &rarr; <code>STAT_BUILDING</code></li>
+            <li>ROADS &rarr; <code>STAT_ROAD</code></li>
+            <li>RAIL_SECTIONS &rarr; <code></code></li>
+            <li>RAIL_TRAFIC &rarr; <code></code></li>
+            <li>LANDCOVER &rarr; <code>STAT_LANDCOVER</code></li>
+        </ul>
+
+    """
+    def bindingRapport = ["stat_roads_track" : stat_roads_track, "stat_roads_track_cbsgitt" : stat_roads_track_cbsgitt, "nb_roads_track" : nb_roads_track, "nb_roads" : nb_roads, "nb_build" : nb_build, "nb_build_h0" : nb_build_h0, "nb_build_hnull" : nb_build_hnull, "nb_build_id_erps" : nb_build_id_erps, "nb_build_pop" : nb_build_pop, "nb_rail_sections" : nb_rail_sections, "nb_rail_trafic" : nb_rail_trafic, "nb_land" : nb_land, "buffer": buffer, "codeDep": codeDep, "dept_name" : dept_name, "srid" : srid]
+    def templateRapport = engine.createTemplate(rapport).make(bindingRapport)
+
     // print to WPS Builder
-    return "Table BUILDINGS, ROADS, RAILS_SECTIONS, RAIL_TRAFIC, LANDCOVER, ZONE and CONF imported"
-
+    return templateRapport.toString()
 }
-
