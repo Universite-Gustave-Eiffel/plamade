@@ -164,6 +164,71 @@ CREATE INDEX n_routier_troncon_l_5490_geom_idx ON noisemodelling."N_ROUTIER_TRON
 
 
 --------------------------------
+-- For roads protections
+--------------------------------
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2154";
+CREATE TABLE noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2154" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDROUTE", "NOMROUTE", "INSEECOMD", "INSEECOMF", "REFSOURCE", "MILLSOURCE", 
+	"IDSOURCE", "TYPEPROT", "NOMPROT", "PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", 
+	"MATERIAU2", "ACCESSOIRE", "VEGETALISE", "INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_ROUTIER_PROTECTION_ACOUSTIQUE_L" 
+	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
+
+CREATE INDEX n_routier_protection_acoustique_l_2154_idbat_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2154" USING btree ("IDPROTACOU");
+CREATE INDEX n_routier_protection_acoustique_l_2154_geom_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2154" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2972";
+CREATE TABLE noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2972" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDROUTE", "NOMROUTE", "INSEECOMD", "INSEECOMF", "REFSOURCE", "MILLSOURCE", 
+	"IDSOURCE", "TYPEPROT", "NOMPROT", "PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", 
+	"MATERIAU2", "ACCESSOIRE", "VEGETALISE", "INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_ROUTIER_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='973';
+
+CREATE INDEX n_routier_protection_acoustique_l_2972_idbat_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2972" USING btree ("IDPROTACOU");
+CREATE INDEX n_routier_protection_acoustique_l_2972_geom_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2972" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2975";
+CREATE TABLE noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2975" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDROUTE", "NOMROUTE", "INSEECOMD", "INSEECOMF", "REFSOURCE", "MILLSOURCE", 
+	"IDSOURCE", "TYPEPROT", "NOMPROT", "PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", 
+	"MATERIAU2", "ACCESSOIRE", "VEGETALISE", "INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_ROUTIER_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='974';
+
+CREATE INDEX n_routier_protection_acoustique_l_2975_idbat_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2975" USING btree ("IDPROTACOU");
+CREATE INDEX n_routier_protection_acoustique_l_2975_geom_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2975" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_4471";
+CREATE TABLE noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_4471" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDROUTE", "NOMROUTE", "INSEECOMD", "INSEECOMF", "REFSOURCE", "MILLSOURCE", 
+	"IDSOURCE", "TYPEPROT", "NOMPROT", "PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", 
+	"MATERIAU2", "ACCESSOIRE", "VEGETALISE", "INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_ROUTIER_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='976';
+
+CREATE INDEX n_routier_protection_acoustique_l_4471_idbat_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_4471" USING btree ("IDPROTACOU");
+CREATE INDEX n_routier_protection_acoustique_l_4471_geom_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_4471" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_5490";
+CREATE TABLE noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_5490" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDROUTE", "NOMROUTE", "INSEECOMD", "INSEECOMF", "REFSOURCE", "MILLSOURCE", 
+	"IDSOURCE", "TYPEPROT", "NOMPROT", "PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", 
+	"MATERIAU2", "ACCESSOIRE", "VEGETALISE", "INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_ROUTIER_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='971' or "CODEDEPT"='972';
+
+CREATE INDEX n_routier_protection_acoustique_l_5490_idbat_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_5490" USING btree ("IDPROTACOU");
+CREATE INDEX n_routier_protection_acoustique_l_5490_geom_idx ON noisemodelling."N_ROUTIER_PROTECTION_ACOUSTIQUE_L_5490" USING gist (the_geom);
+
+
+--------------------------------
 -- For buildings
 --------------------------------
 DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_2154";
@@ -174,8 +239,8 @@ CREATE TABLE noisemodelling."C_BATIMENT_S_2154" AS SELECT
 	FROM echeance4."C_BATIMENT_S" 
 	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
 
-CREATE INDEX c_batiment_s__2154_idbat_idx ON noisemodelling."C_BATIMENT_S_2154" USING btree ("IDBAT");
-CREATE INDEX c_batiment_s__2154_geom_idx ON noisemodelling."C_BATIMENT_S_2154" USING gist (the_geom);
+CREATE INDEX c_batiment_s_2154_idbat_idx ON noisemodelling."C_BATIMENT_S_2154" USING btree ("IDBAT");
+CREATE INDEX c_batiment_s_2154_geom_idx ON noisemodelling."C_BATIMENT_S_2154" USING gist (the_geom);
 
 
 DROP TABLE IF EXISTS noisemodelling."C_BATIMENT_S_2972";
@@ -283,6 +348,125 @@ CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" AS SELECT
 
 CREATE INDEX n_ferroviaire_troncon_l_5490_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING btree ("IDTRONCON");
 CREATE INDEX n_ferroviaire_troncon_l_5490_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING gist (the_geom);
+
+
+--------------------------------
+-- For rail protections
+--------------------------------
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2154";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2154" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDLIGNE", "NUMLIGNE", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "TYPEPROT", "NOMPROT",
+	"PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", "MATERIAU2", "ACCESSOIRE", "VEGETALISE",
+	"INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L" 
+	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
+
+CREATE INDEX n_ferroviaire_protection_acoustique_l_2154_idbat_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2154" USING btree ("IDPROTACOU");
+CREATE INDEX n_ferroviaire_protection_acoustique_l_2154_geom_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2154" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2972";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2972" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDLIGNE", "NUMLIGNE", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "TYPEPROT", "NOMPROT",
+	"PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", "MATERIAU2", "ACCESSOIRE", "VEGETALISE",
+	"INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='973';
+
+CREATE INDEX n_ferroviaire_protection_acoustique_l_2972_idbat_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2972" USING btree ("IDPROTACOU");
+CREATE INDEX n_ferroviaire_protection_acoustique_l_2972_geom_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2972" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2975";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2975" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDLIGNE", "NUMLIGNE", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "TYPEPROT", "NOMPROT",
+	"PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", "MATERIAU2", "ACCESSOIRE", "VEGETALISE",
+	"INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='974';
+
+CREATE INDEX n_ferroviaire_protection_acoustique_l_2975_idbat_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2975" USING btree ("IDPROTACOU");
+CREATE INDEX n_ferroviaire_protection_acoustique_l_2975_geom_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2975" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_4471";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_4471" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDLIGNE", "NUMLIGNE", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "TYPEPROT", "NOMPROT",
+	"PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", "MATERIAU2", "ACCESSOIRE", "VEGETALISE",
+	"INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='976';
+
+CREATE INDEX n_ferroviaire_protection_acoustique_l_4471_idbat_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_4471" USING btree ("IDPROTACOU");
+CREATE INDEX n_ferroviaire_protection_acoustique_l_4471_geom_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_4471" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_5490";
+CREATE TABLE noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_5490" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, 
+	"IDPROTACOU", "ANNEE", "CODEDEPT", "REFPROD", "IDLIGNE", "NUMLIGNE", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "TYPEPROT", "NOMPROT",
+	"PRDEB", "PRFIN", "LONGUEUR", "ZDEB", "ZFIN", "HAUTEUR", "PROPRIETE", "MATERIAU1", "MATERIAU2", "ACCESSOIRE", "VEGETALISE",
+	"INCLINAISO", "SUPPORT", "VALIDEDEB", "VALIDEFIN"
+	FROM echeance4."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L" 
+	where "CODEDEPT"='971' or "CODEDEPT"='972';
+
+CREATE INDEX n_ferroviaire_protection_acoustique_l_5490_idbat_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_5490" USING btree ("IDPROTACOU");
+CREATE INDEX n_ferroviaire_protection_acoustique_l_5490_geom_idx ON noisemodelling."N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_5490" USING gist (the_geom);
+
+
+--------------------------------
+-- For NATURE_SOL
+--------------------------------
+DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_2154";
+CREATE TABLE noisemodelling."C_NATURESOL_S_2154" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, 
+	"IDNATSOL", "ANNEE", "CODEDEPT", "REFPROD", "NATSOL_CLC", "NATSOL_CNO", "NATSOL_LIB"
+	FROM echeance4."C_NATURESOL_S" 
+	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
+
+CREATE INDEX c_nature_sol_s_2154_idbat_idx ON noisemodelling."C_NATURESOL_S_2154" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2154_geom_idx ON noisemodelling."C_NATURESOL_S_2154" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_2972";
+CREATE TABLE noisemodelling."C_NATURESOL_S_2972" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, 
+	"IDNATSOL", "ANNEE", "CODEDEPT", "REFPROD", "NATSOL_CLC", "NATSOL_CNO", "NATSOL_LIB"
+	FROM echeance4."C_NATURESOL_S" 
+	where "CODEDEPT"='973';
+
+CREATE INDEX c_nature_sol_s_2972_idbat_idx ON noisemodelling."C_NATURESOL_S_2972" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2972_geom_idx ON noisemodelling."C_NATURESOL_S_2972" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_2975";
+CREATE TABLE noisemodelling."C_NATURESOL_S_2975" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, 
+	"IDNATSOL", "ANNEE", "CODEDEPT", "REFPROD", "NATSOL_CLC", "NATSOL_CNO", "NATSOL_LIB"
+	FROM echeance4."C_NATURESOL_S" 
+	where "CODEDEPT"='974';
+
+CREATE INDEX c_nature_sol_s_2975_idbat_idx ON noisemodelling."C_NATURESOL_S_2975" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2975_geom_idx ON noisemodelling."C_NATURESOL_S_2975" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_4471";
+CREATE TABLE noisemodelling."C_NATURESOL_S_4471" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, 
+	"IDNATSOL", "ANNEE", "CODEDEPT", "REFPROD", "NATSOL_CLC", "NATSOL_CNO", "NATSOL_LIB"
+	FROM echeance4."C_NATURESOL_S" 
+	where "CODEDEPT"='976';
+
+CREATE INDEX c_nature_sol_s_4471_idbat_idx ON noisemodelling."C_NATURESOL_S_4471" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_4471_geom_idx ON noisemodelling."C_NATURESOL_S_4471" USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_5490";
+CREATE TABLE noisemodelling."C_NATURESOL_S_5490" AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, 
+	"IDNATSOL", "ANNEE", "CODEDEPT", "REFPROD", "NATSOL_CLC", "NATSOL_CNO", "NATSOL_LIB"
+	FROM echeance4."C_NATURESOL_S" 
+	where "CODEDEPT"='971' or "CODEDEPT"='972';
+
+CREATE INDEX c_nature_sol_s_5490_idbat_idx ON noisemodelling."C_NATURESOL_S_5490" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_5490_geom_idx ON noisemodelling."C_NATURESOL_S_5490" USING gist (the_geom);
 
 ---------------------------------------------------------------------------------
 -- 3- Generate configuration and parameters tables
@@ -591,8 +775,13 @@ ALTER TABLE echeance4."C_METEO_S"
 	ADD COLUMN hygro_d integer DEFAULT 70, 
 	ADD COLUMN hygro_e integer DEFAULT 70,
 	ADD COLUMN hygro_n integer DEFAULT 70,
-	ADD COLUMN wall_alpha integer DEFAULT 0.1,
 	ADD COLUMN ts_stud integer DEFAULT 0,
 	ADD COLUMN pm_stud integer DEFAULT 0;
 */
+
+-- Ajoute de la zone de test 99
+INSERT INTO echeance4."C_METEO_S"
+(the_geom, "IDMETEO", "ANNEE", "CODEDEPT", "REFPROD", "METEO_STAT", "METEO_FORF", temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, ts_stud, pm_stud)
+VALUES('SRID=4326;MULTIPOLYGON (((1.0769657607598977 49.39519023880368, 1.0789366638225655 49.359228601592946, 1.141578475165842 49.35979664299892, 1.140603471450398 49.39556824356913, 1.0769657607598977 49.39519023880368)))'::geometry, 999, 'test', '099', 'test', 'test', 'T', 15, 10, 5, 70, 70, 70, 0, 0);
+
 

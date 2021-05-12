@@ -152,7 +152,7 @@ def exec(Connection connection, input) {
         buffer = input["fetchDistance"] as Integer
     }
 
-    def databaseUrl = "jdbc:postgresql_h2://plamade.noise-planet.org:5433/plamade_2021_02?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    def databaseUrl = "jdbc:postgresql_h2://plamade.noise-planet.org:5433/plamade_2021_05_03?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
     //def databaseUrl = input["databaseUrl"] as String
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
@@ -165,6 +165,8 @@ def exec(Connection connection, input) {
     def table_route = "N_ROUTIER_TRONCON_L_2154" 
     def table_rail = "N_FERROVIAIRE_TRONCON_L_2154"
     def table_bati = "C_BATIMENT_S_2154"
+    def table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2154"
+    def table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2154"
     def table_land = "C_NATURESOL_S_2154"
 
     if(codeDep=='971' || codeDep=='972') {
@@ -174,6 +176,8 @@ def exec(Connection connection, input) {
         table_route = "N_ROUTIER_TRONCON_L_5490"
         table_rail = "N_FERROVIAIRE_TRONCON_L_5490"
         table_bati = "C_BATIMENT_S_5490"
+        table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_5490"
+        table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_5490"
         table_land = "C_NATURESOL_S_5490"
     }
     else if(codeDep=='973') {
@@ -183,6 +187,8 @@ def exec(Connection connection, input) {
         table_route = "N_ROUTIER_TRONCON_L_2972"
         table_rail = "N_FERROVIAIRE_TRONCON_L_2972"
         table_bati = "C_BATIMENT_S_2972"
+        table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2972"
+        table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2972"
         table_land = "C_NATURESOL_S_2972"
     }
     else if(codeDep=='974') {
@@ -192,6 +198,8 @@ def exec(Connection connection, input) {
         table_route = "N_ROUTIER_TRONCON_L_2975"
         table_rail = "N_FERROVIAIRE_TRONCON_L_2975"
         table_bati = "C_BATIMENT_S_2975"
+        table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2975"
+        table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2975"
         table_land = "C_NATURESOL_S_2975"
     }
     else if(codeDep=='976') {
@@ -201,6 +209,8 @@ def exec(Connection connection, input) {
         table_route = "N_ROUTIER_TRONCON_L_4471"
         table_rail = "N_FERROVIAIRE_TRONCON_L_4471"
         table_bati = "C_BATIMENT_S_4471"
+        table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_4471"
+        table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_4471"
         table_land = "C_NATURESOL_S_4471"
     }
 
@@ -257,9 +267,9 @@ def exec(Connection connection, input) {
     
     DROP TABLE IF EXISTS dept_meteo;
     CREATE LINKED TABLE dept_meteo ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
-        '(SELECT codedept, temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, ts_stud, pm_stud 
-        FROM echeance4."C_METEO_S_FRANCE" 
-        WHERE codedept=lpad(''$codeDep'',3,''0''))');
+        '(SELECT "CODEDEPT" as codedept, temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, ts_stud, pm_stud 
+        FROM echeance4."C_METEO_S" 
+        WHERE "CODEDEPT"=lpad(''$codeDep'',3,''0''))');
     
     DROP TABLE IF EXISTS zone;
     CREATE TABLE zone AS SELECT 
@@ -433,9 +443,114 @@ def exec(Connection connection, input) {
 	-- Merge both geom and ERPS tables into builings table
 	CREATE TABLE buildings as SELECT a.the_geom, a.id_bat, a.height, a.pop, b.id_erps FROM buildings_geom a LEFT JOIN buildings_erps b ON a.id_bat = b.id_bat;
     ALTER TABLE buildings ADD COLUMN pk serial PRIMARY KEY;
+    ALTER TABLE buildings ADD COLUMN g float DEFAULT 0.1;
+    ALTER TABLE buildings ADD COLUMN origin varchar DEFAULT 'building';
     
 	DROP TABLE buildings_geom, buildings_erps, allbuildings_link, allbuildings_erps_link;
 
+
+    ----------------------------------
+    -- Manage acoustic screenss
+
+    -- For roads
+
+    DROP TABLE IF EXISTS road_screens_link, road_screens;
+
+    CREATE LINKED TABLE road_screens_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+    '(SELECT
+        a.the_geom,
+        a."IDPROTACOU" as id_bat,
+        a."HAUTEUR" as height,
+        a."PROPRIETE" as propriete,
+        a."MATERIAU1" as materiau1
+    FROM 
+        noisemodelling."$table_route_protect" a,
+        (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e
+    WHERE
+        a.the_geom && e.the_geom and 
+        ST_INTERSECTS(a.the_geom, e.the_geom))');
+
+    CREATE TABLE road_screens AS SELECT * FROM road_screens_link;
+    ALTER TABLE road_screens ADD COLUMN origin varchar DEFAULT 'road';
+
+    DELETE FROM road_screens B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+
+    -- For rail
+
+    DROP TABLE IF EXISTS rail_screens_link, rail_screens;
+
+    CREATE LINKED TABLE rail_screens_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+    '(SELECT
+        a.the_geom,
+        a."IDPROTACOU" as id_bat,
+        a."HAUTEUR" as height,
+        a."PROPRIETE" as propriete,
+        a."MATERIAU1" as materiau1        
+    FROM 
+        noisemodelling."$table_rail_protect" a,
+        (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e
+    WHERE
+        a.the_geom && e.the_geom and 
+        ST_INTERSECTS(a.the_geom, e.the_geom))');
+
+    CREATE TABLE rail_screens AS SELECT * FROM rail_screens_link;
+    ALTER TABLE rail_screens ADD COLUMN origin varchar DEFAULT 'rail';
+
+    DELETE FROM rail_screens B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+
+
+    -- Merge both screens tables
+    DROP TABLE IF EXISTS screens;
+    CREATE TABLE screens AS SELECT * FROM road_screens UNION ALL SELECT * FROM rail_screens;
+
+    ALTER TABLE screens ADD COLUMN g float DEFAULT 0;
+    UPDATE screens SET g = 0.7 WHERE propriete = '01';
+    UPDATE screens SET g = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
+
+    ALTER TABLE screens ADD COLUMN pop integer DEFAULT 0;
+    ALTER TABLE screens ADD COLUMN id_erps integer DEFAULT 0;
+    ALTER TABLE screens ADD COLUMN pk serial PRIMARY KEY;
+    CREATE SPATIAL INDEX ON screens(the_geom);
+
+    DROP TABLE road_screens_link, road_screens, rail_screens_link, rail_screens;
+
+
+    ----------------------------------
+    -- Merge buildings and screenss
+
+    DROP TABLE IF EXISTS tmp_relation_screen_building, tmp_screen_truncated, tmp_screens, tmp_buffered_screens, buildings_screens;
+
+    CREATE TABLE tmp_relation_screen_building AS SELECT b.pk as pk_building, s.pk as pk_screen 
+        FROM buildings b, screens s 
+        WHERE b.the_geom && s.the_geom AND ST_Distance(b.the_geom, s.the_geom) <= 0.5;
+
+    -- For intersecting screens, remove parts closer than distance_truncate_screens
+    CREATE TABLE tmp_screen_truncated AS SELECT pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 0.5)) the_geom, s.id_bat, s.height, s.pop, s.id_erps, s.g, s.origin 
+        FROM tmp_relation_screen_building r, buildings b, screens s 
+        WHERE pk_building = b.pk AND pk_screen = s.pk 
+        GROUP BY pk_screen, s.id_bat, s.height, s.pop, s.id_erps, s.g, s.origin;
+
+    -- Merge untruncated screens and truncated screens
+    CREATE TABLE tmp_screens AS 
+        SELECT the_geom, pk, id_bat, height, pop, id_erps, g, origin FROM screens WHERE pk not in (SELECT pk_screen FROM tmp_screen_truncated) UNION ALL 
+        SELECT the_geom, pk_screen as pk, id_bat, height, pop, id_erps, g, origin FROM tmp_screen_truncated;
+
+    -- Convert linestring screens to polygons with buffer function
+    CREATE TABLE tmp_buffered_screens AS SELECT ST_BUFFER(sc.the_geom, 0.1, 'join=mitre endcap=flat') as the_geom, pk, id_bat, height, pop, id_erps, g, origin 
+        FROM tmp_screens sc;
+    
+    -- Merge buildings and buffered screens
+    CREATE TABLE buildings_screens as 
+        SELECT the_geom, id_bat, height, pop, id_erps, g, origin FROM tmp_buffered_screens sc UNION ALL 
+        SELECT the_geom, id_bat, height, pop, id_erps, g, origin FROM buildings;
+
+    ALTER TABLE buildings_screens ADD COLUMN pk serial PRIMARY KEY;
+    UPDATE buildings_screens SET the_geom  = ST_SetSRID(the_geom, '$srid');
+    CREATE SPATIAL INDEX ON buildings_screens(the_geom);
+
+
+    DROP TABLE IF EXISTS tmp_relation_screen_building, tmp_screen_truncated, tmp_screens, tmp_buffered_screens, buffered_screens;
+    
 
 	----------------------------------
 	-- Manage Landcover
@@ -443,24 +558,24 @@ def exec(Connection connection, input) {
 	DROP TABLE IF EXISTS alllandcover_link, landcover;
     CREATE LINKED TABLE alllandcover_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', '(SELECT 
      a.the_geom, 
-     a.idnatsol as pk, 
-     a.natsol_lib as clc_lib,
-     a.natsol_cno as g
+     a."IDNATSOL" as pk, 
+     a."NATSOL_LIB" as clc_lib,
+     a."NATSOL_CNO" as g
     FROM 
      noisemodelling."$table_land" a,
      (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) c 
     WHERE
      a.the_geom && c.the_geom and 
      ST_INTERSECTS(a.the_geom, c.the_geom) and 
-     a.natsol_cno > 0)');
+     a."NATSOL_CNO" > 0)');
     
     CREATE TABLE landcover as select * from alllandcover_link;
     CREATE SPATIAL INDEX ON landcover(the_geom);
     DELETE FROM landcover B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     DROP TABLE alllandcover_link;
 
-    DROP TABLE PVMT, INFRA;
-
+    DROP TABLE PVMT;
+    --DROP INFRA;
 
     ----------------------------------
     -- Manage statitics
