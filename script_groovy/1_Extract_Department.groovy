@@ -241,6 +241,13 @@ def exec(Connection connection, input) {
         '(SELECT * FROM noisemodelling.conf_rail)');
     CREATE TABLE conf_rail as select * FROM conf_rail_link;
     DROP TABLE conf_rail_link;
+
+    -- PLATEFORME
+    DROP TABLE IF EXISTS plateform_link, plateform;
+    CREATE LINKED TABLE plateform_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+        '(SELECT * FROM noisemodelling.plateforme)');
+    CREATE TABLE plateform as select * FROM plateform_link;
+    DROP TABLE plateform_link;
     
     -- Manage department table
 --    DROP TABLE IF EXISTS departement_link;
@@ -356,15 +363,21 @@ def exec(Connection connection, input) {
         a."RUGOSITE" as railroughness, 
         a."JOINTRAIL" as impactnoise, 
         a."COURBURE" as curvature, 
-        a."BASEVOIE" as bridgetransfer, 
-        b."VITESSE" as speedcommercial  
+        a."BASEVOIE" as bridgetransfer,
+        a."LARGEMPRIS" - 5.5 as d2_0,
+        a."LARGEMPRIS" - 4 as d3_0,
+        a."LARGEMPRIS" as d4_0,
+        b."VITESSE" as speedcommercial,
+        c."TYPELIGNE" as typeline   
     FROM 
         noisemodelling."$table_rail" a,
         echeance4."N_FERROVIAIRE_VITESSE" b,
+        echeance4."N_FERROVIAIRE_LIGNE" c, 
         (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e
     WHERE
         a."CBS_GITT"=''O'' and 
         a."IDTRONCON" = b."IDTRONCON" and
+        a."IDLIGNE" = c."IDLIGNE" and 
         a.the_geom && e.the_geom and 
         ST_INTERSECTS(a.the_geom, e.the_geom))');
 
@@ -445,6 +458,7 @@ def exec(Connection connection, input) {
     ALTER TABLE buildings ADD COLUMN pk serial PRIMARY KEY;
     ALTER TABLE buildings ADD COLUMN g float DEFAULT 0.1;
     ALTER TABLE buildings ADD COLUMN origin varchar DEFAULT 'building';
+    CREATE SPATIAL INDEX ON buildings(the_geom);
     
 	DROP TABLE buildings_geom, buildings_erps, allbuildings_link, allbuildings_erps_link;
 
@@ -536,18 +550,16 @@ def exec(Connection connection, input) {
         SELECT the_geom, pk_screen as pk, id_bat, height, pop, id_erps, g, origin FROM tmp_screen_truncated;
 
     -- Convert linestring screens to polygons with buffer function
-    CREATE TABLE tmp_buffered_screens AS SELECT ST_BUFFER(sc.the_geom, 0.1, 'join=mitre endcap=flat') as the_geom, pk, id_bat, height, pop, id_erps, g, origin 
+    CREATE TABLE tmp_buffered_screens AS SELECT ST_SETSRID(ST_BUFFER(sc.the_geom, 0.1, 'join=mitre endcap=flat'), ST_SRID(sc.the_geom)) as the_geom, pk, id_bat, height, pop, id_erps, g, origin 
         FROM tmp_screens sc;
-    
+
     -- Merge buildings and buffered screens
     CREATE TABLE buildings_screens as 
         SELECT the_geom, id_bat, height, pop, id_erps, g, origin FROM tmp_buffered_screens sc UNION ALL 
         SELECT the_geom, id_bat, height, pop, id_erps, g, origin FROM buildings;
 
     ALTER TABLE buildings_screens ADD COLUMN pk serial PRIMARY KEY;
-    UPDATE buildings_screens SET the_geom  = ST_SetSRID(the_geom, '$srid');
     CREATE SPATIAL INDEX ON buildings_screens(the_geom);
-
 
     DROP TABLE IF EXISTS tmp_relation_screen_building, tmp_screen_truncated, tmp_screens, tmp_buffered_screens, buffered_screens;
     
@@ -637,6 +649,9 @@ def exec(Connection connection, input) {
     def nb_rail_sections=sql.firstRow("SELECT COUNT(*) FROM RAIL_SECTIONS;")[0] as Integer
     def nb_rail_trafic=sql.firstRow("SELECT COUNT(*) FROM RAIL_TRAFIC;")[0] as Integer
 
+    def nb_road_screen=sql.firstRow("SELECT COUNT(*) FROM SCREENS WHERE ORIGIN ='road';")[0] as Integer
+    def nb_rail_screen=sql.firstRow("SELECT COUNT(*) FROM SCREENS WHERE ORIGIN ='rail';")[0] as Integer
+
     def nb_land=sql.firstRow("SELECT COUNT(*) FROM LANDCOVER;")[0] as Integer
 
     def rapport = """
@@ -669,7 +684,6 @@ def exec(Connection connection, input) {
             <li>Nombre sans hauteur : $nb_build_hnull</li>
             <li>Nombre de bâtiments sensibles : $nb_build_id_erps</li>
             <li>Total population considérée : $nb_build_pop</li>
-            
         </ul>
 
         <h5>Table <code>ROADS</code></h5>
@@ -678,6 +692,14 @@ def exec(Connection connection, input) {
             <li>Nombre de tronçons utilisables pour la carte: $stat_roads_track_cbsgitt</li>
             <li>Nombre de routes: $nb_roads</li>
         </ul>
+
+
+        <h5>Table <code>SCREENS</code></h5>
+        <ul>
+            <li>Nombre protection acoustique routière: $nb_road_screen</li>
+            <li>Nombre protection acoustique ferroviare: $nb_rail_screen</li>
+        </ul>
+
 
         <h5>Table <code>RAIL_SECTIONS</code></h5>
         <ul>

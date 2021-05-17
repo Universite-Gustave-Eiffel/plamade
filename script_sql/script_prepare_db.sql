@@ -516,6 +516,24 @@ COMMENT ON COLUMN noisemodelling.conf_rail.confId IS 'Configuration identifier';
 COMMENT ON COLUMN noisemodelling.conf_rail.id_plateform IS 'Foreign key to the plateform table';
 COMMENT ON COLUMN noisemodelling.conf_rail.entre_axe IS 'Default width of the centre-to-centre distance (in metres)';
 
+
+
+----------------------------------
+-- PLATEFORME table
+DROP TABLE IF EXISTS noisemodelling.plateforme;
+CREATE TABLE noisemodelling.plateforme (idPlatform varchar Primary Key, d1 float, g1 float, g2 float, g3 float, h1 float, h2 float);
+
+COMMENT ON COLUMN noisemodelling.plateforme.idPlatform IS 'Platform id';
+COMMENT ON COLUMN noisemodelling.plateforme.d1 IS 'Ecartement des rails (en mètre)';
+COMMENT ON COLUMN noisemodelling.plateforme.g1 IS 'Facteur de sol de la plateforme';
+COMMENT ON COLUMN noisemodelling.plateforme.g2 IS 'Facteur de sol de la banquette de ballast';
+COMMENT ON COLUMN noisemodelling.plateforme.g3 IS 'Facteur de sol entre les rails';
+COMMENT ON COLUMN noisemodelling.plateforme.h1 IS 'Hauteur de la banquette de ballast (en mètre)';
+COMMENT ON COLUMN noisemodelling.plateforme.h2 IS 'Hauteur des rails libres au-dessus du ballast (en mètre)';
+
+INSERT INTO noisemodelling.plateforme VALUES ('SNCF', 1.435, 0, 0.5, 0.5, 0.5, 0.18);
+
+
 ----------------------------------
 -- Road's pavement
 DROP TABLE IF EXISTS noisemodelling.pvmt;
@@ -783,5 +801,30 @@ ALTER TABLE echeance4."C_METEO_S"
 INSERT INTO echeance4."C_METEO_S"
 (the_geom, "IDMETEO", "ANNEE", "CODEDEPT", "REFPROD", "METEO_STAT", "METEO_FORF", temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, ts_stud, pm_stud)
 VALUES('SRID=4326;MULTIPOLYGON (((1.0769657607598977 49.39519023880368, 1.0789366638225655 49.359228601592946, 1.141578475165842 49.35979664299892, 1.140603471450398 49.39556824356913, 1.0769657607598977 49.39519023880368)))'::geometry, 999, 'test', '099', 'test', 'test', 'T', 15, 10, 5, 70, 70, 70, 0, 0);
+
+
+
+
+---------------------------------------------------------------------------------
+-- 4- Update input tables with Cerema needs
+---------------------------------------------------------------------------------
+
+-- Remove buildings that are less than 20 square meters
+
+DELETE FROM noisemodelling."C_BATIMENT_S_2154" WHERE ST_AREA(the_geom) < 20;
+DELETE FROM noisemodelling."C_BATIMENT_S_2972" WHERE ST_AREA(the_geom) < 20;
+DELETE FROM noisemodelling."C_BATIMENT_S_2975" WHERE ST_AREA(the_geom) < 20;
+DELETE FROM noisemodelling."C_BATIMENT_S_4471" WHERE ST_AREA(the_geom) < 20;
+DELETE FROM noisemodelling."C_BATIMENT_S_5490" WHERE ST_AREA(the_geom) < 20;
+
+
+-- Force the building height to be equal to 7m when equal to 0
+UPDATE noisemodelling."C_BATIMENT_S_2154" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
+UPDATE noisemodelling."C_BATIMENT_S_2972" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
+UPDATE noisemodelling."C_BATIMENT_S_2975" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
+UPDATE noisemodelling."C_BATIMENT_S_4471" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
+UPDATE noisemodelling."C_BATIMENT_S_5490" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
+
+
 
 
