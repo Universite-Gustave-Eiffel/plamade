@@ -104,6 +104,7 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2154" AS SELECT
 	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
 
 CREATE INDEX n_routier_troncon_l_2154_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2154_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_2154_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING gist (the_geom);
 
 
@@ -118,6 +119,7 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2972" AS SELECT
 	where "CODEDEPT"='973';
 
 CREATE INDEX n_routier_troncon_l_2972_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2972_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_2972_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING gist (the_geom);
 
 
@@ -132,6 +134,7 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2975" AS SELECT
 	where "CODEDEPT"='974';
 
 CREATE INDEX n_routier_troncon_l_2975_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2975_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_2975_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING gist (the_geom);
 
 
@@ -146,6 +149,7 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_4471" AS SELECT
 	where "CODEDEPT"='976';
 
 CREATE INDEX n_routier_troncon_l_4471_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_4471_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_4471_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING gist (the_geom);
 
 
@@ -160,6 +164,7 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_5490" AS SELECT
 	where "CODEDEPT"='971' or "CODEDEPT"='972';
 
 CREATE INDEX n_routier_troncon_l_5490_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_5490_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_5490_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING gist (the_geom);
 
 
@@ -297,56 +302,61 @@ CREATE INDEX c_batiment_s_5490_geom_idx ON noisemodelling."C_BATIMENT_S_5490" US
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2154";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" ='973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';	
 
 CREATE INDEX n_ferroviaire_troncon_l_2154_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2154_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_2154_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2972";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='973';	
 
 CREATE INDEX n_ferroviaire_troncon_l_2972_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2972_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_2972_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2975";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='974';	
 
 CREATE INDEX n_ferroviaire_troncon_l_2975_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2975_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_2975_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_4471";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='976';	
 
 CREATE INDEX n_ferroviaire_troncon_l_4471_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_4471_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_4471_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_5490";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='971' or "CODEDEPT"='972';	
 
 CREATE INDEX n_ferroviaire_troncon_l_5490_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_5490_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_5490_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING gist (the_geom);
 
 
@@ -496,12 +506,15 @@ COMMENT ON COLUMN noisemodelling.conf.wall_alpha IS 'Ground absorption coefficie
 -- Insert values
 INSERT INTO noisemodelling.conf VALUES(1, 0, 250, 50, 5, 1, false, false, true, true, true, false, true, 0.1);
 INSERT INTO noisemodelling.conf VALUES(2, 0, 250, 50, 5, 1, false, false, true, true, true, false, false, 0.1);
+INSERT INTO noisemodelling.conf VALUES(3, 1, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(4, 3, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
+
 
 ----------------------------------
 -- CONF_ROAD table
 DROP TABLE IF EXISTS noisemodelling.conf_road;
-CREATE TABLE noisemodelling.conf_road (confId integer Primary Key, junc_dist float8, junc_type integer);
-COMMENT ON COLUMN noisemodelling.conf_road.confId IS 'Configuration identifier';
+CREATE TABLE noisemodelling.conf_road (idConf integer Primary Key, junc_dist float8, junc_type integer);
+COMMENT ON COLUMN noisemodelling.conf_road.idConf IS 'Configuration identifier';
 COMMENT ON COLUMN noisemodelling.conf_road.junc_dist IS 'Distance to junction in meters';
 COMMENT ON COLUMN noisemodelling.conf_road.junc_type IS 'Type of junction (k=0 none, k = 1 for a crossing with traffic lights, k = 2 for a roundabout)';
 
@@ -511,27 +524,27 @@ INSERT INTO noisemodelling.conf_road VALUES(1, 200, 0);
 ----------------------------------
 -- CONF_RAIL table
 DROP TABLE IF EXISTS noisemodelling.conf_rail;
-CREATE TABLE noisemodelling.conf_rail (confId integer Primary Key, id_plateform varchar, entre_axe integer);
-COMMENT ON COLUMN noisemodelling.conf_rail.confId IS 'Configuration identifier';
-COMMENT ON COLUMN noisemodelling.conf_rail.id_plateform IS 'Foreign key to the plateform table';
-COMMENT ON COLUMN noisemodelling.conf_rail.entre_axe IS 'Default width of the centre-to-centre distance (in metres)';
-
+CREATE TABLE noisemodelling.conf_rail (idConf integer Primary Key, idPlatform varchar, runCdtn integer, idling float);
+COMMENT ON COLUMN noisemodelling.conf_rail.idConf IS 'Configuration identifier';
+COMMENT ON COLUMN noisemodelling.conf_rail.idPlatform IS 'Foreign key to the plateform table';
+COMMENT ON COLUMN noisemodelling.conf_rail.runCdtn IS 'Listed code describing the running condition of the train : constant=0, accelerating=1, decelerating=2, idling=3';
+COMMENT ON COLUMN noisemodelling.conf_rail.idling IS 'Idling Time (only used when RunningCondition is "idling")';
 
 
 ----------------------------------
--- PLATEFORME table
-DROP TABLE IF EXISTS noisemodelling.plateforme;
-CREATE TABLE noisemodelling.plateforme (idPlatform varchar Primary Key, d1 float, g1 float, g2 float, g3 float, h1 float, h2 float);
+-- PLATFORM table
+DROP TABLE IF EXISTS noisemodelling.platform;
+CREATE TABLE noisemodelling.platform (idPlatform varchar Primary Key, d1 float, g1 float, g2 float, g3 float, h1 float, h2 float);
 
-COMMENT ON COLUMN noisemodelling.plateforme.idPlatform IS 'Platform id';
-COMMENT ON COLUMN noisemodelling.plateforme.d1 IS 'Ecartement des rails (en mètre)';
-COMMENT ON COLUMN noisemodelling.plateforme.g1 IS 'Facteur de sol de la plateforme';
-COMMENT ON COLUMN noisemodelling.plateforme.g2 IS 'Facteur de sol de la banquette de ballast';
-COMMENT ON COLUMN noisemodelling.plateforme.g3 IS 'Facteur de sol entre les rails';
-COMMENT ON COLUMN noisemodelling.plateforme.h1 IS 'Hauteur de la banquette de ballast (en mètre)';
-COMMENT ON COLUMN noisemodelling.plateforme.h2 IS 'Hauteur des rails libres au-dessus du ballast (en mètre)';
+COMMENT ON COLUMN noisemodelling.platform.idPlatform IS 'Platform id';
+COMMENT ON COLUMN noisemodelling.platform.d1 IS 'Ecartement des rails (en mètre)';
+COMMENT ON COLUMN noisemodelling.platform.g1 IS 'Facteur de sol de la platform';
+COMMENT ON COLUMN noisemodelling.platform.g2 IS 'Facteur de sol de la banquette de ballast';
+COMMENT ON COLUMN noisemodelling.platform.g3 IS 'Facteur de sol entre les rails';
+COMMENT ON COLUMN noisemodelling.platform.h1 IS 'Hauteur de la banquette de ballast (en mètre)';
+COMMENT ON COLUMN noisemodelling.platform.h2 IS 'Hauteur des rails libres au-dessus du ballast (en mètre)';
 
-INSERT INTO noisemodelling.plateforme VALUES ('SNCF', 1.435, 0, 0.5, 0.5, 0.5, 0.18);
+INSERT INTO noisemodelling.platform VALUES ('SNCF', 1.435, 0, 1, 1, 1, 0.18);
 
 
 ----------------------------------
@@ -784,27 +797,6 @@ WHERE a.insee_station = b.insee_station;
 DROP TABLE IF EXISTS noisemodelling.station_2154, noisemodelling.station_2972, noisemodelling.station_2975, noisemodelling.station_4471, noisemodelling.station_5490, noisemodelling.pfav;
 
 
--- In the C_METEO_S table
-/*
-ALTER TABLE echeance4."C_METEO_S" 
-	ADD COLUMN temp_d integer DEFAULT 15,
-	ADD COLUMN temp_e integer DEFAULT 10,
-	ADD COLUMN temp_n integer DEFAULT 5,
-	ADD COLUMN hygro_d integer DEFAULT 70, 
-	ADD COLUMN hygro_e integer DEFAULT 70,
-	ADD COLUMN hygro_n integer DEFAULT 70,
-	ADD COLUMN ts_stud integer DEFAULT 0,
-	ADD COLUMN pm_stud integer DEFAULT 0;
-*/
-
--- Ajoute de la zone de test 99
-INSERT INTO echeance4."C_METEO_S"
-(the_geom, "IDMETEO", "ANNEE", "CODEDEPT", "REFPROD", "METEO_STAT", "METEO_FORF", temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, ts_stud, pm_stud)
-VALUES('SRID=4326;MULTIPOLYGON (((1.0769657607598977 49.39519023880368, 1.0789366638225655 49.359228601592946, 1.141578475165842 49.35979664299892, 1.140603471450398 49.39556824356913, 1.0769657607598977 49.39519023880368)))'::geometry, 999, 'test', '099', 'test', 'test', 'T', 15, 10, 5, 70, 70, 70, 0, 0);
-
-
-
-
 ---------------------------------------------------------------------------------
 -- 4- Update input tables with Cerema needs
 ---------------------------------------------------------------------------------
@@ -827,4 +819,37 @@ UPDATE noisemodelling."C_BATIMENT_S_5490" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
 
 
 
+---------------------------------------------------------------------------------
+-- 5- Generate INFRA table, used in order to filter DEM tables
+---------------------------------------------------------------------------------
 
+
+DROP TABLE IF EXISTS noisemodelling.infra_2154;
+CREATE TABLE noisemodelling.infra_2154 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2154" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" WHERE "CBS_GITT";
+CREATE INDEX infra_2154_geom_idx ON noisemodelling.infra_2154 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_2972;
+CREATE TABLE noisemodelling.infra_2972 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2972" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" WHERE "CBS_GITT";
+CREATE INDEX infra_2972_geom_idx ON noisemodelling.infra_2972 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_2975;
+CREATE TABLE noisemodelling.infra_2975 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2975" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" WHERE "CBS_GITT";
+CREATE INDEX infra_2975_geom_idx ON noisemodelling.infra_2975 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_4471;
+CREATE TABLE noisemodelling.infra_4471 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_4471" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" WHERE "CBS_GITT";
+CREATE INDEX infra_4471_geom_idx ON noisemodelling.infra_4471 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_5490;
+CREATE TABLE noisemodelling.infra_5490 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_5490" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" WHERE "CBS_GITT";
+CREATE INDEX infra_5490_geom_idx ON noisemodelling.infra_5490 USING gist (the_geom);

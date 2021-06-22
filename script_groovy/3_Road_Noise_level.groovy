@@ -56,16 +56,6 @@ inputs = [
                 title      : 'Global configuration Identifier',
                 description: 'Id of the global configuration used for this process',
                 type: Integer.class
-        ],
-        tableDEM                : [
-                name       : 'DEM table name',
-                title      : 'DEM table name',
-                description: '<b>Name of the Digital Elevation Model table.</b></br>  ' +
-                        '</br>The table shall contain : </br> ' +
-                        '- <b> THE_GEOM </b> : the 3D geometry of the sources (POINT, MULTIPOINT).</br> ' +
-                        '</br> </br> <b> This table can be generated from the WPS Block "Import_Asc_File". </b>',
-                min        : 0, max: 1,
-                type       : String.class
         ]
 ]
 
@@ -230,9 +220,8 @@ def exec(Connection connection, input) {
     if (sridBuildings == 0) throw new IllegalArgumentException("Error : The table "+building_table_name+" does not have an associated SRID.")
     if (sridReceivers != sridBuildings) throw new IllegalArgumentException("Error : The SRID of table "+building_table_name+" and "+receivers_table_name+" are not the same.")
 
-    String dem_table_name = ""
-    if (input['tableDEM']) {
-        dem_table_name = input['tableDEM']
+    // Pointing the 'dem' table
+    String dem_table_name = "dem"
         // do it case-insensitive
         dem_table_name = dem_table_name.toUpperCase()
         // Check if srid are in metric projection and are all the same.
@@ -240,7 +229,7 @@ def exec(Connection connection, input) {
         if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
         if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
         if (sridDEM != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+sources_table_name+" and "+dem_table_name+" are not the same.")
-    }
+
 
     // Pointing the 'landcover' table
     String ground_table_name = "landcover"
@@ -370,8 +359,13 @@ def exec(Connection connection, input) {
     pointNoiseMap.setComputeRaysOutFactory(ldenProcessing)
     pointNoiseMap.setPropagationProcessDataFactory(ldenProcessing)
 
+ 
+
     // Init Map
     pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
+
+    pointNoiseMap.setGridDim(100)
+    logger.info("Taille de cellulle : " + pointNoiseMap.getCellWidth().toString())
 
     // --------------------------------------------
     // Run Calculations
