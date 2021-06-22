@@ -207,7 +207,7 @@ DROP TABLE IF EXISTS noisemodelling.stat_road_way_null;
 CREATE TABLE noisemodelling.stat_road_way_null AS SELECT "CODEDEPT" as codedept, COUNT(*) as sens_null FROM echeance4."N_ROUTIER_TRONCON_L" WHERE "SENS" is null GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
 
 DROP TABLE IF EXISTS noisemodelling.stat_road_cbs_gitt_o;
-CREATE TABLE noisemodelling.stat_road_cbs_gitt_o AS SELECT "CODEDEPT" as codedept, COUNT(*) as cbs_gitt_o FROM echeance4."N_ROUTIER_TRONCON_L" WHERE "CBS_GITT" ='O' GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+CREATE TABLE noisemodelling.stat_road_cbs_gitt_o AS SELECT "CODEDEPT" as codedept, COUNT(*) as cbs_gitt_o FROM echeance4."N_ROUTIER_TRONCON_L" WHERE "CBS_GITT" is true GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
 
 DROP TABLE IF EXISTS noisemodelling.stat_road_geom;
 CREATE TABLE noisemodelling.stat_road_geom AS SELECT a.*, 
@@ -300,3 +300,56 @@ UPDATE noisemodelling.stat_landcover SET natsol_0 = 0 WHERE natsol_0 is null;
 UPDATE noisemodelling.stat_landcover SET natsol_null = 0 WHERE natsol_null is null; 
 
 DROP TABLE IF EXISTS noisemodelling.stat_landcover_nb, noisemodelling.stat_natsol_0, noisemodelling.stat_natsol_null;
+
+
+---------------------------------------------------------------------------------
+-- 4- For Rails
+---------------------------------------------------------------------------------
+
+-- For rail geometries
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_nb;
+CREATE TABLE noisemodelling.stat_rail_nb AS SELECT "CODEDEPT" as codedept, COUNT(*) as nb_track FROM echeance4."N_FERROVIAIRE_TRONCON_L" GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_line_nb;
+CREATE TABLE noisemodelling.stat_rail_line_nb AS SELECT "CODEDEPT" as codedept, COUNT(DISTINCT "IDLIGNE") as nb_line FROM echeance4."N_FERROVIAIRE_TRONCON_L" GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_width_0, noisemodelling.stat_rail_width_null;
+CREATE TABLE noisemodelling.stat_rail_width_0 AS SELECT "CODEDEPT" as codedept, COUNT(*) as largempris_0 FROM echeance4."N_FERROVIAIRE_TRONCON_L" WHERE "LARGEMPRIS" = 0 GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+CREATE TABLE noisemodelling.stat_rail_width_null AS SELECT "CODEDEPT" as codedept, COUNT(*) as largempris_null FROM echeance4."N_FERROVIAIRE_TRONCON_L" WHERE "LARGEMPRIS" is null GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_nb_track_0, noisemodelling.stat_rail_nb_track_null;
+CREATE TABLE noisemodelling.stat_rail_nb_track_0 AS SELECT "CODEDEPT" as codedept, COUNT(*) as nb_voies_0 FROM echeance4."N_FERROVIAIRE_TRONCON_L" WHERE "NB_VOIES" = 0 GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+CREATE TABLE noisemodelling.stat_rail_nb_track_null AS SELECT "CODEDEPT" as codedept, COUNT(*) as nb_voies_null FROM echeance4."N_FERROVIAIRE_TRONCON_L" WHERE "NB_VOIES" is null GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_vmax_null;
+CREATE TABLE noisemodelling.stat_rail_vmax_null AS SELECT "CODEDEPT" as codedept, COUNT(*) as vmax_null FROM echeance4."N_FERROVIAIRE_TRONCON_L" WHERE "VMAXINFRA" is null GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_cbs_gitt_o;
+CREATE TABLE noisemodelling.stat_rail_cbs_gitt_o AS SELECT "CODEDEPT" as codedept, COUNT(*) as cbs_gitt_o FROM echeance4."N_FERROVIAIRE_TRONCON_L" WHERE "CBS_GITT" GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_geom;
+CREATE TABLE noisemodelling.stat_rail_geom AS SELECT a.*, 
+		b.nb_line, c.cbs_gitt_o,
+		d.largempris_0, e.largempris_null, 
+		f.nb_voies_0, g.nb_voies_null,
+		h.vmax_null 
+	FROM noisemodelling.stat_rail_nb a 
+	LEFT JOIN noisemodelling.stat_rail_line_nb b ON a.codedept=b.codedept
+	LEFT JOIN noisemodelling.stat_rail_cbs_gitt_o c ON a.codedept=c.codedept  
+	LEFT JOIN noisemodelling.stat_rail_width_0 d ON a.codedept=d.codedept 
+	LEFT JOIN noisemodelling.stat_rail_width_null e ON a.codedept=e.codedept 
+	LEFT JOIN noisemodelling.stat_rail_nb_track_0 f ON a.codedept=f.codedept 
+	LEFT JOIN noisemodelling.stat_rail_nb_track_null g ON a.codedept=g.codedept 
+	LEFT JOIN noisemodelling.stat_rail_vmax_null h ON a.codedept=h.codedept 
+	ORDER BY a.codedept;
+
+UPDATE noisemodelling.stat_rail_geom SET cbs_gitt_o = 0 WHERE cbs_gitt_o is null; 
+UPDATE noisemodelling.stat_rail_geom SET largempris_0 = 0 WHERE largempris_0 is null; 
+UPDATE noisemodelling.stat_rail_geom SET largempris_null = 0 WHERE largempris_null is null; 
+UPDATE noisemodelling.stat_rail_geom SET nb_voies_0 = 0 WHERE nb_voies_0 is null; 
+UPDATE noisemodelling.stat_rail_geom SET nb_voies_null = 0 WHERE nb_voies_null is null;
+UPDATE noisemodelling.stat_rail_geom SET vmax_null = 0 WHERE vmax_null is null;
+
+DROP TABLE IF EXISTS noisemodelling.stat_rail_nb, noisemodelling.stat_rail_line_nb, noisemodelling.stat_rail_width_0, noisemodelling.stat_rail_width_null, 
+noisemodelling.stat_rail_nb_track_0, noisemodelling.stat_rail_nb_track_null, noisemodelling.stat_rail_vmax_null, noisemodelling.stat_rail_cbs_gitt_o;
