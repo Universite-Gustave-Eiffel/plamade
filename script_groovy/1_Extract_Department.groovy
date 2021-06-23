@@ -227,7 +227,7 @@ def exec(Connection connection, input) {
 
     def sql = new Sql(connection)
 
-    def queries = """
+    def queries_conf = """
     
     ----------------------------------
     -- Manage configuration tables
@@ -258,7 +258,8 @@ def exec(Connection connection, input) {
         '(SELECT * FROM noisemodelling.platform)');
     CREATE TABLE plateform as select * FROM plateform_link;
     DROP TABLE plateform_link;
-       
+    """
+    def queries_pfav = """       
     ----------------------------------
     -- Manage pfav and meteo tables
 
@@ -283,7 +284,9 @@ def exec(Connection connection, input) {
     
     DROP TABLE IF EXISTS dept_pfav,dept_meteo;
 
-	----------------------------------
+    """
+    def queries_roads = """
+	  ----------------------------------
     -- Manage roads
 
     DROP TABLE IF EXISTS roads_link, roads, pvmt_link;
@@ -341,7 +344,8 @@ def exec(Connection connection, input) {
     ALTER TABLE roads ADD COLUMN pk serial PRIMARY KEY;
     CREATE spatial index ON roads (the_geom);
 
-
+    """
+    def queries_rails = """
     ----------------------------------
     -- Manage rail_sections
 
@@ -362,7 +366,7 @@ def exec(Connection connection, input) {
         (CASE   WHEN a."RUGOSITE" = ''C'' THEN 1::integer 
                 WHEN a."RUGOSITE" = ''H'' THEN 2::integer 
                 WHEN a."RUGOSITE" = ''M'' and c."TYPELIGNE" = ''01'' THEN 1::integer 
-                WHEN a."RUGOSITE" = ''M'' and c."TYPELIGNE" = ''01'' THEN 2::integer
+                WHEN a."RUGOSITE" = ''M'' and c."TYPELIGNE" = ''02'' THEN 2::integer
         END) as roughness,
         (CASE   WHEN a."JOINTRAIL" = ''N'' THEN 0::integer 
                 WHEN a."JOINTRAIL" = ''M'' THEN 1::integer 
@@ -406,6 +410,7 @@ def exec(Connection connection, input) {
     CREATE TABLE rail_tunnel AS SELECT * FROM rail_tunnel_link;
 
     CREATE TABLE rail_sections AS SELECT a.*, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
+    ALTER TABLE rail_sections ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX rail_sections_geom_idx ON rail_sections (the_geom);
     CREATE INDEX ON rail_sections (idsection);
 
@@ -425,10 +430,12 @@ def exec(Connection connection, input) {
 
     CREATE TABLE rail_traffic AS SELECT a.* FROM rail_traffic_link a, rail_sections b WHERE a.idsection=b.idsection;
 
+    ALTER TABLE rail_traffic ADD COLUMN pk serial PRIMARY KEY;
 
     DROP TABLE rail_sections_link, rail_sections_geom, rail_tunnel_link, rail_tunnel, rail_traffic_link;
 
-
+    """
+    def queries_infra = """
     ----------------------------------
     -- Generate infrastructure table (merge of roads and rails)
 
@@ -436,7 +443,8 @@ def exec(Connection connection, input) {
     CREATE TABLE infra AS SELECT the_geom FROM roads UNION ALL SELECT the_geom FROM rail_sections;
     CREATE SPATIAL INDEX infra_geom_idx ON infra (the_geom);
 
-
+    """
+    def queries_buildings = """
 	----------------------------------
     -- Manage buildings
 
@@ -494,8 +502,8 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON buildings(the_geom);
     
 	DROP TABLE buildings_geom, buildings_erps, allbuildings_link, allbuildings_erps_link, allbuildings_erps, allbuildings_erps_natur_link, allbuildings_erps_natur;
-
-
+    """
+    def queries_screens = """
     ----------------------------------
     -- Manage acoustic screens
 
@@ -564,7 +572,8 @@ def exec(Connection connection, input) {
 
     DROP TABLE road_screens_link, road_screens, rail_screens_link, rail_screens;
 
-
+    """
+    def queries_buildings_screens = """
     ----------------------------------
     -- Merge buildings and screenss
 
@@ -599,7 +608,8 @@ def exec(Connection connection, input) {
 
     DROP TABLE IF EXISTS tmp_relation_screen_building, tmp_screen_truncated, tmp_screens, tmp_buffered_screens, buffered_screens;
     
-
+    """
+    def queries_landcover = """
 	----------------------------------
 	-- Manage Landcover
     
@@ -621,8 +631,8 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON landcover(the_geom);
     DELETE FROM landcover B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     DROP TABLE alllandcover_link;
-
-
+    """
+    def queries_dem = """
     ----------------------------------
     -- Manage DEM (import and filter within 1000m the BD Alti)
 
@@ -637,8 +647,8 @@ def exec(Connection connection, input) {
 
     DROP TABLE PVMT;
     DROP TABLE INFRA;
-
-
+    """
+    def queries_stats = """
     ----------------------------------
     -- Manage statitics
     
@@ -685,10 +695,65 @@ def exec(Connection connection, input) {
 
     def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep]
 
+
+    // print to command window
+    logger.info('Manage configuration tables (1/11)')
     def engine = new SimpleTemplateEngine()
-    def template = engine.createTemplate(queries).make(binding)
+    def template = engine.createTemplate(queries_conf).make(binding)
 
     sql.execute(template.toString())
+
+    logger.info('Manage PFAV (2/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_pfav).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage roads (3/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_roads).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage rails (4/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_rails).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage infrastructures (5/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_infra).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage buildings (6/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_buildings).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage screens (7/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_screens).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage buildings screens (8/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_buildings_screens).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage landcover (9/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_landcover).make(binding)
+    sql.execute(template.toString())
+
+    logger.info('Manage dem (10/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_dem).make(binding)
+    sql.execute(template.toString())
+
+        logger.info('Manage statistics (11/11)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_stats).make(binding)
+    sql.execute(template.toString())
+
+
 
     // ------------------------------------------------------------
     // Rapport part
