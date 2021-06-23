@@ -1,6 +1,8 @@
+
 buildscript {
     repositories {
         jcenter()
+        mavenLocal()
     }
     dependencies {
         classpath "io.ratpack:ratpack-gradle:1.5.4"
@@ -8,22 +10,21 @@ buildscript {
     }
 }
 
-apply plugin: "io.ratpack.ratpack-groovy"
-apply plugin: 'groovy'
-apply plugin: 'docker'
+plugins {
+    id 'java'
+    id 'groovy'
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
 
+apply plugin: "io.ratpack.ratpack-groovy"
 repositories {
     jcenter()
+    mavenLocal()
 }
 
 dependencies {
-    compile 'org.slf4j:slf4j-simple:1.7.25'
-    compile 'org.flywaydb:flyway-core:4.0.3'
-    compile ratpack.dependency('h2')
+    implementation 'org.slf4j:slf4j-simple:1.7.25'
     runtime fileTree(dir: 'computation_core/dependencies', include: '*.jar')
 }
-
-distDocker {
-    exposePort(5050)
-}
-
