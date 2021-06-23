@@ -425,7 +425,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_2154" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
 
-CREATE INDEX c_nature_sol_s_2154_idbat_idx ON noisemodelling."C_NATURESOL_S_2154" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2154_idnasol_idx ON noisemodelling."C_NATURESOL_S_2154" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2154_natsolcno_idx ON noisemodelling."C_NATURESOL_S_2154" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_2154_geom_idx ON noisemodelling."C_NATURESOL_S_2154" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_2972";
@@ -435,7 +436,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_2972" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='973';
 
-CREATE INDEX c_nature_sol_s_2972_idbat_idx ON noisemodelling."C_NATURESOL_S_2972" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2972_idnasol_idx ON noisemodelling."C_NATURESOL_S_2972" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2972_natsolcno_idx ON noisemodelling."C_NATURESOL_S_2972" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_2972_geom_idx ON noisemodelling."C_NATURESOL_S_2972" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_2975";
@@ -445,7 +447,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_2975" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='974';
 
-CREATE INDEX c_nature_sol_s_2975_idbat_idx ON noisemodelling."C_NATURESOL_S_2975" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2975_idnasol_idx ON noisemodelling."C_NATURESOL_S_2975" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2975_natsolcno_idx ON noisemodelling."C_NATURESOL_S_2975" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_2975_geom_idx ON noisemodelling."C_NATURESOL_S_2975" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_4471";
@@ -455,7 +458,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_4471" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='976';
 
-CREATE INDEX c_nature_sol_s_4471_idbat_idx ON noisemodelling."C_NATURESOL_S_4471" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_4471_idnasol_idx ON noisemodelling."C_NATURESOL_S_4471" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_4471_natsolcno_idx ON noisemodelling."C_NATURESOL_S_4471" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_4471_geom_idx ON noisemodelling."C_NATURESOL_S_4471" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_5490";
@@ -465,7 +469,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_5490" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='971' or "CODEDEPT"='972';
 
-CREATE INDEX c_nature_sol_s_5490_idbat_idx ON noisemodelling."C_NATURESOL_S_5490" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_5490_idnasol_idx ON noisemodelling."C_NATURESOL_S_5490" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_5490_natsolcno_idx ON noisemodelling."C_NATURESOL_S_5490" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_5490_geom_idx ON noisemodelling."C_NATURESOL_S_5490" USING gist (the_geom);
 
 ---------------------------------------------------------------------------------
