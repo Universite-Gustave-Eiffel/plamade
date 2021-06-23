@@ -258,7 +258,6 @@ def exec(Connection connection, input) {
         '(SELECT * FROM noisemodelling.platform)');
     CREATE TABLE plateform as select * FROM plateform_link;
     DROP TABLE plateform_link;
-
     """
     def queries_pfav = """       
     ----------------------------------
@@ -287,7 +286,7 @@ def exec(Connection connection, input) {
 
     """
     def queries_roads = """
-	----------------------------------
+	  ----------------------------------
     -- Manage roads
 
     DROP TABLE IF EXISTS roads_link, roads, pvmt_link;
@@ -430,6 +429,7 @@ def exec(Connection connection, input) {
         echeance4."N_FERROVIAIRE_TRAFIC")');
 
     CREATE TABLE rail_traffic AS SELECT a.* FROM rail_traffic_link a, rail_sections b WHERE a.idsection=b.idsection;
+
     ALTER TABLE rail_traffic ADD COLUMN pk serial PRIMARY KEY;
 
     DROP TABLE rail_sections_link, rail_sections_geom, rail_tunnel_link, rail_tunnel, rail_traffic_link;
@@ -502,7 +502,6 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON buildings(the_geom);
     
 	DROP TABLE buildings_geom, buildings_erps, allbuildings_link, allbuildings_erps_link, allbuildings_erps, allbuildings_erps_natur_link, allbuildings_erps_natur;
-
     """
     def queries_screens = """
     ----------------------------------
@@ -632,7 +631,6 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON landcover(the_geom);
     DELETE FROM landcover B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     DROP TABLE alllandcover_link;
-
     """
     def queries_dem = """
     ----------------------------------
@@ -649,7 +647,6 @@ def exec(Connection connection, input) {
 
     DROP TABLE PVMT;
     DROP TABLE INFRA;
-
     """
     def queries_stats = """
     ----------------------------------
