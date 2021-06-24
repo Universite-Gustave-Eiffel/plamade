@@ -51,6 +51,8 @@ public class Main {
                 )
                 .handlers(chain -> chain
                         .path(redirect(301, "index.html"))
+                        .files(files -> files.files("css"))
+                        .files(files -> files.files("js"))
                         .all(RatpackPac4j.authenticator(chain.getRegistry().get(GoogleOidcClient.class)))
                         .insert(ApiEndpoints.class)
                 )
