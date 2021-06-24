@@ -1,0 +1,3 @@
+auth:
+  clientId: "client id here"
+  clientSecret: "client secret here"

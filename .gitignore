@@ -1,8 +1,10 @@
 .idea
-build
-.gradle
 jobs_complete/*
 jobs_running/*
 !jobs_complete/README.txt
 !jobs_running/README.txt
 computation_core/dependencies/*.jar
+
+### Gradle ###
+.gradle
+**/build/

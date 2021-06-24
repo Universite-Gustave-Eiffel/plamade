@@ -1,30 +1,27 @@
-
-buildscript {
-    repositories {
-        jcenter()
-        mavenLocal()
-    }
-    dependencies {
-        classpath "io.ratpack:ratpack-gradle:1.5.4"
-        classpath 'se.transmode.gradle:gradle-docker:1.2'
-    }
-}
-
 plugins {
-    id 'java'
-    id 'groovy'
-    id 'java-library'
-    id 'maven-publish'
-    id 'signing'
+    id "io.ratpack.ratpack-java" version "1.5.0"
 }
 
-apply plugin: "io.ratpack.ratpack-groovy"
+group = 'org.noise_planet'
+version = '0.1.0'
+sourceCompatibility = 1.8
+
 repositories {
-    jcenter()
-    mavenLocal()
+    mavenCentral()
+    maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
 }
 
 dependencies {
-    implementation 'org.slf4j:slf4j-simple:1.7.25'
-    runtime fileTree(dir: 'computation_core/dependencies', include: '*.jar')
+    implementation ratpack.dependency('guice')
+    implementation ratpack.dependency('groovy')
+
+    implementation 'org.pac4j:ratpack-pac4j:2.0.0'
+    implementation 'org.pac4j:pac4j-oidc:2.2.1'
+
+    implementation 'com.jcraft:jsch:0.1.55'
+
+    runtimeOnly 'org.slf4j:slf4j-simple:1.7.22'
+    implementation fileTree(dir: 'computation_core/dependencies', include: '*.jar')
 }
+
+mainClassName = 'org.noise_planet.plamade.Main'
