@@ -122,7 +122,7 @@ def exec(Connection connection, input) {
     String sources_table_name = "ROADS"
     sources_table_name = sources_table_name.toUpperCase()
 
-    String building_table_name = "BUILDINGS"
+    String building_table_name = "BUILDINGS_SCREENS"
     building_table_name = building_table_name.toUpperCase()
 
     Boolean hasPop = JDBCUtilities.hasField(connection, building_table_name, "POP")
