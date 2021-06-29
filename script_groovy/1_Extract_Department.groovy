@@ -258,6 +258,7 @@ def exec(Connection connection, input) {
         '(SELECT * FROM noisemodelling.platform)');
     CREATE TABLE plateform as select * FROM plateform_link;
     DROP TABLE plateform_link;
+
     """
     def queries_pfav = """       
     ----------------------------------
@@ -286,7 +287,7 @@ def exec(Connection connection, input) {
 
     """
     def queries_roads = """
-	  ----------------------------------
+	----------------------------------
     -- Manage roads
 
     DROP TABLE IF EXISTS roads_link, roads, pvmt_link;
@@ -299,8 +300,8 @@ def exec(Connection connection, input) {
      b."TMH2RD" * b."PCENT2R4A" as wav_d,b."TMH2RS" * b."PCENT2R4A" as wav_e, b."TMH2RN" * b."PCENT2R4A" as wav_n, b."TMH2RD" * b."PCENT2R4B" as wbv_d, 
      b."TMH2RS" * b."PCENT2R4B" as wbv_e,b."TMH2RN" * b."PCENT2R4B" as wbv_n, c."VITESSEVL" as lv_spd_d, c."VITESSEVL" as lv_spd_e, 
      c."VITESSEVL" as lv_spd_n, c."VITESSEPL" as mv_spd_d,c."VITESSEPL" as mv_spd_e, c."VITESSEPL" as mv_spd_n, c."VITESSEPL" as hgv_spd_d, 
-     c."VITESSEPL" as hgv_spd_e, c."VITESSEPL" as hgv_spd_n, c."VITESSEVL" as wav_spd_d, c."VITESSEVL" as wav_spd_e, c."VITESSEVL" as wav_spd_n, 
-     c."VITESSEVL" as wbv_spd_d, c."VITESSEVL" as wbv_spd_e, c."VITESSEVL" as wbv_spd_n,
+     c."VITESSEPL" as hgv_spd_e, c."VITESSEPL" as hgv_spd_n, c."VITESSE4A" as wav_spd_d, c."VITESSE4A" as wav_spd_e, c."VITESSE4A" as wav_spd_n, 
+     c."VITESSE4B" as wbv_spd_d, c."VITESSE4B" as wbv_spd_e, c."VITESSE4B" as wbv_spd_n,
      d."REVETEMENT" as revetement,
      d."GRANULO" as granulo,
      d."CLASSACOU" as classacou,
@@ -313,7 +314,9 @@ def exec(Connection connection, input) {
      (CASE  WHEN a."SENS" = ''01'' THEN ''01'' 
        WHEN a."SENS" = ''02'' THEN ''02'' 
        ELSE ''03''
-      END) as way
+      END) as way,
+    a."UUEID" as uueid,
+    a."AGGLO" as agglo 
     FROM 
      noisemodelling."$table_route" a,
      echeance4."N_ROUTIER_TRAFIC" b,
@@ -383,7 +386,8 @@ def exec(Connection connection, input) {
         c."TYPELIGNE" as linetype,
         (CASE   WHEN c."TYPELIGNE" = ''01'' THEN 3.67::float 
                 WHEN c."TYPELIGNE" = ''02'' THEN 4.5::float 
-        END) as trackspc   
+        END) as trackspc,
+        a."UUEID" as uueid 
     FROM 
         noisemodelling."$table_rail" a,
         echeance4."N_FERROVIAIRE_VITESSE" b,
@@ -429,7 +433,6 @@ def exec(Connection connection, input) {
         echeance4."N_FERROVIAIRE_TRAFIC")');
 
     CREATE TABLE rail_traffic AS SELECT a.* FROM rail_traffic_link a, rail_sections b WHERE a.idsection=b.idsection;
-
     ALTER TABLE rail_traffic ADD COLUMN pk serial PRIMARY KEY;
 
     DROP TABLE rail_sections_link, rail_sections_geom, rail_tunnel_link, rail_tunnel, rail_traffic_link;
@@ -502,6 +505,7 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON buildings(the_geom);
     
 	DROP TABLE buildings_geom, buildings_erps, allbuildings_link, allbuildings_erps_link, allbuildings_erps, allbuildings_erps_natur_link, allbuildings_erps_natur;
+
     """
     def queries_screens = """
     ----------------------------------
@@ -631,6 +635,7 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON landcover(the_geom);
     DELETE FROM landcover B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     DROP TABLE alllandcover_link;
+
     """
     def queries_dem = """
     ----------------------------------
@@ -647,6 +652,7 @@ def exec(Connection connection, input) {
 
     DROP TABLE PVMT;
     DROP TABLE INFRA;
+
     """
     def queries_stats = """
     ----------------------------------
