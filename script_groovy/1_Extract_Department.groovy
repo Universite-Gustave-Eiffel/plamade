@@ -315,7 +315,7 @@ def exec(Connection connection, input) {
        WHEN a."SENS" = ''02'' THEN ''02'' 
        ELSE ''03''
       END) as way,
-    a."UUEID" as uueid,
+    f."UUEID" as uueid,
     a."AGGLO" as agglo 
     FROM 
      noisemodelling."$table_route" a,
@@ -387,7 +387,7 @@ def exec(Connection connection, input) {
         (CASE   WHEN c."TYPELIGNE" = ''01'' THEN 3.67::float 
                 WHEN c."TYPELIGNE" = ''02'' THEN 4.5::float 
         END) as trackspc,
-        a."UUEID" as uueid 
+        c."UUEID" as uueid 
     FROM 
         noisemodelling."$table_rail" a,
         echeance4."N_FERROVIAIRE_VITESSE" b,
