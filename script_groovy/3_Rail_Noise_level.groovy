@@ -22,12 +22,19 @@ import geoserver.catalog.Store
 import groovy.sql.Sql
 import groovy.time.TimeCategory
 import org.geotools.jdbc.JDBCDataStore
+import org.h2gis.functions.spatial.edit.ST_AddZ
+
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.SpatialResultSet
 import org.h2gis.utilities.wrapper.ConnectionWrapper
+
+import org.locationtech.jts.geom.Geometry
+import org.locationtech.jts.geom.LineString
 
 import org.noise_planet.noisemodelling.emission.*
 import org.noise_planet.noisemodelling.pathfinder.*
@@ -38,11 +45,12 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
+import java.sql.PreparedStatement
 import java.sql.SQLException
 
 
-title = 'Compute LDay,Levening,LNight,Lden from road traffic'
-description = 'Compute Lday noise map from Day Evening Night traffic flow rate and speed estimates (specific format, see input details).' +
+title = 'Compute LDay,Levening,LNight,Lden from rail traffic'
+description = 'Compute Lday noise map from Day Evening Night rail traffic flow rate and speed estimates (specific format, see input details).' +
         '</br> Tables must be projected in a metric coordinate system (SRID). Use "Change_SRID" WPS Block if needed.' +
         '</br> </br> <b> The output tables are called : LDAY_GEOM LEVENING_GEOM LNIGHT_GEOM LDEN_GEOM </b> ' +
         'and contain : </br>' +
@@ -165,27 +173,49 @@ def exec(Connection connection, input) {
     // Get every inputs
     // -------------------
 
-    // Pointing the 'roads' table
-    String sources_table_name = "roads"
+    // Pointing the 'rail_sections' table
+    String rail_sections = "rail_sections"
     // do it case-insensitive
-    sources_table_name = sources_table_name.toUpperCase()
+    rail_sections = rail_sections.toUpperCase()
+
+
+    // Pointing the 'rail_traffic' table
+    String rail_traffic = "rail_traffic"
+    // do it case-insensitive
+    rail_traffic = rail_traffic.toUpperCase()
+
+
+
     // Check if srid are in metric projection.
-    int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
-    if (sridSources == 3785 || sridSources == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+sources_table_name+".")
-    if (sridSources == 0) throw new IllegalArgumentException("Error : The table "+sources_table_name+" does not have an associated SRID.")
+    int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse(rail_sections))
+    if (sridSources == 3785 || sridSources == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+rail_sections+".")
+    if (sridSources == 0) throw new IllegalArgumentException("Error : The table "+rail_sections+" does not have an associated SRID.")
 
     //Get the geometry field of the source table
-    TableLocation sourceTableIdentifier = TableLocation.parse(sources_table_name)
+    TableLocation sourceTableIdentifier = TableLocation.parse(rail_sections)
     List<String> geomFields = SFSUtilities.getGeometryFields(connection, sourceTableIdentifier)
     if (geomFields.isEmpty()) {
         throw new SQLException(String.format("The table %s does not exists or does not contain a geometry field", sourceTableIdentifier))
     }
 
     //Get the primary key field of the source table
-    int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, sources_table_name)
+    int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, rail_sections)
     if (pkIndex < 1) {
-        throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
+        sql.execute("ALTER TABLE " + rail_sections + " ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
+       // throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
     }
+
+    
+        //Get the primary key field of the source table
+    pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, rail_traffic)
+    if (pkIndex < 1) {
+        sql.execute("ALTER TABLE " + rail_traffic + " ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
+        //throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
+    }
+
+
+ 
+
 
     // Pointing the 'receivers' table
     String receivers_table_name = "receivers"    
@@ -201,7 +231,7 @@ def exec(Connection connection, input) {
     int sridReceivers = SFSUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
     if (sridReceivers == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+receivers_table_name+".")
     if (sridReceivers == 0) throw new IllegalArgumentException("Error : The table "+receivers_table_name+" does not have an associated SRID.")
-    if (sridReceivers != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+sources_table_name+" and "+receivers_table_name+" are not the same.")
+    if (sridReceivers != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+rail_sections+" and "+receivers_table_name+" are not the same.")
 
 
     // Get the primary key field of the receiver table
@@ -222,24 +252,28 @@ def exec(Connection connection, input) {
 
     // Pointing the 'dem' table
     String dem_table_name = "dem"
-        // do it case-insensitive
-        dem_table_name = dem_table_name.toUpperCase()
-        // Check if srid are in metric projection and are all the same.
-        int sridDEM = SFSUtilities.getSRID(connection, TableLocation.parse(dem_table_name))
-        if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
-        if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
-        if (sridDEM != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+sources_table_name+" and "+dem_table_name+" are not the same.")
+    // do it case-insensitive
+    dem_table_name = dem_table_name.toUpperCase()
+    // Check if srid are in metric projection and are all the same.
+    int sridDEM = SFSUtilities.getSRID(connection, TableLocation.parse(dem_table_name))
+    if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
+    if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
+    if (sridDEM != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+rail_sections+" and "+dem_table_name+" are not the same.")
 
 
     // Pointing the 'landcover' table
     String ground_table_name = "landcover"
-        // do it case-insensitive
-        ground_table_name = ground_table_name.toUpperCase()
-        // Check if srid are in metric projection and are all the same.
-        int sridGROUND = SFSUtilities.getSRID(connection, TableLocation.parse(ground_table_name))
-        if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
-        if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
-        if (sridGROUND != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+ground_table_name+" and "+sources_table_name+" are not the same.")
+    // do it case-insensitive
+    ground_table_name = ground_table_name.toUpperCase()
+    // Check if srid are in metric projection and are all the same.
+    int sridGROUND = SFSUtilities.getSRID(connection, TableLocation.parse(ground_table_name))
+    if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
+    if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
+    if (sridGROUND != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+ground_table_name+" and "+rail_sections+" are not the same.")
+
+
+    
+
 
     // -----------------------------------------------------------------------------
     // Define and set the parameters coming from the global configuration table (CONF)
@@ -287,33 +321,187 @@ def exec(Connection connection, input) {
     logger.info(String.format("PARAM : The pfav values are %s ", confFavorableOccurrences));
  
 
-
     // -------------------------
     // Initialize some variables
     // -------------------------
 
     // Set of already processed receivers
     Set<Long> receivers = new HashSet<>()
+
+
+
+
+
+    // --------------------------------------------
+    // Initialize NoiseModelling emission part
+    // --------------------------------------------
+
+    // ----------------------------------------------------------------------------
+    // Prepare LW table
+
+    // drop table LW_RAILWAY if exists and the create and prepare the table
+    sql.execute("drop table if exists LW_RAILWAY;")
+
+    // Build and execute queries
+    StringBuilder createTableQuery = new StringBuilder("create table LW_RAILWAY (ID_SECTION int," +
+            " the_geom geometry, DIR_ID int")
+    StringBuilder insertIntoQuery = new StringBuilder("INSERT INTO LW_RAILWAY(ID_SECTION, the_geom," +
+            " DIR_ID")
+    StringBuilder insertIntoValuesQuery = new StringBuilder("?,?,?")
+    for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
+        createTableQuery.append(", LWD")
+        createTableQuery.append(thirdOctave)
+        createTableQuery.append(" double precision")
+        insertIntoQuery.append(", LWD")
+        insertIntoQuery.append(thirdOctave)
+        insertIntoValuesQuery.append(", ?")
+    }
+    for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
+        createTableQuery.append(", LWE")
+        createTableQuery.append(thirdOctave)
+        createTableQuery.append(" double precision")
+        insertIntoQuery.append(", LWE")
+        insertIntoQuery.append(thirdOctave)
+        insertIntoValuesQuery.append(", ?")
+    }
+    for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
+        createTableQuery.append(", LWN")
+        createTableQuery.append(thirdOctave)
+        createTableQuery.append(" double precision")
+        insertIntoQuery.append(", LWN")
+        insertIntoQuery.append(thirdOctave)
+        insertIntoValuesQuery.append(", ?")
+    }
+    createTableQuery.append(")")
+    insertIntoQuery.append(") VALUES (")
+    insertIntoQuery.append(insertIntoValuesQuery)
+    insertIntoQuery.append(")")
+    sql.execute(createTableQuery.toString())
+
+
+
+    LDENConfig ldenConfig = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_RAILWAY_FLOW)
+    ldenConfig.setPropagationProcessPathData(new PropagationProcessPathData())
+    ldenConfig.setCoefficientVersion(2)
+
+    // Get size of the table (number of rail segments
+    PreparedStatement st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + rail_sections)
+    SpatialResultSet rs1 = st.executeQuery().unwrap(SpatialResultSet.class)
+
+    while (rs1.next()) {
+        nSection = rs1.getInt("total")
+        System.println('The table Rail Geom has ' + nSection + ' rail segments.')
+    }
+
+    RailWayLWIterator railWayLWIterator = new RailWayLWIterator(connection, rail_sections, rail_traffic, ldenConfig)
+    RailWayLWIterator.RailWayLWGeom railWayLWGeom;
+
+    railWayLWIterator.setDistance(2); // todo
+
+    while ((railWayLWGeom = railWayLWIterator.next()) != null) {
+
+        railWayLWGeom.setNbTrack(3);
+        RailWayLW railWayLWDay = railWayLWGeom.getRailWayLWDay()
+        RailWayLW railWayLWEvening = railWayLWGeom.getRailWayLWEvening()
+        RailWayLW railWayLWNight = railWayLWGeom.getRailWayLWNight()
+        List<LineString> geometries = railWayLWGeom.getRailWayLWGeometry()
+        int pk = railWayLWGeom.getPK()
+        double[] LWDay
+        double[] LWEvening
+        double[] LWNight
+        double heightSource
+        int directivityId
+        for (int iSource = 0; iSource < 6; iSource++) {
+            switch (iSource) {
+                case 0:
+                    LWDay = railWayLWDay.getLWRolling()
+                    LWEvening = railWayLWEvening.getLWRolling()
+                    LWNight = railWayLWNight.getLWRolling()
+                    heightSource = 0.5
+                    directivityId = 1
+                    break
+                case 1:
+                    LWDay = railWayLWDay.getLWTractionA()
+                    LWEvening = railWayLWEvening.getLWTractionA()
+                    LWNight = railWayLWNight.getLWTractionA()
+                    heightSource = 0.5
+                    directivityId = 2
+                    break
+                case 2:
+                    LWDay = railWayLWDay.getLWTractionB()
+                    LWEvening = railWayLWEvening.getLWTractionB()
+                    LWNight = railWayLWNight.getLWTractionB()
+                    heightSource = 4
+                    directivityId = 3
+                    break
+                case 3:
+                    LWDay = railWayLWDay.getLWAerodynamicA()
+                    LWEvening = railWayLWEvening.getLWAerodynamicA()
+                    LWNight = railWayLWNight.getLWAerodynamicA()
+                    heightSource = 0.5
+                    directivityId = 4
+                    break
+                case 4:
+                    LWDay = railWayLWDay.getLWAerodynamicB()
+                    LWEvening = railWayLWEvening.getLWAerodynamicB()
+                    LWNight = railWayLWNight.getLWAerodynamicB()
+                    heightSource = 4
+                    directivityId = 5
+                    break
+                case 5:
+                    LWDay = railWayLWDay.getLWBridge()
+                    LWEvening = railWayLWEvening.getLWBridge()
+                    LWNight = railWayLWNight.getLWBridge()
+                    heightSource = 0.5
+                    directivityId = 6
+                    break
+            }
+            for (int nTrack = 0; nTrack < geometries.size(); nTrack++) {
+
+                sql.withBatch(100, insertIntoQuery.toString()) { ps ->
+                    Geometry trackGeometry = (Geometry) geometries.get(nTrack)
+                    Geometry sourceGeometry = trackGeometry.copy()
+                    // offset geometry z
+                    sourceGeometry.apply(new ST_AddZ.AddZCoordinateSequenceFilter(heightSource))
+                    def batchData = [pk as int, sourceGeometry as Geometry, directivityId as int]
+                    batchData.addAll(LWDay)
+                    batchData.addAll(LWEvening)
+                    batchData.addAll(LWNight)
+                    ps.addBatch(batchData)
+                }
+            }
+        }
+
+    }
+
+
+    // Add primary key to the LW table
+    sql.execute("ALTER TABLE  LW_RAILWAY  ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
+    sql.execute("UPDATE LW_RAILWAY SET THE_GEOM = ST_SETSRID(THE_GEOM, "+sridSources+")")
+
+
     // --------------------------------------------
     // Initialize NoiseModelling propagation part
     // --------------------------------------------
 
+    String sources_table_name = "LW_RAILWAY"
     PointNoiseMap pointNoiseMap = new PointNoiseMap(building_table_name, sources_table_name, receivers_table_name)
 
-    LDENConfig ldenConfig = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_TRAFFIC_FLOW)
+    LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN)
 
-    ldenConfig.setComputeLDay(!confSkipLday)
-    ldenConfig.setComputeLEvening(!confSkipLevening)
-    ldenConfig.setComputeLNight(!confSkipLnight)
-    ldenConfig.setComputeLDEN(!confSkipLden)
-    ldenConfig.setMergeSources(!confExportSourceId)
-    ldenConfig.setCoefficientVersion(1) //1=2015 - 2=2020
+    ldenConfig_propa.setComputeLDay(!confSkipLday)
+    ldenConfig_propa.setComputeLEvening(!confSkipLevening)
+    ldenConfig_propa.setComputeLNight(!confSkipLnight)
+    ldenConfig_propa.setComputeLDEN(!confSkipLden)
+    ldenConfig_propa.setMergeSources(!confExportSourceId)
 
-    LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig)
+    LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa)
+    // Add train directivity
+    // TODO add optional discrete directivity table name
+    ldenProcessing.insertTrainDirectivity()
     pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction)
     pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction)
     pointNoiseMap.setSoundReflectionOrder(reflexion_order)
-
 
     // Set environmental parameters
     PropagationProcessPathData environmentalData = new PropagationProcessPathData(false)
@@ -356,6 +544,24 @@ def exec(Connection connection, input) {
     // --------------------------------------------
     // Initialize NoiseModelling emission part
     // --------------------------------------------
+
+    pointNoiseMap.setComputeRaysOutFactory(ldenProcessing)
+    pointNoiseMap.setPropagationProcessDataFactory(ldenProcessing)
+
+
+    // Do not propagate for low emission or far away sources
+    // Maximum error in dB
+    pointNoiseMap.setMaximumError(0.1d)
+    // Init Map
+    pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
+
+    // --------------------------------------------
+    // Run Calculations
+    // --------------------------------------------
+
+// --------------------------------------------
+    // Initialize NoiseModelling emission part
+    // --------------------------------------------
     pointNoiseMap.setComputeRaysOutFactory(ldenProcessing)
     pointNoiseMap.setPropagationProcessDataFactory(ldenProcessing)
 
@@ -364,7 +570,7 @@ def exec(Connection connection, input) {
     // Init Map
     pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
 
-    pointNoiseMap.setGridDim(100)
+    pointNoiseMap.setGridDim(25)
     logger.info("Taille de cellulle : " + pointNoiseMap.getCellWidth().toString())
 
     // --------------------------------------------
@@ -400,41 +606,41 @@ def exec(Connection connection, input) {
     } finally {
         ldenProcessing.stop()
     }
-
+    
     // Associate Geometry column to the table LDEN
     StringBuilder createdTables = new StringBuilder()
 
-    if (ldenConfig.computeLDay) {
+    if (ldenConfig_propa.computeLDay) {
         sql.execute("drop table if exists LDAY_GEOM;")
         logger.info('create table LDAY_GEOM')
-        forgeCreateTable(sql, "LDAY_GEOM", ldenConfig, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig.lDayTable)
+        forgeCreateTable(sql, "LDAY_GEOM", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lDayTable)
         createdTables.append(" LDAY_GEOM")
-        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig.getlDayTable()))
+        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig_propa.getlDayTable()))
     }
-    if (ldenConfig.computeLEvening) {
+    if (ldenConfig_propa.computeLEvening) {
         sql.execute("drop table if exists LEVENING_GEOM;")
         logger.info('create table LEVENING_GEOM')
-        forgeCreateTable(sql, "LEVENING_GEOM", ldenConfig, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig.lEveningTable)
+        forgeCreateTable(sql, "LEVENING_GEOM", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lEveningTable)
         createdTables.append(" LEVENING_GEOM")
-        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig.getlEveningTable()))
+        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig_propa.getlEveningTable()))
     }
-    if (ldenConfig.computeLNight) {
+    if (ldenConfig_propa.computeLNight) {
         sql.execute("drop table if exists LNIGHT_GEOM;")
         logger.info('create table LNIGHT_GEOM')
-        forgeCreateTable(sql, "LNIGHT_GEOM", ldenConfig, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig.lNightTable)
+        forgeCreateTable(sql, "LNIGHT_GEOM", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lNightTable)
         createdTables.append(" LNIGHT_GEOM")
-        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig.getlNightTable()))
+        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig_propa.getlNightTable()))
     }
-    if (ldenConfig.computeLDEN) {
+    if (ldenConfig_propa.computeLDEN) {
         sql.execute("drop table if exists LDEN_GEOM;")
         logger.info('create table LDEN_GEOM')
-        forgeCreateTable(sql, "LDEN_GEOM", ldenConfig, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig.lDenTable)
+        forgeCreateTable(sql, "LDEN_GEOM", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lDenTable)
         createdTables.append(" LDEN_GEOM")
-        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig.getlDenTable()))
+        sql.execute("drop table if exists " + TableLocation.parse(ldenConfig_propa.getlDenTable()))
     }
 
     resultString = "Calculation Done ! " + createdTables.toString() + " table(s) have been created."

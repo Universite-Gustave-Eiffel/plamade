@@ -99,11 +99,12 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2154" AS SELECT
 	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
 	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
 	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
-	"VALIDEFIN", "CBS_GITT"
+	"VALIDEFIN", "CBS_GITT", "AGGLO" 
 	FROM echeance4."N_ROUTIER_TRONCON_L" 
 	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
 
 CREATE INDEX n_routier_troncon_l_2154_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2154_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_2154_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2154" USING gist (the_geom);
 
 
@@ -113,11 +114,12 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2972" AS SELECT
 	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
 	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
 	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
-	"VALIDEFIN", "CBS_GITT"
+	"VALIDEFIN", "CBS_GITT", "AGGLO" 
 	FROM echeance4."N_ROUTIER_TRONCON_L" 
 	where "CODEDEPT"='973';
 
 CREATE INDEX n_routier_troncon_l_2972_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2972_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_2972_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2972" USING gist (the_geom);
 
 
@@ -127,11 +129,12 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_2975" AS SELECT
 	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
 	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
 	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
-	"VALIDEFIN", "CBS_GITT"
+	"VALIDEFIN", "CBS_GITT", "AGGLO" 
 	FROM echeance4."N_ROUTIER_TRONCON_L" 
 	where "CODEDEPT"='974';
 
 CREATE INDEX n_routier_troncon_l_2975_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_2975_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_2975_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_2975" USING gist (the_geom);
 
 
@@ -141,11 +144,12 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_4471" AS SELECT
 	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
 	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
 	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
-	"VALIDEFIN", "CBS_GITT"
+	"VALIDEFIN", "CBS_GITT", "AGGLO" 
 	FROM echeance4."N_ROUTIER_TRONCON_L" 
 	where "CODEDEPT"='976';
 
 CREATE INDEX n_routier_troncon_l_4471_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_4471_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_4471_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_4471" USING gist (the_geom);
 
 
@@ -155,11 +159,12 @@ CREATE TABLE noisemodelling."N_ROUTIER_TRONCON_L_5490" AS SELECT
 	"ANNEE", "CODEDEPT", "REFPROD", "HOMOGENE", "REFGEST", "IDROUTE", "NOMRUEG", "NOMRUED",
 	"INSEECOMG", "INSEECOMD", "REFSOURCE", "MILLSOURCE", "IDSOURCE", "PRDEB", "PRFIN",
 	"ZDEB", "ZFIN", "SENS", "LARGEUR", "NB_VOIES", "REPARTITIO", "FRANCHISST", "VALIDEDEB",
-	"VALIDEFIN", "CBS_GITT"
+	"VALIDEFIN", "CBS_GITT", "AGGLO" 
 	FROM echeance4."N_ROUTIER_TRONCON_L" 
 	where "CODEDEPT"='971' or "CODEDEPT"='972';
 
 CREATE INDEX n_routier_troncon_l_5490_idroute_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING btree ("IDROUTE");
+CREATE INDEX n_routier_troncon_l_5490_cbs_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING btree ("CBS_GITT");
 CREATE INDEX n_routier_troncon_l_5490_geom_idx ON noisemodelling."N_ROUTIER_TRONCON_L_5490" USING gist (the_geom);
 
 
@@ -297,56 +302,61 @@ CREATE INDEX c_batiment_s_5490_geom_idx ON noisemodelling."C_BATIMENT_S_5490" US
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2154";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
-	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE"  
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" ='973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';	
 
 CREATE INDEX n_ferroviaire_troncon_l_2154_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2154_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_2154_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2972";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2972) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='973';	
 
 CREATE INDEX n_ferroviaire_troncon_l_2972_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2972_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_2972_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_2975";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2975) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='974';	
 
 CREATE INDEX n_ferroviaire_troncon_l_2975_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_2975_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_2975_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_4471";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 4471) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='976';	
 
 CREATE INDEX n_ferroviaire_troncon_l_4471_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_4471_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_4471_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."N_FERROVIAIRE_TRONCON_L_5490";
 CREATE TABLE noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 5490) as the_geom, "IDTRONCON", "ANNEE", "CODEDEPT", "REFPROD", "IDO", "IDF", "HOMOGENE", 
-	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES_1", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
+	"IDLIGNE", "NUMLIGNE", "PRDEB", "PRFIN", "SHAPE_LENG", "LARGEMPRIS", "NB_VOIES", "RAMPE", "VMAXINFRA", "CBS_GITT", "BASEVOIE", 
 	"RUGOSITE", "SEMELLE", "PROTECTSUP", "JOINTRAIL", "COURBURE" 
 	FROM echeance4."N_FERROVIAIRE_TRONCON_L" 
 	where "CODEDEPT"='971' or "CODEDEPT"='972';	
 
 CREATE INDEX n_ferroviaire_troncon_l_5490_idtroncon_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING btree ("IDTRONCON");
+CREATE INDEX n_ferroviaire_troncon_l_5490_cbs_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING btree ("CBS_GITT");
 CREATE INDEX n_ferroviaire_troncon_l_5490_geom_idx ON noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" USING gist (the_geom);
 
 
@@ -425,7 +435,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_2154" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where not "CODEDEPT"='971' and not "CODEDEPT" = '972' and not "CODEDEPT" = '973' and not "CODEDEPT" ='974' and not "CODEDEPT" = '976';
 
-CREATE INDEX c_nature_sol_s_2154_idbat_idx ON noisemodelling."C_NATURESOL_S_2154" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2154_idnasol_idx ON noisemodelling."C_NATURESOL_S_2154" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2154_natsolcno_idx ON noisemodelling."C_NATURESOL_S_2154" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_2154_geom_idx ON noisemodelling."C_NATURESOL_S_2154" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_2972";
@@ -435,7 +446,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_2972" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='973';
 
-CREATE INDEX c_nature_sol_s_2972_idbat_idx ON noisemodelling."C_NATURESOL_S_2972" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2972_idnasol_idx ON noisemodelling."C_NATURESOL_S_2972" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2972_natsolcno_idx ON noisemodelling."C_NATURESOL_S_2972" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_2972_geom_idx ON noisemodelling."C_NATURESOL_S_2972" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_2975";
@@ -445,7 +457,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_2975" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='974';
 
-CREATE INDEX c_nature_sol_s_2975_idbat_idx ON noisemodelling."C_NATURESOL_S_2975" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2975_idnasol_idx ON noisemodelling."C_NATURESOL_S_2975" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_2975_natsolcno_idx ON noisemodelling."C_NATURESOL_S_2975" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_2975_geom_idx ON noisemodelling."C_NATURESOL_S_2975" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_4471";
@@ -455,7 +468,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_4471" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='976';
 
-CREATE INDEX c_nature_sol_s_4471_idbat_idx ON noisemodelling."C_NATURESOL_S_4471" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_4471_idnasol_idx ON noisemodelling."C_NATURESOL_S_4471" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_4471_natsolcno_idx ON noisemodelling."C_NATURESOL_S_4471" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_4471_geom_idx ON noisemodelling."C_NATURESOL_S_4471" USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling."C_NATURESOL_S_5490";
@@ -465,7 +479,8 @@ CREATE TABLE noisemodelling."C_NATURESOL_S_5490" AS SELECT
 	FROM echeance4."C_NATURESOL_S" 
 	where "CODEDEPT"='971' or "CODEDEPT"='972';
 
-CREATE INDEX c_nature_sol_s_5490_idbat_idx ON noisemodelling."C_NATURESOL_S_5490" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_5490_idnasol_idx ON noisemodelling."C_NATURESOL_S_5490" USING btree ("IDNATSOL");
+CREATE INDEX c_nature_sol_s_5490_natsolcno_idx ON noisemodelling."C_NATURESOL_S_5490" USING btree ("NATSOL_CNO");
 CREATE INDEX c_nature_sol_s_5490_geom_idx ON noisemodelling."C_NATURESOL_S_5490" USING gist (the_geom);
 
 ---------------------------------------------------------------------------------
@@ -496,12 +511,15 @@ COMMENT ON COLUMN noisemodelling.conf.wall_alpha IS 'Ground absorption coefficie
 -- Insert values
 INSERT INTO noisemodelling.conf VALUES(1, 0, 250, 50, 5, 1, false, false, true, true, true, false, true, 0.1);
 INSERT INTO noisemodelling.conf VALUES(2, 0, 250, 50, 5, 1, false, false, true, true, true, false, false, 0.1);
+INSERT INTO noisemodelling.conf VALUES(3, 1, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(4, 3, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
+
 
 ----------------------------------
 -- CONF_ROAD table
 DROP TABLE IF EXISTS noisemodelling.conf_road;
-CREATE TABLE noisemodelling.conf_road (confId integer Primary Key, junc_dist float8, junc_type integer);
-COMMENT ON COLUMN noisemodelling.conf_road.confId IS 'Configuration identifier';
+CREATE TABLE noisemodelling.conf_road (idConf integer Primary Key, junc_dist float8, junc_type integer);
+COMMENT ON COLUMN noisemodelling.conf_road.idConf IS 'Configuration identifier';
 COMMENT ON COLUMN noisemodelling.conf_road.junc_dist IS 'Distance to junction in meters';
 COMMENT ON COLUMN noisemodelling.conf_road.junc_type IS 'Type of junction (k=0 none, k = 1 for a crossing with traffic lights, k = 2 for a roundabout)';
 
@@ -511,27 +529,27 @@ INSERT INTO noisemodelling.conf_road VALUES(1, 200, 0);
 ----------------------------------
 -- CONF_RAIL table
 DROP TABLE IF EXISTS noisemodelling.conf_rail;
-CREATE TABLE noisemodelling.conf_rail (confId integer Primary Key, id_plateform varchar, entre_axe integer);
-COMMENT ON COLUMN noisemodelling.conf_rail.confId IS 'Configuration identifier';
-COMMENT ON COLUMN noisemodelling.conf_rail.id_plateform IS 'Foreign key to the plateform table';
-COMMENT ON COLUMN noisemodelling.conf_rail.entre_axe IS 'Default width of the centre-to-centre distance (in metres)';
-
+CREATE TABLE noisemodelling.conf_rail (idConf integer Primary Key, idPlatform varchar, runCdtn integer, idling float);
+COMMENT ON COLUMN noisemodelling.conf_rail.idConf IS 'Configuration identifier';
+COMMENT ON COLUMN noisemodelling.conf_rail.idPlatform IS 'Foreign key to the plateform table';
+COMMENT ON COLUMN noisemodelling.conf_rail.runCdtn IS 'Listed code describing the running condition of the train : constant=0, accelerating=1, decelerating=2, idling=3';
+COMMENT ON COLUMN noisemodelling.conf_rail.idling IS 'Idling Time (only used when RunningCondition is "idling")';
 
 
 ----------------------------------
--- PLATEFORME table
-DROP TABLE IF EXISTS noisemodelling.plateforme;
-CREATE TABLE noisemodelling.plateforme (idPlatform varchar Primary Key, d1 float, g1 float, g2 float, g3 float, h1 float, h2 float);
+-- PLATFORM table
+DROP TABLE IF EXISTS noisemodelling.platform;
+CREATE TABLE noisemodelling.platform (idPlatform varchar Primary Key, d1 float, g1 float, g2 float, g3 float, h1 float, h2 float);
 
-COMMENT ON COLUMN noisemodelling.plateforme.idPlatform IS 'Platform id';
-COMMENT ON COLUMN noisemodelling.plateforme.d1 IS 'Ecartement des rails (en mètre)';
-COMMENT ON COLUMN noisemodelling.plateforme.g1 IS 'Facteur de sol de la plateforme';
-COMMENT ON COLUMN noisemodelling.plateforme.g2 IS 'Facteur de sol de la banquette de ballast';
-COMMENT ON COLUMN noisemodelling.plateforme.g3 IS 'Facteur de sol entre les rails';
-COMMENT ON COLUMN noisemodelling.plateforme.h1 IS 'Hauteur de la banquette de ballast (en mètre)';
-COMMENT ON COLUMN noisemodelling.plateforme.h2 IS 'Hauteur des rails libres au-dessus du ballast (en mètre)';
+COMMENT ON COLUMN noisemodelling.platform.idPlatform IS 'Platform id';
+COMMENT ON COLUMN noisemodelling.platform.d1 IS 'Ecartement des rails (en mètre)';
+COMMENT ON COLUMN noisemodelling.platform.g1 IS 'Facteur de sol de la platform';
+COMMENT ON COLUMN noisemodelling.platform.g2 IS 'Facteur de sol de la banquette de ballast';
+COMMENT ON COLUMN noisemodelling.platform.g3 IS 'Facteur de sol entre les rails';
+COMMENT ON COLUMN noisemodelling.platform.h1 IS 'Hauteur de la banquette de ballast (en mètre)';
+COMMENT ON COLUMN noisemodelling.platform.h2 IS 'Hauteur des rails libres au-dessus du ballast (en mètre)';
 
-INSERT INTO noisemodelling.plateforme VALUES ('SNCF', 1.435, 0, 0.5, 0.5, 0.5, 0.18);
+INSERT INTO noisemodelling.platform VALUES ('SNCF', 1.435, 0, 1, 1, 1, 0.18);
 
 
 ----------------------------------
@@ -780,29 +798,159 @@ CREATE TABLE  noisemodelling.station_pfav_5490 AS SELECT a.the_geom, a.id, b.*
 FROM noisemodelling.station_5490 a, noisemodelling.pfav b
 WHERE a.insee_station = b.insee_station;
 
-
 DROP TABLE IF EXISTS noisemodelling.station_2154, noisemodelling.station_2972, noisemodelling.station_2975, noisemodelling.station_4471, noisemodelling.station_5490, noisemodelling.pfav;
 
 
--- In the C_METEO_S table
-/*
-ALTER TABLE echeance4."C_METEO_S" 
-	ADD COLUMN temp_d integer DEFAULT 15,
-	ADD COLUMN temp_e integer DEFAULT 10,
-	ADD COLUMN temp_n integer DEFAULT 5,
-	ADD COLUMN hygro_d integer DEFAULT 70, 
-	ADD COLUMN hygro_e integer DEFAULT 70,
-	ADD COLUMN hygro_n integer DEFAULT 70,
-	ADD COLUMN ts_stud integer DEFAULT 0,
-	ADD COLUMN pm_stud integer DEFAULT 0;
-*/
-
--- Ajoute de la zone de test 99
-INSERT INTO echeance4."C_METEO_S"
-(the_geom, "IDMETEO", "ANNEE", "CODEDEPT", "REFPROD", "METEO_STAT", "METEO_FORF", temp_d, temp_e, temp_n, hygro_d, hygro_e, hygro_n, ts_stud, pm_stud)
-VALUES('SRID=4326;MULTIPOLYGON (((1.0769657607598977 49.39519023880368, 1.0789366638225655 49.359228601592946, 1.141578475165842 49.35979664299892, 1.140603471450398 49.39556824356913, 1.0769657607598977 49.39519023880368)))'::geometry, 999, 'test', '099', 'test', 'test', 'T', 15, 10, 5, 70, 70, 70, 0, 0);
-
-
+-- Generate NUTS table
+DROP TABLE IF EXISTS noisemodelling.nuts;
+CREATE TABLE noisemodelling.nuts(code_2021 VARCHAR(9) NOT NULL PRIMARY KEY,country VARCHAR(7), 
+   nuts_lvl1 VARCHAR(46), nuts_lvl2 VARCHAR(26),nuts_lvl3 VARCHAR(23), code_dept VARCHAR(3));
+INSERT INTO noisemodelling.nuts VALUES ('FR','France',NULL,NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FR1',NULL,'Ile-de-France',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FR10',NULL,NULL,'Ile-de-France',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FR101',NULL,NULL,NULL,'Paris', '075');
+INSERT INTO noisemodelling.nuts VALUES ('FR102',NULL,NULL,NULL,'Seine-et-Marne', '077');
+INSERT INTO noisemodelling.nuts VALUES ('FR103',NULL,NULL,NULL,'Yvelines','078');
+INSERT INTO noisemodelling.nuts VALUES ('FR104',NULL,NULL,NULL,'Essonne', '091');
+INSERT INTO noisemodelling.nuts VALUES ('FR105',NULL,NULL,NULL,'Hauts-de-Seine', '092');
+INSERT INTO noisemodelling.nuts VALUES ('FR106',NULL,NULL,NULL,'Seine-Saint-Denis', '093');
+INSERT INTO noisemodelling.nuts VALUES ('FR107',NULL,NULL,NULL,'Val-de-Marne', '094');
+INSERT INTO noisemodelling.nuts VALUES ('FR108',NULL,NULL,NULL,'Val-d''Oise', '095');
+INSERT INTO noisemodelling.nuts VALUES ('FRB',NULL,'Centre - Val de Loire',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRB0',NULL,NULL,'Centre - Val de Loire',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRB01',NULL,NULL,NULL,'Cher', '018');
+INSERT INTO noisemodelling.nuts VALUES ('FRB02',NULL,NULL,NULL,'Eure-et-Loir', '028');
+INSERT INTO noisemodelling.nuts VALUES ('FRB03',NULL,NULL,NULL,'Indre', '036');
+INSERT INTO noisemodelling.nuts VALUES ('FRB04',NULL,NULL,NULL,'Indre-et-Loire', '037');
+INSERT INTO noisemodelling.nuts VALUES ('FRB05',NULL,NULL,NULL,'Loir-et-Cher', '041');
+INSERT INTO noisemodelling.nuts VALUES ('FRB06',NULL,NULL,NULL,'Loiret', '045');
+INSERT INTO noisemodelling.nuts VALUES ('FRC',NULL,'Bourgogne-Franche-Comté',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRC1',NULL,NULL,'Bourgogne',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRC11',NULL,NULL,NULL,'Côte-d''Or', '021');
+INSERT INTO noisemodelling.nuts VALUES ('FRC12',NULL,NULL,NULL,'Nièvre', '058');
+INSERT INTO noisemodelling.nuts VALUES ('FRC13',NULL,NULL,NULL,'Saône-et-Loire', '071');
+INSERT INTO noisemodelling.nuts VALUES ('FRC14',NULL,NULL,NULL,'Yonne', '089');
+INSERT INTO noisemodelling.nuts VALUES ('FRC2',NULL,NULL,'Franche-Comté',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRC21',NULL,NULL,NULL,'Doubs', '025');
+INSERT INTO noisemodelling.nuts VALUES ('FRC22',NULL,NULL,NULL,'Jura', '039');
+INSERT INTO noisemodelling.nuts VALUES ('FRC23',NULL,NULL,NULL,'Haute-Saône', '070');
+INSERT INTO noisemodelling.nuts VALUES ('FRC24',NULL,NULL,NULL,'Territoire de Belfort', '090');
+INSERT INTO noisemodelling.nuts VALUES ('FRD',NULL,'Normandie',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRD1',NULL,NULL,'Basse-Normandie',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRD11',NULL,NULL,NULL,'Calvados', '014');
+INSERT INTO noisemodelling.nuts VALUES ('FRD12',NULL,NULL,NULL,'Manche', '050');
+INSERT INTO noisemodelling.nuts VALUES ('FRD13',NULL,NULL,NULL,'Orne', '061');
+INSERT INTO noisemodelling.nuts VALUES ('FRD2',NULL,NULL,'Haute-Normandie',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRD21',NULL,NULL,NULL,'Eure', '027');
+INSERT INTO noisemodelling.nuts VALUES ('FRD22',NULL,NULL,NULL,'Seine-Maritime', '076');
+INSERT INTO noisemodelling.nuts VALUES ('FRE',NULL,'Hauts-de-France',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRE1',NULL,NULL,'Nord-Pas de Calais',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRE11',NULL,NULL,NULL,'Nord', '059');
+INSERT INTO noisemodelling.nuts VALUES ('FRE12',NULL,NULL,NULL,'Pas-de-Calais', '062');
+INSERT INTO noisemodelling.nuts VALUES ('FRE2',NULL,NULL,'Picardie',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRE21',NULL,NULL,NULL,'Aisne', '002');
+INSERT INTO noisemodelling.nuts VALUES ('FRE22',NULL,NULL,NULL,'Oise', '060');
+INSERT INTO noisemodelling.nuts VALUES ('FRE23',NULL,NULL,NULL,'Somme', '080');
+INSERT INTO noisemodelling.nuts VALUES ('FRF',NULL,'Grand Est',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRF1',NULL,NULL,'Alsace',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRF11',NULL,NULL,NULL,'Bas-Rhin', '067');
+INSERT INTO noisemodelling.nuts VALUES ('FRF12',NULL,NULL,NULL,'Haut-Rhin', '068');
+INSERT INTO noisemodelling.nuts VALUES ('FRF2',NULL,NULL,'Champagne-Ardenne',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRF21',NULL,NULL,NULL,'Ardennes', '008');
+INSERT INTO noisemodelling.nuts VALUES ('FRF22',NULL,NULL,NULL,'Aube', '010');
+INSERT INTO noisemodelling.nuts VALUES ('FRF23',NULL,NULL,NULL,'Marne', '051');
+INSERT INTO noisemodelling.nuts VALUES ('FRF24',NULL,NULL,NULL,'Haute-Marne', '052');
+INSERT INTO noisemodelling.nuts VALUES ('FRF3',NULL,NULL,'Lorraine',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRF31',NULL,NULL,NULL,'Meurthe-et-Moselle', '054');
+INSERT INTO noisemodelling.nuts VALUES ('FRF32',NULL,NULL,NULL,'Meuse', '055');
+INSERT INTO noisemodelling.nuts VALUES ('FRF33',NULL,NULL,NULL,'Moselle', '057');
+INSERT INTO noisemodelling.nuts VALUES ('FRF34',NULL,NULL,NULL,'Vosges', '088');
+INSERT INTO noisemodelling.nuts VALUES ('FRG',NULL,'Pays de la Loire',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRG0',NULL,NULL,'Pays de la Loire',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRG01',NULL,NULL,NULL,'Loire-Atlantique', '044');
+INSERT INTO noisemodelling.nuts VALUES ('FRG02',NULL,NULL,NULL,'Maine-et-Loire', '049');
+INSERT INTO noisemodelling.nuts VALUES ('FRG03',NULL,NULL,NULL,'Mayenne', '053');
+INSERT INTO noisemodelling.nuts VALUES ('FRG04',NULL,NULL,NULL,'Sarthe', '072');
+INSERT INTO noisemodelling.nuts VALUES ('FRG05',NULL,NULL,NULL,'Vendée', '085');
+INSERT INTO noisemodelling.nuts VALUES ('FRH',NULL,'Bretagne',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRH0',NULL,NULL,'Bretagne',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRH01',NULL,NULL,NULL,'Côtes-d''Armor', '022');
+INSERT INTO noisemodelling.nuts VALUES ('FRH02',NULL,NULL,NULL,'Finistère', '029');
+INSERT INTO noisemodelling.nuts VALUES ('FRH03',NULL,NULL,NULL,'Ille-et-Vilaine', '035');
+INSERT INTO noisemodelling.nuts VALUES ('FRH04',NULL,NULL,NULL,'Morbihan', '056');
+INSERT INTO noisemodelling.nuts VALUES ('FRI',NULL,'Nouvelle-Aquitaine',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRI1',NULL,NULL,'Aquitaine',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRI11',NULL,NULL,NULL,'Dordogne', '024');
+INSERT INTO noisemodelling.nuts VALUES ('FRI12',NULL,NULL,NULL,'Gironde', '033');
+INSERT INTO noisemodelling.nuts VALUES ('FRI13',NULL,NULL,NULL,'Landes', '040');
+INSERT INTO noisemodelling.nuts VALUES ('FRI14',NULL,NULL,NULL,'Lot-et-Garonne', '047');
+INSERT INTO noisemodelling.nuts VALUES ('FRI15',NULL,NULL,NULL,'Pyrénées-Atlantiques', '064');
+INSERT INTO noisemodelling.nuts VALUES ('FRI2',NULL,NULL,'Limousin',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRI21',NULL,NULL,NULL,'Corrèze', '019');
+INSERT INTO noisemodelling.nuts VALUES ('FRI22',NULL,NULL,NULL,'Creuse', '023');
+INSERT INTO noisemodelling.nuts VALUES ('FRI23',NULL,NULL,NULL,'Haute-Vienne', '087');
+INSERT INTO noisemodelling.nuts VALUES ('FRI3',NULL,NULL,'Poitou-Charentes',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRI31',NULL,NULL,NULL,'Charente', '016');
+INSERT INTO noisemodelling.nuts VALUES ('FRI32',NULL,NULL,NULL,'Charente-Maritime', '017');
+INSERT INTO noisemodelling.nuts VALUES ('FRI33',NULL,NULL,NULL,'Deux-Sèvres', '079');
+INSERT INTO noisemodelling.nuts VALUES ('FRI34',NULL,NULL,NULL,'Vienne', '086');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ',NULL,'Occitanie',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRJ1',NULL,NULL,'Languedoc-Roussillon',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRJ11',NULL,NULL,NULL,'Aude', '011');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ12',NULL,NULL,NULL,'Gard', '030');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ13',NULL,NULL,NULL,'Hérault', '034');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ14',NULL,NULL,NULL,'Lozère', '048');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ15',NULL,NULL,NULL,'Pyrénées-Orientales', '066');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ2',NULL,NULL,'Midi-Pyrénées',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRJ21',NULL,NULL,NULL,'Ariège', '009');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ22',NULL,NULL,NULL,'Aveyron', '012');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ23',NULL,NULL,NULL,'Haute-Garonne', '031');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ24',NULL,NULL,NULL,'Gers', '032');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ25',NULL,NULL,NULL,'Lot', '046');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ26',NULL,NULL,NULL,'Hautes-Pyrénées', '065');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ27',NULL,NULL,NULL,'Tarn', '081');
+INSERT INTO noisemodelling.nuts VALUES ('FRJ28',NULL,NULL,NULL,'Tarn-et-Garonne', '082');
+INSERT INTO noisemodelling.nuts VALUES ('FRK',NULL,'Auvergne-Rhône-Alpes',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRK1',NULL,NULL,'Auvergne',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRK11',NULL,NULL,NULL,'Allier', '003');
+INSERT INTO noisemodelling.nuts VALUES ('FRK12',NULL,NULL,NULL,'Cantal', '015');
+INSERT INTO noisemodelling.nuts VALUES ('FRK13',NULL,NULL,NULL,'Haute-Loire', '043');
+INSERT INTO noisemodelling.nuts VALUES ('FRK14',NULL,NULL,NULL,'Puy-de-Dôme', '063');
+INSERT INTO noisemodelling.nuts VALUES ('FRK2',NULL,NULL,'Rhône-Alpes',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRK21',NULL,NULL,NULL,'Ain', '001');
+INSERT INTO noisemodelling.nuts VALUES ('FRK22',NULL,NULL,NULL,'Ardèche', '007');
+INSERT INTO noisemodelling.nuts VALUES ('FRK23',NULL,NULL,NULL,'Drôme', '026');
+INSERT INTO noisemodelling.nuts VALUES ('FRK24',NULL,NULL,NULL,'Isère', '038');
+INSERT INTO noisemodelling.nuts VALUES ('FRK25',NULL,NULL,NULL,'Loire', '042');
+INSERT INTO noisemodelling.nuts VALUES ('FRK26',NULL,NULL,NULL,'Rhône', '069');
+INSERT INTO noisemodelling.nuts VALUES ('FRK27',NULL,NULL,NULL,'Savoie', '073');
+INSERT INTO noisemodelling.nuts VALUES ('FRK28',NULL,NULL,NULL,'Haute-Savoie', '074');
+INSERT INTO noisemodelling.nuts VALUES ('FRL',NULL,'Provence-Alpes-Côte d''Azur',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRL0',NULL,NULL,'Provence-Alpes-Côte d''Azur',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRL01',NULL,NULL,NULL,'Alpes-de-Haute-Provence', '004');
+INSERT INTO noisemodelling.nuts VALUES ('FRL02',NULL,NULL,NULL,'Hautes-Alpes', '005');
+INSERT INTO noisemodelling.nuts VALUES ('FRL03',NULL,NULL,NULL,'Alpes-Maritimes', '006');
+INSERT INTO noisemodelling.nuts VALUES ('FRL04',NULL,NULL,NULL,'Bouches-du-Rhône', '013');
+INSERT INTO noisemodelling.nuts VALUES ('FRL05',NULL,NULL,NULL,'Var', '083');
+INSERT INTO noisemodelling.nuts VALUES ('FRL06',NULL,NULL,NULL,'Vaucluse', '084');
+INSERT INTO noisemodelling.nuts VALUES ('FRM',NULL,'Corse',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRM0',NULL,NULL,'Corse',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRM01',NULL,NULL,NULL,'Corse-du-Sud', '02A');
+INSERT INTO noisemodelling.nuts VALUES ('FRM02',NULL,NULL,NULL,'Haute-Corse', '02B');
+INSERT INTO noisemodelling.nuts VALUES ('FRY',NULL,'RUP FR - Régions Ultrapériphériques Françaises',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRY1',NULL,NULL,'Guadeloupe',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRY10',NULL,NULL,NULL,'Guadeloupe', '971');
+INSERT INTO noisemodelling.nuts VALUES ('FRY2',NULL,NULL,'Martinique',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRY20',NULL,NULL,NULL,'Martinique', '972');
+INSERT INTO noisemodelling.nuts VALUES ('FRY3',NULL,NULL,'Guyane',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRY30',NULL,NULL,NULL,'Guyane', '973');
+INSERT INTO noisemodelling.nuts VALUES ('FRY4',NULL,NULL,'La Réunion',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRY40',NULL,NULL,NULL,'La Réunion', '974');
+INSERT INTO noisemodelling.nuts VALUES ('FRY5',NULL,NULL,'Mayotte',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRY50',NULL,NULL,NULL,'Mayotte', '976');
+INSERT INTO noisemodelling.nuts VALUES ('FRZ',NULL,'Extra-Regio nuts 1',NULL,NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRZZ',NULL,NULL,'Extra-Regio nuts 2',NULL,NULL);
+INSERT INTO noisemodelling.nuts VALUES ('FRZZZ',NULL,NULL,NULL,'Extra-Regio nuts 3',NULL);
 
 
 ---------------------------------------------------------------------------------
@@ -826,5 +974,36 @@ UPDATE noisemodelling."C_BATIMENT_S_4471" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
 UPDATE noisemodelling."C_BATIMENT_S_5490" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
 
 
+---------------------------------------------------------------------------------
+-- 5- Generate INFRA table, used in order to filter DEM tables
+---------------------------------------------------------------------------------
 
+DROP TABLE IF EXISTS noisemodelling.infra_2154;
+CREATE TABLE noisemodelling.infra_2154 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2154" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" WHERE "CBS_GITT";
+CREATE INDEX infra_2154_geom_idx ON noisemodelling.infra_2154 USING gist (the_geom);
 
+DROP TABLE IF EXISTS noisemodelling.infra_2972;
+CREATE TABLE noisemodelling.infra_2972 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2972" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" WHERE "CBS_GITT";
+CREATE INDEX infra_2972_geom_idx ON noisemodelling.infra_2972 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_2975;
+CREATE TABLE noisemodelling.infra_2975 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2975" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" WHERE "CBS_GITT";
+CREATE INDEX infra_2975_geom_idx ON noisemodelling.infra_2975 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_4471;
+CREATE TABLE noisemodelling.infra_4471 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_4471" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" WHERE "CBS_GITT";
+CREATE INDEX infra_4471_geom_idx ON noisemodelling.infra_4471 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_5490;
+CREATE TABLE noisemodelling.infra_5490 AS 
+	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_5490" WHERE "CBS_GITT" UNION ALL 
+	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" WHERE "CBS_GITT";
+CREATE INDEX infra_5490_geom_idx ON noisemodelling.infra_5490 USING gist (the_geom);
