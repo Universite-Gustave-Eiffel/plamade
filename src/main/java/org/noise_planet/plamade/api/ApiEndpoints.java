@@ -15,8 +15,10 @@
  */
 package org.noise_planet.plamade.api;
 
+import org.noise_planet.plamade.api.secure.JobList;
 import org.noise_planet.plamade.api.secure.SecureEndpoint;
 import org.pac4j.oidc.client.GoogleOidcClient;
+import ratpack.exec.Blocking;
 import ratpack.func.Action;
 import ratpack.handling.Chain;
 import ratpack.pac4j.RatpackPac4j;
@@ -31,6 +33,7 @@ public class ApiEndpoints implements Action<Chain> {
         chain.prefix("manage", c -> {
             c.all(RatpackPac4j.requireAuth(GoogleOidcClient.class));
             c.get(SecureEndpoint.class);
+            c.get("joblist", JobList.class);
         });
 
         // Logout
