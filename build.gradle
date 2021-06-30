@@ -11,6 +11,13 @@ group = 'org.noise_planet'
 version = '0.1.0'
 sourceCompatibility = 1.8
 
+sourceSets {
+    main {
+        groovy {
+            srcDirs 'script_groovy'
+        }
+    }
+}
 repositories {
     mavenCentral()
     maven { url 'https://repo1.maven.org/maven2/' }
@@ -37,26 +44,6 @@ dependencies {
     implementation ratpack.dependency('guice')
     implementation ratpack.dependency('groovy')
     implementation ratpack.dependency('hikari')
-    implementation group: 'org.orbisgis', name: 'h2gis', version: '1.5.1-SNAPSHOT'
-    implementation('org.orbisgis:wps_scripts:3.4.2-SNAPSHOT') {
-        exclude group: 'no.ecc.vectortile'
-        exclude group: 'javax.media'
-        exclude group: 'commons-beanutils'
-        exclude group: 'org.locationtech.jts'
-        exclude group: 'org.geoserver', module: 'gs-wms'
-        exclude group: 'org.geoserver', module: 'gs-wfs'
-        exclude group: 'org.geoserver', module: 'gs-ows'
-        exclude group: 'org.geoserver', module: 'gs-rest'
-        exclude group: 'org.geoserver', module: 'gs-restconfig'
-        exclude group: 'org.geoserver', module: 'gs-main'
-        exclude group: 'org.geoserver', module: 'gs-wcs2_0'
-        exclude group: 'org.geoserver', module: 'gs-wcs1_1'
-        exclude group: 'org.geoserver', module: 'gs-wcs1_0'
-        exclude group: 'org.geotools.xsd', module: 'gt-xsd-sld'
-        exclude group: 'org.geotools.xsd', module: 'gt-xsd-wps'
-        exclude group: 'org.geotools', module: 'gt-process-raster'
-        exclude group: 'org.geotools', module: 'gt-process-feature'
-    }
 
     implementation 'org.pac4j:ratpack-pac4j:2.0.0'
     implementation 'org.pac4j:pac4j-oidc:2.2.1'
@@ -65,7 +52,7 @@ dependencies {
 
     runtimeOnly 'org.slf4j:slf4j-simple:1.7.22'
 
-    //implementation fileTree(dir: 'computation_core/dependencies', include: '*.jar')
+    implementation fileTree(dir: 'computation_core/dependencies', include: '*.jar')
 }
 
 mainClassName = 'org.noise_planet.plamade.Main'
