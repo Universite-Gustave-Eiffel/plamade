@@ -147,7 +147,7 @@ def exec(Connection connection, input) {
     String sources_table_name = "ROADS"
     sources_table_name = sources_table_name.toUpperCase()
 
-    String building_table_name = "BUILDINGS"
+    String building_table_name = "BUILDINGS_SCREENS"
     building_table_name = building_table_name.toUpperCase()
 
     Double height = 4.1
@@ -191,10 +191,15 @@ def exec(Connection connection, input) {
     logger.info(String.format("PARAM : Maximum source distance equal to %s ", maxPropDist));
 
 
-
     // Delete previous receivers grid
     sql.execute(String.format("DROP TABLE IF EXISTS %s", receivers_table_name))
     sql.execute("DROP TABLE IF EXISTS TRIANGLES")
+
+
+    // Update metadata table with start time
+    sql.execute(String.format("UPDATE metadata SET conf_d_grid =" + input.confId))
+    sql.execute(String.format("UPDATE metadata SET d_grid_start = NOW();"))
+
 
     // Generate receivers grid for noise map rendering
     TriangleNoiseMap noiseMap = new TriangleNoiseMap(building_table_name, sources_table_name)
@@ -248,6 +253,7 @@ def exec(Connection connection, input) {
     int nbReceivers = sql.firstRow("SELECT COUNT(*) FROM " + receivers_table_name)[0] as Integer
 
     // Process Done
+    sql.execute(String.format("UPDATE metadata SET d_grid_end = NOW();"))
     resultString = "Process done. " + receivers_table_name + " (" + nbReceivers + " receivers) and TRIANGLES tables created. "
 
     // print to command window
