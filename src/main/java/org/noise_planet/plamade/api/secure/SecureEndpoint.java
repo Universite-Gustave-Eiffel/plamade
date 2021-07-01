@@ -35,13 +35,11 @@ public class SecureEndpoint implements Handler {
         RatpackPac4j.userProfile(ctx)
                 .then(commonProfile -> {
                     final Map<String, Object> model = Maps.newHashMap();
-                    model.put("profile", commonProfile);
-
-                    //ctx.render(groovyTemplate(model, "secure.html"));
                     if(commonProfile.isPresent()) {
-                        ctx.render(json(commonProfile.get()));
+                        model.put("profile", commonProfile.get());
+                        ctx.render(groovyTemplate(model, "secure.html"));
                     } else {
-                        ctx.render(groovyTemplate(model, "nonsecure.html"));
+                        ctx.redirect("index.html");
                     }
                 });
     }

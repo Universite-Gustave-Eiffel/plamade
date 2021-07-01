@@ -70,9 +70,10 @@ public class Main {
                     pst.setInt(1, DATABASE_VERSION);
                     pst.execute();
                     // First database
-                    st.executeUpdate("CREATE TABLE USERS(PK_USER SERIAL, USER_OID VARCHAR, IS_ADMIN BOOLEAN)");
+                    st.executeUpdate("CREATE TABLE USERS(PK_USER SERIAL, USER_OID VARCHAR)");
+                    st.executeUpdate("CREATE TABLE USER_ASK_INVITATION(PK_INVITE SERIAL, USER_OID VARCHAR, MAIL VARCHAR)");
                     st.executeUpdate("CREATE TABLE IF NOT EXISTS JOBS(PK_JOB SERIAL," +
-                            " BEGIN_DATE DATE, END_DATE DATE, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, USER_PK INTEGER)");
+                            " BEGIN_DATE DATE, END_DATE DATE, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER)");
 
                 }
                 // In the future check databaseVersion for database upgrades

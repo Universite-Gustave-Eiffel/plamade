@@ -16,6 +16,7 @@
 package org.noise_planet.plamade.api;
 
 import com.google.inject.AbstractModule;
+import org.noise_planet.plamade.api.secure.JobList;
 import org.noise_planet.plamade.api.secure.SecureEndpoint;
 
 public class ApiModule extends AbstractModule {
@@ -24,5 +25,6 @@ public class ApiModule extends AbstractModule {
     protected void configure() {
         bind(ApiEndpoints.class);
         bind(SecureEndpoint.class);
+        bind(JobList.class);
     }
 }

@@ -1,4 +1,33 @@
-<h1>Secure Page</h1>
-<a href="../">Back</a><br />
-<br /><br />
-profile : ${model.profile}<br />
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width">
+        <title data-react-helmet="true">Plamade computation platform</title>
+        <link rel="stylesheet" href="css/pure-min.css">
+        <link rel="stylesheet" href="css/plamade.css">
+        <script type="text/javascript" src="js/plamade.js"></script>
+    </head>
+    <body>
+        <div id="layout">
+            <div id="menu" class="pure-menu custom-restricted-width">
+                <img src="${model.profile.pictureUrl}">
+                <span class="pure-menu-heading">Jobs</span>
+                <ul class="pure-menu-list">
+                    <li class="pure-menu-item">
+                        <a href="#jobs_completed" class="pure-menu-link">Jobs completed</a>
+                    </li>
+                    <li class="pure-menu-item">
+                        <a href="#jobs_in_progress" class="pure-menu-link">Jobs in progress</a>
+                    </li>
+                    <li class="pure-menu-item">
+                        <a href="#add_job" class="pure-menu-link">Add a new job</a>
+                    </li>
+                </ul>
+            </div>
+            <div id="main">
+
+            </div>
+        </div>
+    </body>
+</html>
