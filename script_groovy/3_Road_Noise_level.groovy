@@ -151,6 +151,10 @@ def exec(Connection connection, input) {
     // Create a sql connection to interact with the database in SQL
     Sql sql = new Sql(connection)
 
+    // Update metadata table with start time
+    sql.execute(String.format("UPDATE metadata SET conf_road =" + input.confId))
+    sql.execute(String.format("UPDATE metadata SET road_start = NOW();"))
+
     // output string, the information given back to the user
     String resultString = null
 
@@ -211,7 +215,7 @@ def exec(Connection connection, input) {
     }
 
     // Pointing the 'buildings' table
-    String building_table_name = "buildings"
+    String building_table_name = "buildings_screens"
     // do it case-insensitive
     building_table_name = building_table_name.toUpperCase()
     // Check if srid are in metric projection and are all the same.
@@ -364,7 +368,7 @@ def exec(Connection connection, input) {
     // Init Map
     pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
 
-    pointNoiseMap.setGridDim(100)
+    pointNoiseMap.setGridDim(25)
     logger.info("Taille de cellulle : " + pointNoiseMap.getCellWidth().toString())
 
     // --------------------------------------------
@@ -436,6 +440,8 @@ def exec(Connection connection, input) {
         createdTables.append(" LDEN_GEOM")
         sql.execute("drop table if exists " + TableLocation.parse(ldenConfig.getlDenTable()))
     }
+
+    sql.execute(String.format("UPDATE metadata SET road_end = NOW();"))
 
     resultString = "Calculation Done ! " + createdTables.toString() + " table(s) have been created."
 

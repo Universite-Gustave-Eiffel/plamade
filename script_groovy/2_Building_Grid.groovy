@@ -122,7 +122,7 @@ def exec(Connection connection, input) {
     String sources_table_name = "ROADS"
     sources_table_name = sources_table_name.toUpperCase()
 
-    String building_table_name = "BUILDINGS"
+    String building_table_name = "BUILDINGS_SCREENS"
     building_table_name = building_table_name.toUpperCase()
 
     Boolean hasPop = JDBCUtilities.hasField(connection, building_table_name, "POP")
@@ -142,7 +142,9 @@ def exec(Connection connection, input) {
     int delta = row_conf.confDistBuildingsReceivers
     logger.info(String.format("Distance between receivers %d ", delta));
 
-
+    // Update metadata table with start time
+    sql.execute(String.format("UPDATE metadata SET conf_b_grid =" + input.confId))
+    sql.execute(String.format("UPDATE metadata SET b_grid_start = NOW();"))
 
     sql.execute(String.format("DROP TABLE IF EXISTS %s", receivers_table_name))
 
@@ -291,6 +293,7 @@ def exec(Connection connection, input) {
     sql.execute("drop table tmp_receivers_lines")
     sql.execute("drop table if exists tmp_buildings;")
     // Process Done
+    sql.execute(String.format("UPDATE metadata SET b_grid_end = NOW();"))
     resultString = "Process done. Table of receivers " + receivers_table_name + " created !"
 
     // print to command window
