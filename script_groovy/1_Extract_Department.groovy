@@ -233,10 +233,10 @@ def exec(Connection connection, input) {
         '(SELECT code_2021 as nuts FROM noisemodelling.nuts WHERE code_dept=''$codeDepFormat'')');
 
     CREATE TABLE metadata (code_dept varchar , nuts varchar, import_start timestamp, import_end timestamp, 
-        conf_b_grid integer, b_grid_start timestamp, b_grid_end timestamp, 
-        conf_d_grid integer, d_grid_start timestamp, d_grid_end timestamp, 
-        conf_road integer, road_start timestamp, road_end timestamp, 
-        conf_rail integer, rail_start timestamp, rail_end timestamp);
+        grid_conf integer, grid_start timestamp, grid_end timestamp, 
+        emi_conf integer, emi_start timestamp, emi_end timestamp, 
+        road_conf integer, road_start timestamp, road_end timestamp, 
+        rail_conf integer, rail_start timestamp, rail_end timestamp);
 
     INSERT INTO metadata (code_dept, nuts, import_start) VALUES ('$codeDep', (SELECT nuts from nuts_link), NOW());
     
