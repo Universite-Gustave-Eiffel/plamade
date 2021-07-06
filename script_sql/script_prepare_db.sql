@@ -509,10 +509,12 @@ COMMENT ON COLUMN noisemodelling.conf.confExportSourceId IS 'Keep source identif
 COMMENT ON COLUMN noisemodelling.conf.wall_alpha IS 'Ground absorption coefficient';
 
 -- Insert values
-INSERT INTO noisemodelling.conf VALUES(1, 0, 250, 50, 5, 1, false, false, true, true, true, false, true, 0.1);
-INSERT INTO noisemodelling.conf VALUES(2, 0, 250, 50, 5, 1, false, false, true, true, true, false, false, 0.1);
-INSERT INTO noisemodelling.conf VALUES(3, 1, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
-INSERT INTO noisemodelling.conf VALUES(4, 3, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(1, 0, 250, 50, 5, 1, false, false, true, true, false, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(2, 0, 250, 50, 5, 1, false, false, true, true, false, false, false, 0.1);
+INSERT INTO noisemodelling.conf VALUES(3, 1, 800, 250, 5, 3, false, true, true, true, false, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(4, 1, 800, 250, 5, 16, false, true, true, true, false, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(5, 1, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
+INSERT INTO noisemodelling.conf VALUES(6, 3, 800, 800, 5, 16, false, true, true, true, false, false, true, 0.1);
 
 
 ----------------------------------
