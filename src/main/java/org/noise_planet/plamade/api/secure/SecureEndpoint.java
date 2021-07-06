@@ -16,13 +16,19 @@
 package org.noise_planet.plamade.api.secure;
 
 import com.google.common.collect.Maps;
+import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ratpack.exec.Blocking;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
 import static ratpack.jackson.Jackson.json;
 import ratpack.pac4j.RatpackPac4j;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.Map;
 
 import static ratpack.groovy.Groovy.groovyTemplate;
@@ -35,12 +41,14 @@ public class SecureEndpoint implements Handler {
         RatpackPac4j.userProfile(ctx)
                 .then(commonProfile -> {
                     final Map<String, Object> model = Maps.newHashMap();
-                    if(commonProfile.isPresent()) {
-                        model.put("profile", commonProfile.get());
+                    if (commonProfile.isPresent()) {
+                        CommonProfile profile = commonProfile.get();
+                        model.put("profile", profile);
                         ctx.render(groovyTemplate(model, "secure.html"));
                     } else {
                         ctx.redirect("index.html");
                     }
                 });
     }
+
 }

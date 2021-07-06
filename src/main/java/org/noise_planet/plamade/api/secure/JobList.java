@@ -16,13 +16,20 @@
 package org.noise_planet.plamade.api.secure;
 
 import com.google.common.collect.Maps;
+import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ratpack.exec.Blocking;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
+import ratpack.http.Status;
 import ratpack.pac4j.RatpackPac4j;
 
-import java.util.Map;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.*;
 
 import static ratpack.groovy.Groovy.groovyTemplate;
 import static ratpack.jackson.Jackson.json;
@@ -34,14 +41,49 @@ public class JobList implements Handler {
     public void handle(Context ctx) throws Exception {
         RatpackPac4j.userProfile(ctx)
                 .then(commonProfile -> {
-                    final Map<String, Object> model = Maps.newHashMap();
-                    model.put("profile", commonProfile);
+                    if (commonProfile.isPresent()) {
+                        CommonProfile profile = commonProfile.get();
+                        Blocking.get(() -> {
+                            try (Connection connection = ctx.get(DataSource.class).getConnection()) {
+                                PreparedStatement statement = connection.prepareStatement("SELECT * FROM USERS" +
+                                        " WHERE USER_OID = ?");
+                                statement.setString(1, profile.getId());
+                                try (ResultSet rs = statement.executeQuery()) {
+                                    if (rs.next()) {
+                                        // found user
+                                        return rs.getInt("PK_USER");
+                                    } else {
+                                        // Nope
+                                        return -1;
+                                    }
+                                }
+                            }
+                        }).then(pkUser -> {
+                                    if (pkUser == -1) {
+                                        ctx.render(json(Collections.singletonMap("Error", "Not authorized")));
+                                    } else {
+                                        Blocking.get(() -> {
+                                            List<Map<String, Object>> table = new ArrayList<>();
+                                            try (Connection connection = ctx.get(DataSource.class).getConnection()) {
+                                                PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS" +
+                                                        " WHERE PK_USER = ?");
+                                                statement.setInt(1, pkUser);
+                                                try (ResultSet rs = statement.executeQuery()) {
+                                                    while (rs.next()) {
 
-                    //ctx.render(groovyTemplate(model, "secure.html"));
-                    if(commonProfile.isPresent()) {
-                        ctx.render(json(commonProfile.get()));
+                                                    }
+                                                }
+                                            }
+                                            return table;
+                                        }).then(jobList -> {
+
+                                            ctx.render(json(commonProfile.get()));
+                                        });
+                                    }
+                                }
+                        );
                     } else {
-                        ctx.render(groovyTemplate(model, "nonsecure.html"));
+                        ctx.render(json(Collections.singletonMap("Error", "Not authenticated")));
                     }
                 });
     }

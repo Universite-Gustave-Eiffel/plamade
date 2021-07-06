@@ -50,8 +50,11 @@ public class Main {
         RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").env().require("/auth", AuthConfig.class).baseDir(BaseDir.find()).build()).registry(Guice.registry(b -> b.module(ApiModule.class).module(AuthModule.class).module(TextTemplateModule.class).module(SessionModule.class).module(HikariModule.class, hikariConfig -> {
             hikariConfig.setDataSourceClassName("org.h2.jdbcx.JdbcDataSource");
             hikariConfig.addDataSourceProperty("URL", "jdbc:h2:" + databasePath); // Use H2 in memory database
-        }).bind(InitDb.class))).handlers(chain -> chain.path(redirect(301, "index.html")).files(files -> files.files(
-                "css")).files(files -> files.files("js")).all(RatpackPac4j.authenticator(chain.getRegistry().get(GoogleOidcClient.class))).insert(ApiEndpoints.class)));
+        }).bind(InitDb.class))).handlers(chain ->
+                chain.path(redirect(301, "index.html"))
+                        .files(files -> files.files("css")) // share all static files from css folder
+                        .files(files -> files.files("js"))  //  share all static files from js folder
+                        .all(RatpackPac4j.authenticator(chain.getRegistry().get(GoogleOidcClient.class))).insert(ApiEndpoints.class)));
     }
 
     static class InitDb implements Service {
@@ -73,7 +76,7 @@ public class Main {
                     st.executeUpdate("CREATE TABLE USERS(PK_USER SERIAL, USER_OID VARCHAR)");
                     st.executeUpdate("CREATE TABLE USER_ASK_INVITATION(PK_INVITE SERIAL, USER_OID VARCHAR, MAIL VARCHAR)");
                     st.executeUpdate("CREATE TABLE IF NOT EXISTS JOBS(PK_JOB SERIAL," +
-                            " BEGIN_DATE DATE, END_DATE DATE, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER)");
+                            " BEGIN_DATE DATE, END_DATE DATE, PROGRESSION INTEGER, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER)");
 
                 }
                 // In the future check databaseVersion for database upgrades

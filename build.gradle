@@ -1,3 +1,13 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:5.2.0'
+    }
+}
+
 plugins {
     id 'java'
     id 'groovy'
@@ -6,6 +16,7 @@ plugins {
 }
 
 apply plugin: 'maven'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 group = 'org.noise_planet'
 version = '0.1.0'
