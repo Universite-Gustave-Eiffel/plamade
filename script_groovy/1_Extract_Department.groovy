@@ -13,7 +13,14 @@
 /**
  * @Author Pierre Aumond, Université Gustave Eiffel
  * @Author Nicolas Fortin, Université Gustave Eiffel
+ * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285 
  */
+
+ /* TODO
+    - Merge 3D lines topo with BD Alti
+    - Confirm that screens are taken 2 times into account for railway
+    - Check spatial index and srids
+ */ 
 
 package org.noise_planet.noisemodelling.wps.Plamade
 
@@ -25,11 +32,7 @@ import org.locationtech.jts.geom.Point
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovy.sql.Sql
-
 import java.sql.Connection
-
-
-
 import java.sql.Statement
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
@@ -38,12 +41,6 @@ title = 'Extract department'
 description = 'Connect to a distant PostGIS database and extract departments according to Plamade specification'
 
 inputs = [
-        //databaseUrl : [
-        //        name       : 'PostGIS host',
-        //        title      : 'Url of the PostGIS database',
-        //        description: 'Plamade server url in the form of jdbc:postgresql_h2://ip_adress:port/db_name',
-        //        type       : String.class
-        //],
         databaseUser : [
                 name       : 'PostGIS user',
                 title      : 'PostGIS username',
