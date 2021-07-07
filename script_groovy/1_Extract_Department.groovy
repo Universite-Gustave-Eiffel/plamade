@@ -13,7 +13,14 @@
 /**
  * @Author Pierre Aumond, Université Gustave Eiffel
  * @Author Nicolas Fortin, Université Gustave Eiffel
+ * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285 
  */
+
+ /* TODO
+    - Merge 3D lines topo with BD Alti
+    - Confirm that screens are taken 2 times into account for railway
+    - Check spatial index and srids
+ */ 
 
 package org.noise_planet.noisemodelling.wps.Plamade
 
@@ -25,11 +32,7 @@ import org.locationtech.jts.geom.Point
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovy.sql.Sql
-
 import java.sql.Connection
-
-
-
 import java.sql.Statement
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
@@ -38,12 +41,6 @@ title = 'Extract department'
 description = 'Connect to a distant PostGIS database and extract departments according to Plamade specification'
 
 inputs = [
-        //databaseUrl : [
-        //        name       : 'PostGIS host',
-        //        title      : 'Url of the PostGIS database',
-        //        description: 'Plamade server url in the form of jdbc:postgresql_h2://ip_adress:port/db_name',
-        //        type       : String.class
-        //],
         databaseUser : [
                 name       : 'PostGIS user',
                 title      : 'PostGIS username',
@@ -228,9 +225,26 @@ def exec(Connection connection, input) {
     def sql = new Sql(connection)
 
     def queries_conf = """
+    ----------------------------------
+    -- Manage metadata tables
+
+    DROP TABLE IF EXISTS nuts_link, metadata;
+    CREATE LINKED TABLE nuts_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+        '(SELECT code_2021 as nuts FROM noisemodelling.nuts WHERE code_dept=''$codeDepFormat'')');
+
+    CREATE TABLE metadata (code_dept varchar , nuts varchar, import_start timestamp, import_end timestamp, 
+        grid_conf integer, grid_start timestamp, grid_end timestamp, 
+        emi_conf integer, emi_start timestamp, emi_end timestamp, 
+        road_conf integer, road_start timestamp, road_end timestamp, 
+        rail_conf integer, rail_start timestamp, rail_end timestamp);
+
+    INSERT INTO metadata (code_dept, nuts, import_start) VALUES ('$codeDep', (SELECT nuts from nuts_link), NOW());
     
+    DROP TABLE nuts_link;
+
     ----------------------------------
     -- Manage configuration tables
+
     -- CONF
     DROP TABLE IF EXISTS conf_link, conf;
     CREATE LINKED TABLE conf_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
@@ -697,6 +711,9 @@ def exec(Connection connection, input) {
         FROM noisemodelling.$table_dept 
         WHERE insee_dep=''$codeDep'')');
 
+
+    -- Update metadata table with end time
+    UPDATE metadata SET import_end = NOW();
     """
 
     def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep]
