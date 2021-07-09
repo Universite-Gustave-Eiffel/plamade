@@ -76,7 +76,7 @@ function loadManageUsers(mainPanel) {
         "    <tbody>"
         for(let i = 0; i < response.data.length; i++) {
             tableHtml+= "<tr><td>"+response.data[i].ooid+"</td><td>"+response.data[i].email+"</td><td>"+
-            "<a class=\"pure-button\" onclick=\"acceptUser('"+response.data[i].ooid+"')\">&CirclePlus;</a>"+
+            "<a class=\"pure-button\" onclick=\"acceptUser('"+response.data[i].ooid+"')\">&CirclePlus;</a> "+
              "<a class=\"pure-button\"  onclick=\"refuseUser('"+response.data[i].ooid+"')\">&CircleMinus;</a></td></tr>"
         }
         tableHtml+= "    </tbody>"+

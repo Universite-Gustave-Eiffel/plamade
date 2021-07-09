@@ -39,6 +39,7 @@ public class RefuseUser implements Handler {
 
     @Override
     public void handle(Context ctx) throws Exception {
+        final String userOoid = ctx.getAllPathTokens().get("userooid");
         RatpackPac4j.userProfile(ctx).then(commonProfile -> {
             if (commonProfile.isPresent()) {
                 CommonProfile profile = commonProfile.get();
@@ -46,21 +47,13 @@ public class RefuseUser implements Handler {
                 AdminConfig adminConfig = mapper.readValue(ctx.file("config.yaml").toFile(), AdminConfig.class);
                 if(adminConfig.contains(profile.getId())) {
                     Blocking.get(() -> {
-                        List<Map<String, Object>> table = new ArrayList<>();
                         try (Connection connection = ctx.get(DataSource.class).getConnection()) {
-                            PreparedStatement statement = connection.prepareStatement("SELECT * FROM USER_ASK_INVITATION");
-                            try (ResultSet rs = statement.executeQuery()) {
-                                while (rs.next()) {
-                                    Map<String, Object> row = new HashMap<>();
-                                    row.put("ooid", rs.getString("USER_OID"));
-                                    row.put("email", rs.getString("MAIL"));
-                                    table.add(row);
-                                }
-                            }
+                            PreparedStatement statement = connection.prepareStatement("DELETE FROM USER_ASK_INVITATION WHERE USER_OID = ?");
+                            statement.setString(1, userOoid);
+                            return statement.executeUpdate();
                         }
-                        return table;
-                    }).then(userList -> {
-                        ctx.render(json(userList));
+                    }).then(affected -> {
+                        ctx.render(json(Collections.singletonMap("Status", "Ok")));
                     });
                 }
             } else {
