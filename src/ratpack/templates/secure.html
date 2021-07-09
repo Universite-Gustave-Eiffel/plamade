@@ -4,10 +4,11 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width">
         <title data-react-helmet="true">Plamade computation platform</title>
-        <link rel="stylesheet" href="css/pure-min.css">
-        <link rel="stylesheet" href="css/plamade.css">
-        <script type="text/javascript" src="js/plamade.js" defer></script>
-        <script type="text/javascript" src="js/axios.min.js"></script> <!-- lightweight async rest queries lib -->
+        <link rel="shortcut icon" href="/favicon.ico" type="image/png">
+        <link rel="stylesheet" href="/css/pure-min.css">
+        <link rel="stylesheet" href="/css/plamade.css">
+        <script type="text/javascript" src="/js/plamade.js" defer></script>
+        <script type="text/javascript" src="/js/axios.min.js"></script> <!-- lightweight async rest queries lib -->
     </head>
     <body>
         <div id="layout">
@@ -23,6 +24,20 @@
                     </li>
                     <li class="pure-menu-item">
                         <a href="#add_job" class="pure-menu-link">Add a new job</a>
+                    </li>
+                </ul>
+                <% if (model.admins.contains(model.profile.id)) { %>
+
+                <span class="pure-menu-heading">Admin</span>
+                <ul class="pure-menu-list">
+                    <li class="pure-menu-item">
+                        <a href="#manage_users" class="pure-menu-link">Manage users</a>
+                    </li>
+                </ul>
+                <% } %>
+                <ul class="pure-menu-list">
+                    <li class="pure-menu-item">
+                        <a href="/logout" class="pure-menu-link">Logout</a>
                     </li>
                 </ul>
             </div>

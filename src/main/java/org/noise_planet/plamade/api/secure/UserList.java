@@ -15,15 +15,15 @@
  */
 package org.noise_planet.plamade.api.secure;
 
-import com.google.common.collect.Maps;
-import groovy.util.Eval;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.noise_planet.plamade.config.AdminConfig;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ratpack.exec.Blocking;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
-import ratpack.http.Status;
 import ratpack.pac4j.RatpackPac4j;
 
 import javax.sql.DataSource;
@@ -32,40 +32,37 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.*;
 
-import static ratpack.groovy.Groovy.groovyTemplate;
 import static ratpack.jackson.Jackson.json;
 
-public class JobList implements Handler {
-    private static final Logger LOG = LoggerFactory.getLogger(JobList.class);
+public class UserList implements Handler {
+    private static final Logger LOG = LoggerFactory.getLogger(UserList.class);
 
     @Override
     public void handle(Context ctx) throws Exception {
         RatpackPac4j.userProfile(ctx).then(commonProfile -> {
             if (commonProfile.isPresent()) {
                 CommonProfile profile = commonProfile.get();
-                SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
-                    if (pkUser == -1) {
-                        ctx.render(json(Eval.me("[errorCode : 403, error : 'Forbidden', redirect: '/manage#subscribe']")));
-                    } else {
-                        Blocking.get(() -> {
-                            List<Map<String, Object>> table = new ArrayList<>();
-                            try (Connection connection = ctx.get(DataSource.class).getConnection()) {
-                                PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS" + " " +
-                                        "WHERE PK_USER = ?");
-                                statement.setInt(1, pkUser);
-                                try (ResultSet rs = statement.executeQuery()) {
-                                    while (rs.next()) {
-
-                                    }
+                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+                AdminConfig adminConfig = mapper.readValue(ctx.file("config.yaml").toFile(), AdminConfig.class);
+                if(adminConfig.contains(profile.getId())) {
+                    Blocking.get(() -> {
+                        List<Map<String, Object>> table = new ArrayList<>();
+                        try (Connection connection = ctx.get(DataSource.class).getConnection()) {
+                            PreparedStatement statement = connection.prepareStatement("SELECT * FROM USER_ASK_INVITATION");
+                            try (ResultSet rs = statement.executeQuery()) {
+                                while (rs.next()) {
+                                    Map<String, Object> row = new HashMap<>();
+                                    row.put("ooid", rs.getString("USER_OID"));
+                                    row.put("email", rs.getString("MAIL"));
+                                    table.add(row);
                                 }
                             }
-                            return table;
-                        }).then(jobList -> {
-
-                            ctx.render(json(commonProfile.get()));
-                        });
-                    }
-                });
+                        }
+                        return table;
+                    }).then(userList -> {
+                        ctx.render(json(userList));
+                    });
+                }
             } else {
                 ctx.render(json(Collections.singletonMap("Error", "Not authenticated")));
             }

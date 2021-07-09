@@ -15,7 +15,6 @@
  */
 package org.noise_planet.plamade.api.secure;
 
-import com.google.common.collect.Maps;
 import groovy.util.Eval;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
@@ -23,20 +22,25 @@ import org.slf4j.LoggerFactory;
 import ratpack.exec.Blocking;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
-import ratpack.http.Status;
 import ratpack.pac4j.RatpackPac4j;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
-import static ratpack.groovy.Groovy.groovyTemplate;
 import static ratpack.jackson.Jackson.json;
 
-public class JobList implements Handler {
-    private static final Logger LOG = LoggerFactory.getLogger(JobList.class);
+
+/**
+ * Authenticated user is not in job manager list. This Rest Api will let the user subscribe to the
+ */
+public class Subscribe implements Handler {
+    private static final Logger LOG = LoggerFactory.getLogger(Subscribe.class);
 
     @Override
     public void handle(Context ctx) throws Exception {
@@ -45,24 +49,17 @@ public class JobList implements Handler {
                 CommonProfile profile = commonProfile.get();
                 SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                     if (pkUser == -1) {
-                        ctx.render(json(Eval.me("[errorCode : 403, error : 'Forbidden', redirect: '/manage#subscribe']")));
-                    } else {
                         Blocking.get(() -> {
-                            List<Map<String, Object>> table = new ArrayList<>();
                             try (Connection connection = ctx.get(DataSource.class).getConnection()) {
-                                PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS" + " " +
-                                        "WHERE PK_USER = ?");
-                                statement.setInt(1, pkUser);
-                                try (ResultSet rs = statement.executeQuery()) {
-                                    while (rs.next()) {
-
-                                    }
-                                }
+                                PreparedStatement statement = connection.prepareStatement(
+                                        "MERGE INTO USER_ASK_INVITATION(USER_OID, MAIL) KEY(USER_OID) VALUES (?,?)");
+                                statement.setString(1, profile.getId());
+                                statement.setString(2, profile.getEmail());
+                                statement.execute();
                             }
-                            return table;
-                        }).then(jobList -> {
-
-                            ctx.render(json(commonProfile.get()));
+                            return true;
+                        }).then(ok -> {
+                            ctx.render(json(Eval.me("[message: 'Please wait for account approval..']")));
                         });
                     }
                 });

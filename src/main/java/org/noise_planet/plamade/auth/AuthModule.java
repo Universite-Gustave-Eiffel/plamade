@@ -22,6 +22,8 @@ import org.pac4j.oidc.client.GoogleOidcClient;
 import org.pac4j.oidc.config.OidcConfiguration;
 import org.noise_planet.plamade.config.AuthConfig;
 
+import java.util.Collections;
+
 public class AuthModule extends AbstractModule {
 
     @Override
@@ -36,6 +38,7 @@ public class AuthModule extends AbstractModule {
         oidcConfig.setClientId(authConfig.clientId);
         oidcConfig.setSecret(authConfig.clientSecret);
         oidcConfig.setUseNonce(true);
+        oidcConfig.setCustomParams(Collections.singletonMap("prompt", "select_account"));
 
         return new GoogleOidcClient(oidcConfig);
     }

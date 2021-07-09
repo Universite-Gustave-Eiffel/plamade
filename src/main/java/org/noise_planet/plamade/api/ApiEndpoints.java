@@ -16,9 +16,10 @@
 package org.noise_planet.plamade.api;
 
 import org.noise_planet.plamade.api.secure.JobList;
+import org.noise_planet.plamade.api.secure.UserList;
 import org.noise_planet.plamade.api.secure.SecureEndpoint;
+import org.noise_planet.plamade.api.secure.Subscribe;
 import org.pac4j.oidc.client.GoogleOidcClient;
-import ratpack.exec.Blocking;
 import ratpack.func.Action;
 import ratpack.handling.Chain;
 import ratpack.pac4j.RatpackPac4j;
@@ -30,10 +31,14 @@ public class ApiEndpoints implements Action<Chain> {
     @Override
     public void execute(Chain chain) throws Exception {
         // Endpoint that requires the user to be logged in
-        chain.prefix("manage", c -> {
+        chain.prefix("manage/", c -> {
             c.all(RatpackPac4j.requireAuth(GoogleOidcClient.class));
             c.get(SecureEndpoint.class);
             c.get("joblist", JobList.class);
+            c.get("subscribe", Subscribe.class);
+            c.prefix("user/", sc -> {
+                sc.get("list", UserList.class);
+            });
         });
 
         // Logout
@@ -45,5 +50,7 @@ public class ApiEndpoints implements Action<Chain> {
         chain.get("index.html", ctx -> {
             ctx.render(groovyTemplate("index.html"));
         });
+
+        chain.get("favicon.ico", ctx -> ctx.render(ctx.file("favicon.ico")));
     }
 }
