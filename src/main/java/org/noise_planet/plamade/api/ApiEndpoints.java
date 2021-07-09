@@ -15,10 +15,7 @@
  */
 package org.noise_planet.plamade.api;
 
-import org.noise_planet.plamade.api.secure.JobList;
-import org.noise_planet.plamade.api.secure.UserList;
-import org.noise_planet.plamade.api.secure.SecureEndpoint;
-import org.noise_planet.plamade.api.secure.Subscribe;
+import org.noise_planet.plamade.api.secure.*;
 import org.pac4j.oidc.client.GoogleOidcClient;
 import ratpack.func.Action;
 import ratpack.handling.Chain;
@@ -31,13 +28,15 @@ public class ApiEndpoints implements Action<Chain> {
     @Override
     public void execute(Chain chain) throws Exception {
         // Endpoint that requires the user to be logged in
-        chain.prefix("manage/", c -> {
+        chain.prefix("manage", c -> {
             c.all(RatpackPac4j.requireAuth(GoogleOidcClient.class));
             c.get(SecureEndpoint.class);
-            c.get("joblist", JobList.class);
+            c.get("job_list", JobList.class);
             c.get("subscribe", Subscribe.class);
-            c.prefix("user/", sc -> {
-                sc.get("list", UserList.class);
+            c.get("request_list", UserList.class);
+            c.prefix("user/:userooid", sc -> {
+                sc.get("accept", AcceptUser.class);
+                sc.get("refuse", RefuseUser.class);
             });
         });
 
