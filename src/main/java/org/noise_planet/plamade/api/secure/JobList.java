@@ -17,6 +17,7 @@ package org.noise_planet.plamade.api.secure;
 
 import com.google.common.collect.Maps;
 import groovy.util.Eval;
+import org.h2gis.utilities.JDBCUtilities;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,15 +55,19 @@ public class JobList implements Handler {
                                         "WHERE PK_USER = ?");
                                 statement.setInt(1, pkUser);
                                 try (ResultSet rs = statement.executeQuery()) {
+                                    List<String> fields = JDBCUtilities.getFieldNames(rs.getMetaData());
                                     while (rs.next()) {
-
+                                        Map<String, Object> row = new HashMap<>();
+                                        for (int idField = 1; idField <= fields.size(); idField += 1) {
+                                            row.put(fields.get(idField - 1).toLowerCase(Locale.ROOT), idField);
+                                        }
+                                        table.add(row);
                                     }
                                 }
                             }
                             return table;
                         }).then(jobList -> {
-
-                            ctx.render(json(commonProfile.get()));
+                            ctx.render(json(jobList));
                         });
                     }
                 });

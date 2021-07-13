@@ -1,8 +1,6 @@
 function loadCompletedJobs(mainPanel) {
-    let mainDiv = document.createElement("div");
-    mainDiv.className = "loader";
-    mainPanel.appendChild(mainDiv);
-    axios.get('/manage/joblist')
+    mainPanel.innerHTML = "<div class=\"loader\"></div>";
+    axios.get('/manage/job_list')
     .then(function (response) {
       // handle success
        let mainPanel = document.getElementById("main");
@@ -61,6 +59,7 @@ function refuseUser(userOoid) {
     })
 }
 function loadManageUsers(mainPanel) {
+    mainPanel.innerHTML = "<div class=\"loader\"></div>";
     axios.get('/manage/request_list')
     .then(function (response) {
        // handle success
