@@ -16,6 +16,7 @@
 package org.noise_planet.plamade.api;
 
 import org.noise_planet.plamade.api.secure.*;
+import org.opengis.filter.expression.Add;
 import org.pac4j.oidc.client.GoogleOidcClient;
 import ratpack.func.Action;
 import ratpack.handling.Chain;
@@ -38,6 +39,7 @@ public class ApiEndpoints implements Action<Chain> {
                 sc.get("accept", AcceptUser.class);
                 sc.get("refuse", RefuseUser.class);
             });
+            c.get("add_job", AddJob.class);
         });
 
         // Logout

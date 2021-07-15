@@ -102,6 +102,48 @@ function cleanPanel(mainPanel) {
     mainPanel.innerHTML = "";
 
 }
+function postAddJob() {
+    document.getElementById(addButton).disabled = true;
+    let bodyFormData = new FormData();
+    bodyFormData.append('INSEE_DEPARTMENT', document.getElementById("INSEE_DEPARTMENT").value);
+    bodyFormData.append('CONF_ID', document.getElementById("CONF_ID").value);
+    axios({
+      method: "post",
+      url: "/manage/add_job",
+      data: bodyFormData,
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+      .then(function (response) {
+        //handle success
+        console.log(response);
+    document.getElementById(addButton).disabled = false;
+      })
+      .catch(function (response) {
+        //handle error
+        console.log(response);
+        document.getElementById(addButton).disabled = false;
+      });
+    return false;
+}
+
+function showAddJobForm(mainPanel) {
+   mainPanel.innerHTML = "<div class=\"header\"><h1>Add a new job</h1>"+
+    "    <fieldset>"+
+    "        <legend>Add a new processing job to the queue</legend>"+
+    "        <div class=\"pure-control-group\">"+
+    "        <label for=\"INSEE_DEPARTMENT\">Code Department</label>"+
+    "        <input type=\"text\" placeholder=\"Code Department\" id=\"INSEE_DEPARTMENT\"/>"+
+    "        </div>"+
+    "        <div class=\"pure-control-group\">"+
+    "        <label for=\"CONF_ID\">Configuration ID</label>"+
+    "        <input type=\"text\" placeholder=\"Configuration ID\"  id=\"CONF_ID\"/>"+
+    "        </div>"+
+    "        <div class=\"pure-controls\">"+
+    "        <button id=\"addButton\" type=\"submit\" class=\"pure-button pure-button-primary\" onclick=\"postAddJob()\">Add</button>"+
+    "        </div>"+
+    "    <fieldset>";
+
+}
 
 function locationHashChanged() {
     let mainPanel = document.getElementById("main");
@@ -118,6 +160,9 @@ function locationHashChanged() {
             break;
         case "#manage_users":
             loadManageUsers(mainPanel);
+            break;
+        case "#add_job":
+            showAddJobForm(mainPanel);
             break;
         default:
             loadAddJob(mainPanel);
