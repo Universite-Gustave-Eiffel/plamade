@@ -15,10 +15,7 @@
  */
 package org.noise_planet.plamade.api.secure;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import groovy.util.Eval;
-import org.noise_planet.plamade.config.AdminConfig;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +29,7 @@ import ratpack.pac4j.RatpackPac4j;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.util.Collections;
+import java.sql.Timestamp;
 
 import static ratpack.jackson.Jackson.json;
 
@@ -48,6 +45,14 @@ public class AddJob implements Handler {
         form.then(f -> {
             final String inseeDepartment = f.get("INSEE_DEPARTMENT");
             final String confId = f.get("CONF_ID");
+            if(inseeDepartment == null || inseeDepartment.equals("")) {
+                ctx.render(json(Eval.me("[message: 'Missing required field inseeDepartment']")));
+                return;
+            }
+            if(confId == null || confId.equals("")) {
+                ctx.render(json(Eval.me("[message: 'Missing required field confId']")));
+                return;
+            }
             RatpackPac4j.userProfile(ctx).then(commonProfile -> {
                 if (commonProfile.isPresent()) {
                     CommonProfile profile = commonProfile.get();
@@ -57,10 +62,11 @@ public class AddJob implements Handler {
                                 try (Connection connection = ctx.get(DataSource.class).getConnection()) {
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
-                                                    " VALUES (NOW(), ?, ?, ?)");
-                                    statement.setInt(1, Integer.parseInt(confId));
-                                    statement.setString(2, inseeDepartment);
-                                    statement.setInt(3, pkUser);
+                                                    " VALUES (?, ?, ?, ?)");
+                                    statement.setObject(1, new Timestamp(System.currentTimeMillis()));
+                                    statement.setInt(2, Integer.parseInt(confId));
+                                    statement.setString(3, inseeDepartment);
+                                    statement.setInt(4, pkUser);
                                     statement.execute();
                                 }
                                 return true;

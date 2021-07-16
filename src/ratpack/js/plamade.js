@@ -1,3 +1,13 @@
+
+function formatField(field) {
+    if(field == null) {
+        return "-";
+     } else {
+        return field;
+     }
+};
+
+
 function loadJobs(mainPanel) {
     mainPanel.innerHTML = "<div class=\"loader\"></div>";
     axios.get('/manage/job_list')
@@ -14,21 +24,21 @@ function loadJobs(mainPanel) {
             "            <th>job ID</th>" +
             "            <th>Start Date</th>" +
             "            <th>End Date</th>" +
-            "            <th>Progression</th>" +
+            "            <th>Status</th>" +
             "            <th>Insee Department</th>" +
-            "            <th>Configuration ID</th>" +
+            "            <th>Conf ID</th>" +
             "        </tr>" +
             "    </thead>" +
             "    <tbody>";
             for(let i = 0; i < response.data.length; i++) {
-                let m = moment.utc(response.data[i].begin_date);
-                tableHtml+= "<tr><td>"+response.data[i].pk_job+"</td><td>"+m.format('LLLL')+"</td><td>"+
-                response.data[i].end_date+"</td><td>"+response.data[i].progression+"</td><td>"+
+                let m = moment.utc(response.data[i].begin_date).local(false).format('LLLL');
+                let me = response.data[i].end_date == null ? "-" : moment.utc(response.data[i].end_date).local(false).format('LLLL');
+                tableHtml+= "<tr><td>"+response.data[i].pk_job+"</td><td>"+m+"</td><td>"+
+                me+"</td><td>"+formatField(response.data[i].progression)+" / 100</td><td>"+
                 response.data[i].insee_department+"</td><td>"+response.data[i].conf_id+"</td></tr>";
             }
             tableHtml+= "    </tbody>"+
             "</table></div>";
-            console.log(tableHtml);
             mainPanel.innerHTML = tableHtml;
        }
     })
@@ -107,12 +117,13 @@ function loadManageUsers(mainPanel) {
       console.log(error);
     })
 }
-
 function postAddJob() {
+    let inseeDep = document.getElementById("INSEE_DEPARTMENT").value;
+    let confId = document.getElementById("CONF_ID").value;
     document.getElementById("addButton").disabled = true;
     let bodyFormData = new FormData();
-    bodyFormData.append('INSEE_DEPARTMENT', document.getElementById("INSEE_DEPARTMENT").value);
-    bodyFormData.append('CONF_ID', document.getElementById("CONF_ID").value);
+    bodyFormData.append('INSEE_DEPARTMENT', inseeDep);
+    bodyFormData.append('CONF_ID', confId);
     axios({
       method: "post",
       url: "/manage/add_job",
@@ -121,20 +132,25 @@ function postAddJob() {
     })
       .then(function (response) {
         //handle success
-        console.log(response);
+        document.getElementById("message").textContent = response.data.message;
+        document.getElementById("message_div").classList.remove("hidden");
         document.getElementById("addButton").disabled = false;
+        document.getElementById("addjobform").reset();
       })
       .catch(function (response) {
         //handle error
-        console.log(response);
+        document.getElementById("message").textContent = response;
+        document.getElementById("message_div").classList.remove("hidden");
         document.getElementById("addButton").disabled = false;
+        document.getElementById("addjobform").reset();
       });
     return false;
 }
 
 function showAddJobForm(mainPanel) {
    mainPanel.innerHTML = "<div class=\"header\"><h1>Add a new job</h1>"+
-    "<form class=\"pure-form pure-form-aligned\">"+
+    "<div class=\"l-box hidden\" id=\"message_div\"><aside><p id=\"message\"></p></aside></div>"+
+    "<form class=\"pure-form pure-form-aligned\" id=\"addjobform\">"+
     "    <fieldset>"+
     "        <legend>Add a new processing job to the queue</legend>"+
     "        <div class=\"pure-control-group\">"+

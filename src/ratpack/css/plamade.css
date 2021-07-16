@@ -21,7 +21,9 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
+div.hidden {
+  display: none;
+}
 
 /*
  * -- TABLET (AND UP) MEDIA QUERIES --

@@ -52,7 +52,7 @@ public class JobList implements Handler {
                             List<Map<String, Object>> table = new ArrayList<>();
                             try (Connection connection = ctx.get(DataSource.class).getConnection()) {
                                 PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS" + " " +
-                                        "WHERE PK_USER = ?");
+                                        "WHERE PK_USER = ? ORDER BY BEGIN_DATE DESC");
                                 statement.setInt(1, pkUser);
                                 try (ResultSet rs = statement.executeQuery()) {
                                     List<String> fields = JDBCUtilities.getFieldNames(rs.getMetaData());
