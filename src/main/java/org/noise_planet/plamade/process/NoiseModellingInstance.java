@@ -65,12 +65,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         isRunning = true;
         try {
             // create folder
-            if(!(new File(configuration.workingDirectory).mkdirs())) {
+            File workingDir = new File(configuration.workingDirectory);
+            if(workingDir.exists() && workingDir.isDirectory() && !configuration.workingDirectory.isEmpty()) {
+                if(!workingDir.delete()) {
+                    logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
+                    return;
+                }
+            }
+            if(!(workingDir.mkdirs())) {
                 logger.error("Cannot create the working directory\n" +configuration.workingDirectory);
                 return;
             }
             nmDataSource = createDataSource(configuration, "sa", "sa", "nm_db");
-        } catch (SQLException ex) {
+        } catch (SQLException | SecurityException ex) {
             logger.error(ex.getLocalizedMessage(), ex);
         } finally {
             isRunning = false;
