@@ -29,9 +29,7 @@ import ratpack.pac4j.RatpackPac4j;
 
 import javax.sql.DataSource;
 import java.io.File;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.Timestamp;
+import java.sql.*;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import static ratpack.jackson.Jackson.json;
@@ -63,26 +61,39 @@ public class AddJob implements Handler {
                         if(pkUser > -1) {
                             Blocking.get(() -> {
                                 int pk;
+                                Timestamp t = new Timestamp(System.currentTimeMillis());
                                 try (Connection connection = ctx.get(DataSource.class).getConnection()) {
                                     PreparedStatement statement = connection.prepareStatement(
-                                            "INSERT INTO JOBS(BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
-                                                    " VALUES (?, ?, ?, ?)");
-                                    statement.setObject(1, new Timestamp(System.currentTimeMillis()));
+                                            "INSERT INTO JOBS(REMOTE_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
+                                                    " VALUES (RANDOM_UUID, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+                                    statement.setObject(1, t);
                                     statement.setInt(2, Integer.parseInt(confId));
                                     statement.setString(3, inseeDepartment);
                                     statement.setInt(4, pkUser);
-                                    pk = statement.executeUpdate();
-                                    ThreadPoolExecutor pool = ctx.get(ThreadPoolExecutor.class);
-                                    pool.execute(new NoiseModellingInstance(
-                                            new NoiseModellingInstance.Configuration(ctx.get(DataSource.class),
-                                                    new File("jobs_running/"+pk).getAbsolutePath(),
-                                                    Integer.parseInt(confId),
-                                                    inseeDepartment
-                                                    )));
+                                    statement.executeUpdate();
+                                    // retrieve primary key
+                                    ResultSet rs = statement.getGeneratedKeys();
+                                    if(rs.next()) {
+                                        pk = rs.getInt(1);
+                                        ThreadPoolExecutor pool = ctx.get(ThreadPoolExecutor.class);
+                                        pool.execute(new NoiseModellingInstance(
+                                                new NoiseModellingInstance.Configuration(ctx.get(DataSource.class),
+                                                        new File("jobs_running/"+pk).getAbsolutePath(),
+                                                        Integer.parseInt(confId),
+                                                        inseeDepartment
+                                                )));
+                                    } else {
+                                        LOG.error("Could not insert new job without exceptions");
+                                        return false;
+                                    }
                                 }
                                 return true;
                             }).then(ok -> {
-                                ctx.render(json(Eval.me("[message: 'Job added']")));
+                                if(ok) {
+                                    ctx.render(json(Eval.me("[message: 'Job added']")));
+                                } else {
+                                    ctx.render(json(Eval.me("[message: 'Could not create job']")));
+                                }
                             });
                         }
                     });
