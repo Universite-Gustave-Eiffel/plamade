@@ -59,7 +59,7 @@ public class JobList implements Handler {
                                     while (rs.next()) {
                                         Map<String, Object> row = new HashMap<>();
                                         for (int idField = 1; idField <= fields.size(); idField += 1) {
-                                            row.put(fields.get(idField - 1).toLowerCase(Locale.ROOT), idField);
+                                            row.put(fields.get(idField - 1).toLowerCase(Locale.ROOT), rs.getObject(idField));
                                         }
                                         table.add(row);
                                     }

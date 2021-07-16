@@ -5,7 +5,7 @@ jobs_running/*
 !jobs_running/README.txt
 computation_core/dependencies/*.jar
 *.mv.db
-
+*.trace.db
 ### Gradle ###
 .gradle
 **/build/

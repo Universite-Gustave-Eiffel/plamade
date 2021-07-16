@@ -39,7 +39,7 @@ public class ApiEndpoints implements Action<Chain> {
                 sc.get("accept", AcceptUser.class);
                 sc.get("refuse", RefuseUser.class);
             });
-            c.get("add_job", AddJob.class);
+            c.post("add_job", AddJob.class);
         });
 
         // Logout

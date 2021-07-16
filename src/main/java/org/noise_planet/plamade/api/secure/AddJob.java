@@ -57,7 +57,7 @@ public class AddJob implements Handler {
                                 try (Connection connection = ctx.get(DataSource.class).getConnection()) {
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
-                                                    " KEY(USER_OID) VALUES (NOW(), ?, ?, ?)");
+                                                    " VALUES (NOW(), ?, ?, ?)");
                                     statement.setInt(1, Integer.parseInt(confId));
                                     statement.setString(2, inseeDepartment);
                                     statement.setInt(3, pkUser);
