@@ -58,6 +58,7 @@ dependencies {
 
     implementation 'org.pac4j:ratpack-pac4j:2.0.0'
     implementation 'org.pac4j:pac4j-oidc:2.2.1'
+    implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
 
     implementation 'com.jcraft:jsch:0.1.55'
 

@@ -16,6 +16,7 @@
 package org.noise_planet.plamade.api.secure;
 
 import groovy.util.Eval;
+import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,9 +28,11 @@ import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
 
 import javax.sql.DataSource;
+import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static ratpack.jackson.Jackson.json;
 
@@ -59,6 +62,7 @@ public class AddJob implements Handler {
                     SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                         if(pkUser > -1) {
                             Blocking.get(() -> {
+                                int pk;
                                 try (Connection connection = ctx.get(DataSource.class).getConnection()) {
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
@@ -67,7 +71,14 @@ public class AddJob implements Handler {
                                     statement.setInt(2, Integer.parseInt(confId));
                                     statement.setString(3, inseeDepartment);
                                     statement.setInt(4, pkUser);
-                                    statement.execute();
+                                    pk = statement.executeUpdate();
+                                    ThreadPoolExecutor pool = ctx.get(ThreadPoolExecutor.class);
+                                    pool.execute(new NoiseModellingInstance(
+                                            new NoiseModellingInstance.Configuration(ctx.get(DataSource.class),
+                                                    new File("jobs_running/"+pk).getAbsolutePath(),
+                                                    Integer.parseInt(confId),
+                                                    inseeDepartment
+                                                    )));
                                 }
                                 return true;
                             }).then(ok -> {

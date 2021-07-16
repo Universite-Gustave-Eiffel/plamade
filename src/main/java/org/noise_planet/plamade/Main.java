@@ -17,6 +17,7 @@ import org.noise_planet.plamade.api.ApiEndpoints;
 import org.noise_planet.plamade.api.ApiModule;
 import org.noise_planet.plamade.auth.AuthModule;
 import org.noise_planet.plamade.config.AuthConfig;
+import org.noise_planet.plamade.process.ExecutorServiceModule;
 import org.pac4j.oidc.client.GoogleOidcClient;
 import ratpack.groovy.template.TextTemplateModule;
 import ratpack.guice.Guice;
@@ -37,6 +38,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.concurrent.*;
 
 /**
  * Starts the plamade application.
@@ -47,7 +49,13 @@ public class Main {
 
     public static void main(String... args) throws Exception {
         String databasePath = Paths.get("database").toAbsolutePath().toString();
-        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").env().require("/auth", AuthConfig.class).baseDir(BaseDir.find()).build()).registry(Guice.registry(b -> b.module(ApiModule.class).module(AuthModule.class).module(TextTemplateModule.class).module(SessionModule.class).module(HikariModule.class, hikariConfig -> {
+        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").env().require("/auth", AuthConfig.class)
+                .baseDir(BaseDir.find()).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
+                .module(AuthModule.class)
+                .module(TextTemplateModule.class)
+                .module(SessionModule.class)
+                .module(ExecutorServiceModule.class)
+                .module(HikariModule.class, hikariConfig -> {
             hikariConfig.setDataSourceClassName("org.h2.jdbcx.JdbcDataSource");
             hikariConfig.addDataSourceProperty("URL", "jdbc:h2:" + databasePath); // Use H2 in memory database
         }).bind(InitDb.class))).handlers(chain ->
