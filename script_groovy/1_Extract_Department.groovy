@@ -232,13 +232,13 @@ def exec(Connection connection, input) {
     CREATE LINKED TABLE nuts_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
         '(SELECT code_2021 as nuts FROM noisemodelling.nuts WHERE code_dept=''$codeDepFormat'')');
 
-    CREATE TABLE metadata (code_dept varchar , nuts varchar, import_start timestamp, import_end timestamp, 
+    CREATE TABLE metadata (code_dept varchar, nuts varchar, srid integer, import_start timestamp, import_end timestamp, 
         grid_conf integer, grid_start timestamp, grid_end timestamp, 
         emi_conf integer, emi_start timestamp, emi_end timestamp, 
         road_conf integer, road_start timestamp, road_end timestamp, 
         rail_conf integer, rail_start timestamp, rail_end timestamp);
 
-    INSERT INTO metadata (code_dept, nuts, import_start) VALUES ('$codeDep', (SELECT nuts from nuts_link), NOW());
+    INSERT INTO metadata (code_dept, nuts, srid, import_start) VALUES ('$codeDep', (SELECT nuts from nuts_link), $srid, NOW());
     
     DROP TABLE nuts_link;
 
@@ -329,8 +329,8 @@ def exec(Connection connection, input) {
        WHEN a."SENS" = ''02'' THEN ''02'' 
        ELSE ''03''
       END) as way,
-    f."UUEID" as uueid,
-    a."AGGLO" as agglo 
+     f."UUEID" as uueid,
+     a."AGGLO" as agglo 
     FROM 
      noisemodelling."$table_route" a,
      echeance4."N_ROUTIER_TRAFIC" b,
@@ -339,7 +339,9 @@ def exec(Connection connection, input) {
      (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e,
      echeance4."N_ROUTIER_ROUTE" f 
     WHERE 
+     a.the_geom>0 and
      a."CBS_GITT" and
+     f."CONCESSION"='N' and 
      a."IDTRONCON"=b."IDTRONCON" and
      a."IDTRONCON"=c."IDTRONCON" and
      a."IDTRONCON"=d."IDTRONCON" and 
@@ -408,7 +410,9 @@ def exec(Connection connection, input) {
         echeance4."N_FERROVIAIRE_LIGNE" c, 
         (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e
     WHERE
-        a."CBS_GITT" and 
+        a.the_geom>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737' and  
         a."IDTRONCON" = b."IDTRONCON" and
         a."IDLIGNE" = c."IDLIGNE" and 
         a.the_geom && e.the_geom and 

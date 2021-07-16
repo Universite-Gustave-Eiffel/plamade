@@ -405,7 +405,7 @@ def exec(Connection connection, input) {
     ldenConfig.setPropagationProcessPathData(new PropagationProcessPathData())
     ldenConfig.setCoefficientVersion(2)
 
-    // Get size of the table (number of rail segments
+    // Get size of the table (number of rail segments)
     PreparedStatement st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + rail_sections)
     SpatialResultSet rs1 = st.executeQuery().unwrap(SpatialResultSet.class)
 
@@ -539,7 +539,7 @@ def exec(Connection connection, input) {
 
 
 
-    // Get size of the table (number of road segments
+    // Get size of the table (number of road segments)
     st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + sources_table_name)
     ResultSet rs2 = st.executeQuery().unwrap(ResultSet.class)
     int nbRoads = 0
