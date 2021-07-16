@@ -117,7 +117,6 @@ def exec(Connection connection, input) {
     logger.info('Start : Delaunay grid and Receivers grid around buildings')
     logger.info("inputs {}", input) // log inputs of the run
 
- 
 
     String building_table_name = "BUILDINGS_SCREENS"
     building_table_name = building_table_name.toUpperCase()
@@ -129,17 +128,14 @@ def exec(Connection connection, input) {
 
     Sql sql = new Sql(connection)
 
-
     // Update metadata table with start time
     sql.execute(String.format("UPDATE metadata SET grid_conf =" + input.confId))
     sql.execute(String.format("UPDATE metadata SET grid_start = NOW();"))
-
     
     // CREATE TABLE AVEC TOUTES LES SOURCES POUR LA GRILLE DE DELAUNAY
     sql.execute("DROP TABLE IF EXISTS SECTIONS_DELAUNAY;")
-    sql.execute("CREATE TABLE SECTIONS_DELAUNAY (THE_GEOM geometry, PK integer AUTO_INCREMENT PRIMARY KEY) AS SELECT a.THE_GEOM, null FROM ROADS a UNION ALL SELECT b.THE_GEOM, null FROM RAIL_SECTIONS b;")
-    //sql.execute("CREATE TABLE SECTIONS_DELAUNAY AS SELECT a.THE_GEOM FROM ROADS a UNION ALL SELECT b.THE_GEOM FROM RAIL_SECTIONS b;")
-    //sql.execute("ALTER TABLE SECTIONS_DELAUNAY ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
+    sql.execute("CREATE TABLE SECTIONS_DELAUNAY AS SELECT a.THE_GEOM FROM ROADS a UNION ALL SELECT b.THE_GEOM FROM RAIL_SECTIONS b;")
+    sql.execute("ALTER TABLE SECTIONS_DELAUNAY ADD COLUMN PK INT AUTO_INCREMENT PRIMARY KEY;")
 
     String sources_table_name = "SECTIONS_DELAUNAY"
 
@@ -198,19 +194,19 @@ def exec(Connection connection, input) {
         
     logger.info('Truncate receiver lines')
     sql.execute("DROP TABLE IF EXISTS tmp_screen_truncated;")
-    sql.execute("CREATE TABLE tmp_screen_truncated(pk_screen integer not null PRIMARY KEY, the_geom geometry) AS SELECT r.pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 2)) the_geom FROM tmp_relation_screen_building r, " + building_table_name + " b, tmp_receivers_lines s WHERE pk_building = b." + buildingPk + " AND pk_screen = s.pk  GROUP BY pk_screen, s.the_geom;")
+    //sql.execute("CREATE TABLE tmp_screen_truncated(pk_screen integer not null PRIMARY KEY, the_geom geometry) AS SELECT r.pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 2)) the_geom FROM tmp_relation_screen_building r, " + building_table_name + " b, tmp_receivers_lines s WHERE pk_building = b." + buildingPk + " AND pk_screen = s.pk  GROUP BY pk_screen, s.the_geom;")
 
-    //sql.execute("CREATE TABLE tmp_screen_truncated(pk_screen integer not null, the_geom geometry) AS SELECT r.pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 2)) the_geom FROM tmp_relation_screen_building r, " + building_table_name + " b, tmp_receivers_lines s WHERE pk_building = b." + buildingPk + " AND pk_screen = s.pk  GROUP BY pk_screen, s.the_geom;")
-    //logger.info('Add primary key')
-    //sql.execute("ALTER TABLE tmp_screen_truncated ADD PRIMARY KEY(pk_screen)")
+    sql.execute("CREATE TABLE tmp_screen_truncated(pk_screen integer not null, the_geom geometry) AS SELECT r.pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 2)) the_geom FROM tmp_relation_screen_building r, " + building_table_name + " b, tmp_receivers_lines s WHERE pk_building = b." + buildingPk + " AND pk_screen = s.pk  GROUP BY pk_screen, s.the_geom;")
+
+    sql.execute("ALTER TABLE tmp_screen_truncated ADD PRIMARY KEY(pk_screen)")
     
     logger.info('Union of truncated receivers and non tructated')
     sql.execute("DROP TABLE IF EXISTS TMP_SCREENS_MERGE;")
-    sql.execute("CREATE TABLE TMP_SCREENS_MERGE (pk integer PRIMARY KEY, the_geom geometry) AS SELECT s.pk, s.the_geom FROM tmp_receivers_lines s WHERE NOT st_isempty(s.the_geom) AND pk NOT IN (SELECT pk_screen FROM tmp_screen_truncated) UNION ALL SELECT pk_screen, the_geom FROM tmp_screen_truncated WHERE NOT st_isempty(the_geom);")
+    //sql.execute("CREATE TABLE TMP_SCREENS_MERGE (pk integer PRIMARY KEY, the_geom geometry) AS SELECT s.pk, s.the_geom FROM tmp_receivers_lines s WHERE NOT st_isempty(s.the_geom) AND pk NOT IN (SELECT pk_screen FROM tmp_screen_truncated) UNION ALL SELECT pk_screen, the_geom FROM tmp_screen_truncated WHERE NOT st_isempty(the_geom);")
 
-    //sql.execute("CREATE TABLE TMP_SCREENS_MERGE (pk integer not null, the_geom geometry) AS SELECT s.pk, s.the_geom the_geom FROM tmp_receivers_lines s WHERE not st_isempty(s.the_geom) and pk not in (select pk_screen FROM tmp_screen_truncated) UNION ALL select pk_screen, the_geom FROM tmp_screen_truncated WHERE not st_isempty(the_geom);")
+    sql.execute("CREATE TABLE TMP_SCREENS_MERGE (pk integer not null, the_geom geometry) AS SELECT s.pk, s.the_geom the_geom FROM tmp_receivers_lines s WHERE not st_isempty(s.the_geom) and pk not in (select pk_screen FROM tmp_screen_truncated) UNION ALL select pk_screen, the_geom FROM tmp_screen_truncated WHERE not st_isempty(the_geom);")
     //logger.info('Add primary key')
-    //sql.execute("ALTER TABLE TMP_SCREENS_MERGE ADD PRIMARY KEY(pk)")
+    sql.execute("ALTER TABLE TMP_SCREENS_MERGE ADD PRIMARY KEY(pk)")
     
     logger.info('Collect all lines and convert into points using custom method')
     sql.execute("DROP TABLE IF EXISTS TMP_SCREENS;")   
@@ -248,18 +244,16 @@ def exec(Connection connection, input) {
     if (!hasPop) {
         logger.info('Create buildings RECEIVERS table...')
 
+        sql.execute("CREATE TABLE " + receivers_table_name + " (pk integer not null AUTO_INCREMENT, the_geom geometry, build_pk integer)")
+        sql.execute("INSERT INTO " + receivers_table_name + " (the_geom, build_pk) select ST_SetSRID(the_geom," + targetSrid.toInteger() + "), pk building_pk FROM TMP_SCREENS;")
+        sql.execute("ALTER TABLE " + receivers_table_name + " add primary key(pk)")
 
-        //sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer not null AUTO_INCREMENT, the_geom geometry,build_pk integer)")
-        //sql.execute("INSERT INTO " + receivers_table_name + "(the_geom, build_pk) select ST_SetSRID(the_geom," + targetSrid.toInteger() + ") , pk building_pk FROM TMP_SCREENS;")
-        //logger.info('Add primary key')
-        //sql.execute("ALTER TABLE "+receivers_table_name+" add primary key(pk)")
-
-        sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer AUTO_INCREMENT PRIMARY KEY, the_geom geometry, build_pk integer) AS SELECT null, ST_SetSRID(the_geom," + targetSrid.toInteger() + "), pk FROM TMP_SCREENS;")
+        //sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer AUTO_INCREMENT PRIMARY KEY, the_geom geometry, build_pk integer) AS SELECT null, ST_SetSRID(the_geom," + targetSrid.toInteger() + "), pk FROM TMP_SCREENS;")
 
         if (sources_table_name) {
+            sql.execute("CREATE SPATIAL INDEX ON " + sources_table_name + "(the_geom);")
             // Delete receivers near sources
             logger.info('Delete receivers near sources...')
-            sql.execute("CREATE SPATIAL INDEX ON " + sources_table_name + "(the_geom);")
             sql.execute("DELETE FROM " + receivers_table_name + " g WHERE exists (SELECT 1 FROM " + sources_table_name + " r WHERE ST_EXPAND(g.the_geom, 1, 1) && r.the_geom AND ST_DISTANCE(g.the_geom, r.the_geom) < 1 limit 1);")
         }
 
@@ -271,16 +265,11 @@ def exec(Connection connection, input) {
         logger.info('Create RECEIVERS table...')
         // building have population attribute
         // set population attribute divided by number of receiver to each receiver
-        sql.execute("DROP TABLE IF EXISTS tmp_receivers")
-        //sql.execute("create table tmp_receivers(pk integer not null AUTO_INCREMENT, the_geom geometry, build_pk integer not null)")
-        //sql.execute("insert into tmp_receivers(the_geom, build_pk) select ST_SetSRID(the_geom," + targetSrid.toInteger() + "), pk building_pk FROM TMP_SCREENS;")
-        //logger.info('Add primary key')
-        //sql.execute("ALTER TABLE tmp_receivers ADD PRIMARY KEY(pk)")
-        // pk --> building_pk --> buil_pk : pk devient directement build_pk
-
-        sql.execute("CREATE TABLE tmp_receivers(pk integer AUTO_INCREMENT PRIMARY KEY, the_geom geometry, build_pk integer NOT NULL) AS SELECT null, ST_SetSRID(the_geom," + targetSrid.toInteger() + "), pk FROM TMP_SCREENS;")
-
-
+        sql.execute("DROP TABLE IF EXISTS tmp_receivers;")
+        sql.execute("CREATE TABLE tmp_receivers(pk integer not null AUTO_INCREMENT, the_geom geometry, build_pk integer not null);")
+        sql.execute("INSERT INTO tmp_receivers(the_geom, build_pk) SELECT ST_SetSRID(the_geom," + targetSrid.toInteger() + "), pk building_pk FROM TMP_SCREENS;")
+        sql.execute("ALTER TABLE tmp_receivers ADD PRIMARY KEY(pk)")
+        
         //if (input['sourcesTableName']) {
         if (sources_table_name) {
             // Delete receivers near sources
@@ -297,20 +286,24 @@ def exec(Connection connection, input) {
         sql.execute("CREATE INDEX ON tmp_receivers(build_pk)")
         
         logger.info('Distribute population over receivers')
-        //sql.execute("create table " + receivers_table_name + "(pk integer not null AUTO_INCREMENT, the_geom geometry,build_pk integer, pop real)")
-        //sql.execute("insert into "+receivers_table_name+"(the_geom, build_pk, pop) select a.the_geom, a.build_pk, b.pop/COUNT(DISTINCT aa.pk)::float FROM tmp_receivers a, " + building_table_name + " b,tmp_receivers aa WHERE b." + buildingPk + " = a.build_pk and a.build_pk = aa.build_pk and b.pop>0 GROUP BY a.the_geom, a.build_pk, b.pop;")
-        //logger.info('Add primary key')
-        //sql.execute("ALTER TABLE "+receivers_table_name+" add primary key(pk)")
+
+        // --> Pierre
+        sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer not null AUTO_INCREMENT, the_geom geometry, build_pk integer, pop real)")
+        sql.execute("INSERT INTO "+receivers_table_name+"(the_geom, build_pk, pop) SELECT a.the_geom, a.build_pk, b.pop/COUNT(DISTINCT aa.pk)::float FROM tmp_receivers a, " + building_table_name + " b,tmp_receivers aa WHERE b." + buildingPk + " = a.build_pk and a.build_pk = aa.build_pk and (b.pop>0 OR b.ERPS_NATUR ='Enseignement' OR b.ERPS_NATUR ='Sante') GROUP BY a.the_geom, a.build_pk, b.pop;")
+        sql.execute("ALTER TABLE "+receivers_table_name+" ADD PRIMARY KEY(pk)")
 
         // --> Gwen
-        sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer AUTO_INCREMENT PRIMARY KEY, the_geom geometry, build_pk integer, pop float) AS select null, a.the_geom, a.build_pk, b.pop/COUNT(DISTINCT aa.pk)::float FROM tmp_receivers a, " + building_table_name + " b,tmp_receivers aa WHERE b." + buildingPk + " = a.build_pk and a.build_pk = aa.build_pk and b.pop>0 GROUP BY a.the_geom, a.build_pk, b.pop;")
+        //sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer IDENTITY, the_geom geometry, build_pk integer, pop float) AS select null, a.the_geom, a.build_pk, b.pop/COUNT(DISTINCT aa.pk)::float FROM tmp_receivers a, " + building_table_name + " b,tmp_receivers aa WHERE b." + buildingPk + " = a.build_pk and a.build_pk = aa.build_pk and (b.pop>0 OR b.ERPS_NATUR ='Enseignement' OR b.ERPS_NATUR ='Sante') GROUP BY a.the_geom, a.build_pk, b.pop;")
+        //sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer AUTO_INCREMENT, the_geom geometry, build_pk integer, pop float) AS select null, a.the_geom, a.build_pk, b.pop/COUNT(DISTINCT aa.pk)::float FROM tmp_receivers a, " + building_table_name + " b,tmp_receivers aa WHERE b." + buildingPk + " = a.build_pk and a.build_pk = aa.build_pk and (b.pop>0 OR b.ERPS_NATUR ='Enseignement' OR b.ERPS_NATUR ='Sante') GROUP BY a.the_geom, a.build_pk, b.pop;")
+        //sql.execute("ALTER TABLE "+receivers_table_name+" ADD PRIMARY KEY(pk)")
+
 
         sql.execute("DROP TABLE IF EXISTS tmp_receivers")
     }
 
     // Clean non-needed tables
     sql.execute("DROP TABLE TMP_SCREENS, tmp_screen_truncated, tmp_relation_screen_building, tmp_receivers_lines")
-    //tmp_buildings
+    
 
     // ----------------------------------------------------------
     // 2- CALCUL DE LA DELAUNAY_GRID
@@ -358,7 +351,7 @@ def exec(Connection connection, input) {
     noiseMap.setExceptionDumpFolder("data_dir/")
     AtomicInteger pk = new AtomicInteger(0)
     ProgressVisitor progressVisitorNM = progressLogger.subProcess(noiseMap.getGridDim() * noiseMap.getGridDim())
-
+    noiseMap.setGridDim(25)
     for (int i = 0; i < noiseMap.getGridDim(); i++) {
         for (int j = 0; j < noiseMap.getGridDim(); j++) {
             logger.info("Compute cell " + (i * noiseMap.getGridDim() + j + 1) + " of " + noiseMap.getGridDim() * noiseMap.getGridDim())
@@ -375,30 +368,25 @@ def exec(Connection connection, input) {
     int nbReceivers = sql.firstRow("SELECT COUNT(*) FROM " + receivers_table_name)[0] as Integer
 
 
+
+    // Ajout des index pour accélerer les jointures à venir, mais pas de gain de temps sur le jeu de test
+    // A migrer dans le script 2_Receivers_grid pour ne générer ces index qu'une seule fois par département
+    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_1)")
+    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_2)")
+    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_3)")
+
+
     //----------------------------
     // 3- MERGE LES DEUX GRILLES
     //------------------------------
 
-    logger.info("Merge Building and Delaunay tables")
+    logger.info("Merge Building and Delaunay grids into RECEIVERS table")
     
-    //sql.execute(String.format("ALTER TABLE RECEIVERS_BUILDING ADD RCV_TYPE INT DEFAULT 1;"))
-    //sql.execute(String.format("ALTER TABLE RECEIVERS_DELAUNAY ADD RCV_TYPE INT DEFAULT 2;"))
-
-    //sql.execute(String.format("UPDATE RECEIVERS_BUILDING SET RCV_TYPE = 1 ;"))
-    //sql.execute(String.format("UPDATE RECEIVERS_DELAUNAY  SET RCV_TYPE = 2 ;"))
-
-    //sql.execute(String.format("ALTER TABLE RECEIVERS_BUILDING CHANGE PK PK_1 INT NOT NULL ;"))
-    //sql.execute(String.format("ALTER TABLE RECEIVERS_DELAUNAY CHANGE PK PK_1 INT NOT NULL ;"))
-
-    sql.execute(String.format("DROP TABLE RECEIVERS IF EXISTS;"))
-
-    //sql.execute(String.format("CREATE TABLE RECEIVERS AS SELECT THE_GEOM, PK_1, RCV_TYPE FROM RECEIVERS_BUILDING UNION ALL SELECT THE_GEOM, PK_1, RCV_TYPE FROM  RECEIVERS_DELAUNAY ;"))
-    //sql.execute(String.format("ALTER TABLE RECEIVERS ADD PK INT AUTO_INCREMENT PRIMARY KEY;"))
-    
-    // On remplace les lignes du dessus par cette instruction
-    sql.execute(String.format("CREATE TABLE RECEIVERS (THE_GEOM geometry, PK integer AUTO_INCREMENT PRIMARY KEY, PK_1 integer, RCV_TYPE integer) AS SELECT THE_GEOM, null, PK, 1 FROM RECEIVERS_BUILDING UNION ALL SELECT THE_GEOM, null, PK, 2 FROM RECEIVERS_DELAUNAY;"))
-    sql.execute(String.format("CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);"))
-
+    sql.execute("DROP TABLE RECEIVERS IF EXISTS;")
+    sql.execute("CREATE TABLE RECEIVERS (THE_GEOM geometry, PK integer AUTO_INCREMENT, PK_1 integer, RCV_TYPE integer);")
+    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING UNION ALL SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY;")
+    sql.execute("ALTER TABLE RECEIVERS ADD PRIMARY KEY(pk)")
+    sql.execute("CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);")
 
     // Process Done
     sql.execute(String.format("UPDATE metadata SET grid_end = NOW();"))
