@@ -47,9 +47,7 @@ public class ApiEndpoints implements Action<Chain> {
         );
 
         // Main Page
-        chain.get("index.html", ctx -> {
-            ctx.render(groovyTemplate("index.html"));
-        });
+        chain.get("index.html", ctx -> ctx.render(ctx.file("index.html")));
 
         chain.get("favicon.ico", ctx -> ctx.render(ctx.file("favicon.ico")));
     }

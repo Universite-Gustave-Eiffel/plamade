@@ -23,7 +23,6 @@ public class ApiModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(ApiEndpoints.class);
-        bind(SecureEndpoint.class);
         bind(GetUsers.class);
         bind(AcceptUser.class);
         bind(RefuseUser.class);
