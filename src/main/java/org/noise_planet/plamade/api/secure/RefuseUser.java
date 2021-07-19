@@ -53,7 +53,7 @@ public class RefuseUser implements Handler {
                             return statement.executeUpdate();
                         }
                     }).then(affected -> {
-                        ctx.render(json(Collections.singletonMap("Status", "Ok")));
+                        ctx.redirect("/manage/users");
                     });
                 }
             } else {

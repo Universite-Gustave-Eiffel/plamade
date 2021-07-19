@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="/css/plamade.css"/>
     <script type="text/javascript" src="/js/moment.min.js"></script>
     <script type="text/javascript" src="/js/axios.min.js"></script> <!-- lightweight async rest queries lib -->
-    <script type="text/javascript" src="/js/plamade.js"></script>
 </head>
 <body>
 <div id="layout">
@@ -29,8 +28,8 @@
                 <tr th:each="user : ${users}">
                     <td th:text="${user.ooid}">1</td>
                     <td th:text="${user.email}">user@domain.com</td>
-                    <td><a class="pure-button" th:attr="onclick=|acceptUser('${user.ooid}')|" onclick="acceptUser('ooid')">&CirclePlus;</a>
-                        <a class="pure-button" th:attr="onclick=|refuseUser('${user.ooid}')|" onclick="refuseUser('ooid')">&CircleMinus;</a></td>
+                    <td><a class="pure-button" th:href="|/manage/user/${user.ooid}/accept|">&CirclePlus;</a>
+                        <a class="pure-button" th:href="|/manage/user/${user.ooid}/refuse|">&CircleMinus;</a></td>
                 </tr>
                 </tbody>
             </table>
