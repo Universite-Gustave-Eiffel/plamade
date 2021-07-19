@@ -2,5 +2,5 @@ auth:
   clientId: "client id here"
   clientSecret: "client secret here"
 admins:
-  - "112658514664682686104"
+  - ""
 

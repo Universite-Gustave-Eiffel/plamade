@@ -33,6 +33,9 @@ import ratpack.thymeleaf.ThymeleafModule;
 import static ratpack.handling.Handlers.redirect;
 
 import javax.sql.DataSource;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -47,9 +50,16 @@ public class Main {
     private static final int DATABASE_VERSION = 1;
 
     public static void main(String... args) throws Exception {
+        Path basePath = BaseDir.find();
+        File configPath = new File(basePath.toFile(), "config.yaml");
+        if(!configPath.exists()) {
+            File sourceConfigPath = new File(basePath.toFile(), "config.demo.yaml");
+            Files.copy(sourceConfigPath.toPath(), configPath.toPath());
+        }
+
         String databasePath = Paths.get("database").toAbsolutePath().toString();
-        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.demo.yaml").env().require("/auth", AuthConfig.class)
-                .baseDir(BaseDir.find()).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
+        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").env().require("/auth", AuthConfig.class)
+                .baseDir(basePath).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
                 .module(AuthModule.class)
                 .module(TextTemplateModule.class)
                 .module(ThymeleafModule.class)
