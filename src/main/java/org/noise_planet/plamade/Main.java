@@ -48,7 +48,7 @@ public class Main {
 
     public static void main(String... args) throws Exception {
         String databasePath = Paths.get("database").toAbsolutePath().toString();
-        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").env().require("/auth", AuthConfig.class)
+        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.demo.yaml").env().require("/auth", AuthConfig.class)
                 .baseDir(BaseDir.find()).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
                 .module(AuthModule.class)
                 .module(TextTemplateModule.class)

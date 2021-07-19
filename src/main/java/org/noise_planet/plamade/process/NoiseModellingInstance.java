@@ -100,7 +100,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 inputs.put("databaseUser", "");
                 inputs.put("databasePassword", "");
                 inputs.put("fetchDistance", 1000);
-                inputs.put("inseeDepartment", "");
+                inputs.put("inseeDepartment", configuration.getInseeDepartment());
                 Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
 
             }

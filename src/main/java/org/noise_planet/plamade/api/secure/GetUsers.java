@@ -45,7 +45,7 @@ public class GetUsers implements Handler {
             if (commonProfile.isPresent()) {
                 CommonProfile profile = commonProfile.get();
                 ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-                AdminConfig adminConfig = mapper.readValue(ctx.file("config.yaml").toFile(), AdminConfig.class);
+                AdminConfig adminConfig = mapper.readValue(ctx.file("config.demo.yaml").toFile(), AdminConfig.class);
                 if(adminConfig.contains(profile.getId())) {
                     Blocking.get(() -> {
                         List<Map<String, Object>> table = new ArrayList<>();
