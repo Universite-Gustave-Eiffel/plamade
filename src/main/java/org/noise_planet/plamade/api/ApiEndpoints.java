@@ -16,7 +16,6 @@
 package org.noise_planet.plamade.api;
 
 import org.noise_planet.plamade.api.secure.*;
-import org.opengis.filter.expression.Add;
 import org.pac4j.oidc.client.GoogleOidcClient;
 import ratpack.func.Action;
 import ratpack.handling.Chain;
@@ -31,16 +30,15 @@ public class ApiEndpoints implements Action<Chain> {
         // Endpoint that requires the user to be logged in
         chain.prefix("manage", c -> {
             c.all(RatpackPac4j.requireAuth(GoogleOidcClient.class));
-            c.get(SecureEndpoint.class);
-            c.get("job_list", JobList.class);
-            c.get("joblist", JobListPage.class);
-            c.get("subscribe", Subscribe.class);
-            c.get("request_list", UserList.class);
+            c.get(GetJobList.class);
+            c.get("add_job", GetAddJob.class);
+            c.post("do_add_job", PostAddJob.class);
+            c.get("job_list", GetJobList.class);
+            c.get("users", GetUsers.class);
             c.prefix("user/:userooid", sc -> {
                 sc.get("accept", AcceptUser.class);
                 sc.get("refuse", RefuseUser.class);
             });
-            c.post("add_job", AddJob.class);
         });
 
         // Logout

@@ -24,20 +24,20 @@ import org.slf4j.LoggerFactory;
 import ratpack.exec.Blocking;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
-import ratpack.http.Status;
 import ratpack.pac4j.RatpackPac4j;
+import ratpack.thymeleaf.Template;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.text.DateFormat;
 import java.util.*;
 
-import static ratpack.groovy.Groovy.groovyTemplate;
 import static ratpack.jackson.Jackson.json;
 
-public class JobList implements Handler {
-    private static final Logger LOG = LoggerFactory.getLogger(JobList.class);
+public class GetJobList implements Handler {
+    private static final Logger LOG = LoggerFactory.getLogger(GetJobList.class);
 
     @Override
     public void handle(Context ctx) throws Exception {
@@ -46,7 +46,21 @@ public class JobList implements Handler {
                 CommonProfile profile = commonProfile.get();
                 SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                     if (pkUser == -1) {
-                        ctx.render(json(Eval.me("[errorCode : 403, error : 'Forbidden', redirect: '/manage#subscribe']")));
+                        Blocking.get(() -> {
+                            try (Connection connection = ctx.get(DataSource.class).getConnection()) {
+                                PreparedStatement statement = connection.prepareStatement(
+                                        "MERGE INTO USER_ASK_INVITATION(USER_OID, MAIL) KEY(USER_OID) VALUES (?,?)");
+                                statement.setString(1, profile.getId());
+                                statement.setString(2, profile.getEmail());
+                                statement.execute();
+                            }
+                            return true;
+                        }).then(ok -> {
+                            final Map<String, Object> model = Maps.newHashMap();
+                            model.put("message", "Please wait for account approval..");
+                            model.put("profile", profile);
+                            ctx.render(Template.thymeleafTemplate(model, "blank"));
+                        });
                     } else {
                         Blocking.get(() -> {
                             List<Map<String, Object>> table = new ArrayList<>();
@@ -59,7 +73,17 @@ public class JobList implements Handler {
                                     while (rs.next()) {
                                         Map<String, Object> row = new HashMap<>();
                                         for (int idField = 1; idField <= fields.size(); idField += 1) {
-                                            row.put(fields.get(idField - 1).toLowerCase(Locale.ROOT), rs.getObject(idField));
+                                            DateFormat mediumDateFormatEN = DateFormat.getDateTimeInstance(
+                                                    DateFormat.MEDIUM,
+                                                    DateFormat.MEDIUM);
+                                            row.put("pk_job", rs.getInt("pk_job"));
+                                            Date bDate = rs.getDate("BEGIN_DATE");
+                                            row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
+                                            Date eDate = rs.getDate("END_DATE");
+                                            row.put("endDate", !rs.wasNull() ? mediumDateFormatEN.format(eDate) : "-");
+                                            row.put("status", rs.getInt("PROGRESSION") + " %");
+                                            row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
+                                            row.put("conf_id", rs.getInt("CONF_ID"));
                                         }
                                         table.add(row);
                                     }
@@ -67,12 +91,15 @@ public class JobList implements Handler {
                             }
                             return table;
                         }).then(jobList -> {
-                            ctx.render(json(jobList));
+                            final Map<String, Object> model = Maps.newHashMap();
+                            model.put("jobs", jobList);
+                            model.put("profile", profile);
+                            ctx.render(Template.thymeleafTemplate(model, "joblist"));
                         });
                     }
                 });
             } else {
-                ctx.render(json(Collections.singletonMap("Error", "Not authenticated")));
+                ctx.render(Template.thymeleafTemplate("blank"));
             }
         });
     }

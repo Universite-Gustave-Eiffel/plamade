@@ -17,6 +17,7 @@ package org.noise_planet.plamade.api.secure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.common.collect.Maps;
 import org.noise_planet.plamade.config.AdminConfig;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
@@ -25,6 +26,7 @@ import ratpack.exec.Blocking;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
+import ratpack.thymeleaf.Template;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -34,8 +36,8 @@ import java.util.*;
 
 import static ratpack.jackson.Jackson.json;
 
-public class UserList implements Handler {
-    private static final Logger LOG = LoggerFactory.getLogger(UserList.class);
+public class GetUsers implements Handler {
+    private static final Logger LOG = LoggerFactory.getLogger(GetUsers.class);
 
     @Override
     public void handle(Context ctx) throws Exception {
@@ -60,8 +62,16 @@ public class UserList implements Handler {
                         }
                         return table;
                     }).then(userList -> {
-                        ctx.render(json(userList));
+                        final Map<String, Object> model = Maps.newHashMap();
+                        model.put("profile", profile);
+                        model.put("users", userList);
+                        ctx.render(Template.thymeleafTemplate(model, "users"));
                     });
+                } else {
+                    final Map<String, Object> model = Maps.newHashMap();
+                    model.put("message", "This account does not have an administrator access");
+                    model.put("profile", profile);
+                    ctx.render(Template.thymeleafTemplate(model, "blank"));
                 }
             } else {
                 ctx.render(json(Collections.singletonMap("Error", "Not authenticated")));

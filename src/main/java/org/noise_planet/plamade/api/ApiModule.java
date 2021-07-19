@@ -24,12 +24,11 @@ public class ApiModule extends AbstractModule {
     protected void configure() {
         bind(ApiEndpoints.class);
         bind(SecureEndpoint.class);
-        bind(JobList.class);
-        bind(Subscribe.class);
-        bind(UserList.class);
+        bind(GetUsers.class);
         bind(AcceptUser.class);
         bind(RefuseUser.class);
-        bind(AddJob.class);
-        bind(JobListPage.class);
+        bind(GetJobList.class);
+        bind(GetAddJob.class);
+        bind(PostAddJob.class);
     }
 }

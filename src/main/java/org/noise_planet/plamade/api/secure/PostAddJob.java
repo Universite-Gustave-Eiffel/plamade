@@ -15,6 +15,7 @@
  */
 package org.noise_planet.plamade.api.secure;
 
+import com.google.common.collect.Maps;
 import groovy.util.Eval;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.core.profile.CommonProfile;
@@ -26,10 +27,12 @@ import ratpack.form.Form;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
+import ratpack.thymeleaf.Template;
 
 import javax.sql.DataSource;
 import java.io.File;
 import java.sql.*;
+import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import static ratpack.jackson.Jackson.json;
@@ -37,26 +40,30 @@ import static ratpack.jackson.Jackson.json;
 /**
  * Create new job
  */
-public class AddJob implements Handler {
-    private static final Logger LOG = LoggerFactory.getLogger(AddJob.class);
+public class PostAddJob implements Handler {
+    private static final Logger LOG = LoggerFactory.getLogger(PostAddJob.class);
 
     @Override
     public void handle(Context ctx) throws Exception {
         Promise<Form> form = ctx.parse(Form.class);
         form.then(f -> {
-            final String inseeDepartment = f.get("INSEE_DEPARTMENT");
-            final String confId = f.get("CONF_ID");
-            if(inseeDepartment == null || inseeDepartment.equals("")) {
-                ctx.render(json(Eval.me("[message: 'Missing required field inseeDepartment']")));
-                return;
-            }
-            if(confId == null || confId.equals("")) {
-                ctx.render(json(Eval.me("[message: 'Missing required field confId']")));
-                return;
-            }
             RatpackPac4j.userProfile(ctx).then(commonProfile -> {
                 if (commonProfile.isPresent()) {
                     CommonProfile profile = commonProfile.get();
+                    final Map<String, Object> model = Maps.newHashMap();
+                    final String inseeDepartment = f.get("INSEE_DEPARTMENT");
+                    final String confId = f.get("CONF_ID");
+                    if(inseeDepartment == null || inseeDepartment.equals("")) {
+                        model.put("message", "Missing required field inseeDepartment");
+                        ctx.render(Template.thymeleafTemplate(model, "add_job"));
+                        return;
+                    }
+                    if(confId == null || confId.equals("")) {
+                        model.put("message", "Missing required field confId");
+                        ctx.render(Template.thymeleafTemplate(model, "add_job"));
+                        return;
+                    }
+                    model.put("profile", profile);
                     SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                         if(pkUser > -1) {
                             Blocking.get(() -> {
@@ -89,11 +96,8 @@ public class AddJob implements Handler {
                                 }
                                 return true;
                             }).then(ok -> {
-                                if(ok) {
-                                    ctx.render(json(Eval.me("[message: 'Job added']")));
-                                } else {
-                                    ctx.render(json(Eval.me("[message: 'Could not create job']")));
-                                }
+                                model.put("message", ok ? "Job added" : "Could not create job");
+                                ctx.render(Template.thymeleafTemplate(model, "add_job"));
                             });
                         }
                     });
