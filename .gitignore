@@ -9,3 +9,5 @@ computation_core/dependencies/*.jar
 ### Gradle ###
 .gradle
 **/build/
+src/ratpack/config.yaml
+
