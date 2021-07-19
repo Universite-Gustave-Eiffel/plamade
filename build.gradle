@@ -25,7 +25,7 @@ sourceCompatibility = 1.8
 sourceSets {
     main {
         groovy {
-            srcDirs 'script_groovy'
+            srcDirs=['script_groovy']
         }
     }
 }
@@ -55,6 +55,7 @@ dependencies {
     implementation ratpack.dependency('guice')
     implementation ratpack.dependency('groovy')
     implementation ratpack.dependency('hikari')
+    implementation ratpack.dependency('thymeleaf')
 
     implementation 'org.pac4j:ratpack-pac4j:2.0.0'
     implementation 'org.pac4j:pac4j-oidc:2.2.1'

@@ -12,6 +12,10 @@
 
 package org.noise_planet.plamade.process;
 
+import groovy.lang.GroovyShell;
+import groovy.lang.Script;
+import groovy.util.Eval;
+import groovy.util.GroovyScriptEngine;
 import org.h2.Driver;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.functions.factory.H2GISFunctions;
@@ -21,9 +25,13 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.*;
 
@@ -66,10 +74,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         try {
             // create folder
             File workingDir = new File(configuration.workingDirectory);
-            if(workingDir.exists() && workingDir.isDirectory() && !configuration.workingDirectory.isEmpty()) {
-                if(!workingDir.delete()) {
-                    logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
-                    return;
+            if(workingDir.exists() && workingDir.isDirectory()) {
+                if(workingDir.getAbsolutePath().startsWith(new File("").getAbsolutePath())) {
+                    if (!workingDir.delete()) {
+                        logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
+                        return;
+                    }
+                } else {
+                    logger.error(String.format(Locale.ROOT, "Can delete only sub-folder \n%s\n%s",
+                            new File("").getAbsolutePath(), workingDir.getAbsolutePath()));
                 }
             }
             if(!(workingDir.mkdirs())) {
@@ -77,7 +90,21 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 return;
             }
             nmDataSource = createDataSource(configuration, "sa", "sa", "nm_db");
-        } catch (SQLException | SecurityException ex) {
+
+            // Download data from external database
+            GroovyShell shell = new GroovyShell();
+            Script extractDepartment= shell.parse(new File("script_groovy", "1_Extract_Department.groovy"));
+
+            try(Connection nmConnection = nmDataSource.getConnection()) {
+                Map<String, Object> inputs = new HashMap<>();
+                inputs.put("databaseUser", "");
+                inputs.put("databasePassword", "");
+                inputs.put("fetchDistance", 1000);
+                inputs.put("inseeDepartment", "");
+                Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
+
+            }
+        } catch (SQLException | SecurityException | IOException ex) {
             logger.error(ex.getLocalizedMessage(), ex);
         } finally {
             isRunning = false;

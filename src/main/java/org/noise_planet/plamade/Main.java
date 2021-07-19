@@ -12,7 +12,6 @@
 
 package org.noise_planet.plamade;
 
-import org.h2gis.utilities.JDBCUtilities;
 import org.noise_planet.plamade.api.ApiEndpoints;
 import org.noise_planet.plamade.api.ApiModule;
 import org.noise_planet.plamade.auth.AuthModule;
@@ -29,6 +28,7 @@ import ratpack.session.SessionModule;
 import ratpack.service.Service;
 import ratpack.service.StartEvent;
 import ratpack.hikari.HikariModule;
+import ratpack.thymeleaf.ThymeleafModule;
 
 import static ratpack.handling.Handlers.redirect;
 
@@ -38,7 +38,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.concurrent.*;
 
 /**
  * Starts the plamade application.
@@ -53,6 +52,7 @@ public class Main {
                 .baseDir(BaseDir.find()).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
                 .module(AuthModule.class)
                 .module(TextTemplateModule.class)
+                .module(ThymeleafModule.class)
                 .module(SessionModule.class)
                 .module(ExecutorServiceModule.class)
                 .module(HikariModule.class, hikariConfig -> {

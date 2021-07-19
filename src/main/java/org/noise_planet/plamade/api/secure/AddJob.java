@@ -65,7 +65,7 @@ public class AddJob implements Handler {
                                 try (Connection connection = ctx.get(DataSource.class).getConnection()) {
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(REMOTE_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
-                                                    " VALUES (RANDOM_UUID, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+                                                    " VALUES (RANDOM_UUID(), ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
                                     statement.setObject(1, t);
                                     statement.setInt(2, Integer.parseInt(confId));
                                     statement.setString(3, inseeDepartment);

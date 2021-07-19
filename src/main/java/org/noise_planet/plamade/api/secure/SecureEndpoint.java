@@ -29,6 +29,7 @@ import ratpack.handling.Context;
 import ratpack.handling.Handler;
 import static ratpack.jackson.Jackson.json;
 import ratpack.pac4j.RatpackPac4j;
+import ratpack.thymeleaf.Template;
 
 import javax.sql.DataSource;
 import java.io.File;

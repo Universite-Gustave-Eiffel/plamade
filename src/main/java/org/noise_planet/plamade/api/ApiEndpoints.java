@@ -33,6 +33,7 @@ public class ApiEndpoints implements Action<Chain> {
             c.all(RatpackPac4j.requireAuth(GoogleOidcClient.class));
             c.get(SecureEndpoint.class);
             c.get("job_list", JobList.class);
+            c.get("joblist", JobListPage.class);
             c.get("subscribe", Subscribe.class);
             c.get("request_list", UserList.class);
             c.prefix("user/:userooid", sc -> {
