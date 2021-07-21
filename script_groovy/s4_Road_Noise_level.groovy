@@ -16,7 +16,7 @@
  * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285
  */
 
-  /* TODO
+   /* TODO
     - Check spatial index and srids
     - Add Metadatas
     - remove unnecessary lines (il y en a beaucoup)
@@ -25,27 +25,19 @@
  */
 
 
-
-package org.noise_planet.noisemodelling.wps.NoiseModelling
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
 import groovy.sql.Sql
 import groovy.time.TimeCategory
 import org.geotools.jdbc.JDBCDataStore
-import org.h2gis.functions.spatial.edit.ST_AddZ
-
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
-import org.h2gis.utilities.SpatialResultSet
 import org.h2gis.utilities.wrapper.ConnectionWrapper
-
-import org.locationtech.jts.geom.Geometry
-import org.locationtech.jts.geom.LineString
 
 import org.noise_planet.noisemodelling.emission.*
 import org.noise_planet.noisemodelling.pathfinder.*
@@ -56,14 +48,13 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
-import java.sql.PreparedStatement
 import java.sql.SQLException
 
 
-title = 'Compute LDay, Levening, LNight and Lden from rail traffic'
-description = 'Compute Lday noise map from Day Evening Night rail traffic flow rate and speed estimates (specific format, see input details).' +
+title = 'Compute LDay,Levening,LNight,Lden from road traffic'
+description = 'Compute Lday noise map from Day Evening Night traffic flow rate and speed estimates (specific format, see input details).' +
         '</br> Tables must be projected in a metric coordinate system (SRID). Use "Change_SRID" WPS Block if needed.' +
-        '</br> </br> <b> The output tables are called : LDAY_RAILWAY LEVENING_RAILWAY LNIGHT_RAILWAY LDEN_RAILWAY </b> ' +
+        '</br> </br> <b> The output tables are called : LDAY_ROADS LEVENING_ROADS LNIGHT_ROADS LDEN_ROADS </b> ' +
         'and contain : </br>' +
         '- <b> IDRECEIVER  </b> : an identifier (INTEGER, PRIMARY KEY). </br>' +
         '- <b> THE_GEOM </b> : the 3D geometry of the receivers (POINT).</br> ' +
@@ -171,8 +162,8 @@ def exec(Connection connection, input) {
     Sql sql = new Sql(connection)
 
     // Update metadata table with start time
-    sql.execute(String.format("UPDATE metadata SET rail_conf =" + input.confId))
-    sql.execute(String.format("UPDATE metadata SET rail_start = NOW();"))
+    sql.execute(String.format("UPDATE metadata SET road_conf =" + input.confId))
+    sql.execute(String.format("UPDATE metadata SET road_start = NOW();"))
 
     // output string, the information given back to the user
     String resultString = null
@@ -188,41 +179,8 @@ def exec(Connection connection, input) {
     // Get every inputs
     // -------------------
 
-    // Pointing the 'rail_sections' table
-    String rail_sections = "rail_sections"
-    // do it case-insensitive
-    rail_sections = rail_sections.toUpperCase()
-
-    // Pointing the 'rail_traffic' table
-    String rail_traffic = "rail_traffic"
-    // do it case-insensitive
-    rail_traffic = rail_traffic.toUpperCase()
-
-    // Check if srid are in metric projection.
-    int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse(rail_sections))
-    if (sridSources == 3785 || sridSources == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+rail_sections+".")
-    if (sridSources == 0) throw new IllegalArgumentException("Error : The table "+rail_sections+" does not have an associated SRID.")
-
-    //Get the geometry field of the source table
-    TableLocation sourceTableIdentifier = TableLocation.parse(rail_sections)
-    List<String> geomFields = SFSUtilities.getGeometryFields(connection, sourceTableIdentifier)
-    if (geomFields.isEmpty()) {
-        throw new SQLException(String.format("The table %s does not exists or does not contain a geometry field", sourceTableIdentifier))
-    }
-
-    //Get the primary key field of the source table
-    int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, rail_sections)
-    if (pkIndex < 1) {
-        sql.execute("ALTER TABLE " + rail_sections + " ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
-       // throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
-    }
-
-    //Get the primary key field of the source table
-    pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, rail_traffic)
-    if (pkIndex < 1) {
-        sql.execute("ALTER TABLE " + rail_traffic + " ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
-        //throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
-    }
+    String sources_table_name = "LW_ROADS"
+   
 
     // Pointing the 'receivers' table
     String receivers_table_name = "receivers"    
@@ -238,8 +196,7 @@ def exec(Connection connection, input) {
     int sridReceivers = SFSUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
     if (sridReceivers == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+receivers_table_name+".")
     if (sridReceivers == 0) throw new IllegalArgumentException("Error : The table "+receivers_table_name+" does not have an associated SRID.")
-    if (sridReceivers != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+rail_sections+" and "+receivers_table_name+" are not the same.")
-
+ 
 
     // Get the primary key field of the receiver table
     int pkIndexRecv = JDBCUtilities.getIntegerPrimaryKey(connection, receivers_table_name)
@@ -259,24 +216,21 @@ def exec(Connection connection, input) {
 
     // Pointing the 'dem' table
     String dem_table_name = "dem"
-    // do it case-insensitive
-    dem_table_name = dem_table_name.toUpperCase()
-    // Check if srid are in metric projection and are all the same.
-    int sridDEM = SFSUtilities.getSRID(connection, TableLocation.parse(dem_table_name))
-    if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
-    if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
-    if (sridDEM != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+rail_sections+" and "+dem_table_name+" are not the same.")
+        // do it case-insensitive
+        dem_table_name = dem_table_name.toUpperCase()
+        // Check if srid are in metric projection and are all the same.
+        int sridDEM = SFSUtilities.getSRID(connection, TableLocation.parse(dem_table_name))
+        if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
+        if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
 
     // Pointing the 'landcover' table
     String ground_table_name = "landcover"
-    // do it case-insensitive
-    ground_table_name = ground_table_name.toUpperCase()
-    // Check if srid are in metric projection and are all the same.
-    int sridGROUND = SFSUtilities.getSRID(connection, TableLocation.parse(ground_table_name))
-    if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
-    if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
-    if (sridGROUND != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+ground_table_name+" and "+rail_sections+" are not the same.")
-
+        // do it case-insensitive
+        ground_table_name = ground_table_name.toUpperCase()
+        // Check if srid are in metric projection and are all the same.
+        int sridGROUND = SFSUtilities.getSRID(connection, TableLocation.parse(ground_table_name))
+        if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
+        if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
 
     // -----------------------------------------------------------------------------
     // Define and set the parameters coming from the global configuration table (CONF)
@@ -323,7 +277,6 @@ def exec(Connection connection, input) {
     logger.info(String.format("PARAM : The temperature is set to %s ", confTemperature));
     logger.info(String.format("PARAM : The pfav values are %s ", confFavorableOccurrences));
  
-
     // -------------------------
     // Initialize some variables
     // -------------------------
@@ -331,13 +284,11 @@ def exec(Connection connection, input) {
     // Set of already processed receivers
     Set<Long> receivers = new HashSet<>()
 
-
     // --------------------------------------------
     // Initialize NoiseModelling propagation part
     // --------------------------------------------
 
-    String sources_table_name = "LW_RAILWAY"
-    PointNoiseMap pointNoiseMap = new PointNoiseMap(building_table_name, sources_table_name, receivers_table_name)
+     PointNoiseMap pointNoiseMap = new PointNoiseMap(building_table_name, sources_table_name, receivers_table_name)
 
     LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN)
 
@@ -357,11 +308,9 @@ def exec(Connection connection, input) {
 
     // Set environmental parameters
     PropagationProcessPathData environmentalData = new PropagationProcessPathData(false)
-
     
     environmentalData.setHumidity(confHumidity)
     environmentalData.setTemperature(confTemperature)
-    
     
         StringTokenizer tk = new StringTokenizer(confFavorableOccurrences, ',')
         double[] favOccurrences = new double[PropagationProcessPathData.DEFAULT_WIND_ROSE.length]
@@ -370,7 +319,6 @@ def exec(Connection connection, input) {
         }
         environmentalData.setWindRose(favOccurrences)
     
-
     pointNoiseMap.setPropagationProcessPathData(environmentalData)
 
     // Building height field name
@@ -389,8 +337,6 @@ def exec(Connection connection, input) {
     pointNoiseMap.setWallAbsorption(wall_alpha)
     pointNoiseMap.setThreadCount(n_thread)
 
-    // Do not propagate for low emission or far away sources
-    // Maximum error in dB
 
     // --------------------------------------------
     // Initialize NoiseModelling emission part
@@ -402,10 +348,8 @@ def exec(Connection connection, input) {
 
     // Do not propagate for low emission or far away sources
     // Maximum error in dB
-    pointNoiseMap.setMaximumError(0.1d)
-    // NoiseFloor ?
-    //pointNoiseMap.setNoiseFloor(40d);
-
+    pointNoiseMap.setMaximumError(0.2d)
+    //pointNoiseMap.setNoiseFloor(-50d);
     // Init Map
     pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
 
@@ -459,44 +403,44 @@ def exec(Connection connection, input) {
     } finally {
         ldenProcessing.stop()
     }
-    
+
     // Associate Geometry column to the table LDEN
     StringBuilder createdTables = new StringBuilder()
 
     if (ldenConfig_propa.computeLDay) {
-        sql.execute("DROP TABLE IF EXISTS LDAY_RAILWAY;")
-        logger.info('Create table LDAY_RAILWAY')
-        forgeCreateTable(sql, "LDAY_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+        sql.execute("DROP TABLE IF EXISTS LDAY_ROADS")
+        logger.info('Create table LDAY_ROADS')
+        forgeCreateTable(sql, "LDAY_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
                 ldenConfig_propa.lDayTable)
-        createdTables.append(" LDAY_RAILWAY")
+        createdTables.append(" LDAY_ROADS")
         sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDayTable()))
     }
     if (ldenConfig_propa.computeLEvening) {
-        sql.execute("DROP TABLE IF EXISTS LEVENING_RAILWAY;")
-        logger.info('Create table LEVENING_RAILWAY')
-        forgeCreateTable(sql, "LEVENING_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+        sql.execute("DROP TABLE IF EXISTS LEVENING_ROADS;")
+        logger.info('Create table LEVENING_ROADS')
+        forgeCreateTable(sql, "LEVENING_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
                 ldenConfig_propa.lEveningTable)
-        createdTables.append(" LEVENING_RAILWAY")
+        createdTables.append(" LEVENING_ROADS")
         sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlEveningTable()))
     }
     if (ldenConfig_propa.computeLNight) {
-        sql.execute("DROP TABLE IF EXISTS LNIGHT_RAILWAY;")
-        logger.info('Create table LNIGHT_RAILWAY')
-        forgeCreateTable(sql, "LNIGHT_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+        sql.execute("DROP TABLE IF EXISTS LNIGHT_ROADS;")
+        logger.info('Create table LNIGHT_ROADS')
+        forgeCreateTable(sql, "LNIGHT_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
                 ldenConfig_propa.lNightTable)
-        createdTables.append(" LNIGHT_RAILWAY")
+        createdTables.append(" LNIGHT_ROADS")
         sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlNightTable()))
     }
     if (ldenConfig_propa.computeLDEN) {
-        sql.execute("DROP TABLE IF EXISTS LDEN_RAILWAY;")
-        logger.info('Create table LDEN_RAILWAY')
-        forgeCreateTable(sql, "LDEN_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+        sql.execute("DROP TABLE IF EXISTS LDEN_ROADS;")
+        logger.info('Create table LDEN_ROADS')
+        forgeCreateTable(sql, "LDEN_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
                 ldenConfig_propa.lDenTable)
-        createdTables.append(" LDEN_RAILWAY")
+        createdTables.append(" LDEN_ROADS")
         sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDenTable()))
     }
 
-    sql.execute(String.format("UPDATE metadata SET rail_end = NOW();"))
+    sql.execute(String.format("UPDATE metadata SET road_end = NOW();"))
 
     resultString = "Calculation Done ! " + createdTables.toString() + " table(s) have been created."
 

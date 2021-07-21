@@ -16,31 +16,27 @@
  * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285
  */
 
-
   /* TODO
     - Check spatial index and srids
-    - Check if railway sound levels are realistic (they seem to be low)
-    - Check if railway sound sources are well spaced with good heights
     - Add Metadatas
     - remove unnecessary lines (il y en a beaucoup)
-    - add more logs for users
+    - Check CONF, add some, sensibility analysis
+    - Fond good compromise for NoiseFLoor and Maximum error (lignes 413)
  */
 
 
-
-package org.noise_planet.noisemodelling.wps.NoiseModelling
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
-
 import groovy.sql.Sql
 import groovy.time.TimeCategory
-
 import org.geotools.jdbc.JDBCDataStore
-
 import org.h2gis.functions.spatial.edit.ST_AddZ
+
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
@@ -60,18 +56,17 @@ import org.slf4j.LoggerFactory
 
 import java.sql.Connection
 import java.sql.PreparedStatement
-import java.sql.ResultSet
 import java.sql.SQLException
 
 
-title = 'Compute LW_RAILWAY and LW_ROADS'
-description = 'Compute LW_RAILWAY and LW_ROADS from traffic flow rate and speed estimates (specific format, see input details).' +
+title = 'Compute LDay, Levening, LNight and Lden from rail traffic'
+description = 'Compute Lday noise map from Day Evening Night rail traffic flow rate and speed estimates (specific format, see input details).' +
         '</br> Tables must be projected in a metric coordinate system (SRID). Use "Change_SRID" WPS Block if needed.' +
-        '</br> </br> <b> The output tables are called : LW_RAILWAY and LW_ROADS </b> ' +
+        '</br> </br> <b> The output tables are called : LDAY_RAILWAY LEVENING_RAILWAY LNIGHT_RAILWAY LDEN_RAILWAY </b> ' +
         'and contain : </br>' +
         '- <b> IDRECEIVER  </b> : an identifier (INTEGER, PRIMARY KEY). </br>' +
         '- <b> THE_GEOM </b> : the 3D geometry of the receivers (POINT).</br> ' +
-        '-  <b> Hz63, Hz125, Hz250, Hz500, Hz1000,Hz2000, Hz4000, Hz8000 </b> : columns giving the day emission sound level for each octave band or third octave band (FLOAT).'
+        '- <b> Hz63, Hz125, Hz250, Hz500, Hz1000,Hz2000, Hz4000, Hz8000 </b> : 8 columns giving the day emission sound level for each octave band (FLOAT).'
 
 inputs = [
         confId: [
@@ -120,7 +115,7 @@ def forgeCreateTable(Sql sql, String tableName, LDENConfig ldenConfig, String ge
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
-    StringBuilder sb = new StringBuilder("CREATE TABLE ");
+    StringBuilder sb = new StringBuilder("create table ");
     sb.append(tableName);
     if (!ldenConfig.mergeSources) {
         sb.append(" (IDRECEIVER bigint NOT NULL");
@@ -168,31 +163,15 @@ def forgeCreateTable(Sql sql, String tableName, LDENConfig ldenConfig, String ge
 
 // main function of the script
 def exec(Connection connection, input) {
-
-    //Load GeneralTools.groovy
-    File generalTools = new File(new File("").absolutePath + "/data_dir/scripts/wpsTools/GeneralTools.groovy")
-
-    //if we are in dev, the path is not the same as for geoserver
-    if (new File("").absolutePath.substring(new File("").absolutePath.length() - 11) == 'wps_scripts') {
-        generalTools = new File(new File("").absolutePath + "/src/main/groovy/org/noise_planet/noisemodelling/wpsTools/GeneralTools.groovy")
-    }
-
-    // Get external tools
-    Class groovyClass = new GroovyClassLoader(getClass().getClassLoader()).parseClass(generalTools)
-    GroovyObject tools = (GroovyObject) groovyClass.newInstance()
-
-
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
     // Create a sql connection to interact with the database in SQL
     Sql sql = new Sql(connection)
 
-
     // Update metadata table with start time
-    sql.execute(String.format("UPDATE metadata SET emi_conf =" + input.confId))
-    sql.execute(String.format("UPDATE metadata SET emi_start = NOW();"))
-
+    sql.execute(String.format("UPDATE metadata SET rail_conf =" + input.confId))
+    sql.execute(String.format("UPDATE metadata SET rail_start = NOW();"))
 
     // output string, the information given back to the user
     String resultString = null
@@ -201,7 +180,7 @@ def exec(Connection connection, input) {
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
     // print to command window
-    logger.info('Start : Compute Emission Noise Levels')
+    logger.info('Start : Noise level from Traffic')
     logger.info("inputs {}", input) // log inputs of the run
 
     // -------------------
@@ -212,7 +191,6 @@ def exec(Connection connection, input) {
     String rail_sections = "rail_sections"
     // do it case-insensitive
     rail_sections = rail_sections.toUpperCase()
-
 
     // Pointing the 'rail_traffic' table
     String rail_traffic = "rail_traffic"
@@ -238,8 +216,7 @@ def exec(Connection connection, input) {
        // throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
     }
 
-    
-        //Get the primary key field of the source table
+    //Get the primary key field of the source table
     pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, rail_traffic)
     if (pkIndex < 1) {
         sql.execute("ALTER TABLE " + rail_traffic + " ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
@@ -289,7 +266,6 @@ def exec(Connection connection, input) {
     if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
     if (sridDEM != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+rail_sections+" and "+dem_table_name+" are not the same.")
 
-
     // Pointing the 'landcover' table
     String ground_table_name = "landcover"
     // do it case-insensitive
@@ -310,7 +286,7 @@ def exec(Connection connection, input) {
     int max_src_dist = row_conf.confmaxsrcdist.toInteger()
     int max_ref_dist = row_conf.confmaxrefldist.toInteger()
     int n_thread = row_conf.confthreadnumber.toInteger()
-    boolean compute_vertical_diffraction = row_conf.confdiffvertical
+    boolean compute_vertical_diffraction = true
     boolean compute_horizontal_diffraction = row_conf.confdiffhorizontal
     boolean confSkipLday = row_conf.confskiplday
     boolean confSkipLevening = row_conf.confskiplevening
@@ -356,246 +332,172 @@ def exec(Connection connection, input) {
 
 
     // --------------------------------------------
+    // Initialize NoiseModelling propagation part
+    // --------------------------------------------
+
+    String sources_table_name = "LW_RAILWAY"
+    PointNoiseMap pointNoiseMap = new PointNoiseMap(building_table_name, sources_table_name, receivers_table_name)
+
+    LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN)
+
+    ldenConfig_propa.setComputeLDay(!confSkipLday)
+    ldenConfig_propa.setComputeLEvening(!confSkipLevening)
+    ldenConfig_propa.setComputeLNight(!confSkipLnight)
+    ldenConfig_propa.setComputeLDEN(!confSkipLden)
+    ldenConfig_propa.setMergeSources(!confExportSourceId)
+
+    LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa)
+    // Add train directivity
+    // TODO add optional discrete directivity table name
+    ldenProcessing.insertTrainDirectivity()
+    pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction)
+    pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction)
+    pointNoiseMap.setSoundReflectionOrder(reflexion_order)
+
+    // Set environmental parameters
+    PropagationProcessPathData environmentalData = new PropagationProcessPathData(false)
+
+    
+    environmentalData.setHumidity(confHumidity)
+    environmentalData.setTemperature(confTemperature)
+    
+    
+        StringTokenizer tk = new StringTokenizer(confFavorableOccurrences, ',')
+        double[] favOccurrences = new double[PropagationProcessPathData.DEFAULT_WIND_ROSE.length]
+        for (int i = 0; i < favOccurrences.length; i++) {
+            favOccurrences[i] = Math.max(0, Math.min(1, Double.valueOf(tk.nextToken().trim())))
+        }
+        environmentalData.setWindRose(favOccurrences)
+    
+
+    pointNoiseMap.setPropagationProcessPathData(environmentalData)
+
+    // Building height field name
+    pointNoiseMap.setHeightField("HEIGHT")
+    // Import table with Snow, Forest, Grass, Pasture field polygons. Attribute G is associated with each polygon
+    if (ground_table_name != "") {
+        pointNoiseMap.setSoilTableName(ground_table_name)
+    }
+    // Point cloud height above sea level POINT(X Y Z)
+    if (dem_table_name != "") {
+        pointNoiseMap.setDemTable(dem_table_name)
+    }
+
+    pointNoiseMap.setMaximumPropagationDistance(max_src_dist)
+    pointNoiseMap.setMaximumReflectionDistance(max_ref_dist)
+    pointNoiseMap.setWallAbsorption(wall_alpha)
+    pointNoiseMap.setThreadCount(n_thread)
+
+    // Do not propagate for low emission or far away sources
+    // Maximum error in dB
+
+    // --------------------------------------------
     // Initialize NoiseModelling emission part
     // --------------------------------------------
 
-    // ----------------------------------------------------------------------------
-    // Prepare LW table
-
-    // drop table LW_RAILWAY if exists and the create and prepare the table
-    sql.execute("DROP TABLE IF EXISTS LW_RAILWAY;")
-
-    // Build and execute queries
-    StringBuilder createTableQuery = new StringBuilder("CREATE TABLE LW_RAILWAY (ID_SECTION int, the_geom geometry, DIR_ID int")
-    StringBuilder insertIntoQuery = new StringBuilder("INSERT INTO LW_RAILWAY(ID_SECTION, the_geom, DIR_ID")
-    StringBuilder insertIntoValuesQuery = new StringBuilder("?,?,?")
-    for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-        createTableQuery.append(", LWD")
-        createTableQuery.append(thirdOctave)
-        createTableQuery.append(" double precision")
-        insertIntoQuery.append(", LWD")
-        insertIntoQuery.append(thirdOctave)
-        insertIntoValuesQuery.append(", ?")
-    }
-    for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-        createTableQuery.append(", LWE")
-        createTableQuery.append(thirdOctave)
-        createTableQuery.append(" double precision")
-        insertIntoQuery.append(", LWE")
-        insertIntoQuery.append(thirdOctave)
-        insertIntoValuesQuery.append(", ?")
-    }
-    for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-        createTableQuery.append(", LWN")
-        createTableQuery.append(thirdOctave)
-        createTableQuery.append(" double precision")
-        insertIntoQuery.append(", LWN")
-        insertIntoQuery.append(thirdOctave)
-        insertIntoValuesQuery.append(", ?")
-    }
-    createTableQuery.append(")")
-    insertIntoQuery.append(") VALUES (")
-    insertIntoQuery.append(insertIntoValuesQuery)
-    insertIntoQuery.append(")")
-    sql.execute(createTableQuery.toString())
+    pointNoiseMap.setComputeRaysOutFactory(ldenProcessing)
+    pointNoiseMap.setPropagationProcessDataFactory(ldenProcessing)
 
 
+    // Do not propagate for low emission or far away sources
+    // Maximum error in dB
+    pointNoiseMap.setMaximumError(0.2d)
+    // NoiseFloor ?
+    //pointNoiseMap.setNoiseFloor(40d);
 
-    LDENConfig ldenConfig = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_RAILWAY_FLOW)
-    ldenConfig.setPropagationProcessPathData(new PropagationProcessPathData())
-    ldenConfig.setCoefficientVersion(2)
+    // Init Map
+    pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
 
-    // Get size of the table (number of rail segments
-    PreparedStatement st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + rail_sections)
-    SpatialResultSet rs1 = st.executeQuery().unwrap(SpatialResultSet.class)
+    // --------------------------------------------
+    // Run Calculations
+    // --------------------------------------------
 
-    while (rs1.next()) {
-        nSection = rs1.getInt("total")
-        System.println('The table Rail Geom has ' + nSection + ' rail segments.')
-    }
+    // --------------------------------------------
+    // Initialize NoiseModelling emission part
+    // --------------------------------------------
+    pointNoiseMap.setComputeRaysOutFactory(ldenProcessing)
+    pointNoiseMap.setPropagationProcessDataFactory(ldenProcessing)
 
-    RailWayLWIterator railWayLWIterator = new RailWayLWIterator(connection, rail_sections, rail_traffic, ldenConfig)
-    RailWayLWIterator.RailWayLWGeom railWayLWGeom;
+ 
+    // Init Map
+    pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
+
+    pointNoiseMap.setGridDim(25)
+    logger.info("Taille de cellulle : " + pointNoiseMap.getCellWidth().toString())
+
+    // --------------------------------------------
+    // Run Calculations
+    // --------------------------------------------
+
+    // Init ProgressLogger (loading bar)
+    RootProgressVisitor progressLogger = new RootProgressVisitor(1, true, 1)
 
 
-    while ((railWayLWGeom = railWayLWIterator.next()) != null) {
+    logger.info("Start calculation... ")
 
-
-        RailWayLW railWayLWDay = railWayLWGeom.getRailWayLWDay()
-        RailWayLW railWayLWEvening = railWayLWGeom.getRailWayLWEvening()
-        RailWayLW railWayLWNight = railWayLWGeom.getRailWayLWNight()
-        List<LineString> geometries = railWayLWGeom.getRailWayLWGeometry()
-        int pk = railWayLWGeom.getPK()
-        double[] LWDay
-        double[] LWEvening
-        double[] LWNight
-        double heightSource
-        int directivityId
-        for (int iSource = 0; iSource < 6; iSource++) {
-            switch (iSource) {
-                case 0:
-                    LWDay = railWayLWDay.getLWRolling()
-                    LWEvening = railWayLWEvening.getLWRolling()
-                    LWNight = railWayLWNight.getLWRolling()
-                    heightSource = 0.5
-                    directivityId = 1
-                    break
-                case 1:
-                    LWDay = railWayLWDay.getLWTractionA()
-                    LWEvening = railWayLWEvening.getLWTractionA()
-                    LWNight = railWayLWNight.getLWTractionA()
-                    heightSource = 0.5
-                    directivityId = 2
-                    break
-                case 2:
-                    LWDay = railWayLWDay.getLWTractionB()
-                    LWEvening = railWayLWEvening.getLWTractionB()
-                    LWNight = railWayLWNight.getLWTractionB()
-                    heightSource = 4
-                    directivityId = 3
-                    break
-                case 3:
-                    LWDay = railWayLWDay.getLWAerodynamicA()
-                    LWEvening = railWayLWEvening.getLWAerodynamicA()
-                    LWNight = railWayLWNight.getLWAerodynamicA()
-                    heightSource = 0.5
-                    directivityId = 4
-                    break
-                case 4:
-                    LWDay = railWayLWDay.getLWAerodynamicB()
-                    LWEvening = railWayLWEvening.getLWAerodynamicB()
-                    LWNight = railWayLWNight.getLWAerodynamicB()
-                    heightSource = 4
-                    directivityId = 5
-                    break
-                case 5:
-                    LWDay = railWayLWDay.getLWBridge()
-                    LWEvening = railWayLWEvening.getLWBridge()
-                    LWNight = railWayLWNight.getLWBridge()
-                    heightSource = 0.5
-                    directivityId = 6
-                    break
-            }
-            for (int nTrack = 0; nTrack < geometries.size(); nTrack++) {
-
-                sql.withBatch(100, insertIntoQuery.toString()) { ps ->
-                    Geometry trackGeometry = (Geometry) geometries.get(nTrack)
-                    Geometry sourceGeometry = trackGeometry.copy()
-                    // offset geometry z
-                    sourceGeometry.apply(new ST_AddZ.AddZCoordinateSequenceFilter(heightSource))
-                    def batchData = [pk as int, sourceGeometry as Geometry, directivityId as int]
-                    batchData.addAll(LWDay)
-                    batchData.addAll(LWEvening)
-                    batchData.addAll(LWNight)
-                    ps.addBatch(batchData)
-                }
+    try {
+        ldenProcessing.start()
+        // Iterate over computation areas
+        int k = 0
+        Map cells = pointNoiseMap.searchPopulatedCells(connection)
+        ProgressVisitor progressVisitor = progressLogger.subProcess(cells.size())
+        new TreeSet<>(cells.keySet()).each { cellIndex ->
+            // Run ray propagation
+            logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
+            IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)
+            if (ro instanceof LDENComputeRaysOut) {
+                LDENPropagationProcessData ldenPropagationProcessData = (LDENPropagationProcessData) ro.inputData;
+                logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
+                        ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
+                        ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
             }
         }
-
+    } catch(IllegalArgumentException | IllegalStateException ex) {
+        System.err.println(ex);
+        throw ex;
+    } finally {
+        ldenProcessing.stop()
     }
-
-    // Add primary key to the LW table
-    sql.execute("ALTER TABLE LW_RAILWAY ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
-    sql.execute("UPDATE LW_RAILWAY SET THE_GEOM = ST_SETSRID(THE_GEOM, "+sridSources+")")
-    sql.execute("CREATE SPATIAL INDEX ON LW_RAILWAY(THE_GEOM);")
-
-
-    // -------------------
-    // Init table LW_ROADS
-    // -------------------
-
-    // Drop table LW_ROADS if exists and the create and prepare the table
-    sql.execute("DROP TABLE IF EXISTS LW_ROADS;")
-    sql.execute("CREATE TABLE LW_ROADS (pk integer, the_geom Geometry, " +
-            "LWD63 double precision, LWD125 double precision, LWD250 double precision, LWD500 double precision, LWD1000 double precision, LWD2000 double precision, LWD4000 double precision, LWD8000 double precision," +
-            "LWE63 double precision, LWE125 double precision, LWE250 double precision, LWE500 double precision, LWE1000 double precision, LWE2000 double precision, LWE4000 double precision, LWE8000 double precision," +
-            "LWN63 double precision, LWN125 double precision, LWN250 double precision, LWN500 double precision, LWN1000 double precision, LWN2000 double precision, LWN4000 double precision, LWN8000 double precision);")
-
-    def qry = 'INSERT INTO LW_ROADS(pk,the_geom, ' +
-            'LWD63, LWD125, LWD250, LWD500, LWD1000,LWD2000, LWD4000, LWD8000,' +
-            'LWE63, LWE125, LWE250, LWE500, LWE1000,LWE2000, LWE4000, LWE8000,' +
-            'LWN63, LWN125, LWN250, LWN500, LWN1000,LWN2000, LWN4000, LWN8000) ' +
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);'
-
-
-    // --------------------------------------
-    // Start calculation and fill the table
-    // --------------------------------------
-
-    // Get Class to compute LW
-    LDENConfig ldenConfig2 = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_TRAFFIC_FLOW)
-    ldenConfig2.setCoefficientVersion(1)
-    ldenConfig2.setPropagationProcessPathData(new PropagationProcessPathData(false));
-
-    LDENPropagationProcessData ldenData = new LDENPropagationProcessData(null, ldenConfig2)
-
-    sources_table_name = "ROADS"
-
-        //Get the primary key field of the source table
-    pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, sources_table_name)
-    if (pkIndex < 1) {
-        throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
-    }
-
-
-
-    // Get size of the table (number of road segments
-    st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + sources_table_name)
-    ResultSet rs2 = st.executeQuery().unwrap(ResultSet.class)
-    int nbRoads = 0
-    while (rs2.next()) {
-        nbRoads = rs2.getInt("total")
-        logger.info('The table Roads has ' + nbRoads + ' road segments.')
-    }
-
-
-    int k = 0
-    int currentVal = 0
-    sql.withBatch(100, qry) { ps ->
-        st = connection.prepareStatement("SELECT * FROM " + sources_table_name)
-        SpatialResultSet rs = st.executeQuery().unwrap(SpatialResultSet.class)
-
-        while (rs.next()) {
-
-            k++
-            currentVal = tools.invokeMethod("ProgressBar", [Math.round(10 * k / nbRoads).toInteger(), currentVal])
-
-            Geometry geo = rs.getGeometry()
-
-            // Compute emission sound level for each road segment
-            def results = ldenData.computeLw(rs)
-            def lday = ComputeRays.wToDba(results[0])
-            def levening = ComputeRays.wToDba(results[1])
-            def lnight = ComputeRays.wToDba(results[2])
-            // fill the LW_ROADS table
-            ps.addBatch(rs.getLong(pkIndex) as Integer, geo as Geometry,
-                    lday[0] as Double, lday[1] as Double, lday[2] as Double,
-                    lday[3] as Double, lday[4] as Double, lday[5] as Double,
-                    lday[6] as Double, lday[7] as Double,
-                    levening[0] as Double, levening[1] as Double, levening[2] as Double,
-                    levening[3] as Double, levening[4] as Double, levening[5] as Double,
-                    levening[6] as Double, levening[7] as Double,
-                    lnight[0] as Double, lnight[1] as Double, lnight[2] as Double,
-                    lnight[3] as Double, lnight[4] as Double, lnight[5] as Double,
-                    lnight[6] as Double, lnight[7] as Double)
-        }
-    }
-
-    // Add Z dimension to the road segments
-    sql.execute("UPDATE LW_ROADS SET THE_GEOM = ST_UPDATEZ(The_geom,0.05);")
-
-    // Add primary key to the road table
-    sql.execute("ALTER TABLE LW_ROADS ALTER COLUMN PK INT NOT NULL;")
-    sql.execute("ALTER TABLE LW_ROADS ADD PRIMARY KEY (PK);")    
-    sql.execute("UPDATE LW_ROADS SET THE_GEOM = ST_SETSRID(THE_GEOM, "+sridSources+")")
-
-    sql.execute("CREATE SPATIAL INDEX ON LW_ROADS(THE_GEOM);")
     
+    // Associate Geometry column to the table LDEN
+    StringBuilder createdTables = new StringBuilder()
 
-    sql.execute(String.format("UPDATE metadata SET emi_end = NOW();"))
+    if (ldenConfig_propa.computeLDay) {
+        sql.execute("DROP TABLE IF EXISTS LDAY_RAILWAY;")
+        logger.info('Create table LDAY_RAILWAY')
+        forgeCreateTable(sql, "LDAY_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lDayTable)
+        createdTables.append(" LDAY_RAILWAY")
+        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDayTable()))
+    }
+    if (ldenConfig_propa.computeLEvening) {
+        sql.execute("DROP TABLE IF EXISTS LEVENING_RAILWAY;")
+        logger.info('Create table LEVENING_RAILWAY')
+        forgeCreateTable(sql, "LEVENING_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lEveningTable)
+        createdTables.append(" LEVENING_RAILWAY")
+        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlEveningTable()))
+    }
+    if (ldenConfig_propa.computeLNight) {
+        sql.execute("DROP TABLE IF EXISTS LNIGHT_RAILWAY;")
+        logger.info('Create table LNIGHT_RAILWAY')
+        forgeCreateTable(sql, "LNIGHT_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lNightTable)
+        createdTables.append(" LNIGHT_RAILWAY")
+        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlNightTable()))
+    }
+    if (ldenConfig_propa.computeLDEN) {
+        sql.execute("DROP TABLE IF EXISTS LDEN_RAILWAY;")
+        logger.info('Create table LDEN_RAILWAY')
+        forgeCreateTable(sql, "LDEN_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
+                ldenConfig_propa.lDenTable)
+        createdTables.append(" LDEN_RAILWAY")
+        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDenTable()))
+    }
 
+    sql.execute(String.format("UPDATE metadata SET rail_end = NOW();"))
 
-    resultString = "Calculation Done! Compute Emission Noise Levels table(s) have been created."
+    resultString = "Calculation Done ! " + createdTables.toString() + " table(s) have been created."
 
     // print to command window
     logger.info('Result : ' + resultString)
@@ -604,6 +506,4 @@ def exec(Connection connection, input) {
     // print to WPS Builder
     return resultString
 
-
 }
-
