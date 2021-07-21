@@ -31,6 +31,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.util.*;
 
@@ -77,9 +78,9 @@ public class GetJobList implements Handler {
                                                     DateFormat.MEDIUM,
                                                     DateFormat.MEDIUM);
                                             row.put("pk_job", rs.getInt("pk_job"));
-                                            Date bDate = rs.getDate("BEGIN_DATE");
+                                            Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
                                             row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
-                                            Date eDate = rs.getDate("END_DATE");
+                                            Timestamp eDate = rs.getTimestamp("END_DATE");
                                             row.put("endDate", !rs.wasNull() ? mediumDateFormatEN.format(eDate) : "-");
                                             row.put("status", rs.getInt("PROGRESSION") + " %");
                                             row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));

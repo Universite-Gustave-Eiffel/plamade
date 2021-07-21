@@ -10,4 +10,5 @@ computation_core/dependencies/*.jar
 .gradle
 **/build/
 src/ratpack/config.yaml
+plamade_test_dep*
 

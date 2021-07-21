@@ -53,6 +53,8 @@ public class Main {
         Path basePath = BaseDir.find();
         File configPath = new File(basePath.toFile(), "config.yaml");
         if(!configPath.exists()) {
+            // Configuration file does not exists
+            // Copy example configuration file
             File sourceConfigPath = new File(basePath.toFile(), "config.demo.yaml");
             Files.copy(sourceConfigPath.toPath(), configPath.toPath());
         }

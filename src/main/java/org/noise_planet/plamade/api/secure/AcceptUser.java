@@ -46,7 +46,7 @@ public class AcceptUser implements Handler {
             if (commonProfile.isPresent()) {
                 CommonProfile profile = commonProfile.get();
                 ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-                AdminConfig adminConfig = mapper.readValue(ctx.file("config.demo.yaml").toFile(), AdminConfig.class);
+                AdminConfig adminConfig = mapper.readValue(ctx.file("config.yaml").toFile(), AdminConfig.class);
                 if(adminConfig.contains(profile.getId())) {
                     Blocking.get(() -> {
                         try (Connection connection = ctx.get(DataSource.class).getConnection()) {

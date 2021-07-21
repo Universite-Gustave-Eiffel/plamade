@@ -19,6 +19,8 @@ import groovy.util.GroovyScriptEngine;
 import org.h2.Driver;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.functions.io.dbf.DBFRead;
+import org.h2gis.functions.io.shp.SHPRead;
 import org.osgi.service.jdbc.DataSourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +70,42 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     }
 
+    public void importData(Connection nmConnection) throws SQLException, IOException {
+
+        GroovyShell shell = new GroovyShell();
+        //Script extractDepartment= shell.parse(new File("script_groovy", "s1_Extract_Department.groovy"));
+
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("databaseUser", "");
+        inputs.put("databasePassword", "");
+        inputs.put("fetchDistance", 1000);
+        inputs.put("inseeDepartment", configuration.getInseeDepartment());
+
+        //Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
+
+        SHPRead.readShape(nmConnection, "plamade_test_dep38/BUILDINGS_SCREENS.shp");
+        SHPRead.readShape(nmConnection, "plamade_test_dep38/DEM.shp");
+        SHPRead.readShape(nmConnection, "plamade_test_dep38/LANDCOVER.shp");
+        SHPRead.readShape(nmConnection, "plamade_test_dep38/RAIL_SECTIONS.shp");
+        SHPRead.readShape(nmConnection, "plamade_test_dep38/roads.shp");
+        DBFRead.read(nmConnection, "plamade_test_dep38/RAIL_TRAFFIC.dbf");
+        DBFRead.read(nmConnection, "plamade_test_dep38/ZONE.dbf");
+        DBFRead.read(nmConnection, "plamade_test_dep38/CONF.dbf");
+        DBFRead.read(nmConnection, "plamade_test_dep38/CONF_RAIL.dbf");
+        DBFRead.read(nmConnection, "plamade_test_dep38/CONF_ROAD.dbf");
+        SHPRead.readShape(nmConnection, "plamade_test_dep38/SCREENS.shp");
+    }
+
+    public void makeGrid(Connection nmConnection) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script receiversGrid= shell.parse(new File("script_groovy", "s2_Receivers_Grid.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", configuration.getConfigurationId());
+        Object result = receiversGrid.invokeMethod("exec", new Object[] {nmConnection, inputs});
+
+
+    }
+
     @Override
     public void run() {
         isRunning = true;
@@ -92,16 +130,12 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             nmDataSource = createDataSource(configuration, "sa", "sa", "nm_db");
 
             // Download data from external database
-            GroovyShell shell = new GroovyShell();
-            Script extractDepartment= shell.parse(new File("script_groovy", "1_Extract_Department.groovy"));
-
             try(Connection nmConnection = nmDataSource.getConnection()) {
                 Map<String, Object> inputs = new HashMap<>();
-                inputs.put("databaseUser", "");
-                inputs.put("databasePassword", "");
-                inputs.put("fetchDistance", 1000);
-                inputs.put("inseeDepartment", configuration.getInseeDepartment());
-                Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
+
+                // Demo copy data into db
+                importData(nmConnection);
+                makeGrid(nmConnection);
 
             }
         } catch (SQLException | SecurityException | IOException ex) {
