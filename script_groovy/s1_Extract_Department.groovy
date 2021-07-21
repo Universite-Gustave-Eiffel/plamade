@@ -22,7 +22,7 @@
     - Check spatial index and srids
  */ 
 
-package org.noise_planet.noisemodelling.wps.Plamade
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
@@ -339,9 +339,9 @@ def exec(Connection connection, input) {
      (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e,
      echeance4."N_ROUTIER_ROUTE" f 
     WHERE 
-     a.the_geom>0 and
+     ST_LENGTH(a.the_geom)>0 and
      a."CBS_GITT" and
-     f."CONCESSION"='N' and 
+     f."CONCESSION"=''N'' and 
      a."IDTRONCON"=b."IDTRONCON" and
      a."IDTRONCON"=c."IDTRONCON" and
      a."IDTRONCON"=d."IDTRONCON" and 
@@ -410,9 +410,9 @@ def exec(Connection connection, input) {
         echeance4."N_FERROVIAIRE_LIGNE" c, 
         (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e
     WHERE
-        a.the_geom>0 and 
+        ST_LENGTH(a.the_geom)>0 and 
         a."CBS_GITT" and
-        a."REFPROD"='412280737' and  
+        a."REFPROD"=''412280737'' and  
         a."IDTRONCON" = b."IDTRONCON" and
         a."IDLIGNE" = c."IDLIGNE" and 
         a.the_geom && e.the_geom and 
@@ -785,7 +785,7 @@ def exec(Connection connection, input) {
     // ------------------------------------------------------------
     // Rapport part
     def dept_name=sql.firstRow("SELECT nom_dep FROM departement_link;")[0] as String
-
+    
     def stat_roads_track=sql.firstRow("SELECT NB_TRACK FROM stat_road_fr;")[0] as Integer
     def stat_roads_track_cbsgitt=sql.firstRow("SELECT CBS_GITT_O FROM stat_road_fr;")[0] as Integer
 
@@ -885,9 +885,14 @@ def exec(Connection connection, input) {
         </ul>
 
     """
+    
+    // Remove non needed tables
+    sql.execute("DROP TABLE BUILDINGS, departement_link"); 
+
     def bindingRapport = ["stat_roads_track" : stat_roads_track, "stat_roads_track_cbsgitt" : stat_roads_track_cbsgitt, "nb_roads_track" : nb_roads_track, "nb_roads" : nb_roads, "nb_build" : nb_build, "nb_build_h0" : nb_build_h0, "nb_build_hnull" : nb_build_hnull, "nb_build_id_erps" : nb_build_id_erps, "nb_build_pop" : nb_build_pop, "nb_rail_sections" : nb_rail_sections, "nb_rail_traffic" : nb_rail_traffic, "nb_land" : nb_land, "buffer": buffer, "codeDep": codeDep, "dept_name" : dept_name, "srid" : srid]
     def templateRapport = engine.createTemplate(rapport).make(bindingRapport)
 
     // print to WPS Builder
     return templateRapport.toString()
+
 }

@@ -27,8 +27,7 @@
  */
 
 
-
-//package org.noise_planet.noisemodelling.wps
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
