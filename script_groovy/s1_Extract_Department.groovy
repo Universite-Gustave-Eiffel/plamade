@@ -785,7 +785,7 @@ def exec(Connection connection, input) {
     // ------------------------------------------------------------
     // Rapport part
     def dept_name=sql.firstRow("SELECT nom_dep FROM departement_link;")[0] as String
-    
+
     def stat_roads_track=sql.firstRow("SELECT NB_TRACK FROM stat_road_fr;")[0] as Integer
     def stat_roads_track_cbsgitt=sql.firstRow("SELECT CBS_GITT_O FROM stat_road_fr;")[0] as Integer
 
