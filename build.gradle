@@ -29,6 +29,11 @@ sourceSets {
         }
     }
 }
+test{
+    maxHeapSize = "12g"
+}
+
+
 repositories {
     mavenCentral()
     maven { url 'https://repo1.maven.org/maven2/' }
@@ -63,7 +68,7 @@ dependencies {
 
     implementation 'com.jcraft:jsch:0.1.55'
 
-    runtimeOnly 'org.slf4j:slf4j-simple:1.7.22'
+    runtimeOnly group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
 
     implementation fileTree(dir: 'computation_core/dependencies', include: '*.jar')
 }

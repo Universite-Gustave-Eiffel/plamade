@@ -346,6 +346,10 @@ def exec(Connection connection, input) {
     ldenConfig_propa.setComputeLNight(!confSkipLnight)
     ldenConfig_propa.setComputeLDEN(!confSkipLden)
     ldenConfig_propa.setMergeSources(!confExportSourceId)
+    ldenConfig_propa.setlDayTable("LDAY_RAILWAY")
+    ldenConfig_propa.setlEveningTable("LEVENING_RAILWAY")
+    ldenConfig_propa.setlNightTable("LNIGHT_RAILWAY")
+    ldenConfig_propa.setlDenTable("LDEN_RAILWAY")
 
     LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa)
     // Add train directivity
@@ -441,59 +445,36 @@ def exec(Connection connection, input) {
         // Iterate over computation areas
         int k = 0
         Map cells = pointNoiseMap.searchPopulatedCells(connection)
-        ProgressVisitor progressVisitor = progressLogger.subProcess(cells.size())
-        new TreeSet<>(cells.keySet()).each { cellIndex ->
-            // Run ray propagation
-            logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
-            IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)
-            if (ro instanceof LDENComputeRaysOut) {
-                LDENPropagationProcessData ldenPropagationProcessData = (LDENPropagationProcessData) ro.inputData;
-                logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
-                        ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
-                        ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
-            }
+        ProgressVisitor progressVisitor = progressLogger.subProcess(1)
+
+        PointNoiseMap.CellIndex cellIndex = new PointNoiseMap.CellIndex(7, 19);
+        // Run ray propagation
+        logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
+        IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)
+        if (ro instanceof LDENComputeRaysOut) {
+            LDENPropagationProcessData ldenPropagationProcessData = (LDENPropagationProcessData) ro.inputData;
+            logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
+                    ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
+                    ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
         }
+
+
+//        new TreeSet<>(cells.keySet()).each { cellIndex ->
+//            // Run ray propagation
+//            logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
+//            IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)
+//            if (ro instanceof LDENComputeRaysOut) {
+//                LDENPropagationProcessData ldenPropagationProcessData = (LDENPropagationProcessData) ro.inputData;
+//                logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
+//                        ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
+//                        ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
+//            }
+//        }
     } catch(IllegalArgumentException | IllegalStateException ex) {
         System.err.println(ex);
         throw ex;
     } finally {
         ldenProcessing.stop()
-    }
-    
-    // Associate Geometry column to the table LDEN
-    StringBuilder createdTables = new StringBuilder()
-
-    if (ldenConfig_propa.computeLDay) {
-        sql.execute("DROP TABLE IF EXISTS LDAY_RAILWAY;")
-        logger.info('Create table LDAY_RAILWAY')
-        forgeCreateTable(sql, "LDAY_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lDayTable)
-        createdTables.append(" LDAY_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDayTable()))
-    }
-    if (ldenConfig_propa.computeLEvening) {
-        sql.execute("DROP TABLE IF EXISTS LEVENING_RAILWAY;")
-        logger.info('Create table LEVENING_RAILWAY')
-        forgeCreateTable(sql, "LEVENING_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lEveningTable)
-        createdTables.append(" LEVENING_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlEveningTable()))
-    }
-    if (ldenConfig_propa.computeLNight) {
-        sql.execute("DROP TABLE IF EXISTS LNIGHT_RAILWAY;")
-        logger.info('Create table LNIGHT_RAILWAY')
-        forgeCreateTable(sql, "LNIGHT_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lNightTable)
-        createdTables.append(" LNIGHT_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlNightTable()))
-    }
-    if (ldenConfig_propa.computeLDEN) {
-        sql.execute("DROP TABLE IF EXISTS LDEN_RAILWAY;")
-        logger.info('Create table LDEN_RAILWAY')
-        forgeCreateTable(sql, "LDEN_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lDenTable)
-        createdTables.append(" LDEN_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDenTable()))
     }
 
     sql.execute(String.format("UPDATE metadata SET rail_end = NOW();"))

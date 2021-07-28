@@ -45,19 +45,21 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Configuration configuration;
     DataSource nmDataSource;
+    DataSource plamadeDataSource;
     boolean isRunning = false;
     boolean isCanceled = false;
 
-    public NoiseModellingInstance(Configuration configuration) {
+    public NoiseModellingInstance(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
+        this.plamadeDataSource = plamadeDataSource;
     }
 
-    public static DataSource createDataSource(Configuration configuration, String user, String password, String dbName) throws SQLException {
+    public static DataSource createDataSource(String user, String password, String dbDirectory,String dbName) throws SQLException {
         // Create H2 memory DataSource
         org.h2.Driver driver = org.h2.Driver.load();
         OsgiDataSourceFactory dataSourceFactory = new OsgiDataSourceFactory(driver);
         Properties properties = new Properties();
-        String databasePath = "jdbc:h2:" + new File(configuration.getWorkingDirectory(), dbName).getAbsolutePath();
+        String databasePath = "jdbc:h2:" + new File(dbDirectory, dbName).getAbsolutePath();
         properties.setProperty(DataSourceFactory.JDBC_URL, databasePath);
         properties.setProperty(DataSourceFactory.JDBC_USER, user);
         properties.setProperty(DataSourceFactory.JDBC_PASSWORD, password);
@@ -127,7 +129,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 logger.error("Cannot create the working directory\n" +configuration.workingDirectory);
                 return;
             }
-            nmDataSource = createDataSource(configuration, "sa", "sa", "nm_db");
+            nmDataSource = createDataSource("sa", "sa", configuration.workingDirectory, "nm_db");
 
             // Download data from external database
             try(Connection nmConnection = nmDataSource.getConnection()) {
@@ -172,21 +174,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     }
 
     public static class Configuration {
-        private DataSource dataSource;
         private String workingDirectory;
         private int configurationId;
         private String inseeDepartment;
 
-        public Configuration(DataSource dataSource, String workingDirectory, int configurationId,
+        public Configuration(String workingDirectory, int configurationId,
                              String inseeDepartment) {
-            this.dataSource = dataSource;
             this.workingDirectory = workingDirectory;
             this.configurationId = configurationId;
             this.inseeDepartment = inseeDepartment;
-        }
-
-        public DataSource getDataSource() {
-            return dataSource;
         }
 
         public String getWorkingDirectory() {

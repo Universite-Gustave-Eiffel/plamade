@@ -177,11 +177,6 @@ def exec(Connection connection, input) {
         generalTools = new File(new File("").absolutePath + "/src/main/groovy/org/noise_planet/noisemodelling/wpsTools/GeneralTools.groovy")
     }
 
-    // Get external tools
-    Class groovyClass = new GroovyClassLoader(getClass().getClassLoader()).parseClass(generalTools)
-    GroovyObject tools = (GroovyObject) groovyClass.newInstance()
-
-
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
@@ -558,8 +553,6 @@ def exec(Connection connection, input) {
         while (rs.next()) {
 
             k++
-            currentVal = tools.invokeMethod("ProgressBar", [Math.round(10 * k / nbRoads).toInteger(), currentVal])
-
             Geometry geo = rs.getGeometry()
 
             // Compute emission sound level for each road segment

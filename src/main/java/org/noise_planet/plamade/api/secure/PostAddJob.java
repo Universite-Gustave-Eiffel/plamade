@@ -84,11 +84,11 @@ public class PostAddJob implements Handler {
                                         pk = rs.getInt(1);
                                         ThreadPoolExecutor pool = ctx.get(ThreadPoolExecutor.class);
                                         pool.execute(new NoiseModellingInstance(
-                                                new NoiseModellingInstance.Configuration(ctx.get(DataSource.class),
+                                                new NoiseModellingInstance.Configuration(
                                                         new File("jobs_running/"+pk).getAbsolutePath(),
                                                         Integer.parseInt(confId),
                                                         inseeDepartment
-                                                )));
+                                                ), ctx.get(DataSource.class)));
                                     } else {
                                         LOG.error("Could not insert new job without exceptions");
                                         return false;
