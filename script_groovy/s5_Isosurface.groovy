@@ -118,20 +118,22 @@ def exec(Connection connection, input) {
     //Statement sql = connection.createStatement()
     Sql sql = new Sql(connection)
 
-    sql.execute("DROP TABLE IF EXISTS LDEN_GEOM, LNIGHT_GEOM, RECEIVERS_DEN, RECEIVERS_NIGHT") 
-
-    sql.execute(String.format("CREATE TABLE LDEN_GEOM AS SELECT a.the_geom, a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableDEN + " a, "+source+" b WHERE a.idsource=b.pk;"))
-    sql.execute(String.format("CREATE TABLE LNIGHT_GEOM AS SELECT a.the_geom, a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableNIGHT + " a, "+source+" b WHERE a.idsource=b.pk;"))
+    sql.execute("DROP TABLE IF EXISTS LDEN_GEOM, LNIGHT_GEOM, RECEIVERS_DEN, RECEIVERS_NIGHT")
+    logger.info("Add infrastructure UUID into results table")
+    sql.execute(String.format("CREATE TABLE LDEN_GEOM AS SELECT a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableDEN + " a, "+source+" b WHERE a.idsource=b.pk;"))
+    sql.execute(String.format("CREATE TABLE LNIGHT_GEOM AS SELECT a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableNIGHT + " a, "+source+" b WHERE a.idsource=b.pk;"))
 
     // Ajout d'index pour accélerer le GROUP BY à venir.
     // Sur la zone de test, l'ajout des index fais perdre 5s. A voir sur un département entier s'ils font gagner du temps
+    logger.info("Create indexes into results table")
     sql.execute("CREATE INDEX ON LDEN_GEOM(idreceiver)")
     sql.execute("CREATE INDEX ON LDEN_GEOM(UUEID)")
     sql.execute("CREATE INDEX ON LNIGHT_GEOM(idreceiver)")
     sql.execute("CREATE INDEX ON LNIGHT_GEOM(UUEID)")
 
-    sql.execute("CREATE TABLE RECEIVERS_DEN AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LDEN_GEOM GROUP BY idreceiver, UUEID;")
-    sql.execute("CREATE TABLE RECEIVERS_NIGHT AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LNIGHT_GEOM GROUP BY idreceiver, UUEID;")
+    logger.info("Sum noise levels by infrastructure identifier")
+    sql.execute("CREATE TABLE RECEIVERS_DEN AS SELECT UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LDEN_GEOM GROUP BY idreceiver, UUEID;")
+    sql.execute("CREATE TABLE RECEIVERS_NIGHT AS SELECT UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LNIGHT_GEOM GROUP BY idreceiver, UUEID;")
 
     sql.execute("DROP TABLE IF EXISTS LDEN_GEOM, LNIGHT_GEOM")
 
@@ -160,6 +162,7 @@ def exec(Connection connection, input) {
 
 
 
+    logger.info("Process each rail or road infrastructures")
     // Process each rail or road infrastructures
     sql.eachRow("SELECT DISTINCT UUEID FROM RECEIVERS_DEN") { row ->
         String uueid = row[0] as String
@@ -169,28 +172,30 @@ def exec(Connection connection, input) {
         
         sql.execute(String.format("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN"))
 
-        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_NIGHT (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT an.THE_GEOM, an.UUEID, b.PK_1, an.laeqpa_sum FROM RECEIVERS_NIGHT an, receivers b WHERE an.idreceiver=b.PK AND RCV_TYPE=2 AND an.UUEID = '"+uueid+"' ;"))
-        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_DEN (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT aden.THE_GEOM , aden.UUEID, b.PK_1, aden.laeqpa_sum FROM  RECEIVERS_DEN aden, receivers b WHERE aden.idreceiver=b.PK AND RCV_TYPE=2 AND aden.UUEID = '"+uueid+"' ;"))
+        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_NIGHT (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT b.THE_GEOM, an.UUEID, b.PK_1, an.laeqpa_sum FROM RECEIVERS_NIGHT an, receivers b WHERE an.idreceiver=b.PK AND RCV_TYPE=2 AND an.UUEID = '"+uueid+"' ;"))
+        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_DEN (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT b.THE_GEOM , aden.UUEID, b.PK_1, aden.laeqpa_sum FROM  RECEIVERS_DEN aden, receivers b WHERE aden.idreceiver=b.PK AND RCV_TYPE=2 AND aden.UUEID = '"+uueid+"' ;"))
 
-        sql.execute("DROP TABLE IF EXISTS TRIANGLES1, TRIANGLES2, TRIANGLES3, TRIANGLES ")
-        sql.execute("CREATE TABLE TRIANGLES1 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b WHERE a.PK_1=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES2 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b WHERE a.PK_2=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES3 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b WHERE a.PK_3=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES AS SELECT * FROM TRIANGLES1 UNION ALL SELECT * FROM TRIANGLES2 UNION ALL SELECT * FROM TRIANGLES3;")
+        sql.execute("DROP TABLE IF EXISTS TRIANGLES ")
+        sql.execute("CREATE TABLE TRIANGLES AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b, RECEIVERS_DELAUNAY_NIGHT c, RECEIVERS_DELAUNAY_NIGHT d WHERE a.PK_1=b.PK AND a.PK_2=c.PK AND a.PK_3=d.PK")
 
         // Produce isocontours for LNIGHT
         generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, lnightOutput, connection, uueid, 'LNIGHT', input)
 
-        sql.execute("DROP TABLE IF EXISTS TRIANGLES1, TRIANGLES2, TRIANGLES3, TRIANGLES ")
-        sql.execute("CREATE TABLE TRIANGLES1 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b WHERE a.PK_1=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES2 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b WHERE a.PK_2=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES3 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b WHERE a.PK_3=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES AS SELECT * FROM TRIANGLES1 UNION ALL SELECT * FROM TRIANGLES2 UNION ALL SELECT * FROM TRIANGLES3;")
+        sql.execute("DROP TABLE IF EXISTS TRIANGLES ")
+        sql.execute("CREATE TABLE TRIANGLES AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b, RECEIVERS_DELAUNAY_DEN c, RECEIVERS_DELAUNAY_DEN d WHERE a.PK_1=b.PK AND a.PK_2=c.PK AND a.PK_3=d.PK")
 
         // Produce isocontours for LDEN
         generateIsoSurfaces(ldenInput, isoLevelsLDEN, ldenOutput, connection, uueid, 'LDEN', input)
 
         sql.execute("DROP TABLE IF EXISTS RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN, TRIANGLES1, TRIANGLES2, TRIANGLES3, TRIANGLES")
+    }
+
+    if (railRoad==1) {
+        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsARoadLden + ".shp', '" + cbsARoadLden.toUpperCase(Locale.ROOT) + "');")
+        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsARoadLnight + ".shp', '" + cbsARoadLnight.toUpperCase(Locale.ROOT) + "');")
+    } else {
+        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsAFerLden + ".shp', '" + cbsAFerLden.toUpperCase(Locale.ROOT) + "');")
+        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsAFerLnight + ".shp', '" + cbsAFerLnight.toUpperCase(Locale.ROOT) + "');")
     }
 
     // print to WPS Builder

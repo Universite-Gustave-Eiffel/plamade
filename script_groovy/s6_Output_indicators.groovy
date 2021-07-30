@@ -143,11 +143,11 @@ def exec(Connection connection, input) {
 
     sql.execute("DROP TABLE IF EXISTS LDEN_GEOM_INFRA, LNIGHT_GEOM_INFRA, RECEIVERS_SUM_LAEQPA_DEN, RECEIVERS_SUM_LAEQPA_NIGHT, RECEIVERS_BUILD_NIGHT, RECEIVERS_BUILD_DEN, RECEIVERS_BUILD_POP_NIGHT, RECEIVERS_BUILD_POP_DEN, BUILD_MAX_NIGHT, BUILD_MAX_DEN;")
 
-    sql.execute("CREATE TABLE LDEN_GEOM_INFRA AS SELECT a.the_geom, a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID, b.pk FROM " + tableDEN + " a, "+source+" b WHERE a.idsource=b.pk;")
-    sql.execute("CREATE TABLE LNIGHT_GEOM_INFRA AS SELECT a.the_geom, a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID, b.pk FROM " + tableNIGHT + " a, "+source+" b WHERE a.idsource=b.pk;")
+    sql.execute("CREATE TABLE LDEN_GEOM_INFRA AS SELECT a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID, b.pk FROM " + tableDEN + " a, "+source+" b WHERE a.idsource=b.pk;")
+    sql.execute("CREATE TABLE LNIGHT_GEOM_INFRA AS SELECT a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID, b.pk FROM " + tableNIGHT + " a, "+source+" b WHERE a.idsource=b.pk;")
     
-    sql.execute("CREATE TABLE RECEIVERS_SUM_LAEQPA_DEN AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LDEN_GEOM_INFRA GROUP BY idreceiver, UUEID  ;")
-    sql.execute("CREATE TABLE RECEIVERS_SUM_LAEQPA_NIGHT AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LNIGHT_GEOM_INFRA GROUP BY idreceiver, UUEID  ;")
+    sql.execute("CREATE TABLE RECEIVERS_SUM_LAEQPA_DEN AS SELECT UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LDEN_GEOM_INFRA GROUP BY idreceiver, UUEID  ;")
+    sql.execute("CREATE TABLE RECEIVERS_SUM_LAEQPA_NIGHT AS SELECT UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LNIGHT_GEOM_INFRA GROUP BY idreceiver, UUEID  ;")
 
     sql.execute("CREATE TABLE RECEIVERS_BUILD_DEN AS SELECT aden.UUEID as UUEID, b.PK_1 PK, aden.laeqpa_sum as lden FROM RECEIVERS_SUM_LAEQPA_DEN aden, receivers b WHERE aden.idreceiver=b.PK AND RCV_TYPE=1;")
     sql.execute("CREATE TABLE RECEIVERS_BUILD_NIGHT AS SELECT an.UUEID as UUEID, b.PK_1 PK, an.laeqpa_sum as lnight FROM RECEIVERS_SUM_LAEQPA_NIGHT an, receivers b WHERE an.idreceiver=b.PK AND RCV_TYPE=1 ;")
@@ -216,6 +216,9 @@ def exec(Connection connection, input) {
     sql.execute("CREATE TABLE CPI AS SELECT b.UUEID, (SUM(b.sum_pop*((EXP((LN(1.08)/10)*(b.range-53)))-1))/(SUM(b.sum_pop*((EXP((LN(1.08)/10)*(b.range-53)))-1))+1))*0.00138*(SELECT SUM(a.sum_pop) from  "+outputDEN+" a WHERE a.UUEID = b.UUEID) as CPI FROM "+outputDEN+" b WHERE range > 53 GROUP BY UUEID;")
 
 
+    sql.execute("CALL DBFWrite('data_dir/data/shapefiles/"+outputDEN+".dbf', '"+outputDEN.toUpperCase(Locale.ROOT)+"');")
+    sql.execute("CALL DBFWrite('data_dir/data/shapefiles/"+outputNIGHT+".dbf', '"+outputNIGHT.toUpperCase(Locale.ROOT)+"');")
+    sql.execute("CALL DBFWrite('data_dir/data/shapefiles/CPI.dbf', 'CPI');")
     // 
     // Remove non-needed tables
     //sql.execute("DROP TABLE IF EXISTS LDEN_GEOM_INFRA, LNIGHT_GEOM_INFRA, RECEIVERS_SUM_LAEQPA_DEN, RECEIVERS_SUM_LAEQPA_NIGHT, RECEIVERS_BUILD_NIGHT, RECEIVERS_BUILD_DEN, RECEIVERS_BUILD_POP_NIGHT, RECEIVERS_BUILD_POP_DEN, BUILD_MAX_NIGHT, BUILD_MAX_DEN;")
