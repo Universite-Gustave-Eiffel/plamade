@@ -81,9 +81,6 @@ def exec(Connection connection, input) {
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
-    // output string, the information given back to the user
-    String resultString = "Le processus est terminé"
-
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
     // print to command window
@@ -145,15 +142,22 @@ def exec(Connection connection, input) {
     String cbsARoadLnight = "CBS_A_ROUT_LNIGHT_"+nuts
     String cbsAFerLden = "CBS_A_FER_LDEN_"+nuts
     String cbsAFerLnight = "CBS_A_FER_LNIGHT_"+nuts
+    
+    // output string, the information given back to the user
+    String resultString = "Le processus est terminé - Les tables de sortie sont "
+    
+    
 
     // Tables are created according to the input parameter "rail" or "road"
     if (railRoad==1){
+        resultString += cbsAFerLden + " " + cbsAFerLnight
         sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLden)
         sql.execute("CREATE TABLE "+ cbsAFerLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
         sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLnight)
         sql.execute("CREATE TABLE "+ cbsAFerLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
     }
     else{
+        resultString += cbsARoadLden + " " + cbsARoadLnight
         sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLden)
         sql.execute("CREATE TABLE "+ cbsARoadLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
         sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLnight)
@@ -188,14 +192,6 @@ def exec(Connection connection, input) {
         generateIsoSurfaces(ldenInput, isoLevelsLDEN, ldenOutput, connection, uueid, 'LDEN', input)
 
         sql.execute("DROP TABLE IF EXISTS RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN, TRIANGLES1, TRIANGLES2, TRIANGLES3, TRIANGLES")
-    }
-
-    if (railRoad==1) {
-        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsARoadLden + ".shp', '" + cbsARoadLden.toUpperCase(Locale.ROOT) + "');")
-        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsARoadLnight + ".shp', '" + cbsARoadLnight.toUpperCase(Locale.ROOT) + "');")
-    } else {
-        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsAFerLden + ".shp', '" + cbsAFerLden.toUpperCase(Locale.ROOT) + "');")
-        sql.execute("CALL SHPWrite('data_dir/data/shapefiles/" + cbsAFerLnight + ".shp', '" + cbsAFerLnight.toUpperCase(Locale.ROOT) + "');")
     }
 
     // print to WPS Builder
