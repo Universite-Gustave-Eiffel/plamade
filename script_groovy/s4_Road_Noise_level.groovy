@@ -43,6 +43,10 @@ import org.noise_planet.noisemodelling.emission.*
 import org.noise_planet.noisemodelling.pathfinder.*
 import org.noise_planet.noisemodelling.propagation.*
 import org.noise_planet.noisemodelling.jdbc.*
+import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric
+import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread
+import org.noise_planet.noisemodelling.pathfinder.utils.ProgressMetric
+import org.noise_planet.noisemodelling.pathfinder.utils.ReceiverStatsMetric
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -297,6 +301,10 @@ def exec(Connection connection, input) {
     ldenConfig_propa.setComputeLNight(!confSkipLnight)
     ldenConfig_propa.setComputeLDEN(!confSkipLden)
     ldenConfig_propa.setMergeSources(!confExportSourceId)
+    ldenConfig_propa.setlDayTable("LDAY_ROADS")
+    ldenConfig_propa.setlEveningTable("LEVENING_ROADS")
+    ldenConfig_propa.setlNightTable("LNIGHT_ROADS")
+    ldenConfig_propa.setlDenTable("LDEN_ROADS")
 
     LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa)
     // Add train directivity
@@ -380,8 +388,15 @@ def exec(Connection connection, input) {
 
     logger.info("Start calculation... ")
 
+    ProfilerThread profilerThread = new ProfilerThread(new File("profile.csv"));
+    profilerThread.addMetric(ldenProcessing);
+    profilerThread.addMetric(new ProgressMetric(progressLogger))
+    profilerThread.addMetric(new JVMMemoryMetric())
+    profilerThread.addMetric(new ReceiverStatsMetric())
+    pointNoiseMap.setProfilerThread(profilerThread);
     try {
         ldenProcessing.start()
+        new Thread(profilerThread).start();
         // Iterate over computation areas
         int k = 0
         Map cells = pointNoiseMap.searchPopulatedCells(connection)
@@ -401,6 +416,7 @@ def exec(Connection connection, input) {
         System.err.println(ex);
         throw ex;
     } finally {
+        profilerThread.stop();
         ldenProcessing.stop()
     }
 
@@ -408,36 +424,16 @@ def exec(Connection connection, input) {
     StringBuilder createdTables = new StringBuilder()
 
     if (ldenConfig_propa.computeLDay) {
-        sql.execute("DROP TABLE IF EXISTS LDAY_ROADS")
-        logger.info('Create table LDAY_ROADS')
-        forgeCreateTable(sql, "LDAY_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lDayTable)
         createdTables.append(" LDAY_ROADS")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDayTable()))
     }
     if (ldenConfig_propa.computeLEvening) {
-        sql.execute("DROP TABLE IF EXISTS LEVENING_ROADS;")
-        logger.info('Create table LEVENING_ROADS')
-        forgeCreateTable(sql, "LEVENING_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lEveningTable)
         createdTables.append(" LEVENING_ROADS")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlEveningTable()))
     }
     if (ldenConfig_propa.computeLNight) {
-        sql.execute("DROP TABLE IF EXISTS LNIGHT_ROADS;")
-        logger.info('Create table LNIGHT_ROADS')
-        forgeCreateTable(sql, "LNIGHT_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lNightTable)
         createdTables.append(" LNIGHT_ROADS")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlNightTable()))
     }
     if (ldenConfig_propa.computeLDEN) {
-        sql.execute("DROP TABLE IF EXISTS LDEN_ROADS;")
-        logger.info('Create table LDEN_ROADS')
-        forgeCreateTable(sql, "LDEN_ROADS", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lDenTable)
         createdTables.append(" LDEN_ROADS")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDenTable()))
     }
 
     sql.execute(String.format("UPDATE metadata SET road_end = NOW();"))
