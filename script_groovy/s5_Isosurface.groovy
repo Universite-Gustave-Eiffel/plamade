@@ -243,9 +243,9 @@ def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def con
         sql.execute("DROP TABLE IF EXISTS ISO_AREA")
         sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT ST_UNION(ST_Accum(ST_Buffer(the_geom,0.001))), null, '"+uueid+"', '"+period+"', ISOLABEL, SUM(ST_AREA(the_geom)) FROM CONTOURING_NOISE_MAP GROUP BY ISOLABEL")
         // Update noise classes for LDEN
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 55' THEN  'LdenSmallerThan55' WHEN NOISELEVEL = '55-60' THEN  'Lden5559' WHEN NOISELEVEL = '60-65' THEN  'Lden6064' WHEN NOISELEVEL = '65-70' THEN  'Lden6064' WHEN NOISELEVEL = '70-75' THEN  'Lden7074' WHEN NOISELEVEL = '> 75' THEN  'LdenGreaterThan75' END) WHERE PERIOD='LDEN';")
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 55' THEN  'LdenSmallerThan55' WHEN NOISELEVEL = '55-60' THEN  'Lden5559' WHEN NOISELEVEL = '60-65' THEN  'Lden6064' WHEN NOISELEVEL = '65-70' THEN  'Lden6569' WHEN NOISELEVEL = '70-75' THEN  'Lden7075' WHEN NOISELEVEL = '> 75' THEN  'LdenGreaterThan75' END) WHERE PERIOD='LDEN';")
         // Update noise classes for LNIGHT
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 50' THEN  'LnightSmallerThan50' WHEN NOISELEVEL = '50-55' THEN  'Lnight5054'  WHEN NOISELEVEL = '55-60' THEN  'Lnight5559' WHEN NOISELEVEL = '60-65' THEN  'Lnight6064' WHEN NOISELEVEL = '65-70' THEN  'Lnight6064'  WHEN NOISELEVEL = '> 70' THEN  'LnightGreaterThan70' END) WHERE PERIOD='LNIGHT';")
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 50' THEN  'LnightSmallerThan50' WHEN NOISELEVEL = '50-55' THEN  'Lnight5054'  WHEN NOISELEVEL = '55-60' THEN  'Lnight5559' WHEN NOISELEVEL = '60-65' THEN  'Lnight6064' WHEN NOISELEVEL = '65-70' THEN  'Lnight6570'  WHEN NOISELEVEL = '> 70' THEN  'LnightGreaterThan70' END) WHERE PERIOD='LNIGHT';")
         // Generate the PK
         sql.execute("UPDATE ISO_AREA SET pk = CONCAT(uueid, '_',noiselevel)")
         // Forces the SRID, as it is lost in the previous steps
