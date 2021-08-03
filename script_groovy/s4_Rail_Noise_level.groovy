@@ -33,6 +33,10 @@ import groovy.sql.Sql
 import groovy.time.TimeCategory
 import org.geotools.jdbc.JDBCDataStore
 import org.h2gis.functions.spatial.edit.ST_AddZ
+import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric
+import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread
+import org.noise_planet.noisemodelling.pathfinder.utils.ProgressMetric
+import org.noise_planet.noisemodelling.pathfinder.utils.ReceiverStatsMetric
 
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
@@ -108,56 +112,6 @@ def run(input) {
     openGeoserverDataStoreConnection(dbName).withCloseable {
         Connection connection ->
             return [result: exec(connection, input)]
-    }
-}
-
-def forgeCreateTable(Sql sql, String tableName, LDENConfig ldenConfig, String geomField, String tableReceiver, String tableResult) {
-    // Create a logger to display messages in the geoserver logs and in the command prompt.
-    Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
-
-    StringBuilder sb = new StringBuilder("create table ");
-    sb.append(tableName);
-    if (!ldenConfig.mergeSources) {
-        sb.append(" (IDRECEIVER bigint NOT NULL");
-        sb.append(", IDSOURCE bigint NOT NULL");
-    } else {
-        sb.append(" (IDRECEIVER bigint NOT NULL");
-    }
-    sb.append(", THE_GEOM geometry")
-    for (int idfreq = 0; idfreq < ldenConfig.propagationProcessPathData.freq_lvl.size(); idfreq++) {
-        sb.append(", HZ");
-        sb.append(ldenConfig.propagationProcessPathData.freq_lvl.get(idfreq));
-        sb.append(" numeric(5, 2)");
-    }
-    sb.append(", LAEQ numeric(5, 2), LEQ numeric(5, 2) ) AS SELECT PK");
-    if (!ldenConfig.mergeSources) {
-        sb.append(", IDSOURCE");
-    }
-    sb.append(", ")
-    sb.append(geomField)
-    for (int idfreq = 0; idfreq < ldenConfig.propagationProcessPathData.freq_lvl.size(); idfreq++) {
-        sb.append(", HZ");
-        sb.append(ldenConfig.propagationProcessPathData.freq_lvl.get(idfreq));
-    }
-    sb.append(", LAEQ, LEQ FROM ")
-    sb.append(tableReceiver)
-    if (!ldenConfig.mergeSources) {
-        // idsource can't be null so we can't left join
-        sb.append(" a, ")
-        sb.append(tableResult)
-        sb.append(" b WHERE a.PK = b.IDRECEIVER")
-    } else {
-        sb.append(" a LEFT JOIN ")
-        sb.append(tableResult)
-        sb.append(" b ON a.PK = b.IDRECEIVER")
-    }
-    sql.execute(sb.toString())
-    // apply pk
-    logger.info("Add primary key on " + tableName)
-    if (!ldenConfig.mergeSources) {
-        sql.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY(IDRECEIVER, IDSOURCE)")
-    } else {
-        sql.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY(IDRECEIVER)")
     }
 }
 
@@ -345,6 +299,10 @@ def exec(Connection connection, input) {
     ldenConfig_propa.setComputeLNight(!confSkipLnight)
     ldenConfig_propa.setComputeLDEN(!confSkipLden)
     ldenConfig_propa.setMergeSources(!confExportSourceId)
+    ldenConfig_propa.setlDayTable("LDAY_RAILWAY")
+    ldenConfig_propa.setlEveningTable("LEVENING_RAILWAY")
+    ldenConfig_propa.setlNightTable("LNIGHT_RAILWAY")
+    ldenConfig_propa.setlDenTable("LDEN_RAILWAY")
 
     LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa)
     // Add train directivity
@@ -434,9 +392,16 @@ def exec(Connection connection, input) {
 
 
     logger.info("Start calculation... ")
+    ProfilerThread profilerThread = new ProfilerThread(new File("profile.csv"));
+    profilerThread.addMetric(ldenProcessing);
+    profilerThread.addMetric(new ProgressMetric(progressLogger))
+    profilerThread.addMetric(new JVMMemoryMetric())
+    profilerThread.addMetric(new ReceiverStatsMetric())
+    pointNoiseMap.setProfilerThread(profilerThread);
 
     try {
         ldenProcessing.start()
+        new Thread(profilerThread).start();
         // Iterate over computation areas
         int k = 0
         Map cells = pointNoiseMap.searchPopulatedCells(connection)
@@ -456,6 +421,7 @@ def exec(Connection connection, input) {
         System.err.println(ex);
         throw ex;
     } finally {
+        profilerThread.stop();
         ldenProcessing.stop()
     }
     
@@ -463,36 +429,16 @@ def exec(Connection connection, input) {
     StringBuilder createdTables = new StringBuilder()
 
     if (ldenConfig_propa.computeLDay) {
-        sql.execute("DROP TABLE IF EXISTS LDAY_RAILWAY;")
-        logger.info('Create table LDAY_RAILWAY')
-        forgeCreateTable(sql, "LDAY_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lDayTable)
         createdTables.append(" LDAY_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDayTable()))
     }
     if (ldenConfig_propa.computeLEvening) {
-        sql.execute("DROP TABLE IF EXISTS LEVENING_RAILWAY;")
-        logger.info('Create table LEVENING_RAILWAY')
-        forgeCreateTable(sql, "LEVENING_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lEveningTable)
         createdTables.append(" LEVENING_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlEveningTable()))
     }
     if (ldenConfig_propa.computeLNight) {
-        sql.execute("DROP TABLE IF EXISTS LNIGHT_RAILWAY;")
-        logger.info('Create table LNIGHT_RAILWAY')
-        forgeCreateTable(sql, "LNIGHT_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lNightTable)
         createdTables.append(" LNIGHT_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlNightTable()))
     }
     if (ldenConfig_propa.computeLDEN) {
-        sql.execute("DROP TABLE IF EXISTS LDEN_RAILWAY;")
-        logger.info('Create table LDEN_RAILWAY')
-        forgeCreateTable(sql, "LDEN_RAILWAY", ldenConfig_propa, geomFieldsRcv.get(0), receivers_table_name,
-                ldenConfig_propa.lDenTable)
         createdTables.append(" LDEN_RAILWAY")
-        sql.execute("DROP TABLE IF EXISTS " + TableLocation.parse(ldenConfig_propa.getlDenTable()))
     }
 
     sql.execute(String.format("UPDATE metadata SET rail_end = NOW();"))

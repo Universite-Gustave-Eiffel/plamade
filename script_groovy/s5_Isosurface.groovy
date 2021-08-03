@@ -27,7 +27,8 @@
  */
 
 
-package org.noise_planet.noisemodelling.wps.plamade
+
+package org.noise_planet.noisemodelling.wps.plamade;
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
@@ -80,9 +81,6 @@ def exec(Connection connection, input) {
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
-    // output string, the information given back to the user
-    String resultString = "Le processus est terminé"
-
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
     // print to command window
@@ -117,20 +115,22 @@ def exec(Connection connection, input) {
     //Statement sql = connection.createStatement()
     Sql sql = new Sql(connection)
 
-    sql.execute("DROP TABLE IF EXISTS LDEN_GEOM, LNIGHT_GEOM, RECEIVERS_DEN, RECEIVERS_NIGHT") 
-
-    sql.execute(String.format("CREATE TABLE LDEN_GEOM AS SELECT a.the_geom, a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableDEN + " a, "+source+" b WHERE a.idsource=b.pk;"))
-    sql.execute(String.format("CREATE TABLE LNIGHT_GEOM AS SELECT a.the_geom, a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableNIGHT + " a, "+source+" b WHERE a.idsource=b.pk;"))
+    sql.execute("DROP TABLE IF EXISTS LDEN_GEOM, LNIGHT_GEOM, RECEIVERS_DEN, RECEIVERS_NIGHT")
+    logger.info("Add infrastructure UUID into results table")
+    sql.execute(String.format("CREATE TABLE LDEN_GEOM AS SELECT a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableDEN + " a, "+source+" b WHERE a.idsource=b.pk;"))
+    sql.execute(String.format("CREATE TABLE LNIGHT_GEOM AS SELECT a.idreceiver, a.idsource, a.laeq, power(10,a.laeq/10) as laeqpa, b.UUEID , b.pk FROM " + tableNIGHT + " a, "+source+" b WHERE a.idsource=b.pk;"))
 
     // Ajout d'index pour accélerer le GROUP BY à venir.
     // Sur la zone de test, l'ajout des index fais perdre 5s. A voir sur un département entier s'ils font gagner du temps
+    logger.info("Create indexes into results table")
     sql.execute("CREATE INDEX ON LDEN_GEOM(idreceiver)")
     sql.execute("CREATE INDEX ON LDEN_GEOM(UUEID)")
     sql.execute("CREATE INDEX ON LNIGHT_GEOM(idreceiver)")
     sql.execute("CREATE INDEX ON LNIGHT_GEOM(UUEID)")
 
-    sql.execute("CREATE TABLE RECEIVERS_DEN AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LDEN_GEOM GROUP BY idreceiver, UUEID;")
-    sql.execute("CREATE TABLE RECEIVERS_NIGHT AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LNIGHT_GEOM GROUP BY idreceiver, UUEID;")
+    logger.info("Sum noise levels by infrastructure identifier")
+    sql.execute("CREATE TABLE RECEIVERS_DEN AS SELECT UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LDEN_GEOM GROUP BY idreceiver, UUEID;")
+    sql.execute("CREATE TABLE RECEIVERS_NIGHT AS SELECT UUEID, idreceiver, 10*log10(sum(LAEQpa)) as laeqpa_sum FROM LNIGHT_GEOM GROUP BY idreceiver, UUEID;")
 
     sql.execute("DROP TABLE IF EXISTS LDEN_GEOM, LNIGHT_GEOM")
 
@@ -142,15 +142,22 @@ def exec(Connection connection, input) {
     String cbsARoadLnight = "CBS_A_ROUT_LNIGHT_"+nuts
     String cbsAFerLden = "CBS_A_FER_LDEN_"+nuts
     String cbsAFerLnight = "CBS_A_FER_LNIGHT_"+nuts
+    
+    // output string, the information given back to the user
+    String resultString = "Le processus est terminé - Les tables de sortie sont "
+    
+    
 
     // Tables are created according to the input parameter "rail" or "road"
     if (railRoad==1){
+        resultString += cbsAFerLden + " " + cbsAFerLnight
         sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLden)
         sql.execute("CREATE TABLE "+ cbsAFerLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
         sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLnight)
         sql.execute("CREATE TABLE "+ cbsAFerLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
     }
     else{
+        resultString += cbsARoadLden + " " + cbsARoadLnight
         sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLden)
         sql.execute("CREATE TABLE "+ cbsARoadLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
         sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLnight)
@@ -159,6 +166,7 @@ def exec(Connection connection, input) {
 
 
 
+    logger.info("Process each rail or road infrastructures")
     // Process each rail or road infrastructures
     sql.eachRow("SELECT DISTINCT UUEID FROM RECEIVERS_DEN") { row ->
         String uueid = row[0] as String
@@ -168,23 +176,17 @@ def exec(Connection connection, input) {
         
         sql.execute(String.format("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN"))
 
-        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_NIGHT (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT an.THE_GEOM, an.UUEID, b.PK_1, an.laeqpa_sum FROM RECEIVERS_NIGHT an, receivers b WHERE an.idreceiver=b.PK AND RCV_TYPE=2 AND an.UUEID = '"+uueid+"' ;"))
-        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_DEN (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT aden.THE_GEOM , aden.UUEID, b.PK_1, aden.laeqpa_sum FROM  RECEIVERS_DEN aden, receivers b WHERE aden.idreceiver=b.PK AND RCV_TYPE=2 AND aden.UUEID = '"+uueid+"' ;"))
+        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_NIGHT (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT b.THE_GEOM, an.UUEID, b.PK_1, an.laeqpa_sum FROM RECEIVERS_NIGHT an, receivers b WHERE an.idreceiver=b.PK AND RCV_TYPE=2 AND an.UUEID = '"+uueid+"' ;"))
+        sql.execute(String.format("CREATE TABLE RECEIVERS_DELAUNAY_DEN (THE_GEOM geometry, UUEID varchar, PK Integer NOT NULL PRIMARY KEY, LAEQ float) AS SELECT b.THE_GEOM , aden.UUEID, b.PK_1, aden.laeqpa_sum FROM  RECEIVERS_DEN aden, receivers b WHERE aden.idreceiver=b.PK AND RCV_TYPE=2 AND aden.UUEID = '"+uueid+"' ;"))
 
-        sql.execute("DROP TABLE IF EXISTS TRIANGLES1, TRIANGLES2, TRIANGLES3, TRIANGLES ")
-        sql.execute("CREATE TABLE TRIANGLES1 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b WHERE a.PK_1=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES2 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b WHERE a.PK_2=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES3 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b WHERE a.PK_3=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES AS SELECT * FROM TRIANGLES1 UNION ALL SELECT * FROM TRIANGLES2 UNION ALL SELECT * FROM TRIANGLES3;")
+        sql.execute("DROP TABLE IF EXISTS TRIANGLES ")
+        sql.execute("CREATE TABLE TRIANGLES AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_NIGHT b, RECEIVERS_DELAUNAY_NIGHT c, RECEIVERS_DELAUNAY_NIGHT d WHERE a.PK_1=b.PK AND a.PK_2=c.PK AND a.PK_3=d.PK")
 
         // Produce isocontours for LNIGHT
         generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, lnightOutput, connection, uueid, 'LNIGHT', input)
 
-        sql.execute("DROP TABLE IF EXISTS TRIANGLES1, TRIANGLES2, TRIANGLES3, TRIANGLES ")
-        sql.execute("CREATE TABLE TRIANGLES1 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b WHERE a.PK_1=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES2 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b WHERE a.PK_2=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES3 AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b WHERE a.PK_3=b.PK;")
-        sql.execute("CREATE TABLE TRIANGLES AS SELECT * FROM TRIANGLES1 UNION ALL SELECT * FROM TRIANGLES2 UNION ALL SELECT * FROM TRIANGLES3;")
+        sql.execute("DROP TABLE IF EXISTS TRIANGLES ")
+        sql.execute("CREATE TABLE TRIANGLES AS SELECT a.* FROM TRIANGLES_DELAUNAY a, RECEIVERS_DELAUNAY_DEN b, RECEIVERS_DELAUNAY_DEN c, RECEIVERS_DELAUNAY_DEN d WHERE a.PK_1=b.PK AND a.PK_2=c.PK AND a.PK_3=d.PK")
 
         // Produce isocontours for LDEN
         generateIsoSurfaces(ldenInput, isoLevelsLDEN, ldenOutput, connection, uueid, 'LDEN', input)
@@ -242,10 +244,12 @@ def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def con
         // Generate temporary table to store ISO areas
         sql.execute("DROP TABLE IF EXISTS ISO_AREA")
         sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT ST_UNION(ST_Accum(ST_Buffer(the_geom,0.001))), null, '"+uueid+"', '"+period+"', ISOLABEL, SUM(ST_AREA(the_geom)) FROM CONTOURING_NOISE_MAP GROUP BY ISOLABEL")
+       
         // Update noise classes for LDEN
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 55' THEN  'LdenSmallerThan55' WHEN NOISELEVEL = '55-60' THEN  'Lden5559' WHEN NOISELEVEL = '60-65' THEN  'Lden6064' WHEN NOISELEVEL = '65-70' THEN  'Lden6064' WHEN NOISELEVEL = '70-75' THEN  'Lden7074' WHEN NOISELEVEL = '> 75' THEN  'LdenGreaterThan75' END) WHERE PERIOD='LDEN';")
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 55' THEN  'LdenSmallerThan55' WHEN NOISELEVEL = '55-60' THEN  'Lden5559' WHEN NOISELEVEL = '60-65' THEN  'Lden6064' WHEN NOISELEVEL = '65-70' THEN  'Lden6569' WHEN NOISELEVEL = '70-75' THEN  'Lden7074' WHEN NOISELEVEL = '> 75' THEN  'LdenGreaterThan75' END) WHERE PERIOD='LDEN';")
         // Update noise classes for LNIGHT
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 50' THEN  'LnightSmallerThan50' WHEN NOISELEVEL = '50-55' THEN  'Lnight5054'  WHEN NOISELEVEL = '55-60' THEN  'Lnight5559' WHEN NOISELEVEL = '60-65' THEN  'Lnight6064' WHEN NOISELEVEL = '65-70' THEN  'Lnight6064'  WHEN NOISELEVEL = '> 70' THEN  'LnightGreaterThan70' END) WHERE PERIOD='LNIGHT';")
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '< 50' THEN  'LnightSmallerThan50' WHEN NOISELEVEL = '50-55' THEN  'Lnight5054'  WHEN NOISELEVEL = '55-60' THEN  'Lnight5559' WHEN NOISELEVEL = '60-65' THEN  'Lnight6064' WHEN NOISELEVEL = '65-70' THEN  'Lnight6569'  WHEN NOISELEVEL = '> 70' THEN  'LnightGreaterThan70' END) WHERE PERIOD='LNIGHT';")
+       
         // Generate the PK
         sql.execute("UPDATE ISO_AREA SET pk = CONCAT(uueid, '_',noiselevel)")
         // Forces the SRID, as it is lost in the previous steps
@@ -284,3 +288,5 @@ def run(input) {
             return [result: exec(connection, input)]
     }
 }
+
+
