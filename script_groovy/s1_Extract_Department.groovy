@@ -431,7 +431,7 @@ def exec(Connection connection, input) {
 
     CREATE TABLE rail_tunnel AS SELECT * FROM rail_tunnel_link;
 
-    CREATE TABLE rail_sections AS SELECT a.*, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
+    CREATE TABLE rail_sections AS SELECT ST_SETSRID(a.THE_GEOM,$srid) THE_GEOM,a.IDSECTION,a.NTRACK,a.IDLINE,a.NUMLINE,a.TRACKSPD,a.TRANSFER,a.ROUGHNESS,a.IMPACT,a.CURVATURE,a.BRIDGE,a.D2,a.D3,a.D4,a.COMSPD,a.LINETYPE,a.TRACKSPC,a.UUEID,a.BRIDGEOPT, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
     ALTER TABLE rail_sections ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX rail_sections_geom_idx ON rail_sections (the_geom);
     CREATE INDEX ON rail_sections (idsection);
