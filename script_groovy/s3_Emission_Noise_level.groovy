@@ -24,6 +24,7 @@
     - Add Metadatas
     - remove unnecessary lines (il y en a beaucoup)
     - add more logs for users
+    - add GS field to LW_RAILWAY table
  */
 
 
