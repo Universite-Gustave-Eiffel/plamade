@@ -334,9 +334,9 @@ def exec(Connection connection, input) {
       sql.execute("DROP TABLE IF EXISTS LW_RAILWAY;")
 
       // Build and execute queries
-      StringBuilder createTableQuery = new StringBuilder("CREATE TABLE LW_RAILWAY (ID_SECTION int, the_geom geometry, DIR_ID int")
-      StringBuilder insertIntoQuery = new StringBuilder("INSERT INTO LW_RAILWAY(ID_SECTION, the_geom, DIR_ID")
-      StringBuilder insertIntoValuesQuery = new StringBuilder("?,?,?")
+      StringBuilder createTableQuery = new StringBuilder("CREATE TABLE LW_RAILWAY (ID_SECTION int, the_geom geometry, DIR_ID int, GS double")
+      StringBuilder insertIntoQuery = new StringBuilder("INSERT INTO LW_RAILWAY(ID_SECTION, the_geom, DIR_ID, GS")
+      StringBuilder insertIntoValuesQuery = new StringBuilder("?,?,?,?")
       for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
           createTableQuery.append(", LWD")
           createTableQuery.append(thirdOctave)
@@ -399,6 +399,7 @@ def exec(Connection connection, input) {
           double[] LWNight
           double heightSource
           int directivityId
+          double gs = railWayLWGeom.getGs()
           for (int iSource = 0; iSource < 6; iSource++) {
               switch (iSource) {
                   case 0:
@@ -451,7 +452,7 @@ def exec(Connection connection, input) {
                       Geometry sourceGeometry = trackGeometry.copy()
                       // offset geometry z
                       sourceGeometry.apply(new ST_AddZ.AddZCoordinateSequenceFilter(heightSource))
-                      def batchData = [pk as int, sourceGeometry as Geometry, directivityId as int]
+                      def batchData = [pk as int, sourceGeometry as Geometry, directivityId as int, gs as double]
                       batchData.addAll(LWDay)
                       batchData.addAll(LWEvening)
                       batchData.addAll(LWNight)
