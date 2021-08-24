@@ -193,7 +193,8 @@ def exec(Connection connection, input) {
 
         sql.execute("DROP TABLE IF EXISTS RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN, TRIANGLES1, TRIANGLES2, TRIANGLES3, TRIANGLES")
     }
-
+    
+    logger.info("This is the ennnndd of the step 5")
     // print to WPS Builder
     return resultString
 }
