@@ -311,6 +311,7 @@ def exec(Connection connection, input) {
     pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction)
     pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction)
     pointNoiseMap.setSoundReflectionOrder(reflexion_order)
+    pointNoiseMap.setGs(1.0)
 
     // Set environmental parameters
     PropagationProcessPathData environmentalData = new PropagationProcessPathData(false)
