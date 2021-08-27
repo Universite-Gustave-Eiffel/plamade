@@ -23,8 +23,7 @@
     - Find a good compromise for maxArea parameter
  */
 
-
-package org.noise_planet.noisemodelling.wps.plamade;
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store

@@ -20,9 +20,9 @@
     - Merge 3D lines topo with BD Alti
     - Confirm that screens are taken 2 times into account for railway
     - Check spatial index and srids
- */
+ */ 
 
-package org.noise_planet.noisemodelling.wps.plamade;
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
@@ -431,7 +431,7 @@ def exec(Connection connection, input) {
 
     CREATE TABLE rail_tunnel AS SELECT * FROM rail_tunnel_link;
 
-    CREATE TABLE rail_sections AS SELECT a.*, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
+    CREATE TABLE rail_sections AS SELECT ST_SETSRID(a.THE_GEOM,$srid) THE_GEOM,a.IDSECTION,a.NTRACK,a.IDLINE,a.NUMLINE,a.TRACKSPD,a.TRANSFER,a.ROUGHNESS,a.IMPACT,a.CURVATURE,a.BRIDGE,a.D2,a.D3,a.D4,a.COMSPD,a.LINETYPE,a.TRACKSPC,a.UUEID,a.BRIDGEOPT, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
     ALTER TABLE rail_sections ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX rail_sections_geom_idx ON rail_sections (the_geom);
     CREATE INDEX ON rail_sections (idsection);
@@ -885,10 +885,14 @@ def exec(Connection connection, input) {
         </ul>
 
     """
+    
+    // Remove non needed tables
+    sql.execute("DROP TABLE BUILDINGS, departement_link"); 
+
     def bindingRapport = ["stat_roads_track" : stat_roads_track, "stat_roads_track_cbsgitt" : stat_roads_track_cbsgitt, "nb_roads_track" : nb_roads_track, "nb_roads" : nb_roads, "nb_build" : nb_build, "nb_build_h0" : nb_build_h0, "nb_build_hnull" : nb_build_hnull, "nb_build_id_erps" : nb_build_id_erps, "nb_build_pop" : nb_build_pop, "nb_rail_sections" : nb_rail_sections, "nb_rail_traffic" : nb_rail_traffic, "nb_land" : nb_land, "buffer": buffer, "codeDep": codeDep, "dept_name" : dept_name, "srid" : srid]
     def templateRapport = engine.createTemplate(rapport).make(bindingRapport)
 
     // print to WPS Builder
     return templateRapport.toString()
-}
 
+}

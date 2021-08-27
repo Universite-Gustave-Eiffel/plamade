@@ -25,8 +25,7 @@
  */
 
 
-
-package org.noise_planet.noisemodelling.wps.plamade;
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
@@ -34,6 +33,10 @@ import groovy.sql.Sql
 import groovy.time.TimeCategory
 import org.geotools.jdbc.JDBCDataStore
 import org.h2gis.functions.spatial.edit.ST_AddZ
+import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric
+import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread
+import org.noise_planet.noisemodelling.pathfinder.utils.ProgressMetric
+import org.noise_planet.noisemodelling.pathfinder.utils.ReceiverStatsMetric
 
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
@@ -109,56 +112,6 @@ def run(input) {
     openGeoserverDataStoreConnection(dbName).withCloseable {
         Connection connection ->
             return [result: exec(connection, input)]
-    }
-}
-
-def forgeCreateTable(Sql sql, String tableName, LDENConfig ldenConfig, String geomField, String tableReceiver, String tableResult) {
-    // Create a logger to display messages in the geoserver logs and in the command prompt.
-    Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
-
-    StringBuilder sb = new StringBuilder("create table ");
-    sb.append(tableName);
-    if (!ldenConfig.mergeSources) {
-        sb.append(" (IDRECEIVER bigint NOT NULL");
-        sb.append(", IDSOURCE bigint NOT NULL");
-    } else {
-        sb.append(" (IDRECEIVER bigint NOT NULL");
-    }
-    sb.append(", THE_GEOM geometry")
-    for (int idfreq = 0; idfreq < ldenConfig.propagationProcessPathData.freq_lvl.size(); idfreq++) {
-        sb.append(", HZ");
-        sb.append(ldenConfig.propagationProcessPathData.freq_lvl.get(idfreq));
-        sb.append(" numeric(5, 2)");
-    }
-    sb.append(", LAEQ numeric(5, 2), LEQ numeric(5, 2) ) AS SELECT PK");
-    if (!ldenConfig.mergeSources) {
-        sb.append(", IDSOURCE");
-    }
-    sb.append(", ")
-    sb.append(geomField)
-    for (int idfreq = 0; idfreq < ldenConfig.propagationProcessPathData.freq_lvl.size(); idfreq++) {
-        sb.append(", HZ");
-        sb.append(ldenConfig.propagationProcessPathData.freq_lvl.get(idfreq));
-    }
-    sb.append(", LAEQ, LEQ FROM ")
-    sb.append(tableReceiver)
-    if (!ldenConfig.mergeSources) {
-        // idsource can't be null so we can't left join
-        sb.append(" a, ")
-        sb.append(tableResult)
-        sb.append(" b WHERE a.PK = b.IDRECEIVER")
-    } else {
-        sb.append(" a LEFT JOIN ")
-        sb.append(tableResult)
-        sb.append(" b ON a.PK = b.IDRECEIVER")
-    }
-    sql.execute(sb.toString())
-    // apply pk
-    logger.info("Add primary key on " + tableName)
-    if (!ldenConfig.mergeSources) {
-        sql.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY(IDRECEIVER, IDSOURCE)")
-    } else {
-        sql.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY(IDRECEIVER)")
     }
 }
 
@@ -287,7 +240,7 @@ def exec(Connection connection, input) {
     int max_src_dist = row_conf.confmaxsrcdist.toInteger()
     int max_ref_dist = row_conf.confmaxrefldist.toInteger()
     int n_thread = row_conf.confthreadnumber.toInteger()
-    boolean compute_vertical_diffraction = row_conf.confdiffvertical
+    boolean compute_vertical_diffraction = true
     boolean compute_horizontal_diffraction = row_conf.confdiffhorizontal
     boolean confSkipLday = row_conf.confskiplday
     boolean confSkipLevening = row_conf.confskiplevening
@@ -358,6 +311,7 @@ def exec(Connection connection, input) {
     pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction)
     pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction)
     pointNoiseMap.setSoundReflectionOrder(reflexion_order)
+    pointNoiseMap.setGs(1.0)
 
     // Set environmental parameters
     PropagationProcessPathData environmentalData = new PropagationProcessPathData(false)
@@ -406,7 +360,7 @@ def exec(Connection connection, input) {
 
     // Do not propagate for low emission or far away sources
     // Maximum error in dB
-    pointNoiseMap.setMaximumError(0.1d)
+    pointNoiseMap.setMaximumError(0.2d)
     // NoiseFloor ?
     //pointNoiseMap.setNoiseFloor(40d);
 
@@ -439,42 +393,53 @@ def exec(Connection connection, input) {
 
 
     logger.info("Start calculation... ")
+    ProfilerThread profilerThread = new ProfilerThread(new File("profile.csv"));
+    profilerThread.addMetric(ldenProcessing);
+    profilerThread.addMetric(new ProgressMetric(progressLogger))
+    profilerThread.addMetric(new JVMMemoryMetric())
+    profilerThread.addMetric(new ReceiverStatsMetric())
+    pointNoiseMap.setProfilerThread(profilerThread);
 
     try {
         ldenProcessing.start()
+        new Thread(profilerThread).start();
         // Iterate over computation areas
         int k = 0
         Map cells = pointNoiseMap.searchPopulatedCells(connection)
-        ProgressVisitor progressVisitor = progressLogger.subProcess(1)
-
-        PointNoiseMap.CellIndex cellIndex = new PointNoiseMap.CellIndex(7, 19);
-        // Run ray propagation
-        logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
-        IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)
-        if (ro instanceof LDENComputeRaysOut) {
-            LDENPropagationProcessData ldenPropagationProcessData = (LDENPropagationProcessData) ro.inputData;
-            logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
-                    ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
-                    ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
+        ProgressVisitor progressVisitor = progressLogger.subProcess(cells.size())
+        new TreeSet<>(cells.keySet()).each { cellIndex ->
+            // Run ray propagation
+            logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
+            IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)
+            if (ro instanceof LDENComputeRaysOut) {
+                LDENPropagationProcessData ldenPropagationProcessData = (LDENPropagationProcessData) ro.inputData;
+                logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
+                        ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
+                        ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
+            }
         }
-
-
-//        new TreeSet<>(cells.keySet()).each { cellIndex ->
-//            // Run ray propagation
-//            logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
-//            IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)
-//            if (ro instanceof LDENComputeRaysOut) {
-//                LDENPropagationProcessData ldenPropagationProcessData = (LDENPropagationProcessData) ro.inputData;
-//                logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
-//                        ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
-//                        ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
-//            }
-//        }
     } catch(IllegalArgumentException | IllegalStateException ex) {
         System.err.println(ex);
         throw ex;
     } finally {
+        profilerThread.stop();
         ldenProcessing.stop()
+    }
+    
+    // Associate Geometry column to the table LDEN
+    StringBuilder createdTables = new StringBuilder()
+
+    if (ldenConfig_propa.computeLDay) {
+        createdTables.append(" LDAY_RAILWAY")
+    }
+    if (ldenConfig_propa.computeLEvening) {
+        createdTables.append(" LEVENING_RAILWAY")
+    }
+    if (ldenConfig_propa.computeLNight) {
+        createdTables.append(" LNIGHT_RAILWAY")
+    }
+    if (ldenConfig_propa.computeLDEN) {
+        createdTables.append(" LDEN_RAILWAY")
     }
 
     sql.execute(String.format("UPDATE metadata SET rail_end = NOW();"))

@@ -5,6 +5,11 @@
 ------------------------------------------------------------------------------------
 
 
+
+DROP TABLE IF EXISTS noisemodelling.departement_liste;
+CREATE TABLE noisemodelling.departement_liste as SELECT "CODE" as CODEDEPT FROM public."P_DEPARTEMENT" ORDER BY "CODE";
+
+
 ---------------------------------------------------------------------------------
 -- 1- For road
 ---------------------------------------------------------------------------------
@@ -238,8 +243,8 @@ DROP TABLE IF EXISTS noisemodelling.stat_road_nb, noisemodelling.stat_road_name,
 
 -- Merge road tables
 
-DROP TABLE IF EXISTS noisemodelling.stat_road;
-CREATE TABLE noisemodelling.stat_road AS SELECT a.*, 
+DROP TABLE IF EXISTS noisemodelling.stat_road_merge;
+CREATE TABLE noisemodelling.stat_road_merge AS SELECT a.*, 
 		b.nb_speed, b.vitessevl_0, b.vitessevl_null, b.vitessepl_0, b.vitessepl_null,
 		c.nb_trafic, c.tmhvld_0, c.tmhvld_null, c.tmhvls_0, c.tmhvls_null, c.tmhvln_0, c.tmhvln_null, c.tmhpld_0, c.tmhpld_null, c.tmhpls_0, 
 		c.tmhpls_null, c.tmhpln_0, c.tmhpln_null, c.tmh2rd_0, c.tmh2rd_null, c.tmh2rs_0, c.tmh2rs_null, c.tmh2rn_0, c.tmh2rn_null, 
@@ -249,7 +254,70 @@ CREATE TABLE noisemodelling.stat_road AS SELECT a.*,
 	LEFT JOIN noisemodelling.stat_road_trafic c ON a.codedept=c.codedept  
 	ORDER BY a.codedept;
 
-DROP TABLE IF EXISTS noisemodelling.stat_road_geom, noisemodelling.stat_road_speed, noisemodelling.stat_road_trafic;
+
+DROP TABLE IF EXISTS noisemodelling.stat_road;
+
+CREATE TABLE noisemodelling.stat_road (codedept varchar(3) PRIMARY KEY, nb_track int8, nb_road int8, cbs_gitt_o int8, largeur_0 int8,
+	largeur_null int8, nb_voies_0 int8, nb_voies_null int8, sens_null int8, nb_speed int8, vitessevl_0 int8, vitessevl_null int8, 
+	vitessepl_0 int8, vitessepl_null int8, nb_trafic int8, tmhvld_0 int8, tmhvld_null int8, tmhvls_0 int8, tmhvls_null int8, 
+	tmhvln_0 int8, tmhvln_null int8, tmhpld_0 int8, tmhpld_null int8, tmhpls_0 int8, tmhpls_null int8, tmhpln_0 int8, tmhpln_null int8, 
+	tmh2rd_0 int8, tmh2rd_null int8, tmh2rs_0 int8, tmh2rs_null int8, tmh2rn_0 int8, tmh2rn_null int8, pcentmpl_0 int8, 
+	pcentmpl_null int8, pcenthpl_0 int8, pcenthpl_null int8, pcent2r4a_0 int8, pcent2r4a_null int8, pcent2r4b_0 int8, pcent2r4b_null int8);
+
+INSERT INTO noisemodelling.stat_road SELECT a.codedept, b.nb_track, b.nb_road, b.cbs_gitt_o, b.largeur_0, b.largeur_null, b.nb_voies_0, b.nb_voies_null, b.sens_null, b.nb_speed, 
+	b.vitessevl_0, b.vitessevl_null, b.vitessepl_0, b.vitessepl_null, b.nb_trafic, b.tmhvld_0, b.tmhvld_null, b.tmhvls_0, b.tmhvls_null, b.tmhvln_0, b.tmhvln_null, 
+	b.tmhpld_0, b.tmhpld_null, b.tmhpls_0, b.tmhpls_null, b.tmhpln_0, b.tmhpln_null, b.tmh2rd_0, b.tmh2rd_null, b.tmh2rs_0, b.tmh2rs_null, b.tmh2rn_0, b.tmh2rn_null, 
+	b.pcentmpl_0, b.pcentmpl_null, b.pcenthpl_0, b.pcenthpl_null, b.pcent2r4a_0, b.pcent2r4a_null, b.pcent2r4b_0, b.pcent2r4b_null 
+	FROM noisemodelling.departement_liste a 
+	LEFT JOIN noisemodelling.stat_road_merge b ON a.codedept=b.codedept 
+	ORDER BY a.codedept;
+
+UPDATE noisemodelling.stat_road SET nb_track = 0 WHERE nb_track is null; 
+UPDATE noisemodelling.stat_road SET nb_road = 0 WHERE nb_road is null; 
+UPDATE noisemodelling.stat_road SET cbs_gitt_o = 0 WHERE cbs_gitt_o is null; 
+UPDATE noisemodelling.stat_road SET largeur_0 = 0 WHERE largeur_0 is null; 
+UPDATE noisemodelling.stat_road SET largeur_null = 0 WHERE largeur_null is null; 
+UPDATE noisemodelling.stat_road SET nb_voies_0 = 0 WHERE nb_voies_0 is null; 
+UPDATE noisemodelling.stat_road SET nb_voies_null = 0 WHERE nb_voies_null is null; 
+UPDATE noisemodelling.stat_road SET sens_null = 0 WHERE sens_null is null; 
+UPDATE noisemodelling.stat_road SET nb_speed = 0 WHERE nb_speed is null; 
+UPDATE noisemodelling.stat_road SET vitessevl_0 = 0 WHERE vitessevl_0 is null; 
+UPDATE noisemodelling.stat_road SET vitessevl_null = 0 WHERE vitessevl_null is null; 
+UPDATE noisemodelling.stat_road SET vitessepl_0 = 0 WHERE vitessepl_0 is null; 
+UPDATE noisemodelling.stat_road SET vitessepl_null = 0 WHERE vitessepl_null is null; 
+UPDATE noisemodelling.stat_road SET nb_trafic = 0 WHERE nb_trafic is null; 
+UPDATE noisemodelling.stat_road SET tmhvld_0 = 0 WHERE tmhvld_0 is null; 
+UPDATE noisemodelling.stat_road SET tmhvld_null = 0 WHERE tmhvld_null is null; 
+UPDATE noisemodelling.stat_road SET tmhvls_0 = 0 WHERE tmhvls_0 is null; 
+UPDATE noisemodelling.stat_road SET tmhvls_null = 0 WHERE tmhvls_null is null; 
+UPDATE noisemodelling.stat_road SET tmhvln_0 = 0 WHERE tmhvln_0 is null; 
+UPDATE noisemodelling.stat_road SET tmhvln_null = 0 WHERE tmhvln_null is null; 
+UPDATE noisemodelling.stat_road SET tmhpld_0 = 0 WHERE tmhpld_0 is null; 
+UPDATE noisemodelling.stat_road SET tmhpld_null = 0 WHERE tmhpld_null is null; 
+UPDATE noisemodelling.stat_road SET tmhpls_0 = 0 WHERE tmhpls_0 is null; 
+UPDATE noisemodelling.stat_road SET tmhpls_null = 0 WHERE tmhpls_null is null; 
+UPDATE noisemodelling.stat_road SET tmhpln_0 = 0 WHERE tmhpln_0 is null; 
+UPDATE noisemodelling.stat_road SET tmhpln_null = 0 WHERE tmhpln_null is null; 
+UPDATE noisemodelling.stat_road SET tmh2rd_0 = 0 WHERE tmh2rd_0 is null; 
+UPDATE noisemodelling.stat_road SET tmh2rd_null = 0 WHERE tmh2rd_null is null; 
+UPDATE noisemodelling.stat_road SET tmh2rs_0 = 0 WHERE tmh2rs_0 is null; 
+UPDATE noisemodelling.stat_road SET tmh2rs_null = 0 WHERE tmh2rs_null is null; 
+UPDATE noisemodelling.stat_road SET tmh2rn_0 = 0 WHERE tmh2rn_0 is null; 
+UPDATE noisemodelling.stat_road SET tmh2rn_null = 0 WHERE tmh2rn_null is null; 
+UPDATE noisemodelling.stat_road SET pcentmpl_0 = 0 WHERE pcentmpl_0 is null; 
+UPDATE noisemodelling.stat_road SET pcentmpl_null = 0 WHERE pcentmpl_null is null; 
+UPDATE noisemodelling.stat_road SET pcenthpl_0 = 0 WHERE pcenthpl_0 is null; 
+UPDATE noisemodelling.stat_road SET pcenthpl_null = 0 WHERE pcenthpl_null is null; 
+UPDATE noisemodelling.stat_road SET pcent2r4a_0 = 0 WHERE pcent2r4a_0 is null; 
+UPDATE noisemodelling.stat_road SET pcent2r4a_null = 0 WHERE pcent2r4a_null is null; 
+UPDATE noisemodelling.stat_road SET pcent2r4b_0 = 0 WHERE pcent2r4b_0 is null; 
+UPDATE noisemodelling.stat_road SET pcent2r4b_null = 0 WHERE pcent2r4b_null is null; 
+
+
+
+
+
+DROP TABLE IF EXISTS noisemodelling.stat_road_geom, noisemodelling.stat_road_speed, noisemodelling.stat_road_trafic, noisemodelling.stat_road_merge;
 
 
 ---------------------------------------------------------------------------------
@@ -329,12 +397,13 @@ DROP TABLE IF EXISTS noisemodelling.stat_rail_cbs_gitt_o;
 CREATE TABLE noisemodelling.stat_rail_cbs_gitt_o AS SELECT "CODEDEPT" as codedept, COUNT(*) as cbs_gitt_o FROM echeance4."N_FERROVIAIRE_TRONCON_L" WHERE "CBS_GITT" GROUP BY "CODEDEPT" ORDER BY "CODEDEPT";
 
 DROP TABLE IF EXISTS noisemodelling.stat_rail_geom;
-CREATE TABLE noisemodelling.stat_rail_geom AS SELECT a.*, 
+CREATE TABLE noisemodelling.stat_rail_geom AS SELECT z.codedept, a.nb_track, 
 		b.nb_line, c.cbs_gitt_o,
 		d.largempris_0, e.largempris_null, 
 		f.nb_voies_0, g.nb_voies_null,
 		h.vmax_null 
-	FROM noisemodelling.stat_rail_nb a 
+	FROM noisemodelling.departement_liste z
+	LEFT JOIN noisemodelling.stat_rail_nb a ON a.codedept=z.codedept
 	LEFT JOIN noisemodelling.stat_rail_line_nb b ON a.codedept=b.codedept
 	LEFT JOIN noisemodelling.stat_rail_cbs_gitt_o c ON a.codedept=c.codedept  
 	LEFT JOIN noisemodelling.stat_rail_width_0 d ON a.codedept=d.codedept 
@@ -342,8 +411,10 @@ CREATE TABLE noisemodelling.stat_rail_geom AS SELECT a.*,
 	LEFT JOIN noisemodelling.stat_rail_nb_track_0 f ON a.codedept=f.codedept 
 	LEFT JOIN noisemodelling.stat_rail_nb_track_null g ON a.codedept=g.codedept 
 	LEFT JOIN noisemodelling.stat_rail_vmax_null h ON a.codedept=h.codedept 
-	ORDER BY a.codedept;
+	ORDER BY z.codedept;
 
+UPDATE noisemodelling.stat_rail_geom SET nb_track = 0 WHERE nb_track is null; 
+UPDATE noisemodelling.stat_rail_geom SET nb_line = 0 WHERE nb_line is null; 
 UPDATE noisemodelling.stat_rail_geom SET cbs_gitt_o = 0 WHERE cbs_gitt_o is null; 
 UPDATE noisemodelling.stat_rail_geom SET largempris_0 = 0 WHERE largempris_0 is null; 
 UPDATE noisemodelling.stat_rail_geom SET largempris_null = 0 WHERE largempris_null is null; 

@@ -27,8 +27,8 @@
     - remove temporary tables --> done
     - Export csv files
  */
-package org.noise_planet.noisemodelling.wps.plamade;
 
+package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
@@ -132,9 +132,9 @@ def exec(Connection connection, input) {
     logger.info("Count buildings, schools and hospitals")
 
     sql.execute("DROP TABLE IF EXISTS BUILDING_SCHOOL, BUILDING_HOSPITAL, BUILDING_COUNT_1, BUILDING_COUNT;")
-    sql.execute("CREATE TABLE BUILDING_SCHOOL (BUILD_PK varchar, SCHOOL Integer) AS SELECT PK, 1 FROM BUILDINGS_SCREENS WHERE ERPS_NATUR='Enseignement';")
-    sql.execute("CREATE TABLE BUILDING_HOSPITAL (BUILD_PK varchar, HOSPITAL Integer) AS SELECT PK, 1 FROM BUILDINGS_SCREENS WHERE ERPS_NATUR='Sante';")
-    sql.execute("CREATE TABLE BUILDING_COUNT_1 (BUILD_PK varchar, BUILDING integer, SCHOOL integer) AS SELECT a.PK, 1, b.SCHOOL FROM BUILDINGS_SCREENS a LEFT JOIN BUILDING_SCHOOL b ON a.PK=b.BUILD_PK;")
+    sql.execute("CREATE TABLE BUILDING_SCHOOL (BUILD_PK varchar PRIMARY KEY, SCHOOL Integer) AS SELECT PK, 1 FROM BUILDINGS_SCREENS WHERE ERPS_NATUR='Enseignement';")
+    sql.execute("CREATE TABLE BUILDING_HOSPITAL (BUILD_PK varchar PRIMARY KEY, HOSPITAL Integer) AS SELECT PK, 1 FROM BUILDINGS_SCREENS WHERE ERPS_NATUR='Sante';")
+    sql.execute("CREATE TABLE BUILDING_COUNT_1 (BUILD_PK varchar PRIMARY KEY, BUILDING integer, SCHOOL integer) AS SELECT a.PK, 1, b.SCHOOL FROM BUILDINGS_SCREENS a LEFT JOIN BUILDING_SCHOOL b ON a.PK=b.BUILD_PK;")
     sql.execute("CREATE TABLE BUILDING_COUNT (BUILD_PK varchar PRIMARY KEY, BUILDING integer, SCHOOL integer, HOSPITAL integer) AS SELECT a.*, b.HOSPITAL FROM BUILDING_COUNT_1 a LEFT JOIN BUILDING_HOSPITAL b ON a.BUILD_PK=b.BUILD_PK;")
     sql.execute("DROP TABLE IF EXISTS BUILDING_SCHOOL, BUILDING_HOSPITAL, BUILDING_COUNT_1;")
 
@@ -216,9 +216,6 @@ def exec(Connection connection, input) {
     sql.execute("CREATE TABLE CPI AS SELECT b.UUEID, (SUM(b.sum_pop*((EXP((LN(1.08)/10)*(b.range-53)))-1))/(SUM(b.sum_pop*((EXP((LN(1.08)/10)*(b.range-53)))-1))+1))*0.00138*(SELECT SUM(a.sum_pop) from  "+outputDEN+" a WHERE a.UUEID = b.UUEID) as CPI FROM "+outputDEN+" b WHERE range > 53 GROUP BY UUEID;")
 
 
-    sql.execute("CALL DBFWrite('data_dir/data/shapefiles/"+outputDEN+".dbf', '"+outputDEN.toUpperCase(Locale.ROOT)+"');")
-    sql.execute("CALL DBFWrite('data_dir/data/shapefiles/"+outputNIGHT+".dbf', '"+outputNIGHT.toUpperCase(Locale.ROOT)+"');")
-    sql.execute("CALL DBFWrite('data_dir/data/shapefiles/CPI.dbf', 'CPI');")
     // 
     // Remove non-needed tables
     //sql.execute("DROP TABLE IF EXISTS LDEN_GEOM_INFRA, LNIGHT_GEOM_INFRA, RECEIVERS_SUM_LAEQPA_DEN, RECEIVERS_SUM_LAEQPA_NIGHT, RECEIVERS_BUILD_NIGHT, RECEIVERS_BUILD_DEN, RECEIVERS_BUILD_POP_NIGHT, RECEIVERS_BUILD_POP_DEN, BUILD_MAX_NIGHT, BUILD_MAX_DEN;")
