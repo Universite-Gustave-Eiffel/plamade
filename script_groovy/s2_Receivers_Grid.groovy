@@ -350,7 +350,7 @@ def exec(Connection connection, input) {
     noiseMap.setExceptionDumpFolder("data_dir/")
     AtomicInteger pk = new AtomicInteger(0)
     ProgressVisitor progressVisitorNM = progressLogger.subProcess(noiseMap.getGridDim() * noiseMap.getGridDim())
-
+    noiseMap.setGridDim(25)
     for (int i = 0; i < noiseMap.getGridDim(); i++) {
         for (int j = 0; j < noiseMap.getGridDim(); j++) {
             logger.info("Compute cell " + (i * noiseMap.getGridDim() + j + 1) + " of " + noiseMap.getGridDim() * noiseMap.getGridDim())

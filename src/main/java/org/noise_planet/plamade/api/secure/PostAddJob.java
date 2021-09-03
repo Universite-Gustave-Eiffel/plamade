@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.collect.Maps;
 import groovy.util.Eval;
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.core.profile.CommonProfile;
@@ -34,6 +35,8 @@ import ratpack.pac4j.RatpackPac4j;
 import ratpack.thymeleaf.Template;
 
 import javax.sql.DataSource;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.sql.*;
 import java.text.DateFormat;
@@ -77,7 +80,8 @@ public class PostAddJob implements Handler {
                             Blocking.get(() -> {
                                 int pk;
                                 Timestamp t = new Timestamp(System.currentTimeMillis());
-                                try (Connection connection = ctx.get(DataSource.class).getConnection()) {
+                                DataSource plamadeDataSource = ctx.get(DataSource.class);
+                                try (Connection connection = plamadeDataSource.getConnection()) {
 
                                     ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
                                     DataBaseConfig dataBaseConfig = new DataBaseConfig();
@@ -100,12 +104,14 @@ public class PostAddJob implements Handler {
                                     if(rs.next()) {
                                         pk = rs.getInt(1);
                                         ThreadPoolExecutor pool = ctx.get(ThreadPoolExecutor.class);
+                                        RootProgressVisitor rootProgressVisitor = new RootProgressVisitor(1, false, 5);
+                                        rootProgressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(plamadeDataSource, pk));
                                         pool.execute(new NoiseModellingInstance(
                                                 new NoiseModellingInstance.Configuration(
                                                         new File("jobs_running/"+remoteJobFolder).getAbsolutePath(),
                                                         Integer.parseInt(confId),
                                                         inseeDepartment, pk, dataBaseConfig
-                                                ), ctx.get(DataSource.class)));
+                                                , rootProgressVisitor ), plamadeDataSource));
                                     } else {
                                         LOG.error("Could not insert new job without exceptions");
                                         return false;
@@ -121,5 +127,42 @@ public class PostAddJob implements Handler {
                 }
             });
         });
+    }
+
+    private static class ProgressionTracker implements PropertyChangeListener {
+        DataSource plamadeDataSource;
+        int jobPk;
+        private Logger logger = LoggerFactory.getLogger(ProgressionTracker.class);
+        String lastProg = "";
+        long lastProgressionUpdate = 0;
+        private static final long TABLE_UPDATE_DELAY = 5000;
+
+        public ProgressionTracker(DataSource plamadeDataSource, int jobPk) {
+            this.plamadeDataSource = plamadeDataSource;
+            this.jobPk = jobPk;
+        }
+
+        @Override
+        public void propertyChange(PropertyChangeEvent evt) {
+            if(evt.getNewValue() instanceof Double) {
+                String newLogProgress = String.format("%.2f", (Double)(evt.getNewValue()) * 100.0D);
+                if(!lastProg.equals(newLogProgress)) {
+                    lastProg = newLogProgress;
+                    long t = System.currentTimeMillis();
+                    if(t - lastProgressionUpdate > TABLE_UPDATE_DELAY) {
+                        lastProgressionUpdate = t;
+                        try (Connection connection = plamadeDataSource.getConnection()) {
+                            PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET PROGRESSION = ? WHERE PK_JOB = ?");
+                            st.setDouble(1, (Double) (evt.getNewValue()) * 100.0);
+                            st.setInt(2, jobPk);
+                            st.setQueryTimeout((int)(TABLE_UPDATE_DELAY / 1000));
+                            st.execute();
+                        } catch (SQLException ex) {
+                            logger.error(ex.getLocalizedMessage(), ex);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -375,7 +375,7 @@ def exec(Connection connection, input) {
     // Init Map
     pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
 
-
+    pointNoiseMap.setGridDim(25)
     logger.info("Taille de cellulle : " + pointNoiseMap.getCellWidth().toString())
 
     // --------------------------------------------

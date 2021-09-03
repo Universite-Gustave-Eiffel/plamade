@@ -69,7 +69,7 @@ public class Main {
                 .module(ExecutorServiceModule.class)
                 .module(HikariModule.class, hikariConfig -> {
             hikariConfig.setDataSourceClassName("org.h2.jdbcx.JdbcDataSource");
-            hikariConfig.addDataSourceProperty("URL", "jdbc:h2:" + databasePath); // Use H2 in memory database
+            hikariConfig.addDataSourceProperty("URL", "jdbc:h2:" + databasePath + ";DB_CLOSE_DELAY=30"); // H2 database path and config
         }).bind(InitDb.class))).handlers(chain ->
                 chain.path(redirect(301, "index.html"))
                         .files(files -> files.files("css")) // share all static files from css folder
@@ -97,7 +97,7 @@ public class Main {
                     st.executeUpdate("CREATE TABLE USERS(PK_USER SERIAL, USER_OID VARCHAR)");
                     st.executeUpdate("CREATE TABLE USER_ASK_INVITATION(PK_INVITE SERIAL, USER_OID VARCHAR, MAIL VARCHAR)");
                     st.executeUpdate("CREATE TABLE IF NOT EXISTS JOBS(PK_JOB SERIAL,REMOTE_JOB_FOLDER VARCHAR NOT NULL," +
-                            " BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE, END_DATE TIMESTAMP WITHOUT TIME ZONE, PROGRESSION INTEGER DEFAULT 0, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER NOT NULL)");
+                            " BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE, END_DATE TIMESTAMP WITHOUT TIME ZONE, PROGRESSION REAL DEFAULT 0, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER NOT NULL)");
 
                 }
                 // In the future check databaseVersion for database upgrades

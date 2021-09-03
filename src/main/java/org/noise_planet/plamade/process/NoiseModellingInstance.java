@@ -17,7 +17,10 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import org.h2.util.OsgiDataSourceFactory;
+import org.h2gis.api.EmptyProgressVisitor;
+import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.noise_planet.plamade.config.AdminConfig;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.osgi.service.jdbc.DataSourceFactory;
@@ -26,6 +29,8 @@ import org.slf4j.LoggerFactory;
 import ratpack.handling.Context;
 
 import javax.sql.DataSource;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
@@ -94,6 +99,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         Object result = receiversGrid.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
+    public void makeEmission(Connection nmConnection) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script receiversGrid= shell.parse(new File("script_groovy", "s3_Emission_Noise_level.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", configuration.getConfigurationId());
+
+        Object result = receiversGrid.invokeMethod("exec", new Object[] {nmConnection, inputs});
+    }
+
     @Override
     public void run() {
         isRunning = true;
@@ -118,10 +132,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             nmDataSource = createDataSource("sa", "sa", configuration.workingDirectory, "nm_db");
 
             // Download data from external database
+            ProgressVisitor progressVisitor = new RootProgressVisitor(3, false, 5);
             try(Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection);
                 makeGrid(nmConnection);
-
+                makeEmission(nmConnection);
             }
         } catch (SQLException | SecurityException | IOException ex) {
             logger.error(ex.getLocalizedMessage(), ex);
@@ -162,14 +177,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         private String inseeDepartment;
         private int taskPrimaryKey;
         private DataBaseConfig dataBaseConfig;
+        private ProgressVisitor progressVisitor = new EmptyProgressVisitor();
 
         public Configuration(String workingDirectory, int configurationId, String inseeDepartment, int taskPrimaryKey
-                , DataBaseConfig dataBaseConfig) {
+                , DataBaseConfig dataBaseConfig, ProgressVisitor progressVisitor) {
             this.workingDirectory = workingDirectory;
             this.configurationId = configurationId;
             this.inseeDepartment = inseeDepartment;
             this.taskPrimaryKey = taskPrimaryKey;
             this.dataBaseConfig = dataBaseConfig;
+            this.progressVisitor = progressVisitor;
         }
 
         public String getWorkingDirectory() {
