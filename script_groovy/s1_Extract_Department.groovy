@@ -28,6 +28,8 @@ import geoserver.GeoServer
 import geoserver.catalog.Store
 import groovy.text.SimpleTemplateEngine
 import org.geotools.jdbc.JDBCDataStore
+import org.h2gis.api.EmptyProgressVisitor
+import org.h2gis.api.ProgressVisitor
 import org.locationtech.jts.geom.Point
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -100,7 +102,7 @@ def run(input) {
     }
 }
 
-def exec(Connection connection, input) {
+def exec(Connection connection, input, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
 
 
     //------------------------------------------------------
@@ -139,6 +141,7 @@ def exec(Connection connection, input) {
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
+    ProgressVisitor progress = progressVisitor.subProcess(11)
     // print to command window
     logger.info('Start linking with PostGIS')
 
@@ -729,56 +732,67 @@ def exec(Connection connection, input) {
     def template = engine.createTemplate(queries_conf).make(binding)
 
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage PFAV (2/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_pfav).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage roads (3/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_roads).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage rails (4/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_rails).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage infrastructures (5/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_infra).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage buildings (6/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_buildings).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage screens (7/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_screens).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage buildings screens (8/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_buildings_screens).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage landcover (9/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_landcover).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage dem (10/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_dem).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
         logger.info('Manage statistics (11/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_stats).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
 
 

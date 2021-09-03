@@ -12,6 +12,9 @@
 
 package org.noise_planet.plamade;
 
+import org.apache.log4j.Logger;
+import org.apache.log4j.PatternLayout;
+import org.apache.log4j.jdbc.JDBCAppender;
 import org.noise_planet.plamade.api.ApiEndpoints;
 import org.noise_planet.plamade.api.ApiModule;
 import org.noise_planet.plamade.auth.AuthModule;
@@ -47,7 +50,9 @@ import java.sql.Statement;
  * @Author Nicolas Fortin, Université Gustave Eiffel
  */
 public class Main {
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
+    private static String dbUrl;
+    private static String dataSourceClassName;
 
     public static void main(String... args) throws Exception {
         Path basePath = BaseDir.find();
@@ -60,6 +65,9 @@ public class Main {
         }
 
         String databasePath = Paths.get("database").toAbsolutePath().toString();
+        dbUrl = "jdbc:h2:" + databasePath + ";DB_CLOSE_DELAY=30";
+        dataSourceClassName = "org.h2.jdbcx.JdbcDataSource";
+
         RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").port(9580).env().require("/auth", AuthConfig.class)
                 .baseDir(basePath).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
                 .module(AuthModule.class)
@@ -68,8 +76,8 @@ public class Main {
                 .module(SessionModule.class)
                 .module(ExecutorServiceModule.class)
                 .module(HikariModule.class, hikariConfig -> {
-            hikariConfig.setDataSourceClassName("org.h2.jdbcx.JdbcDataSource");
-            hikariConfig.addDataSourceProperty("URL", "jdbc:h2:" + databasePath + ";DB_CLOSE_DELAY=30"); // H2 database path and config
+            hikariConfig.setDataSourceClassName(dataSourceClassName);
+            hikariConfig.addDataSourceProperty("URL", dbUrl); // H2 database path and config
         }).bind(InitDb.class))).handlers(chain ->
                 chain.path(redirect(301, "index.html"))
                         .files(files -> files.files("css")) // share all static files from css folder
@@ -102,8 +110,28 @@ public class Main {
                 }
                 // In the future check databaseVersion for database upgrades
                 if(databaseVersion != DATABASE_VERSION) {
+                    if(databaseVersion == 1) {
+                        st.executeUpdate("CREATE TABLE LOG (  PK_LOG SERIAL PRIMARY KEY, THREAD VARCHAR NOT NULL,DATED   DATETIME NOT NULL,  LOGGER  VARCHAR NOT NULL,  LEVEL   VARCHAR NOT NULL,  MESSAGE VARCHAR NOT NULL );");
+                        st.execute("CREATE INDEX ON LOG(THREAD);");
+                        databaseVersion = 2;
+                    }
                     st.executeUpdate("UPDATE ATTRIBUTES SET DATABASE_VERSION = " + DATABASE_VERSION);
                 }
+
+
+
+                // Add database logger
+                Logger rootLogger = Logger.getRootLogger();
+                JDBCAppender jdbcAppender = new JDBCAppender();
+                jdbcAppender.setURL(dbUrl);
+                jdbcAppender.setDriver(dataSourceClassName);
+                jdbcAppender.setUser("");
+                jdbcAppender.setPassword("");
+                jdbcAppender.setBufferSize(5);
+                jdbcAppender.setSql("INSERT INTO LOGS(THREAD, DATED, LOGGER, LEVEL, MESSAGE) VALUES ('%t', now(), %C','%p','%m')");
+                jdbcAppender.setLayout(new PatternLayout());
+                jdbcAppender.activateOptions();
+                rootLogger.addAppender(jdbcAppender);
             }
         }
     }

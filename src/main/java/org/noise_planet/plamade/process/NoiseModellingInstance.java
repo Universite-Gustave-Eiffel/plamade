@@ -78,7 +78,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     }
 
-    public void importData(Connection nmConnection) throws SQLException, IOException {
+    public void importData(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
 
         GroovyShell shell = new GroovyShell();
         Script extractDepartment= shell.parse(new File("script_groovy", "s1_Extract_Department.groovy"));
@@ -89,7 +89,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         inputs.put("fetchDistance", 1000);
         inputs.put("inseeDepartment", configuration.getInseeDepartment());
 
-        Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
+        Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs, progressVisitor});
     }
 
     public void makeGrid(Connection nmConnection) throws SQLException, IOException {
@@ -112,6 +112,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     @Override
     public void run() {
+        Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
         isRunning = true;
         try {
             // create folder
@@ -137,8 +138,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             ProgressVisitor progressVisitor = configuration.progressVisitor;
             ProgressVisitor subProg = progressVisitor.subProcess(3);
             try(Connection nmConnection = nmDataSource.getConnection()) {
-                importData(nmConnection);
-                subProg.endStep();
+                importData(nmConnection, subProg);
                 makeGrid(nmConnection);
                 subProg.endStep();
                 makeEmission(nmConnection);
@@ -146,7 +146,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             }
             // Update Job informations
             try (Connection connection = plamadeDataSource.getConnection()) {
-                PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET END_DATE = ? WHERE PK_JOB = ?");
+                PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET END_DATE = ?, PROGRESSION = 100 WHERE PK_JOB = ?");
                 st.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
                 st.setInt(2, configuration.getTaskPrimaryKey());
                 st.execute();
