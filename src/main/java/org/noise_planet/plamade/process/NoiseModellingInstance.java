@@ -34,7 +34,9 @@ import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -132,11 +134,22 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             nmDataSource = createDataSource("sa", "sa", configuration.workingDirectory, "nm_db");
 
             // Download data from external database
-            ProgressVisitor progressVisitor = new RootProgressVisitor(3, false, 5);
+            ProgressVisitor progressVisitor = configuration.progressVisitor;
+            ProgressVisitor subProg = progressVisitor.subProcess(3);
             try(Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection);
+                subProg.endStep();
                 makeGrid(nmConnection);
+                subProg.endStep();
                 makeEmission(nmConnection);
+                subProg.endStep();
+            }
+            // Update Job informations
+            try (Connection connection = plamadeDataSource.getConnection()) {
+                PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET END_DATE = ? WHERE PK_JOB = ?");
+                st.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+                st.setInt(2, configuration.getTaskPrimaryKey());
+                st.execute();
             }
         } catch (SQLException | SecurityException | IOException ex) {
             logger.error(ex.getLocalizedMessage(), ex);
