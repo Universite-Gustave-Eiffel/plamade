@@ -15,8 +15,12 @@
  */
 package org.noise_planet.plamade.api.secure;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.collect.Maps;
 import groovy.util.Eval;
+import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
@@ -32,6 +36,10 @@ import ratpack.thymeleaf.Template;
 import javax.sql.DataSource;
 import java.io.File;
 import java.sql.*;
+import java.text.DateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -70,13 +78,22 @@ public class PostAddJob implements Handler {
                                 int pk;
                                 Timestamp t = new Timestamp(System.currentTimeMillis());
                                 try (Connection connection = ctx.get(DataSource.class).getConnection()) {
+
+                                    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+                                    DataBaseConfig dataBaseConfig = new DataBaseConfig();
+                                    JsonNode cfg = mapper.readTree(ctx.file("config.yaml").toFile());
+                                    dataBaseConfig.user = cfg.findValue("database").findValue("user").asText();
+                                    dataBaseConfig.password = cfg.findValue("database").findValue("password").asText();
+
+                                    String remoteJobFolder = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy_MM_dd.HH'h'mm'm'ss's'", Locale.ROOT))+"."+System.currentTimeMillis();
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(REMOTE_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
-                                                    " VALUES (RANDOM_UUID(), ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
-                                    statement.setObject(1, t);
-                                    statement.setInt(2, Integer.parseInt(confId));
-                                    statement.setString(3, inseeDepartment);
-                                    statement.setInt(4, pkUser);
+                                                    " VALUES (?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+                                    statement.setString(1, remoteJobFolder);
+                                    statement.setObject(2, t);
+                                    statement.setInt(3, Integer.parseInt(confId));
+                                    statement.setString(4, inseeDepartment);
+                                    statement.setInt(5, pkUser);
                                     statement.executeUpdate();
                                     // retrieve primary key
                                     ResultSet rs = statement.getGeneratedKeys();
@@ -85,9 +102,9 @@ public class PostAddJob implements Handler {
                                         ThreadPoolExecutor pool = ctx.get(ThreadPoolExecutor.class);
                                         pool.execute(new NoiseModellingInstance(
                                                 new NoiseModellingInstance.Configuration(
-                                                        new File("jobs_running/"+pk).getAbsolutePath(),
+                                                        new File("jobs_running/"+remoteJobFolder).getAbsolutePath(),
                                                         Integer.parseInt(confId),
-                                                        inseeDepartment
+                                                        inseeDepartment, pk, dataBaseConfig
                                                 ), ctx.get(DataSource.class)));
                                     } else {
                                         LOG.error("Could not insert new job without exceptions");

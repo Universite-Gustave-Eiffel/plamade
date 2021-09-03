@@ -2,6 +2,8 @@ package org.noise_planet.plamade
 
 import groovy.sql.Sql
 import org.junit.Test
+import org.noise_planet.noisemodelling.pathfinder.ComputeRays
+import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation
 import org.noise_planet.plamade.process.NoiseModellingInstance
 
 import javax.sql.DataSource
@@ -26,22 +28,33 @@ class testPerf {
     public void testCell() {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
-        // Begin processing of cell 483 / 625
-        // This computation area contains 93116 receivers 192 sound sources and 6453 buildings
+
         DataSource ds = NoiseModellingInstance.createDataSource("", "",
-                "C:\\Users\\kento\\softs\\noisemodelling_plamade_3.4.1\\data_dir", "h2gisdb")
+                "/home/nicolas/data/plamade/dep38/", "h2gisdb")
         ds.getConnection().withCloseable {
             Connection connection ->
                 Sql sql = new Sql(connection)
                 def conf = sql.firstRow("SELECT CONFID, CONFREFLORDER, CONFMAXSRCDIST, CONFMAXREFLDIST, CONFDISTBUILDINGSRECEIVERS, CONFTHREADNUMBER, CONFDIFFVERTICAL, CONFDIFFHORIZONTAL, CONFSKIPLDAY, CONFSKIPLEVENING, CONFSKIPLNIGHT, CONFSKIPLDEN, CONFEXPORTSOURCEID, WALL_ALPHA\n" +
-                        "FROM PUBLIC.CONF WHERE CONFID = 3")
-
+                        "FROM PUBLIC.CONF WHERE CONFID = 4")
+                def result = ""
                 GroovyShell shell = new GroovyShell()
-                Script receiversGrid= shell.parse(new File("script_groovy", "s4_Rail_Noise_level.groovy"))
+                Script shellScript= shell.parse(new File("script_groovy", "s2_Receivers_Grid.groovy"))
                 Map<String, Object> inputs = new HashMap<>()
+                //inputs.put("confId", conf.CONFID)
+                //def result = receiversGrid.invokeMethod("exec", [connection, inputs])
+
+//                shellScript= shell.parse(new File("script_groovy", "s3_Emission_Noise_level.groovy"))
+//                inputs = new HashMap<>()
+//                inputs.put("confId", conf.CONFID)
+//                result = shellScript.invokeMethod("exec", [connection, inputs])
+
+                shellScript= shell.parse(new File("script_groovy", "s4_Rail_Noise_level.groovy"))
+                inputs = new HashMap<>()
                 inputs.put("confId", conf.CONFID)
-                def result = receiversGrid.invokeMethod("exec", [connection, inputs])
+                result = shellScript.invokeMethod("exec", [connection, inputs])
                 System.out.println(result)
+
+                //POINT(866138.95 6506059.04 236.27) 16 seconds
         }
     }
 }

@@ -66,6 +66,8 @@ dependencies {
     implementation 'org.pac4j:pac4j-oidc:2.2.1'
     implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
 
+    implementation group: 'net.postgis', name: 'postgis-jdbc-jtsparser', version: '2.3.0'
+
     implementation 'com.jcraft:jsch:0.1.55'
 
     runtimeOnly group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'

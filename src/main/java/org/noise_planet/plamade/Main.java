@@ -60,7 +60,7 @@ public class Main {
         }
 
         String databasePath = Paths.get("database").toAbsolutePath().toString();
-        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").env().require("/auth", AuthConfig.class)
+        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").port(9580).env().require("/auth", AuthConfig.class)
                 .baseDir(basePath).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
                 .module(AuthModule.class)
                 .module(TextTemplateModule.class)
@@ -96,7 +96,7 @@ public class Main {
                     // First database
                     st.executeUpdate("CREATE TABLE USERS(PK_USER SERIAL, USER_OID VARCHAR)");
                     st.executeUpdate("CREATE TABLE USER_ASK_INVITATION(PK_INVITE SERIAL, USER_OID VARCHAR, MAIL VARCHAR)");
-                    st.executeUpdate("CREATE TABLE IF NOT EXISTS JOBS(PK_JOB SERIAL,REMOTE_JOB_FOLDER UUID NOT NULL," +
+                    st.executeUpdate("CREATE TABLE IF NOT EXISTS JOBS(PK_JOB SERIAL,REMOTE_JOB_FOLDER VARCHAR NOT NULL," +
                             " BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE, END_DATE TIMESTAMP WITHOUT TIME ZONE, PROGRESSION INTEGER DEFAULT 0, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER NOT NULL)");
 
                 }

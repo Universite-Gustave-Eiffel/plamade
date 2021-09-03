@@ -12,24 +12,23 @@
 
 package org.noise_planet.plamade.process;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
-import groovy.util.Eval;
-import groovy.util.GroovyScriptEngine;
-import org.h2.Driver;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.functions.factory.H2GISFunctions;
-import org.h2gis.functions.io.dbf.DBFRead;
-import org.h2gis.functions.io.shp.SHPRead;
+import org.noise_planet.plamade.config.AdminConfig;
+import org.noise_planet.plamade.config.DataBaseConfig;
 import org.osgi.service.jdbc.DataSourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ratpack.handling.Context;
 
 import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Locale;
@@ -75,27 +74,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     public void importData(Connection nmConnection) throws SQLException, IOException {
 
         GroovyShell shell = new GroovyShell();
-        //Script extractDepartment= shell.parse(new File("script_groovy", "s1_Extract_Department.groovy"));
+        Script extractDepartment= shell.parse(new File("script_groovy", "s1_Extract_Department.groovy"));
 
         Map<String, Object> inputs = new HashMap<>();
-        inputs.put("databaseUser", "");
-        inputs.put("databasePassword", "");
+        inputs.put("databaseUser", configuration.getDataBaseConfig().user);
+        inputs.put("databasePassword", configuration.getDataBaseConfig().password);
         inputs.put("fetchDistance", 1000);
         inputs.put("inseeDepartment", configuration.getInseeDepartment());
 
-        //Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
-
-        SHPRead.readShape(nmConnection, "plamade_test_dep38/BUILDINGS_SCREENS.shp");
-        SHPRead.readShape(nmConnection, "plamade_test_dep38/DEM.shp");
-        SHPRead.readShape(nmConnection, "plamade_test_dep38/LANDCOVER.shp");
-        SHPRead.readShape(nmConnection, "plamade_test_dep38/RAIL_SECTIONS.shp");
-        SHPRead.readShape(nmConnection, "plamade_test_dep38/roads.shp");
-        DBFRead.read(nmConnection, "plamade_test_dep38/RAIL_TRAFFIC.dbf");
-        DBFRead.read(nmConnection, "plamade_test_dep38/ZONE.dbf");
-        DBFRead.read(nmConnection, "plamade_test_dep38/CONF.dbf");
-        DBFRead.read(nmConnection, "plamade_test_dep38/CONF_RAIL.dbf");
-        DBFRead.read(nmConnection, "plamade_test_dep38/CONF_ROAD.dbf");
-        SHPRead.readShape(nmConnection, "plamade_test_dep38/SCREENS.shp");
+        Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
     public void makeGrid(Connection nmConnection) throws SQLException, IOException {
@@ -103,9 +90,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         Script receiversGrid= shell.parse(new File("script_groovy", "s2_Receivers_Grid.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
+
         Object result = receiversGrid.invokeMethod("exec", new Object[] {nmConnection, inputs});
-
-
     }
 
     @Override
@@ -133,9 +119,6 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             try(Connection nmConnection = nmDataSource.getConnection()) {
-                Map<String, Object> inputs = new HashMap<>();
-
-                // Demo copy data into db
                 importData(nmConnection);
                 makeGrid(nmConnection);
 
@@ -177,12 +160,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         private String workingDirectory;
         private int configurationId;
         private String inseeDepartment;
+        private int taskPrimaryKey;
+        private DataBaseConfig dataBaseConfig;
 
-        public Configuration(String workingDirectory, int configurationId,
-                             String inseeDepartment) {
+        public Configuration(String workingDirectory, int configurationId, String inseeDepartment, int taskPrimaryKey
+                , DataBaseConfig dataBaseConfig) {
             this.workingDirectory = workingDirectory;
             this.configurationId = configurationId;
             this.inseeDepartment = inseeDepartment;
+            this.taskPrimaryKey = taskPrimaryKey;
+            this.dataBaseConfig = dataBaseConfig;
         }
 
         public String getWorkingDirectory() {
@@ -195,6 +182,14 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
         public String getInseeDepartment() {
             return inseeDepartment;
+        }
+
+        public int getTaskPrimaryKey() {
+            return taskPrimaryKey;
+        }
+
+        public DataBaseConfig getDataBaseConfig() {
+            return dataBaseConfig;
         }
     }
 }
