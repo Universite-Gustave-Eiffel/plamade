@@ -111,27 +111,10 @@ public class Main {
                 // In the future check databaseVersion for database upgrades
                 if(databaseVersion != DATABASE_VERSION) {
                     if(databaseVersion == 1) {
-                        st.executeUpdate("CREATE TABLE LOG (  PK_LOG SERIAL PRIMARY KEY, THREAD VARCHAR NOT NULL,DATED   DATETIME NOT NULL,  LOGGER  VARCHAR NOT NULL,  LEVEL   VARCHAR NOT NULL,  MESSAGE VARCHAR NOT NULL );");
-                        st.execute("CREATE INDEX ON LOG(THREAD);");
                         databaseVersion = 2;
                     }
                     st.executeUpdate("UPDATE ATTRIBUTES SET DATABASE_VERSION = " + DATABASE_VERSION);
                 }
-
-
-
-                // Add database logger
-                Logger rootLogger = Logger.getRootLogger();
-                JDBCAppender jdbcAppender = new JDBCAppender();
-                jdbcAppender.setURL(dbUrl);
-                jdbcAppender.setDriver(dataSourceClassName);
-                jdbcAppender.setUser("");
-                jdbcAppender.setPassword("");
-                jdbcAppender.setBufferSize(5);
-                jdbcAppender.setSql("INSERT INTO LOGS(THREAD, DATED, LOGGER, LEVEL, MESSAGE) VALUES ('%t', now(), %C','%p','%m')");
-                jdbcAppender.setLayout(new PatternLayout());
-                jdbcAppender.activateOptions();
-                rootLogger.addAppender(jdbcAppender);
             }
         }
     }

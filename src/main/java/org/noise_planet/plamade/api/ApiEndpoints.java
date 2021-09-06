@@ -39,6 +39,9 @@ public class ApiEndpoints implements Action<Chain> {
                 sc.get("accept", AcceptUser.class);
                 sc.get("refuse", RefuseUser.class);
             });
+            c.prefix("job/:jobid", sc -> {
+                sc.get("logs", GetJobLogs.class);
+            });
         });
 
         // Logout
