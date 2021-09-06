@@ -14,6 +14,7 @@ package org.noise_planet.plamade;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
+import org.apache.log4j.PropertyConfigurator;
 import org.apache.log4j.jdbc.JDBCAppender;
 import org.noise_planet.plamade.api.ApiEndpoints;
 import org.noise_planet.plamade.api.ApiModule;
@@ -44,6 +45,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.Objects;
 
 /**
  * Starts the plamade application.
@@ -55,6 +57,8 @@ public class Main {
     private static String dataSourceClassName;
 
     public static void main(String... args) throws Exception {
+        PropertyConfigurator.configure(Objects.requireNonNull(
+                Main.class.getResource("log4j.properties")).getFile());
         Path basePath = BaseDir.find();
         File configPath = new File(basePath.toFile(), "config.yaml");
         if(!configPath.exists()) {

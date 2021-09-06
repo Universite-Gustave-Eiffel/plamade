@@ -37,11 +37,19 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
 
-    public static List<String> getLastLines(File logFile, int numberOfLines) throws IOException {
+    /**
+     * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
+     * @param logFile
+     * @param numberOfLines
+     * @return
+     * @throws IOException
+     */
+    public static List<String> getLastLines(File logFile, int numberOfLines, Pattern p) throws IOException {
         ArrayList<String> lastLines = new ArrayList<>(Math.max(20, numberOfLines));
         final int buffer = 8192;
         long fileSize = Files.size(logFile.toPath());
@@ -59,8 +67,13 @@ public class GetJobLogs implements Handler {
                 sb.insert(0, new String(b));
                 // Reverse search of end of line into the string buffer
                 int lastEndOfLine = sb.lastIndexOf("\n");
-                while (lastEndOfLine != -1) {
-                    lastLines.add(0,  sb.substring(lastEndOfLine, sb.length()));
+                while (lastEndOfLine != -1 && lastLines.size() < numberOfLines) {
+                    if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
+                        String line = sb.substring(lastEndOfLine + 1, sb.length());
+                        if(p == null || p.matcher(line).matches()) {
+                            lastLines.add(0, line);
+                        }
+                    }
                     sb.delete(lastEndOfLine, sb.length());
                     lastEndOfLine = sb.lastIndexOf("\n");
                 }
@@ -77,8 +90,8 @@ public class GetJobLogs implements Handler {
                 SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
-                        model.put("jobs", jobList);
-                        model.put("profile", profile);
+//                        model.put("jobs", jobList);
+//                        model.put("profile", profile);
                         ctx.render(Template.thymeleafTemplate(model, "joblist"));
                     }
                 });

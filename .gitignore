@@ -12,3 +12,4 @@ computation_core/dependencies/*.jar
 src/ratpack/config.yaml
 plamade_test_dep*
 out/
+application.log
