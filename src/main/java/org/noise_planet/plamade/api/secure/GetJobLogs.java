@@ -37,14 +37,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
 
-    public List<String> FilterByThread(List<String> messages, String threadId) {
+    public List<String> filterByThread(List<String> messages, String threadId) {
         List<String> filtered = new ArrayList<>();
-        Pattern p = Pattern.compile("");
+        Pattern p = Pattern.compile("\\[(\\w*)] (\\w*) (.*)$");
+        boolean match = false;
+        for(String line : messages) {
+            Matcher m = p.matcher(line);
+            if(m.matches() && m.groupCount() > 2) { // found start of log message with expected format
+                match = threadId.equalsIgnoreCase(m.group(1));
+            }
+            if(match) {
+                filtered.add(line);
+            }
+        }
         return filtered;
     }
     /**
