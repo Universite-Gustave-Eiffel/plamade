@@ -42,6 +42,11 @@ import java.util.regex.Pattern;
 public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
 
+    public List<String> FilterByThread(List<String> messages, String threadId) {
+        List<String> filtered = new ArrayList<>();
+        Pattern p = Pattern.compile("");
+        return filtered;
+    }
     /**
      * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
      * @param logFile
@@ -49,7 +54,7 @@ public class GetJobLogs implements Handler {
      * @return
      * @throws IOException
      */
-    public static List<String> getLastLines(File logFile, int numberOfLines, Pattern p) throws IOException {
+    public static List<String> getLastLines(File logFile, int numberOfLines) throws IOException {
         ArrayList<String> lastLines = new ArrayList<>(Math.max(20, numberOfLines));
         final int buffer = 8192;
         long fileSize = Files.size(logFile.toPath());
@@ -69,10 +74,7 @@ public class GetJobLogs implements Handler {
                 int lastEndOfLine = sb.lastIndexOf("\n");
                 while (lastEndOfLine != -1 && lastLines.size() < numberOfLines) {
                     if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
-                        String line = sb.substring(lastEndOfLine + 1, sb.length());
-                        if(p == null || p.matcher(line).matches()) {
-                            lastLines.add(0, line);
-                        }
+                        lastLines.add(0, sb.substring(lastEndOfLine + 1, sb.length()));
                     }
                     sb.delete(lastEndOfLine, sb.length());
                     lastEndOfLine = sb.lastIndexOf("\n");

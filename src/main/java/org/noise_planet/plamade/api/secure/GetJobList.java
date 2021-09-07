@@ -33,6 +33,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.text.DateFormat;
+import java.text.DecimalFormat;
 import java.util.*;
 
 import static ratpack.jackson.Jackson.json;
@@ -69,6 +70,8 @@ public class GetJobList implements Handler {
                                 PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS" + " " +
                                         "WHERE PK_USER = ? ORDER BY BEGIN_DATE DESC");
                                 statement.setInt(1, pkUser);
+                                DecimalFormat f = (DecimalFormat)(DecimalFormat.getInstance(Locale.ROOT));
+                                f.applyPattern("#.### '%'");
                                 try (ResultSet rs = statement.executeQuery()) {
                                     List<String> fields = JDBCUtilities.getFieldNames(rs.getMetaData());
                                     while (rs.next()) {
@@ -82,7 +85,7 @@ public class GetJobList implements Handler {
                                             row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
                                             Timestamp eDate = rs.getTimestamp("END_DATE");
                                             row.put("endDate", !rs.wasNull() ? mediumDateFormatEN.format(eDate) : "-");
-                                            row.put("status", rs.getInt("PROGRESSION") + " %");
+                                            row.put("status", f.format(rs.getDouble("PROGRESSION")));
                                             row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
                                             row.put("conf_id", rs.getInt("CONF_ID"));
                                         }

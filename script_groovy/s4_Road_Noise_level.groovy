@@ -53,6 +53,8 @@ import org.slf4j.LoggerFactory
 
 import java.sql.Connection
 import java.sql.SQLException
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 
 title = 'Compute LDay,Levening,LNight,Lden from road traffic'
@@ -305,6 +307,7 @@ def exec(Connection connection, input) {
     ldenConfig_propa.setlEveningTable("LEVENING_ROADS")
     ldenConfig_propa.setlNightTable("LNIGHT_ROADS")
     ldenConfig_propa.setlDenTable("LDEN_ROADS")
+    ldenConfig_propa.setSqlOutputFile()
 
     LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa)
     // Add train directivity
@@ -382,13 +385,26 @@ def exec(Connection connection, input) {
     // Run Calculations
     // --------------------------------------------
 
-    // Init ProgressLogger (loading bar)
-    RootProgressVisitor progressLogger = new RootProgressVisitor(1, true, 1)
-
-
     logger.info("Start calculation... ")
 
-    ProfilerThread profilerThread = new ProfilerThread(new File("profile.csv"));
+    ProgressVisitor progressLogger
+    File workingDir = new File("")
+    if("progressVisitor" in input) {
+        progressLogger = input["progressVisitor"] as ProgressVisitor
+    } else {
+        progressLogger = new RootProgressVisitor(1, true, 1);
+    }
+    //connection.getMetaData().getURL()
+    String profileName = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy_MM_dd.HH'h'mm'm'ss's'", Locale.ROOT))+"."+System.currentTimeMillis();
+    File profileFile
+    if("workingDirectory" in input) {
+        profileFile = new File(new File(input["workingDirectory"] as String), "profile_"+profileName+".csv")
+        ldenConfig_propa.setSqlOutputFile(new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql"))
+    } else {
+        profileFile = new File("profile_"+profileName+".csv")
+    }
+
+    ProfilerThread profilerThread = new ProfilerThread(profileFile);
     profilerThread.addMetric(ldenProcessing);
     profilerThread.addMetric(new ProgressMetric(progressLogger))
     profilerThread.addMetric(new JVMMemoryMetric())

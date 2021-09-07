@@ -110,6 +110,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         Object result = receiversGrid.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
+
+    public Object RoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script process= shell.parse(new File("script_groovy", "s4_Road_Noise_level.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", configuration.getConfigurationId());
+        inputs.put("workingDirectory", configuration.getWorkingDirectory());
+        inputs.put("progressVisitor", progressVisitor);
+        return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
+    }
     @Override
     public void run() {
         Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
@@ -136,13 +146,14 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(3);
+            ProgressVisitor subProg = progressVisitor.subProcess(4);
             try(Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
                 makeGrid(nmConnection);
                 subProg.endStep();
                 makeEmission(nmConnection);
                 subProg.endStep();
+                RoadNoiselevel(nmConnection, subProg);
             }
             // Update Job informations
             try (Connection connection = plamadeDataSource.getConnection()) {
