@@ -708,9 +708,16 @@ def exec(Connection connection, input) {
 
     def queries_dem_roads = """
 
-    CREATE LINKED TABLE roads_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4','noisemodelling', 
-        '(SELECT r.* FROM bd_topo.t_route_metro_corse r,
-        (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000)');
+    -- COPY BDTOPO roads (3 dimensions) for the studied area
+    CREATE LINKED TABLE t_route_metro_corse ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+            '(SELECT r.* FROM bd_topo.t_route_metro_corse r,
+            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000)');
+    
+    -- Remove BDTOPO roads that are far from studied roads
+    create table ROUTE_METRO_CORSE as select * from t_route_metro_corse;
+    delete from ROUTE_METRO_CORSE B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    
+    drop table t_route_metro_corse; 
  
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
     CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT d.the_geom FROM dem d;    
@@ -719,19 +726,10 @@ def exec(Connection connection, input) {
     ALTER TABLE route_metro_corse add primary key(pk_line);
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);
 
-    DROP TABLE BUFFERED_PTLINE IF EXISTS;
-    CREATE TABLE BUFFERED_PTLINE AS SELECT THE_GEOM FROM st_explode('(SELECT st_tomultipoint(st_densify(st_buffer(the_geom, GREATEST(NB_VOIES, 1) * 3.5  ,''endcap=flat''), $resolution )) the_geom from route_metro_corse)');
-    CREATE SPATIAL INDEX ON BUFFERED_PTLINE(THE_GEOM);
-
-    UPDATE BUFFERED_PTLINE AS P SET THE_GEOM = ST_UpdateZ(P.THE_GEOM,  ST_Z(ST_ProjectPoint(P.THE_GEOM,(SELECT RM.THE_GEOM FROM route_metro_corse rm WHERE st_expand(P.the_geom,15, 15)  && RM.the_geom ORDER BY st_distance(P.the_geom, rm.the_geom) LIMIT 1))));    
-    DROP TABLE IF EXISTS BUFFERED_PTLINE_Z ;
-    CREATE TABLE BUFFERED_PTLINE_Z  AS SELECT ST_ADDZ(ST_Force3D(r.THE_GEOM),  ST_Z(SELECT ST_ProjectPoint( r.THE_GEOM,t.THE_GEOM) THE_GEOM FROM bd_topo.t_route_metro_corse t where st_expand(r.the_geom,15, 15)  && t.the_geom order by st_distance(r.the_geom, t.the_geom) LIMIT 1)) the_geom FROM BUFFERED_PTLINE_EX r ; 
-    DROP TABLE BUFFERED_PTLINE_EX IF EXISTS;
-
-    DROP TABLE IF EXISTS dem;
-    CREATE TABLE dem AS SELECT THE_GEOM FROM DEM_WITHOUT_PTLINE UNION ALL SELECT THE_GEOM FROM BUFFERED_PTLINE_Z;
-    DROP TABLE BUFFERED_PTLINE_Z IF EXISTS;
-    DROP TABLE DEM_WIHTOUT_PTLINE IF EXISTS;  
+    -- Create buffer points from roads and copy the elevation from the roads to the point
+    DROP TABLE IF EXISTS BUFFERED_PTLINE;
+    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from route_metro_corse rmc;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM) SELECT ST_MAKEPOINT(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM FROM ST_EXPLODE('BUFFERED_PTLINE') P, route_metro_corse L WHERE P.PK_LINE = L.PK_LINE;
 
     """
 
