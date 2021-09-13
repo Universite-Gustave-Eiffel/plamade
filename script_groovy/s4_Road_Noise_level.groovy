@@ -247,7 +247,7 @@ def exec(Connection connection, input) {
     int n_thread = row_conf.confthreadnumber.toInteger()
     // overwrite with the system number of thread - 1
     Runtime runtime = Runtime.getRuntime();
-    n_thread = runtime.availableProcessors() - 1;
+    n_thread = Math.max(1, runtime.availableProcessors() - 1)
     boolean compute_vertical_diffraction = row_conf.confdiffvertical
     boolean compute_horizontal_diffraction = row_conf.confdiffhorizontal
     boolean confSkipLday = row_conf.confskiplday
