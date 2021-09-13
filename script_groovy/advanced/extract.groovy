@@ -714,6 +714,7 @@ def exec(Connection connection, input) {
             (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > -1000)');
     
     -- Remove BDTOPO roads that are far from studied roads
+    DROP TABLE IF EXISTS ROUTE_METRO_CORSE;
     create table ROUTE_METRO_CORSE as select * from t_route_metro_corse;
     delete from ROUTE_METRO_CORSE B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     
