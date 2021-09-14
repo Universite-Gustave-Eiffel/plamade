@@ -388,7 +388,7 @@ def exec(Connection connection, input) {
     logger.info("Start calculation... ")
 
     ProgressVisitor progressLogger
-    File workingDir = new File("")
+
     if("progressVisitor" in input) {
         progressLogger = input["progressVisitor"] as ProgressVisitor
     } else {

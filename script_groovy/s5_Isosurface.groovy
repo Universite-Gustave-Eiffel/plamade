@@ -33,10 +33,12 @@ package org.noise_planet.noisemodelling.wps.plamade;
 import geoserver.GeoServer
 import geoserver.catalog.Store
 import org.geotools.jdbc.JDBCDataStore
+import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.noise_planet.noisemodelling.jdbc.BezierContouring
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -89,6 +91,13 @@ def exec(Connection connection, input) {
 
     Integer railRoad = input["rail_or_road"]
 
+    ProgressVisitor progressLogger
+
+    if("progressVisitor" in input) {
+        progressLogger = input["progressVisitor"] as ProgressVisitor
+    } else {
+        progressLogger = new RootProgressVisitor(1, true, 1);
+    }
     // List of iso classes :  isoClasses
     // LDEN classes : 55-59, 60-64, 65-69, 70-74 et >75 dB
     def isoLevelsLDEN=[55.0d,60.0d,65.0d,70.0d,75.0d,200.0d]
@@ -148,6 +157,10 @@ def exec(Connection connection, input) {
 
 
     logger.info("Process each rail or road infrastructures")
+
+    int nbUUEID = sql.firstRow("SELECT COUNT(DISTINCT UUEID) CPT FROM " + source + " ORDER BY UUEID ASC")[0] as Integer
+    ProgressVisitor prog = progressLogger.subProcess(nbUUEID)
+
     // Process each rail or road infrastructures
     sql.eachRow("SELECT DISTINCT UUEID FROM " + source + " ORDER BY UUEID ASC") { row ->
         String uueid = row[0] as String
@@ -157,10 +170,10 @@ def exec(Connection connection, input) {
         
         sql.execute(String.format("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN"))
 
-        logger.info("Create RECEIVERS_DELAUNAY_NIGHT for uueid= %s", uueid)
+        logger.info(String.format("Create RECEIVERS_DELAUNAY_NIGHT for uueid= %s", uueid))
         sql.execute("create table RECEIVERS_DELAUNAY_NIGHT(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, 10*log10(sum(POWER(10, LAEQ / 10))) as LAEQ FROM "+tableNIGHT+" L INNER JOIN "+source+" R ON L.IDSOURCE = R.PK INNER JOIN RECEIVERS RE ON L.IDRECEIVER = RE.PK WHERE R.UUEID='"+uueid+"' AND RE.RCV_TYPE = 2 GROUP BY RE.PK_1, RE.THE_GEOM;")
         sql.execute("ALTER TABLE RECEIVERS_DELAUNAY_NIGHT ADD PRIMARY KEY (PK)")
-        logger.info("Create RECEIVERS_DELAUNAY_DEN for uueid= %s", uueid)
+        logger.info(String.format("Create RECEIVERS_DELAUNAY_DEN for uueid= %s", uueid))
         sql.execute("create table RECEIVERS_DELAUNAY_DEN(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, 10*log10(sum(POWER(10, LAEQ / 10))) as LAEQ FROM "+tableDEN+" L INNER JOIN "+source+" R ON L.IDSOURCE = R.PK INNER JOIN RECEIVERS RE ON L.IDRECEIVER = RE.PK WHERE R.UUEID='"+uueid+"' AND RE.RCV_TYPE = 2 GROUP BY RE.PK_1, RE.THE_GEOM;")
         sql.execute("ALTER TABLE RECEIVERS_DELAUNAY_DEN ADD PRIMARY KEY (PK)")
 
@@ -173,6 +186,8 @@ def exec(Connection connection, input) {
         generateIsoSurfaces(ldenInput, isoLevelsLDEN, ldenOutput, connection, uueid, 'LDEN', input)
 
         sql.execute("DROP TABLE IF EXISTS RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN")
+
+        prog.endStep()
     }
     
     logger.info("This is the ennnndd of the step 5")
