@@ -149,7 +149,7 @@ def exec(Connection connection, input) {
 
     logger.info("Process each rail or road infrastructures")
     // Process each rail or road infrastructures
-    sql.eachRow("SELECT DISTINCT UUEID FROM " + source) { row ->
+    sql.eachRow("SELECT DISTINCT UUEID FROM " + source + " ORDER BY UUEID ASC") { row ->
         String uueid = row[0] as String
             
         String ldenOutput = uueid + "_CONTOURING_LDEN"
@@ -157,11 +157,11 @@ def exec(Connection connection, input) {
         
         sql.execute(String.format("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN"))
 
-        logger.info("Create RECEIVERS_DELAUNAY_NIGHT for uueid=", uueid)
-        sql.execute("create table RECEIVERS_DELAUNAY_NIGHT(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, 10*log10(sum(POWER(10, LAEQ / 10))) as LAEQ FROM "+tableNIGHT+" L INNER JOIN "+source+" R ON L.IDSOURCE = R.PK INNER JOIN RECEIVERS RE ON L.IDRECEIVER = RE.PK WHERE R.UUEID='"+uueid+"' GROUP BY RE.PK_1, RE.THE_GEOM;")
+        logger.info("Create RECEIVERS_DELAUNAY_NIGHT for uueid= %s", uueid)
+        sql.execute("create table RECEIVERS_DELAUNAY_NIGHT(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, 10*log10(sum(POWER(10, LAEQ / 10))) as LAEQ FROM "+tableNIGHT+" L INNER JOIN "+source+" R ON L.IDSOURCE = R.PK INNER JOIN RECEIVERS RE ON L.IDRECEIVER = RE.PK WHERE R.UUEID='"+uueid+"' AND RE.RCV_TYPE = 2 GROUP BY RE.PK_1, RE.THE_GEOM;")
         sql.execute("ALTER TABLE RECEIVERS_DELAUNAY_NIGHT ADD PRIMARY KEY (PK)")
-        logger.info("Create RECEIVERS_DELAUNAY_DEN for uueid=", uueid)
-        sql.execute("create table RECEIVERS_DELAUNAY_DEN(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, 10*log10(sum(POWER(10, LAEQ / 10))) as LAEQ FROM "+tableDEN+" L INNER JOIN "+source+" R ON L.IDSOURCE = R.PK INNER JOIN RECEIVERS RE ON L.IDRECEIVER = RE.PK WHERE R.UUEID='"+uueid+"' GROUP BY RE.PK_1, RE.THE_GEOM;")
+        logger.info("Create RECEIVERS_DELAUNAY_DEN for uueid= %s", uueid)
+        sql.execute("create table RECEIVERS_DELAUNAY_DEN(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, 10*log10(sum(POWER(10, LAEQ / 10))) as LAEQ FROM "+tableDEN+" L INNER JOIN "+source+" R ON L.IDSOURCE = R.PK INNER JOIN RECEIVERS RE ON L.IDRECEIVER = RE.PK WHERE R.UUEID='"+uueid+"' AND RE.RCV_TYPE = 2 GROUP BY RE.PK_1, RE.THE_GEOM;")
         sql.execute("ALTER TABLE RECEIVERS_DELAUNAY_DEN ADD PRIMARY KEY (PK)")
 
 

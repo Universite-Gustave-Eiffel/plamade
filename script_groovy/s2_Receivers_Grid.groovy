@@ -386,6 +386,7 @@ def exec(Connection connection, input) {
     sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING UNION ALL SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY;")
     sql.execute("ALTER TABLE RECEIVERS ADD PRIMARY KEY(pk)")
     sql.execute("CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);")
+    sql.execute("CREATE INDEX ON RECEIVERS(RCV_TYPE)")
 
     // Process Done
     sql.execute(String.format("UPDATE metadata SET grid_end = NOW();"))
