@@ -31,6 +31,7 @@ import org.geotools.jdbc.JDBCDataStore
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.locationtech.jts.geom.Point
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovy.sql.Sql
@@ -102,7 +103,7 @@ def run(input) {
     }
 }
 
-def exec(Connection connection, input, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
+def exec(Connection connection, input) {
 
 
     //------------------------------------------------------
@@ -162,6 +163,14 @@ def exec(Connection connection, input, ProgressVisitor progressVisitor = new Emp
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
 
+
+    ProgressVisitor progressVisitor
+
+    if("progressVisitor" in input) {
+        progressVisitor = input["progressVisitor"] as ProgressVisitor
+    } else {
+        progressVisitor = new RootProgressVisitor(1, true, 1);
+    }
 
     // Declare table variables depending on the department and the projection system
     def srid = "2154"

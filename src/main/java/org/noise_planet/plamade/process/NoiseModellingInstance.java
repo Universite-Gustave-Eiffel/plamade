@@ -89,8 +89,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         inputs.put("databasePassword", configuration.getDataBaseConfig().password);
         inputs.put("fetchDistance", 1000);
         inputs.put("inseeDepartment", configuration.getInseeDepartment());
+        inputs.put("progressVisitor", progressVisitor);
 
-        Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs, progressVisitor});
+        Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
 
         try(FileWriter fileWriter = new FileWriter(new File(configuration.getWorkingDirectory(), "import.html"))) {
             fileWriter.write(result.toString());
