@@ -1,15 +1,21 @@
 package org.noise_planet.plamade
 
+import groovy.sql.GroovyResultSet
 import groovy.sql.Sql
 import org.junit.Test
 import org.noise_planet.noisemodelling.pathfinder.ComputeRays
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation
 import org.noise_planet.plamade.process.NoiseModellingInstance
 
 import javax.sql.DataSource
+import java.nio.file.Files
+import java.nio.file.Path
 import java.sql.Connection
 import java.text.CharacterIterator
 import java.text.StringCharacterIterator
+
+import static groovy.util.GroovyTestCase.assertEquals
 
 class testPerf {
     public static String humanReadableByteCountSI(long bytes) {
@@ -25,6 +31,32 @@ class testPerf {
     }
 
     @Test
+    void testParseSQL() {
+        URL resourcePath = testPerf.class.getResource("Road_Noise_level.sql")
+        String workingFolder = new File(resourcePath.getPath()).getParent()
+        long heapMaxSize = Runtime.getRuntime().maxMemory();
+        System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
+
+        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+                workingFolder, "h2gisdb")
+        ds.getConnection().withCloseable { Connection connection ->
+            GroovyShell shell = new GroovyShell()
+            Script shellScript = shell.parse(new File("script_groovy", "s42_Load_Noise_level.groovy"))
+            Map<String, Object> inputs = new HashMap<>();
+            inputs.put("confId", 4);
+            inputs.put("workingDirectory", workingFolder);
+            inputs.put("progressVisitor", new RootProgressVisitor(1, true, 1));
+            def result = shellScript.invokeMethod("exec", [connection, inputs])
+            System.out.println(result)
+
+
+            Sql sql = new Sql(connection)
+            List<GroovyResultSet> rows = sql.rows("SELECT * FROM LDEN_ROADS ORDER BY IDRECEIVER")
+            assertEquals(577176, rows[0]["IDRECEIVER"])
+            assertEquals(3423051, rows[rows.size() - 1]["IDRECEIVER"])
+        }
+    }
+
     public void testCell() {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))

@@ -119,8 +119,8 @@ static def parseScript(File scriptFile, Sql sql, ProgressVisitor progressLogger)
         String statement = scriptReader.readStatement()
         while (statement != null) {
             sql.execute(statement)
-            statement = scriptReader.readStatement()
             subProgress.setStep((int)(s.getChannel().position() / BUFFER_LENGTH))
+            statement = scriptReader.readStatement()
         }
     } finally {
         reader.close()
@@ -149,6 +149,14 @@ def exec(Connection connection, input) {
     // Get every inputs
     // -------------------
 
+    File scriptFile = new File("Road_Noise_level.sql")
+    if("workingDirectory" in input) {
+        scriptFile = new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql")
+    }
+    if(!scriptFile.exists()) {
+        return scriptFile.absolutePath + " does not exists"
+    }
+
     ProgressVisitor progressLogger
 
     if("progressVisitor" in input) {
@@ -157,10 +165,6 @@ def exec(Connection connection, input) {
         progressLogger = new RootProgressVisitor(1, true, 1);
     }
 
-    File scriptFile = new File("Road_Noise_level.sql")
-    if(!scriptFile.exists()) {
-        return scriptFile + " does not exists"
-    }
 
     parseScript(scriptFile, sql, progressLogger)
 

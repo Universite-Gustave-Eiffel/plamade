@@ -32,6 +32,7 @@ import javax.sql.DataSource;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -90,6 +91,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         inputs.put("inseeDepartment", configuration.getInseeDepartment());
 
         Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs, progressVisitor});
+
+        try(FileWriter fileWriter = new FileWriter(new File(configuration.getWorkingDirectory(), "import.html"))) {
+            fileWriter.write(result.toString());
+        }
     }
 
     public void makeGrid(Connection nmConnection) throws SQLException, IOException {
@@ -120,6 +125,28 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         inputs.put("progressVisitor", progressVisitor);
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
+
+    public Object LoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script process= shell.parse(new File("script_groovy", "s42_Load_Noise_level.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", configuration.getConfigurationId());
+        inputs.put("workingDirectory", configuration.getWorkingDirectory());
+        inputs.put("progressVisitor", progressVisitor);
+        return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
+    }
+
+    public Object Isosurface(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script process= shell.parse(new File("script_groovy", "s5_Isosurface.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", configuration.getConfigurationId());
+        inputs.put("workingDirectory", configuration.getWorkingDirectory());
+        inputs.put("progressVisitor", progressVisitor);
+        return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
+    }
+
+
     @Override
     public void run() {
         Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
@@ -146,7 +173,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(4);
+            ProgressVisitor subProg = progressVisitor.subProcess(6);
             try(Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
                 makeGrid(nmConnection);
@@ -154,6 +181,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 makeEmission(nmConnection);
                 subProg.endStep();
                 RoadNoiselevel(nmConnection, subProg);
+                LoadNoiselevel(nmConnection, subProg);
+                Isosurface(nmConnection, subProg);
             }
             // Update Job informations
             try (Connection connection = plamadeDataSource.getConnection()) {

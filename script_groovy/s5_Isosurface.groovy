@@ -158,7 +158,7 @@ def exec(Connection connection, input) {
 
     logger.info("Process each rail or road infrastructures")
 
-    int nbUUEID = sql.firstRow("SELECT COUNT(DISTINCT UUEID) CPT FROM " + source + " GROUP BY UUEID ORDER BY UUEID ASC")[0] as Integer
+    int nbUUEID = sql.firstRow("SELECT COUNT(DISTINCT UUEID) CPT FROM " + source)[0] as Integer
     ProgressVisitor prog = progressLogger.subProcess(nbUUEID)
 
     // Process each rail or road infrastructures
@@ -206,7 +206,7 @@ def exec(Connection connection, input) {
  * @param input
  * @return
  */
-def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def connection, def uueid, def period, def input) {
+def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def connection, String uueid, String period, def input) {
 
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
@@ -239,7 +239,7 @@ def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def con
         
         // Generate temporary table to store ISO areas
         sql.execute("DROP TABLE IF EXISTS ISO_AREA")
-        sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT the_geom, null, '"+uueid+"', '"+period+"', ISOLABEL, ST_AREA(the_geom) AREA FROM CONTOURING_NOISE_MAP")
+        sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT ST_ACCUM(the_geom) the_geom, null, '"+uueid+"', '"+period+"', ISOLABEL, SUM(ST_AREA(the_geom)) AREA FROM CONTOURING_NOISE_MAP GROUP BY ISOLABEL")
 
         // Update noise classes for LDEN
         sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN  'Lden5559' WHEN NOISELEVEL = '60-65' THEN  'Lden6064' WHEN NOISELEVEL = '65-70' THEN  'Lden6569' WHEN NOISELEVEL = '70-75' THEN  'Lden7074' WHEN NOISELEVEL = '> 75' THEN  'LdenGreaterThan75' END) WHERE PERIOD='LDEN';")
