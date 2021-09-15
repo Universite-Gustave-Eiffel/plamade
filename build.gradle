@@ -22,6 +22,11 @@ group = 'org.noise_planet'
 version = '0.1.0'
 sourceCompatibility = 1.8
 
+compileJava {
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+}
+
 sourceSets {
     main {
         groovy {
