@@ -142,6 +142,14 @@ def exec(Connection connection, input) {
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
+    ProgressVisitor progressVisitor
+
+    if("progressVisitor" in input) {
+        progressVisitor = input["progressVisitor"] as ProgressVisitor
+    } else {
+        progressVisitor = new RootProgressVisitor(1, true, 1);
+    }
+
     ProgressVisitor progress = progressVisitor.subProcess(11)
     // print to command window
     logger.info('Start linking with PostGIS')
@@ -162,15 +170,6 @@ def exec(Connection connection, input) {
     //def databaseUrl = input["databaseUrl"] as String
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
-
-
-    ProgressVisitor progressVisitor
-
-    if("progressVisitor" in input) {
-        progressVisitor = input["progressVisitor"] as ProgressVisitor
-    } else {
-        progressVisitor = new RootProgressVisitor(1, true, 1);
-    }
 
     // Declare table variables depending on the department and the projection system
     def srid = "2154"
@@ -693,11 +692,11 @@ def exec(Connection connection, input) {
     create table ROUTE_METRO_CORSE as select * from t_route_metro_corse;
     delete from ROUTE_METRO_CORSE B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     
-    drop table t_route_metro_corse; 
+    drop table if exists t_route_metro_corse; 
  
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
     CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT d.the_geom FROM dem d;    
-    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM t_route_metro_corse  b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15)   && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
+    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM route_metro_corse b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15)   && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
     ALTER TABLE route_metro_corse ADD pk_line INT AUTO_INCREMENT NOT NULL;
     ALTER TABLE route_metro_corse add primary key(pk_line);
     -- Create buffer points from roads and copy the elevation from the roads to the point

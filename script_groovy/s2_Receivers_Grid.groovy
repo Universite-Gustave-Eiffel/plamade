@@ -148,8 +148,12 @@ def exec(Connection connection, input) {
     receivers_table_name = receivers_table_name.toUpperCase()
 
     Boolean hasPop = JDBCUtilities.hasField(connection, building_table_name, "POP")
-    if (hasPop) logger.info("The building table has a column named POP.")
-    if (!hasPop) logger.info("The building table has not a column named POP.")
+    if (hasPop) {
+        logger.info("The building table has a column named POP.")
+    }
+    if (!hasPop) {
+        logger.info("The building table has not a column named POP.")
+    }
 
     if (!JDBCUtilities.hasField(connection, building_table_name, "HEIGHT")) {
         resultString = "Buildings table must have HEIGHT field"
@@ -221,9 +225,11 @@ def exec(Connection connection, input) {
             def geom = row[1] as Geometry
             if (geom instanceof LineString) {
                 splitLineStringIntoPoints(geom as LineString, delta, pts)
-            } else if (geom instanceof MultiLineString) {
-                for (int idgeom = 0; idgeom < geom.numGeometries; idgeom++) {
-                    splitLineStringIntoPoints(geom.getGeometryN(idgeom) as LineString, delta, pts)
+            } else {
+                if (geom instanceof MultiLineString) {
+                    for (int idgeom = 0; idgeom < geom.numGeometries; idgeom++) {
+                        splitLineStringIntoPoints(geom.getGeometryN(idgeom) as LineString, delta, pts)
+                    }
                 }
             }
             for (int idp = 0; idp < pts.size(); idp++) {
@@ -351,10 +357,11 @@ def exec(Connection connection, input) {
     AtomicInteger pk = new AtomicInteger(0)
     ProgressVisitor progressVisitorNM = progressLogger.subProcess(noiseMap.getGridDim() * noiseMap.getGridDim())
     noiseMap.setGridDim(25)
+    String triangleTable = "TRIANGLES_DELAUNAY"
     for (int i = 0; i < noiseMap.getGridDim(); i++) {
         for (int j = 0; j < noiseMap.getGridDim(); j++) {
             logger.info("Compute cell " + (i * noiseMap.getGridDim() + j + 1) + " of " + noiseMap.getGridDim() * noiseMap.getGridDim())
-            noiseMap.generateReceivers(connection, i, j, receivers_table_name, "TRIANGLES_DELAUNAY", pk)
+            noiseMap.generateReceivers(connection, i, j, receivers_table_name, triangleTable, pk)
             progressVisitorNM.endStep()
         }
     }
@@ -383,11 +390,15 @@ def exec(Connection connection, input) {
     
     sql.execute("DROP TABLE RECEIVERS IF EXISTS;")
     sql.execute("CREATE TABLE RECEIVERS (THE_GEOM geometry, PK integer AUTO_INCREMENT, PK_1 integer, RCV_TYPE integer);")
-    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING UNION ALL SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY;")
+    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY  WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
+    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING R WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
     sql.execute("ALTER TABLE RECEIVERS ADD PRIMARY KEY(pk)")
     sql.execute("CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);")
     sql.execute("CREATE INDEX ON RECEIVERS(RCV_TYPE)")
 
+    sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_1 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
+    sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_2 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
+    sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_3 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
     // Process Done
     sql.execute(String.format("UPDATE metadata SET grid_end = NOW();"))
     resultString = "Process done. Receivers tables created."

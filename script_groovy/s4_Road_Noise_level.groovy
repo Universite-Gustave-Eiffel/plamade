@@ -310,7 +310,7 @@ def exec(Connection connection, input) {
     ldenConfig_propa.setlEveningTable("LEVENING_ROADS")
     ldenConfig_propa.setlNightTable("LNIGHT_ROADS")
     ldenConfig_propa.setlDenTable("LDEN_ROADS")
-    ldenConfig_propa.setSqlOutputFile()
+    ldenConfig_propa.setComputeLAEQOnly(true)
 
     LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa)
     // Add train directivity
@@ -397,12 +397,13 @@ def exec(Connection connection, input) {
     } else {
         progressLogger = new RootProgressVisitor(1, true, 1);
     }
-    //connection.getMetaData().getURL()
+
     String profileName = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy_MM_dd.HH'h'mm'm'ss's'", Locale.ROOT))+"."+System.currentTimeMillis();
     File profileFile
     if("workingDirectory" in input) {
         profileFile = new File(new File(input["workingDirectory"] as String), "profile_"+profileName+".csv")
         ldenConfig_propa.setSqlOutputFile(new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql"))
+        ldenConfig_propa.setSqlOutputFileCompression(false)
     } else {
         profileFile = new File("profile_"+profileName+".csv")
     }
