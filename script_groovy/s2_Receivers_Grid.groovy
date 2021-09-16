@@ -390,12 +390,13 @@ def exec(Connection connection, input) {
     
     sql.execute("DROP TABLE RECEIVERS IF EXISTS;")
     sql.execute("CREATE TABLE RECEIVERS (THE_GEOM geometry, PK integer AUTO_INCREMENT, PK_1 integer, RCV_TYPE integer);")
-    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY  WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
+    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY R WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
     sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING R WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
     sql.execute("ALTER TABLE RECEIVERS ADD PRIMARY KEY(pk)")
     sql.execute("CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);")
     sql.execute("CREATE INDEX ON RECEIVERS(RCV_TYPE)")
 
+    // Remove triangles with missing vertices
     sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_1 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
     sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_2 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
     sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_3 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
