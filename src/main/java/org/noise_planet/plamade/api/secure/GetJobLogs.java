@@ -42,6 +42,7 @@ import java.util.regex.Pattern;
 
 public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
+    static final int FETCH_NUMBER_OF_LINES = 5000;
 
     public List<String> filterByThread(List<String> messages, String threadId) {
         List<String> filtered = new ArrayList<>();
@@ -103,7 +104,8 @@ public class GetJobLogs implements Handler {
                 SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
-
+                        List<String> rows = getLastLines(new File("application.log"), FETCH_NUMBER_OF_LINES);
+                        filterByThread(rows, Thread.currentThread().getName());
                         model.put("rows", rows);
                         ctx.render(Template.thymeleafTemplate(model, "joblist"));
                     }

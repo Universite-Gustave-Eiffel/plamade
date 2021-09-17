@@ -138,7 +138,7 @@ def exec(Connection connection, input) {
 
     String sources_table_name = "SECTIONS_DELAUNAY"
 
-    def row_conf = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", input.containsKey('confId'))
+    def row_conf = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", input['confId'] as Integer)
     
     // ----------------------------------------------------------
     // 1- CALCUL DE LA BUILDING_GRID
@@ -394,10 +394,14 @@ def exec(Connection connection, input) {
     logger.info("Remove triangles with missing vertices")
     sql.execute("DROP TABLE IF EXISTS TRIANGLE_FULL")
     sql.execute("ALTER TABLE " + triangleTable + " RENAME TO TRIANGLE_FULL")
-    sql.execute("CREATE TABLE " + triangleTable + " AS SELECT T.* FROM TRIANGLE_FULL T, RECEIVERS R1,RECEIVERS R2,RECEIVERS R3 WHERE T.PK_1 = R1.PK_1 AND T.PK_2 = R2.PK_1 AND T.PK_3 = R3.PK_1 AND R1.RCV_TYPE = 2 AND R2.RCV_TYPE = 2 AND R3.RCV_TYPE = 2")
+    sql.execute("CREATE TABLE " + triangleTable + "(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, PK_1 INTEGER NOT NULL," +
+            " PK_2 INTEGER NOT NULL, PK_3 INTEGER NOT NULL, CELL_ID INTEGER NOT NULL) AS SORTED " +
+            "SELECT T.* FROM TRIANGLE_FULL T, RECEIVERS R1,RECEIVERS R2,RECEIVERS R3 WHERE " +
+            "T.PK_1 = R1.PK_1 AND T.PK_2 = R2.PK_1 AND T.PK_3 = R3.PK_1 AND R1.RCV_TYPE = 2 AND " +
+            "R2.RCV_TYPE = 2 AND R3.RCV_TYPE = 2")
+
     sql.execute("DROP TABLE IF EXISTS TRIANGLE_FULL")
 
-    sql.execute("ALTER TABLE " + triangleTable " ADD PRIMARY KEY(pk)")
     sql.execute("CREATE INDEX ON " + triangleTable + "(PK_1)")
     sql.execute("CREATE INDEX ON " + triangleTable + "(PK_2)")
     sql.execute("CREATE INDEX ON " + triangleTable + "(PK_3)")
