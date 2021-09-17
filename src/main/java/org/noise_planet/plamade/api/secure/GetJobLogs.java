@@ -46,16 +46,24 @@ public class GetJobLogs implements Handler {
 
     public List<String> filterByThread(List<String> messages, String threadId) {
         List<String> filtered = new ArrayList<>();
-        Pattern p = Pattern.compile("\\[(\\w*)] (\\w*) (.*)$");
+        Pattern p = Pattern.compile("\\[(.*)] (\\w*) (.*)$");
         boolean match = false;
+        StringBuilder sb = new StringBuilder();
         for(String line : messages) {
             Matcher m = p.matcher(line);
             if(m.matches() && m.groupCount() > 2) { // found start of log message with expected format
                 match = threadId.equalsIgnoreCase(m.group(1));
+                if(match && sb.length() > 0) {
+                    filtered.add(sb.toString());
+                    sb = new StringBuilder();
+                }
             }
             if(match) {
-                filtered.add(line);
+                sb.append(line);
             }
+        }
+        if(sb.length() > 0) {
+            filtered.add(sb.toString());
         }
         return filtered;
     }
@@ -105,9 +113,10 @@ public class GetJobLogs implements Handler {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
                         List<String> rows = getLastLines(new File("application.log"), FETCH_NUMBER_OF_LINES);
-                        filterByThread(rows, Thread.currentThread().getName());
+                        rows = filterByThread(rows, Thread.currentThread().getName());
                         model.put("rows", rows);
-                        ctx.render(Template.thymeleafTemplate(model, "joblist"));
+                        model.put("profile", profile);
+                        ctx.render(Template.thymeleafTemplate(model, "joblogs"));
                     }
                 });
             } else {

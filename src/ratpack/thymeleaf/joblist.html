@@ -35,7 +35,7 @@
                     <td th:text="${job.status}">15 %</td>
                     <td th:text="${job.inseeDepartment}">15</td>
                     <td th:text="${job.conf_id}">5</td>
-                    <td th:text="<a href='/rjobs/${job.removejobfolder}' target='_blank'>Result</a> - <a href='/manage/job/${job.pk_job}/logs'>Logs</a>>">Result - Logs</td>
+                    <td  th:utext="${job.result}">Result - Logs</td>
                     <td>Delete</td>
                 </tr>
                 </tbody>

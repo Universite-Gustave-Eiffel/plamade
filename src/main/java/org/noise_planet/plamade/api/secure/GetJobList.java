@@ -80,7 +80,8 @@ public class GetJobList implements Handler {
                                             DateFormat mediumDateFormatEN = DateFormat.getDateTimeInstance(
                                                     DateFormat.MEDIUM,
                                                     DateFormat.MEDIUM);
-                                            row.put("pk_job", rs.getInt("pk_job"));
+                                            Integer pkJob = rs.getInt("pk_job");
+                                            row.put("pk_job", pkJob);
                                             Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
                                             row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
                                             Timestamp eDate = rs.getTimestamp("END_DATE");
@@ -88,7 +89,10 @@ public class GetJobList implements Handler {
                                             row.put("status", f.format(rs.getDouble("PROGRESSION")));
                                             row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
                                             row.put("conf_id", rs.getInt("CONF_ID"));
-                                            row.put("removejobfolder", rs.getString("REMOTE_JOB_FOLDER"));
+                                            String jobFolder = rs.getString("REMOTE_JOB_FOLDER");
+                                            row.put("result", "<a href=\"/rjobs/"+jobFolder+"\" target='_blank'>Result</a> - <a href=\"/manage/job/"+pkJob+"/logs\">Logs</a>");
+
+                                            row.put("remote_job_folder", rs.getString("REMOTE_JOB_FOLDER"));
                                         }
                                         table.add(row);
                                     }
