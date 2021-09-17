@@ -103,8 +103,8 @@ public class GetJobLogs implements Handler {
                 SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
-//                        model.put("jobs", jobList);
-//                        model.put("profile", profile);
+
+                        model.put("rows", rows);
                         ctx.render(Template.thymeleafTemplate(model, "joblist"));
                     }
                 });

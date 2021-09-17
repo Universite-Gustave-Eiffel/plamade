@@ -184,16 +184,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 LoadNoiselevel(nmConnection, subProg);
                 Isosurface(nmConnection, subProg);
             }
+        } catch (SQLException | SecurityException | IOException ex) {
+            logger.error(ex.getLocalizedMessage(), ex);
+        } finally {
             // Update Job informations
             try (Connection connection = plamadeDataSource.getConnection()) {
                 PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET END_DATE = ?, PROGRESSION = 100 WHERE PK_JOB = ?");
                 st.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
                 st.setInt(2, configuration.getTaskPrimaryKey());
                 st.execute();
+            } catch (SQLException | SecurityException ex) {
+                logger.error(ex.getLocalizedMessage(), ex);
             }
-        } catch (SQLException | SecurityException | IOException ex) {
-            logger.error(ex.getLocalizedMessage(), ex);
-        } finally {
             isRunning = false;
         }
     }

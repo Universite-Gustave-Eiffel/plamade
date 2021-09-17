@@ -88,6 +88,7 @@ public class GetJobList implements Handler {
                                             row.put("status", f.format(rs.getDouble("PROGRESSION")));
                                             row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
                                             row.put("conf_id", rs.getInt("CONF_ID"));
+                                            row.put("removejobfolder", rs.getString("REMOTE_JOB_FOLDER"));
                                         }
                                         table.add(row);
                                     }

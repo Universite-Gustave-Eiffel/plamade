@@ -375,27 +375,33 @@ def exec(Connection connection, input) {
     
     sql.execute("DROP TABLE RECEIVERS IF EXISTS;")
     sql.execute("CREATE TABLE RECEIVERS (THE_GEOM geometry, PK integer AUTO_INCREMENT, PK_1 integer, RCV_TYPE integer);")
+    logger.info("Insert delaunay receivers..")
     sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY R WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
     // as buildings are already filtered with the buffer, we will keep all receivers extracted from buildings
+    logger.info("Insert buildings receivers..")
     sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING R")
+    logger.info("Add receivers primary key constraint")
     sql.execute("ALTER TABLE RECEIVERS ADD PRIMARY KEY(pk)")
+    logger.info("Create spatial index on receivers")
     sql.execute("CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);")
     sql.execute("CREATE INDEX ON RECEIVERS(RCV_TYPE)")
+    sql.execute("CREATE INDEX ON RECEIVERS(PK_1)")
 
     int nbReceivers = sql.firstRow("SELECT COUNT(*) FROM RECEIVERS")[0] as Integer
 
     logger.info(String.format(Locale.ROOT, "There is %d receivers", nbReceivers))
 
-    // Remove triangles with missing vertices
-    sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_1 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
-    sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_2 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
-    sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_3 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
+    logger.info("Remove triangles with missing vertices")
+    sql.execute("DROP TABLE IF EXISTS TRIANGLE_FULL")
+    sql.execute("ALTER TABLE " + triangleTable + " RENAME TO TRIANGLE_FULL")
+    sql.execute("CREATE TABLE " + triangleTable + " AS SELECT T.* FROM TRIANGLE_FULL T, RECEIVERS R1,RECEIVERS R2,RECEIVERS R3 WHERE T.PK_1 = R1.PK_1 AND T.PK_2 = R2.PK_1 AND T.PK_3 = R3.PK_1 AND R1.RCV_TYPE = 2 AND R2.RCV_TYPE = 2 AND R3.RCV_TYPE = 2")
+    sql.execute("DROP TABLE IF EXISTS TRIANGLE_FULL")
 
-    // Ajout des index pour accélerer les jointures à venir, mais pas de gain de temps sur le jeu de test
-    // A migrer dans le script 2_Receivers_grid pour ne générer ces index qu'une seule fois par département
-    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_1)")
-    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_2)")
-    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_3)")
+    sql.execute("ALTER TABLE " + triangleTable " ADD PRIMARY KEY(pk)")
+    sql.execute("CREATE INDEX ON " + triangleTable + "(PK_1)")
+    sql.execute("CREATE INDEX ON " + triangleTable + "(PK_2)")
+    sql.execute("CREATE INDEX ON " + triangleTable + "(PK_3)")
+    sql.execute("CREATE INDEX ON " + triangleTable + "(CELL_ID)")
 
     // Process Done
     sql.execute(String.format("UPDATE metadata SET grid_end = NOW();"))
