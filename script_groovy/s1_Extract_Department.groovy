@@ -693,6 +693,8 @@ def exec(Connection connection, input) {
     delete from ROUTE_METRO_CORSE B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     
     drop table if exists t_route_metro_corse; 
+    
+    create spatial index on ROUTE_METRO_CORSE(the_geom);
  
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
     CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT d.the_geom FROM dem d;    
@@ -865,6 +867,15 @@ def exec(Connection connection, input) {
     def nb_land=sql.firstRow("SELECT COUNT(*) FROM LANDCOVER;")[0] as Integer
 
     def rapport = """
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width">
+            <title data-react-helmet="true">Plamade computation platform</title>
+            <link rel="shortcut icon" href="/favicon.ico" type="image/png">
+        </head>
+        <body>
         <h3>Département n°$codeDep ($dept_name)</h3>
         <hr>
         - Les tables <code>BUILDINGS</code>, <code>ROADS</code>, <code>RAIL_SECTIONS</code>, <code>RAIL_TRAFFIC</code>, <code>SCREENS</code>, 
@@ -934,7 +945,8 @@ def exec(Connection connection, input) {
             <li>ROADS &rarr; <code>STAT_ROAD_FR</code></li>
             <li>RAIL_SECTIONS &rarr; <code>STAT_RAIL_FR</code></li>
         </ul>
-
+        </body>
+        </html>
     """
     
     // Remove non needed tables

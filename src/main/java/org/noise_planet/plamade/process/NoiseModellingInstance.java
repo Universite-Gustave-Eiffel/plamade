@@ -31,9 +31,8 @@ import ratpack.handling.Context;
 import javax.sql.DataSource;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -93,8 +92,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
         Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
 
-        try(FileWriter fileWriter = new FileWriter(new File(configuration.getWorkingDirectory(), "import.html"))) {
-            fileWriter.write(result.toString());
+        try(OutputStreamWriter f = new OutputStreamWriter(new FileOutputStream(new File(configuration.getWorkingDirectory(), "import.html")), StandardCharsets.UTF_8)) {
+            f.write(result.toString());
         }
     }
 

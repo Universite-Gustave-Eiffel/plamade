@@ -366,21 +366,6 @@ def exec(Connection connection, input) {
         }
     }
 
-    //modifNico sql.execute("UPDATE " + receivers_table_name + " SET THE_GEOM = ST_SETSRID(THE_GEOM, " + srid + ")")
-
-    logger.info("Create spatial index on "+receivers_table_name+" table")
-    sql.execute("CREATE SPATIAL INDEX ON " + receivers_table_name + "(the_geom);")
-
-    int nbReceivers = sql.firstRow("SELECT COUNT(*) FROM " + receivers_table_name)[0] as Integer
-
-
-
-    // Ajout des index pour accélerer les jointures à venir, mais pas de gain de temps sur le jeu de test
-    // A migrer dans le script 2_Receivers_grid pour ne générer ces index qu'une seule fois par département
-    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_1)")
-    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_2)")
-    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_3)")
-
 
     //----------------------------
     // 3- MERGE LES DEUX GRILLES
@@ -391,15 +376,27 @@ def exec(Connection connection, input) {
     sql.execute("DROP TABLE RECEIVERS IF EXISTS;")
     sql.execute("CREATE TABLE RECEIVERS (THE_GEOM geometry, PK integer AUTO_INCREMENT, PK_1 integer, RCV_TYPE integer);")
     sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 2 FROM RECEIVERS_DELAUNAY R WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
-    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING R WHERE EXISTS (SELECT 1 FROM "+sources_table_name+" S WHERE ST_EXPAND(R.THE_GEOM," + maxPropDist + ", " + maxPropDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + maxPropDist + " LIMIT 1 )")
+    // as buildings are already filtered with the buffer, we will keep all receivers extracted from buildings
+    sql.execute("INSERT INTO RECEIVERS (THE_GEOM , PK_1 , RCV_TYPE) SELECT THE_GEOM, PK, 1 FROM RECEIVERS_BUILDING R")
     sql.execute("ALTER TABLE RECEIVERS ADD PRIMARY KEY(pk)")
     sql.execute("CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);")
     sql.execute("CREATE INDEX ON RECEIVERS(RCV_TYPE)")
+
+    int nbReceivers = sql.firstRow("SELECT COUNT(*) FROM RECEIVERS")[0] as Integer
+
+    logger.info(String.format(Locale.ROOT, "There is %d receivers", nbReceivers))
 
     // Remove triangles with missing vertices
     sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_1 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
     sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_2 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
     sql.execute("DELETE FROM " + triangleTable + " T WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS WHERE T.PK_3 = R.PK_1 AND RCV_TYPE = 2 LIMIT 1)")
+
+    // Ajout des index pour accélerer les jointures à venir, mais pas de gain de temps sur le jeu de test
+    // A migrer dans le script 2_Receivers_grid pour ne générer ces index qu'une seule fois par département
+    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_1)")
+    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_2)")
+    sql.execute("CREATE INDEX ON TRIANGLES_DELAUNAY(PK_3)")
+
     // Process Done
     sql.execute(String.format("UPDATE metadata SET grid_end = NOW();"))
     resultString = "Process done. Receivers tables created."
