@@ -28,7 +28,10 @@ import geoserver.GeoServer
 import geoserver.catalog.Store
 import groovy.text.SimpleTemplateEngine
 import org.geotools.jdbc.JDBCDataStore
+import org.h2gis.api.EmptyProgressVisitor
+import org.h2gis.api.ProgressVisitor
 import org.locationtech.jts.geom.Point
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovy.sql.Sql
@@ -139,6 +142,15 @@ def exec(Connection connection, input) {
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
+    ProgressVisitor progressVisitor
+
+    if("progressVisitor" in input) {
+        progressVisitor = input["progressVisitor"] as ProgressVisitor
+    } else {
+        progressVisitor = new RootProgressVisitor(1, true, 1);
+    }
+
+    ProgressVisitor progress = progressVisitor.subProcess(11)
     // print to command window
     logger.info('Start linking with PostGIS')
 
@@ -158,7 +170,6 @@ def exec(Connection connection, input) {
     //def databaseUrl = input["databaseUrl"] as String
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
-
 
     // Declare table variables depending on the department and the projection system
     def srid = "2154"
@@ -362,6 +373,7 @@ def exec(Connection connection, input) {
     UPDATE roads b SET pvmt = (select a.pvmt FROM pvmt a WHERE a.revetement=b.revetement AND a.granulo=b.granulo AND a.classacou=b.classacou);
     ALTER TABLE roads ADD COLUMN pk serial PRIMARY KEY;
     CREATE spatial index ON roads (the_geom);
+    CREATE INDEX ON ROADS(UUEID);
 
     """
     def queries_rails = """
@@ -435,7 +447,7 @@ def exec(Connection connection, input) {
     ALTER TABLE rail_sections ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX rail_sections_geom_idx ON rail_sections (the_geom);
     CREATE INDEX ON rail_sections (idsection);
-
+    CREATE INDEX ON rail_sections(UUEID);
 
     -- Rail_traffic
     CREATE LINKED TABLE rail_traffic_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
@@ -670,7 +682,7 @@ def exec(Connection connection, input) {
 
     DROP TABLE PVMT;
     DROP TABLE INFRA;
-
+    
     -- COPY BDTOPO roads (3 dimensions) for the studied area
     CREATE LINKED TABLE t_route_metro_corse ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
             '(SELECT r.* FROM bd_topo.t_route_metro_corse r,
@@ -681,29 +693,28 @@ def exec(Connection connection, input) {
     create table ROUTE_METRO_CORSE as select * from t_route_metro_corse;
     delete from ROUTE_METRO_CORSE B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     
-    drop table t_route_metro_corse; 
+    drop table if exists t_route_metro_corse; 
+    
+    create spatial index on ROUTE_METRO_CORSE(the_geom);
  
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
     CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT d.the_geom FROM dem d;    
-    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM t_route_metro_corse  b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15)   && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
+    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM route_metro_corse b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15)   && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
     ALTER TABLE route_metro_corse ADD pk_line INT AUTO_INCREMENT NOT NULL;
     ALTER TABLE route_metro_corse add primary key(pk_line);
-
     -- Create buffer points from roads and copy the elevation from the roads to the point
     DROP TABLE IF EXISTS BUFFERED_PTLINE;
     CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from route_metro_corse rmc;
     INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM) SELECT ST_MAKEPOINT(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM FROM ST_EXPLODE('BUFFERED_PTLINE') P, route_metro_corse L WHERE P.PK_LINE = L.PK_LINE;
-
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);
     
     DROP TABLE IF EXISTS DEM;
     ALTER TABLE DEM_WITHOUT_PTLINE RENAME TO DEM;
     """
-	
-	
-	
-	
-	
+
+
+
+
     def queries_stats = """
     ----------------------------------
     -- Manage statitics
@@ -752,10 +763,6 @@ def exec(Connection connection, input) {
     UPDATE metadata SET import_end = NOW();
     """
 
-    
-	
-	
-	
     def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep]
 
 
@@ -765,56 +772,67 @@ def exec(Connection connection, input) {
     def template = engine.createTemplate(queries_conf).make(binding)
 
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage PFAV (2/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_pfav).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage roads (3/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_roads).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage rails (4/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_rails).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage infrastructures (5/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_infra).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage buildings (6/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_buildings).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage screens (7/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_screens).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage buildings screens (8/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_buildings_screens).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage landcover (9/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_landcover).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
     logger.info('Manage dem (10/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_dem).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
         logger.info('Manage statistics (11/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_stats).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
 
 
 
@@ -850,6 +868,15 @@ def exec(Connection connection, input) {
     def nb_land=sql.firstRow("SELECT COUNT(*) FROM LANDCOVER;")[0] as Integer
 
     def rapport = """
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width">
+            <title data-react-helmet="true">Plamade computation platform</title>
+            <link rel="shortcut icon" href="/favicon.ico" type="image/png">
+        </head>
+        <body>
         <h3>Département n°$codeDep ($dept_name)</h3>
         <hr>
         - Les tables <code>BUILDINGS</code>, <code>ROADS</code>, <code>RAIL_SECTIONS</code>, <code>RAIL_TRAFFIC</code>, <code>SCREENS</code>, 
@@ -919,7 +946,8 @@ def exec(Connection connection, input) {
             <li>ROADS &rarr; <code>STAT_ROAD_FR</code></li>
             <li>RAIL_SECTIONS &rarr; <code>STAT_RAIL_FR</code></li>
         </ul>
-
+        </body>
+        </html>
     """
     
     // Remove non needed tables
