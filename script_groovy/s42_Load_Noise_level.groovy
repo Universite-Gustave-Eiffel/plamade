@@ -58,6 +58,7 @@ import java.sql.Connection
 import java.sql.SQLException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.zip.GZIPInputStream
 
 
 title = 'Load SQL File LDay,Levening,LNight,Lden'
@@ -107,14 +108,18 @@ def run(input) {
 }
 
 @CompileStatic
-static def parseScript(File scriptFile, Sql sql, ProgressVisitor progressLogger) {
+static def parseScript(File scriptFile, Sql sql, ProgressVisitor progressLogger, boolean compressed) {
     long scriptFileSize = Files.size(scriptFile.toPath())
     int BUFFER_LENGTH = 65536
     ProgressVisitor subProgress = progressLogger.subProcess((int)(scriptFileSize / BUFFER_LENGTH))
     Reader reader = null
     try {
         FileInputStream s = new FileInputStream(scriptFile)
-        reader  = new BufferedReader(new InputStreamReader(s))
+        InputStream is = s
+        if(compressed) {
+            is = new GZIPInputStream(s, BUFFER_LENGTH)
+        }
+        reader  = new BufferedReader(new InputStreamReader(is))
         ScriptReader scriptReader = new ScriptReader(reader)
         String statement = scriptReader.readStatement()
         while (statement != null) {
@@ -149,9 +154,9 @@ def exec(Connection connection, input) {
     // Get every inputs
     // -------------------
 
-    File scriptFile = new File("Road_Noise_level.sql")
+    File scriptFile = new File("Road_Noise_level.sql.gz")
     if("workingDirectory" in input) {
-        scriptFile = new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql")
+        scriptFile = new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql.gz")
     }
     if(!scriptFile.exists()) {
         return scriptFile.absolutePath + " does not exists"
@@ -166,7 +171,7 @@ def exec(Connection connection, input) {
     }
 
 
-    parseScript(scriptFile, sql, progressLogger)
+    parseScript(scriptFile, sql, progressLogger, true)
 
 
     resultString = "Calculation Done ! "
