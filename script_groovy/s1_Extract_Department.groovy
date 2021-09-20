@@ -182,6 +182,7 @@ def exec(Connection connection, input) {
     def table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2154"
     def table_land = "C_NATURESOL_S_2154"
     def table_infra = "infra_2154"
+    def table_bd_topo_route = "t_route_metro_corse"
 
     if(codeDep=='971' || codeDep=='972') {
         srid="5490"
@@ -232,6 +233,17 @@ def exec(Connection connection, input) {
         table_infra = "infra_4471"
     }
 
+    if(codeDep=='971') {
+        table_bd_topo_dem = 't_route_guadeloupe'
+    } else if(codeDep == '972') {
+        table_bd_topo_dem = 't_route_martinique'
+    } else if(codeDep == '973') {
+        table_bd_topo_dem = 't_route_guyane'
+    } else if(codeDep == '974') {
+        table_bd_topo_dem = 't_route_reunion'
+    } else if(codeDep == '976') {
+        table_bd_topo_dem = 't_route_mayotte'
+    }
 
     def sql = new Sql(connection)
 
@@ -679,33 +691,30 @@ def exec(Connection connection, input) {
 
     ----------------------------------
     -- Clean tables
-
+    
     DROP TABLE PVMT;
     DROP TABLE INFRA;
-    
     -- COPY BDTOPO roads (3 dimensions) for the studied area
-    CREATE LINKED TABLE t_route_metro_corse ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
-            '(SELECT r.* FROM bd_topo.t_route_metro_corse r,
+    CREATE LINKED TABLE t_bdtopo_route ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+            '(SELECT r.* FROM bd_topo.$table_bd_topo_route r,
             (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > -1000)');
     
     -- Remove BDTOPO roads that are far from studied roads
-    DROP TABLE IF EXISTS ROUTE_METRO_CORSE;
-    create table ROUTE_METRO_CORSE as select * from t_route_metro_corse;
-    delete from ROUTE_METRO_CORSE B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    DROP TABLE IF EXISTS bdtopo_route;
+    create table bdtopo_route as select * from t_bdtopo_route;
+    delete from bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     
-    drop table if exists t_route_metro_corse; 
-    
-    create spatial index on ROUTE_METRO_CORSE(the_geom);
+    drop table t_bdtopo_route; 
  
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
     CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT d.the_geom FROM dem d;    
-    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM route_metro_corse b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15)   && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
-    ALTER TABLE route_metro_corse ADD pk_line INT AUTO_INCREMENT NOT NULL;
-    ALTER TABLE route_metro_corse add primary key(pk_line);
+    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_route b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15)   && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
+    ALTER TABLE bdtopo_route ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_route add primary key(pk_line);
     -- Create buffer points from roads and copy the elevation from the roads to the point
     DROP TABLE IF EXISTS BUFFERED_PTLINE;
-    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from route_metro_corse rmc;
-    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM) SELECT ST_MAKEPOINT(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM FROM ST_EXPLODE('BUFFERED_PTLINE') P, route_metro_corse L WHERE P.PK_LINE = L.PK_LINE;
+    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from bdtopo_route rmc;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM) SELECT ST_MAKEPOINT(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);
     
     DROP TABLE IF EXISTS DEM;
@@ -763,7 +772,7 @@ def exec(Connection connection, input) {
     UPDATE metadata SET import_end = NOW();
     """
 
-    def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep]
+    def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep, "table_bd_topo_route" : table_bd_topo_route]
 
 
     // print to command window
