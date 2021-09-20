@@ -373,6 +373,7 @@ def exec(Connection connection, input) {
     UPDATE roads b SET pvmt = (select a.pvmt FROM pvmt a WHERE a.revetement=b.revetement AND a.granulo=b.granulo AND a.classacou=b.classacou);
     ALTER TABLE roads ADD COLUMN pk serial PRIMARY KEY;
     CREATE spatial index ON roads (the_geom);
+    CREATE INDEX ON ROADS(UUEID);
 
     """
     def queries_rails = """
@@ -446,7 +447,7 @@ def exec(Connection connection, input) {
     ALTER TABLE rail_sections ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX rail_sections_geom_idx ON rail_sections (the_geom);
     CREATE INDEX ON rail_sections (idsection);
-
+    CREATE INDEX ON rail_sections(UUEID);
 
     -- Rail_traffic
     CREATE LINKED TABLE rail_traffic_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
