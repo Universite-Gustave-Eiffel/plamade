@@ -66,6 +66,12 @@ inputs = [
                 description: 'Insee code for the area ex:75',
                 type       : String.class
         ],
+	inputServer : [
+                name       : 'DB Server used',
+                title      : 'DB server used',
+                description: 'Choose between cerema or cloud',
+                type       : String.class
+        ]
 ]
 
 outputs = [
@@ -153,9 +159,15 @@ def exec(Connection connection, input) {
         buffer = input["fetchDistance"] as Integer
     }
 
-    def databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
-    // def databaseUrl = "jdbc:postgresql_h2://plamade.noise-planet.org:5433/plamade_2021_05_03?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
-    //def databaseUrl = input["databaseUrl"] as String
+    def databaseUrl
+    if(input["inputServer"].equals('cerema')) {
+        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    } else if(input["inputServer"].equals('cloud')) {
+        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    } else{
+        return "Vous n'avez pas spécifié le bon nom de serveur"
+    }	
+	
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
 
