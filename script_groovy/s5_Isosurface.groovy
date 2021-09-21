@@ -154,6 +154,13 @@ def exec(Connection connection, input) {
         sql.execute("CREATE TABLE "+ cbsARoadLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
     }
 
+    logger.info("CREATE INDEX on " + tableDEN)
+    sql.execute("CREATE INDEX IF NOT EXISTS " + tableDEN + "_IDSOURCE_IDX ON "+tableDEN+" (IDSOURCE)")
+    logger.info("End create index on " + tableDEN)
+    logger.info("CREATE INDEX on " + tableNIGHT)
+    sql.execute("CREATE INDEX IF NOT EXISTS " + tableNIGHT + "_IDSOURCE_IDX ON "+tableNIGHT+" (IDSOURCE)")
+    logger.info("End create index on " + tableNIGHT)
+
 
 
     logger.info("Process each rail or road infrastructures")
