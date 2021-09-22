@@ -98,11 +98,23 @@ def exec(Connection connection, input) {
     } else {
         progressLogger = new RootProgressVisitor(1, true, 1);
     }
+
     // List of iso classes :  isoClasses
-    // LDEN classes : 55-59, 60-64, 65-69, 70-74 et >75 dB
+
+    // LDEN classes for A maps : 55-59, 60-64, 65-69, 70-74 et >75 dB
     def isoLevelsLDEN=[55.0d,60.0d,65.0d,70.0d,75.0d,200.0d]
-    // LNIGHT classes : 50-54, 55-59, 60-64, 65-69 et >70 dB
+    // LNIGHT classes for A maps : 50-54, 55-59, 60-64, 65-69 et >70 dB
     def isoLevelsLNIGHT=[50.0d,55.0d,60.0d,65.0d,70.0d,200.0d]
+
+    // LDEN classes for C maps: >68 dB
+    def isoCLevelsLDEN=[68.0d,200.0d]
+    // LNIGHT classes for C maps : >62 dB
+    def isoCLevelsLNIGHT=[62.0d,200.0d]
+
+    // LDEN classes for C maps and : >73 dB
+    def isoCFerConvLevelsLDEN=[73.0d,200.0d]
+    // LNIGHT classes for C maps : >65 dB
+    def isoCFerConvLevelsLNIGHT=[65.0d,200.0d]
 
 
     // List of input tables : inputTable
@@ -128,11 +140,18 @@ def exec(Connection connection, input) {
     // Initialisation des tables dans lesquelles on stockera les surfaces par tranche d'iso, par type d'infra et d'indice
 
     String nuts = sql.firstRow("SELECT NUTS FROM METADATA").nuts
-    String cbsARoadLden = "CBS_A_ROUT_LDEN_"+nuts
-    String cbsARoadLnight = "CBS_A_ROUT_LNIGHT_"+nuts
-    String cbsAFerLden = "CBS_A_FER_LDEN_"+nuts
-    String cbsAFerLnight = "CBS_A_FER_LNIGHT_"+nuts
+    String cbsARoadLden = "CBS_A_R_LD_"+nuts
+    String cbsARoadLnight = "CBS_A_R_LN_"+nuts
+    String cbsAFerLden = "CBS_A_F_LD_"+nuts
+    String cbsAFerLnight = "CBS_A_F_LN_"+nuts
     
+    String cbsCRoadLden = "CBS_C_R_LD_"+nuts
+    String cbsCRoadLnight = "CBS_C_R_LN_"+nuts
+    String cbsCFerLGVLden = "CBS_C_F_LGV_LD_"+nuts
+    String cbsCFerLGVLnight = "CBS_C_F_LGV_LN_"+nuts
+    String cbsCFerCONVLden = "CBS_C_F_CONV_LD_"+nuts
+    String cbsCFerCONVLnight = "CBS_C_F_CONV_LN_"+nuts
+
     // output string, the information given back to the user
     String resultString = "Le processus est terminé - Les tables de sortie sont "
     
@@ -140,26 +159,38 @@ def exec(Connection connection, input) {
 
     // Tables are created according to the input parameter "rail" or "road"
     if (railRoad==1){
-        resultString += cbsAFerLden + " " + cbsAFerLnight
+        resultString += cbsAFerLden + " " + cbsAFerLnight + " " + cbsCFerLGVLden + " " + cbsCFerLGVLnight + " " + cbsCFerCONVLden + " " + cbsCFerCONVLnight
+        // For A maps
         sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLden)
         sql.execute("CREATE TABLE "+ cbsAFerLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
         sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLnight)
         sql.execute("CREATE TABLE "+ cbsAFerLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
+
+        // For C maps
+        sql.execute("DROP TABLE IF EXISTS "+ cbsCFerLGVLden)
+        sql.execute("CREATE TABLE "+ cbsCFerLGVLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
+        sql.execute("DROP TABLE IF EXISTS "+ cbsCFerLGVLnight)
+        sql.execute("CREATE TABLE "+ cbsCFerLGVLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
+
+        sql.execute("DROP TABLE IF EXISTS "+ cbsCFerCONVLden)
+        sql.execute("CREATE TABLE "+ cbsCFerCONVLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
+        sql.execute("DROP TABLE IF EXISTS "+ cbsCFerCONVLnight)
+        sql.execute("CREATE TABLE "+ cbsCFerCONVLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
+
     }
     else{
-        resultString += cbsARoadLden + " " + cbsARoadLnight
+        resultString += cbsARoadLden + " " + cbsARoadLnight + " " + cbsCRoadLden + " " + cbsCRoadLnight
+        // For A maps
         sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLden)
         sql.execute("CREATE TABLE "+ cbsARoadLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
         sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLnight)
         sql.execute("CREATE TABLE "+ cbsARoadLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
+        // For C maps
+        sql.execute("DROP TABLE IF EXISTS "+ cbsCRoadLden)
+        sql.execute("CREATE TABLE "+ cbsCRoadLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
+        sql.execute("DROP TABLE IF EXISTS "+ cbsCRoadLnight)
+        sql.execute("CREATE TABLE "+ cbsCRoadLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
     }
-
-    logger.info("CREATE INDEX on " + tableDEN)
-    sql.execute("CREATE INDEX IF NOT EXISTS " + tableDEN + "_IDSOURCE_IDX ON "+tableDEN+" (IDSOURCE)")
-    logger.info("End create index on " + tableDEN)
-    logger.info("CREATE INDEX on " + tableNIGHT)
-    sql.execute("CREATE INDEX IF NOT EXISTS " + tableNIGHT + "_IDSOURCE_IDX ON "+tableNIGHT+" (IDSOURCE)")
-    logger.info("End create index on " + tableNIGHT)
 
 
 
@@ -174,7 +205,7 @@ def exec(Connection connection, input) {
             
         String ldenOutput = uueid + "_CONTOURING_LDEN"
         String lnightOutput = uueid + "_CONTOURING_LNIGHT"
-        
+       
         sql.execute(String.format("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN"))
 
         logger.info(String.format("Create RECEIVERS_DELAUNAY_NIGHT for uueid= %s", uueid))
@@ -186,18 +217,32 @@ def exec(Connection connection, input) {
 
 
         logger.info("Generate iso surfaces")
-        // Produce isocontours for LNIGHT
-        generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, lnightOutput, connection, uueid, 'LNIGHT', input)
+        // For A maps
+        // Produce isocontours for LNIGHT (LN)
+        generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, lnightOutput, connection, uueid, 'A', 'LN', input)
+        // Produce isocontours for LDEN (LD)
+        generateIsoSurfaces(ldenInput, isoLevelsLDEN, ldenOutput, connection, uueid, 'A', 'LD', input)
 
-        // Produce isocontours for LDEN
-        generateIsoSurfaces(ldenInput, isoLevelsLDEN, ldenOutput, connection, uueid, 'LDEN', input)
+        // For C maps
+        // Produce isocontours for LNIGHT (LN)
+        generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, lnightOutput, connection, uueid, 'C', 'LN', input)
+        // Produce isocontours for LDEN (LD)
+        generateIsoSurfaces(ldenInput, isoCLevelsLDEN, ldenOutput, connection, uueid, 'C', 'LD', input)
+
+        if (railRoad==1){
+            generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, lnightOutput, connection, uueid, 'C', 'LN', input)
+        
+            generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, ldenOutput, connection, uueid, 'C', 'LD', input)
+        }
+
+
 
         sql.execute("DROP TABLE IF EXISTS RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN")
 
         prog.endStep()
     }
     
-    logger.info("This is the ennnndd of the step 5")
+    logger.info("This is the end of the step 5")
     // print to WPS Builder
     return resultString
 }
@@ -209,11 +254,12 @@ def exec(Connection connection, input) {
  * @param outputTable
  * @param connection
  * @param uueid
+ * @param cbsType 
  * @param period
  * @param input
  * @return
  */
-def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def connection, String uueid, String period, def input) {
+def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def connection, String uueid, String cbsType, String period, def input) {
 
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
@@ -236,37 +282,61 @@ def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def con
         Sql sql = new Sql(connection)
 
         String nuts = sql.firstRow("SELECT NUTS FROM METADATA").nuts
-        String cbsARoadLden = "CBS_A_ROUT_LDEN_"+nuts
-        String cbsARoadLnight = "CBS_A_ROUT_LNIGHT_"+nuts
-        String cbsAFerLden = "CBS_A_FER_LDEN_"+nuts
-        String cbsAFerLnight = "CBS_A_FER_LNIGHT_"+nuts
+        // for A maps
+        String cbsARoadLden = "CBS_A_R_LD_"+nuts
+        String cbsARoadLnight = "CBS_A_R_LN_"+nuts
+        String cbsAFerLden = "CBS_A_F_LD_"+nuts
+        String cbsAFerLnight = "CBS_A_F_LN_"+nuts
+
+        // for C maps
+        String cbsCRoadLden = "CBS_C_R_LD_"+nuts
+        String cbsCRoadLnight = "CBS_C_R_LN_"+nuts
+        String cbsCFerLGVLden = "CBS_C_F_LGV_LD_"+nuts
+        String cbsCFerLGVLnight = "CBS_C_F_LGV_LN_"+nuts
+        String cbsCFerCONVLden = "CBS_C_F_CONV_LD_"+nuts
+        String cbsCFerCONVLnight = "CBS_C_F_CONV_LN_"+nuts
+
 
         // Forces the SRID, as it is lost in the previous steps
         sql.execute("UPDATE CONTOURING_NOISE_MAP SET THE_GEOM=ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))")
         
         // Generate temporary table to store ISO areas
         sql.execute("DROP TABLE IF EXISTS ISO_AREA")
-        sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT ST_ACCUM(the_geom) the_geom, null, '"+uueid+"', '"+period+"', ISOLABEL, SUM(ST_AREA(the_geom)) AREA FROM CONTOURING_NOISE_MAP GROUP BY ISOLABEL")
+        sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, CBSTYPE varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT ST_ACCUM(the_geom) the_geom, null, '"+uueid+"', '"+cbsType+"', '"+period+"', ISOLABEL, SUM(ST_AREA(the_geom)) AREA FROM CONTOURING_NOISE_MAP GROUP BY ISOLABEL")
 
+        // For A maps
         // Update noise classes for LDEN
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN  'Lden5559' WHEN NOISELEVEL = '60-65' THEN  'Lden6064' WHEN NOISELEVEL = '65-70' THEN  'Lden6569' WHEN NOISELEVEL = '70-75' THEN  'Lden7074' WHEN NOISELEVEL = '> 75' THEN  'LdenGreaterThan75' END) WHERE PERIOD='LDEN';")
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN 'Lden5559' WHEN NOISELEVEL = '60-65' THEN 'Lden6064' WHEN NOISELEVEL = '65-70' THEN 'Lden6569' WHEN NOISELEVEL = '70-75' THEN 'Lden7074' WHEN NOISELEVEL = '> 75' THEN 'LdenGreaterThan75' END) WHERE CBSTYPE = 'A' AND PERIOD='LD';")
         // Update noise classes for LNIGHT
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '50-55' THEN  'Lnight5054'  WHEN NOISELEVEL = '55-60' THEN  'Lnight5559' WHEN NOISELEVEL = '60-65' THEN  'Lnight6064' WHEN NOISELEVEL = '65-70' THEN  'Lnight6569'  WHEN NOISELEVEL = '> 70' THEN  'LnightGreaterThan70' END) WHERE PERIOD='LNIGHT';")
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '50-55' THEN 'Lnight5054' WHEN NOISELEVEL = '55-60' THEN 'Lnight5559' WHEN NOISELEVEL = '60-65' THEN 'Lnight6064' WHEN NOISELEVEL = '65-70' THEN 'Lnight6569' WHEN NOISELEVEL = '> 70' THEN 'LnightGreaterThan70' END) WHERE CBSTYPE = 'A' AND PERIOD='LN';")
+
+        // For C maps
+        // Update noise classes for LDEN
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 68' THEN 'LdenGreaterThan68' WHEN NOISELEVEL = '> 73' THEN 'LdenGreaterThan73' END) WHERE CBSTYPE = 'C' AND PERIOD='LD';")
+        // Update noise classes for LNIGHT
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 62' THEN 'LnightGreaterThan62' WHEN NOISELEVEL = '> 65' THEN 'LnightGreaterThan65' END) WHERE CBSTYPE = 'C' AND PERIOD='LN';")
+
 
         sql.execute("DELETE FROM ISO_AREA WHERE NOISELEVEL IS NULL");
 
         // Generate the PK
         sql.execute("UPDATE ISO_AREA SET pk = CONCAT(uueid, '_',noiselevel)")
         // Forces the SRID, as it is lost in the previous steps
-        sql.execute("UPDATE ISO_AREA SET THE_GEOM=ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))")
+        sql.execute("UPDATE ISO_AREA SET THE_GEOM = ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))")
 
         // Insert iso areas into common table, according to rail or road input parameter
         if (railRoad==1){
-            sql.execute("INSERT INTO "+cbsAFerLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE PERIOD='LDEN'")
-            sql.execute("INSERT INTO "+cbsAFerLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE PERIOD='LNIGHT'")
+            sql.execute("INSERT INTO "+cbsAFerLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LD'")
+            sql.execute("INSERT INTO "+cbsAFerLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LN'")
+            sql.execute("INSERT INTO "+cbsCFerLGVLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD' AND NOISELEVEL = 'LdenGreaterThan68'")
+            sql.execute("INSERT INTO "+cbsCFerLGVLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN' AND NOISELEVEL = 'LnightGreaterThan62'")
+            sql.execute("INSERT INTO "+cbsCFerCONVLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD' AND NOISELEVEL = 'LdenGreaterThan73'")
+            sql.execute("INSERT INTO "+cbsCFerCONVLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN' AND NOISELEVEL = 'LnightGreaterThan65'")
         } else {
-            sql.execute("INSERT INTO "+cbsARoadLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE PERIOD='LDEN'")
-            sql.execute("INSERT INTO "+cbsARoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE PERIOD='LNIGHT'")
+            sql.execute("INSERT INTO "+cbsARoadLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LD'")
+            sql.execute("INSERT INTO "+cbsARoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LN'")
+            sql.execute("INSERT INTO "+cbsCRoadLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD'")
+            sql.execute("INSERT INTO "+cbsCRoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN'")
         }
 
 
