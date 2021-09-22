@@ -192,7 +192,12 @@ def exec(Connection connection, input) {
         sql.execute("CREATE TABLE "+ cbsCRoadLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)")
     }
 
-
+    logger.info("CREATE INDEX on " + tableDEN)
+    sql.execute("CREATE INDEX IF NOT EXISTS " + tableDEN + "_IDSOURCE_IDX ON "+tableDEN+" (IDSOURCE)")
+    logger.info("End create index on " + tableDEN)
+    logger.info("CREATE INDEX on " + tableNIGHT)
+    sql.execute("CREATE INDEX IF NOT EXISTS " + tableNIGHT + "_IDSOURCE_IDX ON "+tableNIGHT+" (IDSOURCE)")
+    logger.info("End create index on " + tableNIGHT)
 
     logger.info("Process each rail or road infrastructures")
 
@@ -219,20 +224,20 @@ def exec(Connection connection, input) {
         logger.info("Generate iso surfaces")
         // For A maps
         // Produce isocontours for LNIGHT (LN)
-        generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, lnightOutput, connection, uueid, 'A', 'LN', input)
+        generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, connection, uueid, 'A', 'LN', input)
         // Produce isocontours for LDEN (LD)
-        generateIsoSurfaces(ldenInput, isoLevelsLDEN, ldenOutput, connection, uueid, 'A', 'LD', input)
+        generateIsoSurfaces(ldenInput, isoLevelsLDEN, connection, uueid, 'A', 'LD', input)
 
         // For C maps
         // Produce isocontours for LNIGHT (LN)
-        generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, lnightOutput, connection, uueid, 'C', 'LN', input)
+        generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, connection, uueid, 'C', 'LN', input)
         // Produce isocontours for LDEN (LD)
-        generateIsoSurfaces(ldenInput, isoCLevelsLDEN, ldenOutput, connection, uueid, 'C', 'LD', input)
+        generateIsoSurfaces(ldenInput, isoCLevelsLDEN, connection, uueid, 'C', 'LD', input)
 
         if (railRoad==1){
-            generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, lnightOutput, connection, uueid, 'C', 'LN', input)
+            generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, connection, uueid, 'C', 'LN', input)
         
-            generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, ldenOutput, connection, uueid, 'C', 'LD', input)
+            generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, connection, uueid, 'C', 'LD', input)
         }
 
 
@@ -251,7 +256,6 @@ def exec(Connection connection, input) {
  * Generate isosurfaces for LDEN and LNIGHT tables
  * @param inputTable
  * @param isoClasses
- * @param outputTable
  * @param connection
  * @param uueid
  * @param cbsType 
@@ -259,7 +263,7 @@ def exec(Connection connection, input) {
  * @param input
  * @return
  */
-def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def connection, String uueid, String cbsType, String period, def input) {
+def generateIsoSurfaces(def inputTable, def isoClasses, def connection, String uueid, String cbsType, String period, def input) {
 
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
@@ -339,15 +343,9 @@ def generateIsoSurfaces(def inputTable, def isoClasses, def outputTable, def con
             sql.execute("INSERT INTO "+cbsCRoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN'")
         }
 
-
-        sql.execute("DROP TABLE IF EXISTS " + outputTable+", ISO_AREA")
-        // Rename CONTOURING_NOISE_MAP with the infrastructure UUEID
-        sql.execute("ALTER TABLE CONTOURING_NOISE_MAP RENAME TO " + outputTable)
-
-        resultString = "Table " + outputTable + " created"
+        sql.execute("DROP TABLE IF EXISTS CONTOURING_NOISE_MAP")
 
         logger.info('End : Compute Isosurfaces')
-        logger.info(resultString)
 }
 
 def run(input) {
