@@ -153,7 +153,7 @@ def exec(Connection connection, input) {
 
 
     // print to command window
-    logger.info('Début de l''export vers la base PostGIS sur le serveur')
+    logger.info("Début de l'export vers la base PostGIS sur le serveur")
 
 
     if(sqlPostgre.firstRow("SELECT count(*) as count FROM noisemodelling_resultats.metadata WHERE codedept='$codeDep';").count>0) {
