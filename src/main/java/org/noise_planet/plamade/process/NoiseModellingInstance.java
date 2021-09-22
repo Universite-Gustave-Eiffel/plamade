@@ -169,7 +169,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 logger.error("Cannot create the working directory\n" +configuration.workingDirectory);
                 return;
             }
-            nmDataSource = createDataSource("sa", "sa", configuration.workingDirectory, "nm_db");
+            nmDataSource = createDataSource("", "", configuration.workingDirectory, "h2gisdb");
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
