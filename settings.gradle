@@ -1,1 +1,3 @@
 rootProject.name = 'plamade'
+
+include 'computation_core'

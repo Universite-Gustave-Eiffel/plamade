@@ -1,0 +1,18 @@
+plugins {
+    id 'java'
+    id 'groovy'
+}
+
+
+compileJava {
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+}
+
+dependencies {
+    implementation fileTree(dir: 'dependencies', include: '*.jar')
+}
+
+application {
+    mainClass = 'Main'
+}
