@@ -16,13 +16,13 @@
  * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285
  */
 
-   /* TODO
-    - Check spatial index and srids
-    - Add Metadatas
-    - remove unnecessary lines (il y en a beaucoup)
-    - Check CONF, add some, sensibility analysis
-    - Fond good compromise for NoiseFLoor and Maximum error (lignes 413)
- */
+/* TODO
+ - Check spatial index and srids
+ - Add Metadatas
+ - remove unnecessary lines (il y en a beaucoup)
+ - Check CONF, add some, sensibility analysis
+ - Fond good compromise for NoiseFLoor and Maximum error (lignes 413)
+*/
 
 
 package org.noise_planet.noisemodelling.wps.plamade
@@ -186,10 +186,10 @@ def exec(Connection connection, input) {
     // -------------------
 
     String sources_table_name = "LW_ROADS"
-   
+
 
     // Pointing the 'receivers' table
-    String receivers_table_name = "receivers"    
+    String receivers_table_name = "receivers"
     // do it case-insensitive
     receivers_table_name = receivers_table_name.toUpperCase()
     //Get the geometry field of the receiver table
@@ -202,7 +202,7 @@ def exec(Connection connection, input) {
     int sridReceivers = SFSUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
     if (sridReceivers == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+receivers_table_name+".")
     if (sridReceivers == 0) throw new IllegalArgumentException("Error : The table "+receivers_table_name+" does not have an associated SRID.")
- 
+
 
     // Get the primary key field of the receiver table
     int pkIndexRecv = JDBCUtilities.getIntegerPrimaryKey(connection, receivers_table_name)
@@ -222,21 +222,21 @@ def exec(Connection connection, input) {
 
     // Pointing the 'dem' table
     String dem_table_name = "dem"
-        // do it case-insensitive
-        dem_table_name = dem_table_name.toUpperCase()
-        // Check if srid are in metric projection and are all the same.
-        int sridDEM = SFSUtilities.getSRID(connection, TableLocation.parse(dem_table_name))
-        if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
-        if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
+    // do it case-insensitive
+    dem_table_name = dem_table_name.toUpperCase()
+    // Check if srid are in metric projection and are all the same.
+    int sridDEM = SFSUtilities.getSRID(connection, TableLocation.parse(dem_table_name))
+    if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
+    if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
 
     // Pointing the 'landcover' table
     String ground_table_name = "landcover"
-        // do it case-insensitive
-        ground_table_name = ground_table_name.toUpperCase()
-        // Check if srid are in metric projection and are all the same.
-        int sridGROUND = SFSUtilities.getSRID(connection, TableLocation.parse(ground_table_name))
-        if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
-        if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
+    // do it case-insensitive
+    ground_table_name = ground_table_name.toUpperCase()
+    // Check if srid are in metric projection and are all the same.
+    int sridGROUND = SFSUtilities.getSRID(connection, TableLocation.parse(ground_table_name))
+    if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
+    if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
 
     // -----------------------------------------------------------------------------
     // Define and set the parameters coming from the global configuration table (CONF)
@@ -256,7 +256,7 @@ def exec(Connection connection, input) {
     boolean confSkipLevening = row_conf.confskiplevening
     boolean confSkipLnight = row_conf.confskiplnight
     boolean confSkipLden = row_conf.confskiplden
-    boolean confExportSourceId = row_conf.confexportsourceid 
+    boolean confExportSourceId = row_conf.confexportsourceid
     double wall_alpha = row_conf.wall_alpha.toDouble()
 
     logger.info(String.format("PARAM : You have chosen the configuration number %d ", input.confId));
@@ -277,15 +277,15 @@ def exec(Connection connection, input) {
     // Define and set the parameters coming from the ZONE table
 
     def row_zone = sql.firstRow("SELECT * FROM ZONE")
-    
+
     double confHumidity = row_zone.hygro_d.toDouble()
     double confTemperature = row_zone.temp_d.toDouble()
     String confFavorableOccurrences = row_zone.pfav_06_18
-   
+
     logger.info(String.format("PARAM : The relative humidity is set to %s ", confHumidity));
     logger.info(String.format("PARAM : The temperature is set to %s ", confTemperature));
     logger.info(String.format("PARAM : The pfav values are %s ", confFavorableOccurrences));
- 
+
     // -------------------------
     // Initialize some variables
     // -------------------------
@@ -297,7 +297,7 @@ def exec(Connection connection, input) {
     // Initialize NoiseModelling propagation part
     // --------------------------------------------
 
-     PointNoiseMap pointNoiseMap = new PointNoiseMap(building_table_name, sources_table_name, receivers_table_name)
+    PointNoiseMap pointNoiseMap = new PointNoiseMap(building_table_name, sources_table_name, receivers_table_name)
 
     LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN)
 
@@ -322,17 +322,17 @@ def exec(Connection connection, input) {
 
     // Set environmental parameters
     PropagationProcessPathData environmentalData = new PropagationProcessPathData(false)
-    
+
     environmentalData.setHumidity(confHumidity)
     environmentalData.setTemperature(confTemperature)
-    
-        StringTokenizer tk = new StringTokenizer(confFavorableOccurrences, ',')
-        double[] favOccurrences = new double[PropagationProcessPathData.DEFAULT_WIND_ROSE.length]
-        for (int i = 0; i < favOccurrences.length; i++) {
-            favOccurrences[i] = Math.max(0, Math.min(1, Double.valueOf(tk.nextToken().trim())))
-        }
-        environmentalData.setWindRose(favOccurrences)
-    
+
+    StringTokenizer tk = new StringTokenizer(confFavorableOccurrences, ',')
+    double[] favOccurrences = new double[PropagationProcessPathData.DEFAULT_WIND_ROSE.length]
+    for (int i = 0; i < favOccurrences.length; i++) {
+        favOccurrences[i] = Math.max(0, Math.min(1, Double.valueOf(tk.nextToken().trim())))
+    }
+    environmentalData.setWindRose(favOccurrences)
+
     pointNoiseMap.setPropagationProcessPathData(environmentalData)
 
     // Building height field name
@@ -377,7 +377,7 @@ def exec(Connection connection, input) {
     pointNoiseMap.setComputeRaysOutFactory(ldenProcessing)
     pointNoiseMap.setPropagationProcessDataFactory(ldenProcessing)
 
- 
+
     // Init Map
     pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
 

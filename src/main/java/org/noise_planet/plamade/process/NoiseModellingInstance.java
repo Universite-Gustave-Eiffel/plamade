@@ -147,6 +147,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     }
 
 
+    public Object Export(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script process= shell.parse(new File("script_groovy", "s7_Export.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", configuration.getConfigurationId());
+        inputs.put("workingDirectory", configuration.getWorkingDirectory());
+        inputs.put("progressVisitor", progressVisitor);
+        inputs.put("databaseUser", configuration.getDataBaseConfig().user);
+        inputs.put("databasePassword", configuration.getDataBaseConfig().password);
+        inputs.put("batchSize", 1000);
+        return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
+    }
+
     @Override
     public void run() {
         Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
@@ -173,7 +186,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(6);
+            ProgressVisitor subProg = progressVisitor.subProcess(7);
             try(Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
                 makeGrid(nmConnection);
@@ -183,6 +196,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 RoadNoiselevel(nmConnection, subProg);
                 LoadNoiselevel(nmConnection, subProg);
                 Isosurface(nmConnection, subProg);
+                Export(nmConnection, subProg);
+                subProg.endStep();
             }
         } catch (SQLException | SecurityException | IOException ex) {
             logger.error(ex.getLocalizedMessage(), ex);
