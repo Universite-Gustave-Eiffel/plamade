@@ -184,8 +184,8 @@ def exec(Connection connection, input) {
     
 
     for(cbstype in ['A', 'C']) {
-        for(typesource in ['ROUT', 'FER']) {
-            for(indicetype in ['LDEN', 'LNIGHT']) {
+        for(typesource in ['R', 'F']) {
+            for(indicetype in ['LD', 'LN']) {
                 // on génère le nom de la table à partir des éléments ci-dessus
                 def inputTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeNuts
 
