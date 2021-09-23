@@ -706,7 +706,9 @@ def exec(Connection connection, input) {
     create table bdtopo_route as select * from t_bdtopo_route;
     delete from bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     
-    drop table t_bdtopo_route; 
+    drop table t_bdtopo_route;     
+    
+    create spatial index on bdtopo_route(the_geom);
  
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
     CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT d.the_geom FROM dem d;    
