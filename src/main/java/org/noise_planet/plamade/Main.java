@@ -69,7 +69,7 @@ public class Main {
         }
 
         String databasePath = Paths.get("database").toAbsolutePath().toString();
-        dbUrl = "jdbc:h2:" + databasePath + ";DB_CLOSE_DELAY=30";
+        dbUrl = "jdbc:h2:" + databasePath + ";DB_CLOSE_DELAY=30;TRACE_LEVEL_FILE=4";
         dataSourceClassName = "org.h2.jdbcx.JdbcDataSource";
 
         RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").port(9580).env().require("/auth", AuthConfig.class)

@@ -69,6 +69,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         properties.setProperty(DataSourceFactory.JDBC_URL, databasePath);
         properties.setProperty(DataSourceFactory.JDBC_USER, user);
         properties.setProperty(DataSourceFactory.JDBC_PASSWORD, password);
+        properties.setProperty("TRACE_LEVEL_FILE", "3"); // enable debug
         DataSource dataSource = dataSourceFactory.createDataSource(properties);
         // Init spatial ext
         try (Connection connection = dataSource.getConnection()) {

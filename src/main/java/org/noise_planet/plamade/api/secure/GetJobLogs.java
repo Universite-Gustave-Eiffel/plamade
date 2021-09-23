@@ -44,7 +44,7 @@ public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
     static final int FETCH_NUMBER_OF_LINES = 5000;
 
-    public List<String> filterByThread(List<String> messages, String threadId) {
+    public static List<String> filterByThread(List<String> messages, String threadId) {
         List<String> filtered = new ArrayList<>();
         Pattern p = Pattern.compile("\\[(.*)] (\\w*) (.*)$");
         boolean match = false;
