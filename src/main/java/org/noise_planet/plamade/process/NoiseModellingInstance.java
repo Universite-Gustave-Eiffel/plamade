@@ -60,7 +60,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         this.plamadeDataSource = plamadeDataSource;
     }
 
-    public static DataSource createDataSource(String user, String password, String dbDirectory,String dbName) throws SQLException {
+    public static DataSource createDataSource(String user, String password, String dbDirectory,String dbName, boolean debug) throws SQLException {
         // Create H2 memory DataSource
         org.h2.Driver driver = org.h2.Driver.load();
         OsgiDataSourceFactory dataSourceFactory = new OsgiDataSourceFactory(driver);
@@ -69,7 +69,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         properties.setProperty(DataSourceFactory.JDBC_URL, databasePath);
         properties.setProperty(DataSourceFactory.JDBC_USER, user);
         properties.setProperty(DataSourceFactory.JDBC_PASSWORD, password);
-        properties.setProperty("TRACE_LEVEL_FILE", "3"); // enable debug
+        if(debug) {
+            properties.setProperty("TRACE_LEVEL_FILE", "3"); // enable debug
+        }
         DataSource dataSource = dataSourceFactory.createDataSource(properties);
         // Init spatial ext
         try (Connection connection = dataSource.getConnection()) {
@@ -90,6 +92,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         inputs.put("fetchDistance", 1000);
         inputs.put("inseeDepartment", configuration.getInseeDepartment());
         inputs.put("progressVisitor", progressVisitor);
+        inputs.put("inputServer", "cloud");
 
         Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
 
@@ -183,7 +186,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 logger.error("Cannot create the working directory\n" +configuration.workingDirectory);
                 return;
             }
-            nmDataSource = createDataSource("", "", configuration.workingDirectory, "h2gisdb");
+            nmDataSource = createDataSource("", "", configuration.workingDirectory, "h2gisdb", false);
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;

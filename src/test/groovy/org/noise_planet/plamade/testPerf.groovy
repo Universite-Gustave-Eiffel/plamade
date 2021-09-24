@@ -38,7 +38,7 @@ class testPerf {
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
 
         DataSource ds = NoiseModellingInstance.createDataSource("", "",
-                workingFolder, "h2gisdb")
+                workingFolder, "h2gisdb", false)
         ds.getConnection().withCloseable { Connection connection ->
             GroovyShell shell = new GroovyShell()
             Script shellScript = shell.parse(new File("script_groovy", "s42_Load_Noise_level.groovy"))
@@ -62,7 +62,7 @@ class testPerf {
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
 
         DataSource ds = NoiseModellingInstance.createDataSource("", "",
-                "/home/nicolas/data/plamade/dep38/", "h2gisdb")
+                "/home/nicolas/data/plamade/dep38/", "h2gisdb", false)
         ds.getConnection().withCloseable {
             Connection connection ->
                 Sql sql = new Sql(connection)

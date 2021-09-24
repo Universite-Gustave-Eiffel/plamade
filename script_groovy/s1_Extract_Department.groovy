@@ -786,7 +786,7 @@ def exec(Connection connection, input) {
     UPDATE metadata SET import_end = NOW();
     """
 
-    def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep, "table_bd_topo_route" : table_bd_topo_route]
+    def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep, "table_bd_topo_route" : table_bd_topo_route, "srid" : srid]
 
 
     // print to command window
