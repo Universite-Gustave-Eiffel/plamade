@@ -370,19 +370,17 @@ def exec(Connection connection, input) {
      noisemodelling."$table_route" a,
      echeance4."N_ROUTIER_TRAFIC" b,
      echeance4."N_ROUTIER_VITESSE" c,
-     echeance4."N_ROUTIER_REVETEMENT" d, 
-     (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e,
+     echeance4."N_ROUTIER_REVETEMENT" d,
      echeance4."N_ROUTIER_ROUTE" f 
     WHERE 
      ST_LENGTH(a.the_geom)>0 and
+     a."CODEDEPT" = lpad(''$codeDep'',3,''0'') and
      a."CBS_GITT" and
      f."CONCESSION"=''N'' and 
      a."IDTRONCON"=b."IDTRONCON" and
      a."IDTRONCON"=c."IDTRONCON" and
      a."IDTRONCON"=d."IDTRONCON" and 
-     a."IDROUTE"=f."IDROUTE" and
-     a.the_geom && e.the_geom and 
-     ST_INTERSECTS(a.the_geom, e.the_geom))');
+     a."IDROUTE"=f."IDROUTE")');
     
     CREATE TABLE ROADS AS SELECT * FROM roads_link;
     DROP TABLE roads_link;
@@ -443,16 +441,14 @@ def exec(Connection connection, input) {
     FROM 
         noisemodelling."$table_rail" a,
         echeance4."N_FERROVIAIRE_VITESSE" b,
-        echeance4."N_FERROVIAIRE_LIGNE" c, 
-        (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e
+        echeance4."N_FERROVIAIRE_LIGNE" c
     WHERE
         ST_LENGTH(a.the_geom)>0 and 
+        a."CODEDEPT" = lpad(''$codeDep'',3,''0'') and
         a."CBS_GITT" and
         a."REFPROD"=''412280737'' and  
         a."IDTRONCON" = b."IDTRONCON" and
-        a."IDLIGNE" = c."IDLIGNE" and 
-        a.the_geom && e.the_geom and 
-        ST_INTERSECTS(a.the_geom, e.the_geom))');
+        a."IDLIGNE" = c."IDLIGNE")');
 
     CREATE TABLE rail_sections_geom AS SELECT * FROM rail_sections_link;
 
@@ -535,21 +531,15 @@ def exec(Connection connection, input) {
     CREATE LINKED TABLE allbuildings_erps_natur_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
     '(SELECT "IDERPS" as id_erps, "ERPS_NATUR" as erps_natur FROM echeance4."C_BATIMENTSENSIBLE")');
 
-
-
-
-
     -- Save linked tables to be able to create indexes
     CREATE TABLE allbuildings_erps AS SELECT * FROM allbuildings_erps_link;
     CREATE TABLE allbuildings_erps_natur AS SELECT * FROM allbuildings_erps_natur_link;
     CREATE INDEX ON allbuildings_erps(id_erps);
     CREATE INDEX ON allbuildings_erps_natur(id_erps);
 
-
     -- Merge both ERPS informations
     CREATE TABLE buildings_erps as SELECT a.*, b.erps_natur from allbuildings_erps a, allbuildings_erps_natur b WHERE a.id_erps = b.id_erps;
     CREATE INDEX ON buildings_erps(id_bat);
-
 
 	-- Merge both geom and ERPS tables into builings table
 	CREATE TABLE buildings as SELECT a.the_geom, a.id_bat, a.bat_uueid, a.height, a.pop, b.id_erps, b.erps_natur FROM buildings_geom a LEFT JOIN buildings_erps b ON a.id_bat = b.id_bat;
@@ -716,7 +706,7 @@ def exec(Connection connection, input) {
     create table bdtopo_route as select * from t_bdtopo_route;
     delete from bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     
-    drop table t_bdtopo_route; 
+    drop table t_bdtopo_route;     
     
     create spatial index on bdtopo_route(the_geom);
  
@@ -734,8 +724,6 @@ def exec(Connection connection, input) {
     DROP TABLE IF EXISTS DEM;
     ALTER TABLE DEM_WITHOUT_PTLINE RENAME TO DEM;
     """
-
-
 
 
     def queries_stats = """
@@ -786,7 +774,7 @@ def exec(Connection connection, input) {
     UPDATE metadata SET import_end = NOW();
     """
 
-    def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep, "table_bd_topo_route" : table_bd_topo_route, "srid" : srid]
+    def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep, "table_bd_topo_route" : table_bd_topo_route]
 
 
     // print to command window
@@ -858,7 +846,6 @@ def exec(Connection connection, input) {
     progress.endStep()
 
 
-
     // ------------------------------------------------------------
     // Rapport part
     def dept_name=sql.firstRow("SELECT nom_dep FROM departement_link;")[0] as String
@@ -876,7 +863,6 @@ def exec(Connection connection, input) {
     def nb_build_hnull=sql.firstRow("SELECT COUNT(*) FROM BUILDINGS WHERE HEIGHT is NULL;")[0] as Integer
     def nb_build_id_erps=sql.firstRow("SELECT COUNT(*) FROM BUILDINGS WHERE id_erps is NOT NULL;")[0] as Integer
     def nb_build_pop=sql.firstRow("SELECT SUM(pop) FROM BUILDINGS;")[0] as Integer
-
 
     def stat_rails_track=sql.firstRow("SELECT NB_TRACK FROM stat_rail_fr;")[0] as Integer
     def stat_rails_track_cbsgitt=sql.firstRow("SELECT CBS_GITT_O FROM stat_rail_fr;")[0] as Integer
