@@ -127,6 +127,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         inputs.put("confId", configuration.getConfigurationId());
         inputs.put("workingDirectory", configuration.getWorkingDirectory());
         inputs.put("progressVisitor", progressVisitor);
+        inputs.put("outputToSql", false);
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
@@ -190,18 +191,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(7);
+            ProgressVisitor subProg = progressVisitor.subProcess(1);
             try(Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
-                makeGrid(nmConnection);
-                subProg.endStep();
-                makeEmission(nmConnection);
-                subProg.endStep();
-                RoadNoiselevel(nmConnection, subProg);
-                LoadNoiselevel(nmConnection, subProg);
-                Isosurface(nmConnection, subProg);
-                Export(nmConnection, subProg);
-                subProg.endStep();
+//                makeGrid(nmConnection);
+//                subProg.endStep();
+//                makeEmission(nmConnection);
+//                subProg.endStep();
+//                RoadNoiselevel(nmConnection, subProg);
+//                //LoadNoiselevel(nmConnection, subProg);
+//                Isosurface(nmConnection, subProg);
+//                Export(nmConnection, subProg);
+//                subProg.endStep();
             }
         } catch (SQLException | SecurityException | IOException ex) {
             logger.error(ex.getLocalizedMessage(), ex);

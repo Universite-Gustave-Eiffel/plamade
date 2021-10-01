@@ -402,12 +402,16 @@ def exec(Connection connection, input) {
     File profileFile
     if("workingDirectory" in input) {
         profileFile = new File(new File(input["workingDirectory"] as String), "profile_"+profileName+".csv")
-        ldenConfig_propa.setSqlOutputFile(new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql.gz"))
-        ldenConfig_propa.setSqlOutputFileCompression(true)
+        if("outputToSql" in input && input["outputToSql"] as Boolean) {
+            ldenConfig_propa.setSqlOutputFile(new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql.gz"))
+            ldenConfig_propa.setSqlOutputFileCompression(true)
+        }
     } else {
         profileFile = new File("profile_"+profileName+".csv")
-        ldenConfig_propa.setSqlOutputFile(new File("Road_Noise_level.sql.gz"))
-        ldenConfig_propa.setSqlOutputFileCompression(true)
+        if("outputToSql" in input && input["outputToSql"] as Boolean) {
+            ldenConfig_propa.setSqlOutputFile(new File("Road_Noise_level.sql.gz"))
+            ldenConfig_propa.setSqlOutputFileCompression(true)
+        }
     }
 
     ProfilerThread profilerThread = new ProfilerThread(profileFile);
