@@ -1,6 +1,8 @@
 plugins {
     id 'java'
     id 'groovy'
+    id 'maven'
+    id 'application'
 }
 
 
@@ -9,7 +11,18 @@ compileJava {
     targetCompatibility = '1.8'
 }
 
+repositories {
+    mavenCentral()
+}
+
+task copyDependencies(type: Copy) {
+    from configurations.default
+    into 'libs'
+}
+
 dependencies {
+    implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
+    implementation group: 'net.postgis', name: 'postgis-jdbc-jtsparser', version: '2.3.0'
     implementation fileTree(dir: 'dependencies', include: '*.jar')
 }
 
