@@ -41,11 +41,12 @@ class testPerf {
                 workingFolder, "h2gisdb", false)
         ds.getConnection().withCloseable { Connection connection ->
             GroovyShell shell = new GroovyShell()
-            Script shellScript = shell.parse(new File("script_groovy", "s42_Load_Noise_level.groovy"))
+            Script shellScript = shell.parse(new File("../script_groovy", "s42_Load_Noise_level.groovy"))
             Map<String, Object> inputs = new HashMap<>();
             inputs.put("confId", 4);
             inputs.put("workingDirectory", workingFolder);
             inputs.put("progressVisitor", new RootProgressVisitor(1, true, 1));
+            inputs.put("compressed", false)
             def result = shellScript.invokeMethod("exec", [connection, inputs])
             System.out.println(result)
 

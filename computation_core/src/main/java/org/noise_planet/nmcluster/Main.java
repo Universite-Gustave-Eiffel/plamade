@@ -1,13 +1,3 @@
-import org.h2.util.OsgiDataSourceFactory;
-import org.h2gis.functions.factory.H2GISFunctions;
-import org.osgi.service.jdbc.DataSourceFactory;
-
-import javax.sql.DataSource;
-import java.io.File;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.Properties;
-
 /**
  * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
  *
@@ -19,6 +9,17 @@ import java.util.Properties;
  * Contact: contact@noise-planet.org
  *
  */
+package org.noise_planet.nmcluster;
+
+import org.h2.util.OsgiDataSourceFactory;
+import org.h2gis.functions.factory.H2GISFunctions;
+import org.osgi.service.jdbc.DataSourceFactory;
+import javax.sql.DataSource;
+import java.io.File;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Properties;
+
 
 public class Main {
 

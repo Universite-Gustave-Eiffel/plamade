@@ -136,8 +136,13 @@ def exec(Connection connection, input) {
     // -------------------
 
     File scriptFile = new File("Road_Noise_level.sql.gz")
+    boolean compressed = true
+    if(input.containsKey("compressed") && !(input["compressed"] as Boolean)) {
+        scriptFile = new File("Road_Noise_level.sql")
+        compressed = false
+    }
     if("workingDirectory" in input) {
-        scriptFile = new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql.gz")
+        scriptFile = new File(new File(input["workingDirectory"] as String), scriptFile.getName())
     }
     if(!scriptFile.exists()) {
         return scriptFile.absolutePath + " does not exists"
@@ -152,7 +157,7 @@ def exec(Connection connection, input) {
     }
 
 
-    parseScript(scriptFile, sql, progressLogger, true)
+    parseScript(scriptFile, sql, progressLogger, compressed)
 
 
     resultString = "Calculation Done ! "
