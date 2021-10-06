@@ -20,6 +20,8 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.noise_planet.noisemodelling.jdbc.LDENConfig;
+import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.noise_planet.plamade.config.AdminConfig;
 import org.noise_planet.plamade.config.DataBaseConfig;
@@ -84,7 +86,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     public void importData(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
 
         GroovyShell shell = new GroovyShell();
-        Script extractDepartment= shell.parse(new File("script_groovy", "s1_Extract_Department.groovy"));
+        Script extractDepartment= shell.parse(new File("../script_groovy", "s1_Extract_Department.groovy"));
 
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("databaseUser", configuration.getDataBaseConfig().user);
@@ -96,14 +98,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
         Object result = extractDepartment.invokeMethod("exec", new Object[] {nmConnection, inputs});
 
-        try(OutputStreamWriter f = new OutputStreamWriter(new FileOutputStream(new File(configuration.getWorkingDirectory(), "import.html")), StandardCharsets.UTF_8)) {
-            f.write(result.toString());
+        if(result instanceof String) {
+            try (OutputStreamWriter f = new OutputStreamWriter(new FileOutputStream(new File(configuration.getWorkingDirectory(), "import.html")), StandardCharsets.UTF_8)) {
+                f.write(result.toString());
+            }
         }
     }
 
     public void makeGrid(Connection nmConnection) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
-        Script receiversGrid= shell.parse(new File("script_groovy", "s2_Receivers_Grid.groovy"));
+        Script receiversGrid= shell.parse(new File("../script_groovy", "s2_Receivers_Grid.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
 
@@ -112,7 +116,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     public void makeEmission(Connection nmConnection) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
-        Script receiversGrid= shell.parse(new File("script_groovy", "s3_Emission_Noise_level.groovy"));
+        Script receiversGrid= shell.parse(new File("../script_groovy", "s3_Emission_Noise_level.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
 
@@ -122,7 +126,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     public Object RoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("script_groovy", "s4_Road_Noise_level.groovy"));
+        Script process= shell.parse(new File("../script_groovy", "s4_Road_Noise_level.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
         inputs.put("workingDirectory", configuration.getWorkingDirectory());
@@ -131,9 +135,29 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
+    public void GenerateClusterConfig(Connection connection, ProgressVisitor progressVisitor) throws SQLException, IOException {
+        /*
+        PointNoiseMap pointNoiseMap = new PointNoiseMap("buildings_screens", sources_table_name, receivers_table_name);
+
+        LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
+
+        ldenConfig_propa.setComputeLDay(!confSkipLday)
+        ldenConfig_propa.setComputeLEvening(!confSkipLevening)
+        ldenConfig_propa.setComputeLNight(!confSkipLnight)
+        ldenConfig_propa.setComputeLDEN(!confSkipLden)
+        ldenConfig_propa.setMergeSources(!confExportSourceId)
+        ldenConfig_propa.setlDayTable("LDAY_ROADS")
+        ldenConfig_propa.setlEveningTable("LEVENING_ROADS")
+        ldenConfig_propa.setlNightTable("LNIGHT_ROADS")
+        ldenConfig_propa.setlDenTable("LDEN_ROADS")
+        ldenConfig_propa.setComputeLAEQOnly(true)
+        Map cells = pointNoiseMap.searchPopulatedCells(connection);
+
+         */
+    }
     public Object LoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("script_groovy", "s42_Load_Noise_level.groovy"));
+        Script process= shell.parse(new File("../script_groovy", "s42_Load_Noise_level.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
         inputs.put("workingDirectory", configuration.getWorkingDirectory());
@@ -143,7 +167,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     public Object Isosurface(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("script_groovy", "s5_Isosurface.groovy"));
+        Script process= shell.parse(new File("../script_groovy", "s5_Isosurface.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
         inputs.put("workingDirectory", configuration.getWorkingDirectory());
@@ -154,7 +178,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     public Object Export(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("script_groovy", "s7_Export.groovy"));
+        Script process= shell.parse(new File("../script_groovy", "s7_Export.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
         inputs.put("workingDirectory", configuration.getWorkingDirectory());
@@ -172,39 +196,43 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         try {
             // create folder
             File workingDir = new File(configuration.workingDirectory);
-            if(workingDir.exists() && workingDir.isDirectory()) {
-                if(workingDir.getAbsolutePath().startsWith(new File("").getAbsolutePath())) {
+            if (workingDir.exists() && workingDir.isDirectory()) {
+                if (workingDir.getAbsolutePath().startsWith(new File("").getAbsolutePath())) {
                     if (!workingDir.delete()) {
                         logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
                         return;
                     }
                 } else {
-                    logger.error(String.format(Locale.ROOT, "Can delete only sub-folder \n%s\n%s",
-                            new File("").getAbsolutePath(), workingDir.getAbsolutePath()));
+                    logger.error(String.format(Locale.ROOT, "Can delete only sub-folder \n%s\n%s", new File("").getAbsolutePath(), workingDir.getAbsolutePath()));
                 }
             }
-            if(!(workingDir.mkdirs())) {
-                logger.error("Cannot create the working directory\n" +configuration.workingDirectory);
+            if (!(workingDir.mkdirs())) {
+                logger.error("Cannot create the working directory\n" + configuration.workingDirectory);
                 return;
             }
             nmDataSource = createDataSource("", "", configuration.workingDirectory, "h2gisdb", false);
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(1);
-            try(Connection nmConnection = nmDataSource.getConnection()) {
+            ProgressVisitor subProg = progressVisitor.subProcess(6);
+            try (Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
-//                makeGrid(nmConnection);
-//                subProg.endStep();
-//                makeEmission(nmConnection);
-//                subProg.endStep();
-//                RoadNoiselevel(nmConnection, subProg);
-//                //LoadNoiselevel(nmConnection, subProg);
-//                Isosurface(nmConnection, subProg);
-//                Export(nmConnection, subProg);
-//                subProg.endStep();
+                makeGrid(nmConnection);
+                subProg.endStep();
+                makeEmission(nmConnection);
+                subProg.endStep();
+                RoadNoiselevel(nmConnection, subProg);
+                //LoadNoiselevel(nmConnection, subProg);
+                Isosurface(nmConnection, subProg);
+                Export(nmConnection, subProg);
+                subProg.endStep();
             }
-        } catch (SQLException | SecurityException | IOException ex) {
+        } catch (SQLException ex) {
+            while(ex != null) {
+                logger.error(ex.getLocalizedMessage(), ex);
+                ex = ex.getNextException();
+            }
+        } catch (Exception ex) {
             logger.error(ex.getLocalizedMessage(), ex);
         } finally {
             // Update Job informations

@@ -26,7 +26,7 @@ compileJava {
 sourceSets {
     main {
         groovy {
-            srcDirs=['script_groovy']
+            srcDirs=['../script_groovy']
         }
     }
 }

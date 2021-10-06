@@ -58,6 +58,7 @@ class testPerf {
         }
     }
 
+    @Test
     public void testCell() {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
@@ -71,9 +72,12 @@ class testPerf {
                         "FROM PUBLIC.CONF WHERE CONFID = 4")
                 def result = ""
                 GroovyShell shell = new GroovyShell()
-                Script shellScript= shell.parse(new File("script_groovy", "s2_Receivers_Grid.groovy"))
+                Script shellScript= shell.parse(new File("../script_groovy", "s41_ClusterConfiguration.groovy"))
                 Map<String, Object> inputs = new HashMap<>()
-                //inputs.put("confId", conf.CONFID)
+                inputs.put("confId", conf.CONFID)
+                inputs.put("numberOfNodes", 8)
+                result = shellScript.invokeMethod("exec", [connection, inputs])
+                System.out.println(result)
                 //def result = receiversGrid.invokeMethod("exec", [connection, inputs])
 
 //                shellScript= shell.parse(new File("script_groovy", "s3_Emission_Noise_level.groovy"))
@@ -81,11 +85,11 @@ class testPerf {
 //                inputs.put("confId", conf.CONFID)
 //                result = shellScript.invokeMethod("exec", [connection, inputs])
 
-                shellScript= shell.parse(new File("script_groovy", "s4_Rail_Noise_level.groovy"))
-                inputs = new HashMap<>()
-                inputs.put("confId", conf.CONFID)
-                result = shellScript.invokeMethod("exec", [connection, inputs])
-                System.out.println(result)
+//                shellScript= shell.parse(new File("script_groovy", "s4_Rail_Noise_level.groovy"))
+//                inputs = new HashMap<>()
+//                inputs.put("confId", conf.CONFID)
+//                result = shellScript.invokeMethod("exec", [connection, inputs])
+//                System.out.println(result)
 
                 //POINT(866138.95 6506059.04 236.27) 16 seconds
         }
