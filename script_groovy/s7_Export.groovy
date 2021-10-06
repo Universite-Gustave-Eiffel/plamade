@@ -58,6 +58,12 @@ inputs = [
                 title      : 'Batch size',
                 description: 'Batch size. Default 1000',
                 type       : Integer.class
+        ],
+        inputServer : [
+                name       : 'DB Server used',
+                title      : 'DB server used',
+                description: 'Choose between cerema or cloud',
+                type       : String.class
         ]
 ]
 
@@ -108,7 +114,15 @@ def exec(Connection connection, input) {
 
 
     // Get provided parameters
-    def databaseUrl = "jdbc:postgres_jts://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    def databaseUrl
+    if(input["inputServer"].equals('cerema')) {
+        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    } else if(input["inputServer"].equals('cloud')) {
+        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    } else{
+        return "Vous n'avez pas spécifié le bon nom de serveur"
+    }   
+
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
 
