@@ -12,7 +12,10 @@
 
 package org.noise_planet.plamade.process;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
@@ -39,10 +42,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
@@ -135,25 +135,31 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
-    public void GenerateClusterConfig(Connection connection, ProgressVisitor progressVisitor) throws SQLException, IOException {
-        /*
-        PointNoiseMap pointNoiseMap = new PointNoiseMap("buildings_screens", sources_table_name, receivers_table_name);
-
-        LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
-
-        ldenConfig_propa.setComputeLDay(!confSkipLday)
-        ldenConfig_propa.setComputeLEvening(!confSkipLevening)
-        ldenConfig_propa.setComputeLNight(!confSkipLnight)
-        ldenConfig_propa.setComputeLDEN(!confSkipLden)
-        ldenConfig_propa.setMergeSources(!confExportSourceId)
-        ldenConfig_propa.setlDayTable("LDAY_ROADS")
-        ldenConfig_propa.setlEveningTable("LEVENING_ROADS")
-        ldenConfig_propa.setlNightTable("LNIGHT_ROADS")
-        ldenConfig_propa.setlDenTable("LDEN_ROADS")
-        ldenConfig_propa.setComputeLAEQOnly(true)
-        Map cells = pointNoiseMap.searchPopulatedCells(connection);
-
-         */
+    public void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script process= shell.parse(new File("../script_groovy", "s42_Load_Noise_level.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", configuration.getConfigurationId());
+        inputs.put("numberOfNodes", 8);
+        inputs.put("progressVisitor", progressVisitor);
+        Object result = process.invokeMethod("exec", new Object[] {nmConnection, inputs});
+        if(result instanceof List) {
+            // Convert to json
+            List<ArrayList<PointNoiseMap.CellIndex>> cells = (List<ArrayList<PointNoiseMap.CellIndex>>)result;
+            ObjectMapper mapper = new ObjectMapper();
+            ArrayNode rootNode = mapper.createArrayNode();
+            for(ArrayList<PointNoiseMap.CellIndex> node : cells) {
+                ArrayNode currentNode = mapper.createArrayNode();
+                for(PointNoiseMap.CellIndex cellIndex : node) {
+                    ObjectNode cellNode = mapper.createObjectNode();
+                    cellNode.put("latitudeIndex", cellIndex.getLatitudeIndex());
+                    cellNode.put("longitudeIndex", cellIndex.getLongitudeIndex());
+                    currentNode.add(cellNode);
+                }
+                rootNode.add(currentNode);
+            }
+            mapper.writerWithDefaultPrettyPrinter().writeValue(new File(configuration.workingDirectory, "cluster_config.json"), rootNode);
+        }
     }
     public Object LoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
@@ -221,11 +227,12 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 subProg.endStep();
                 makeEmission(nmConnection);
                 subProg.endStep();
-                RoadNoiselevel(nmConnection, subProg);
-                //LoadNoiselevel(nmConnection, subProg);
-                Isosurface(nmConnection, subProg);
-                Export(nmConnection, subProg);
-                subProg.endStep();
+                generateClusterConfig(nmConnection, subProg);
+//                RoadNoiselevel(nmConnection, subProg);
+//                //LoadNoiselevel(nmConnection, subProg);
+//                Isosurface(nmConnection, subProg);
+//                Export(nmConnection, subProg);
+//                subProg.endStep();
             }
         } catch (SQLException ex) {
             while(ex != null) {

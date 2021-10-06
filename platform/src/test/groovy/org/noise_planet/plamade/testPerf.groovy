@@ -58,7 +58,7 @@ class testPerf {
         }
     }
 
-    @Test
+    //@Test
     public void testCell() {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
