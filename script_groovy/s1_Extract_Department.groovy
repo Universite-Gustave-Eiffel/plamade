@@ -717,7 +717,7 @@ def exec(Connection connection, input) {
     ALTER TABLE bdtopo_route add primary key(pk_line);
     -- Create buffer points from roads and copy the elevation from the roads to the point
     DROP TABLE IF EXISTS BUFFERED_PTLINE;
-    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from bdtopo_route rmc;
+    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from bdtopo_route rmc where st_length(st_simplify(the_geom, 2)) > 0 ;
     INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM) SELECT ST_MAKEPOINT(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);
     
