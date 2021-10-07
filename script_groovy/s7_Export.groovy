@@ -20,7 +20,9 @@ package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
+import groovy.sql.BatchingPreparedStatementWrapper
 import groovy.text.SimpleTemplateEngine
+import groovy.transform.CompileStatic
 import org.geotools.jdbc.JDBCDataStore
 import org.locationtech.jts.geom.Point
 import org.locationtech.jts.geom.LineString
@@ -106,7 +108,6 @@ def getPostgreConnection(user, password, url) {
     return sql
 }
 
-
 @CompileStatic
 def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeNuts,int srid, int batchSize) {
     def writer = new WKTWriter(3)
@@ -136,7 +137,6 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeNuts,int
     }
 }
 
-
 def exec(Connection connection, input) {
 
     // Create a logger to display messages in the geoserver logs and in the command prompt.
@@ -151,7 +151,7 @@ def exec(Connection connection, input) {
         databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
     } else{
         return "Vous n'avez pas spécifié le bon nom de serveur"
-    }   
+    }
 
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
@@ -160,7 +160,7 @@ def exec(Connection connection, input) {
     // On déclare les deux connections aux bdd
     def sqlPostgre = getPostgreConnection(user, pwd, databaseUrl)
     def sqlH2gis = new Sql(connection)
-    
+
     def writer = new WKTWriter()
 
 
@@ -184,15 +184,15 @@ def exec(Connection connection, input) {
         table_expo = "expo_2972"
     }
     else if(codeDep=='974') {
-        srid=2975
-        table_cbs = "cbs_2975"
-        table_expo = "expo_2975"
-    }
-    else if(codeDep=='976') {
-        srid=4471
-        table_cbs = "cbs_4471"
-        table_expo = "expo_4471"
-    }
+            srid=2975
+            table_cbs = "cbs_2975"
+            table_expo = "expo_2975"
+        }
+        else if(codeDep=='976') {
+                srid=4471
+                table_cbs = "cbs_4471"
+                table_expo = "expo_4471"
+            }
 
 
 
@@ -210,9 +210,9 @@ def exec(Connection connection, input) {
         """
         logger.info("Les données relatives au département $codeDep ont été supprimées de la base")
 
-        
+
     } //end if
-    
+
     logger.info("Début de l'export du département $codeDep sur le serveur")
 
     // On insère les nouvelles données dans la table des metadata
@@ -224,16 +224,13 @@ def exec(Connection connection, input) {
     }
 
     // On insère les nouvelles données dans la table des CBS
-    logger.info("Export des CBS")    
+    logger.info("Export des CBS")
 
     doExport(sqlH2gis, sqlPostgre, table_cbs as String, codeNuts as String, srid as Integer, input["batchSize"] as Integer)
 
     logger.info("Les cartes du bruit du département $codeDep ont été exporté sur le serveur")
-    
+
     return "Les cartes du bruit du département $codeDep ont été exporté sur le serveur"
 
 }
-
-
-
 
