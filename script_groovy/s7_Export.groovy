@@ -20,7 +20,9 @@ package org.noise_planet.noisemodelling.wps.plamade
 
 import geoserver.GeoServer
 import geoserver.catalog.Store
+import groovy.sql.BatchingPreparedStatementWrapper
 import groovy.text.SimpleTemplateEngine
+import groovy.transform.CompileStatic
 import org.geotools.jdbc.JDBCDataStore
 import org.locationtech.jts.geom.Point
 import org.locationtech.jts.geom.LineString
@@ -58,6 +60,12 @@ inputs = [
                 title      : 'Batch size',
                 description: 'Batch size. Default 1000',
                 type       : Integer.class
+        ],
+        inputServer : [
+                name       : 'DB Server used',
+                title      : 'DB server used',
+                description: 'Choose between cerema or cloud',
+                type       : String.class
         ]
 ]
 
@@ -100,6 +108,34 @@ def getPostgreConnection(user, password, url) {
     return sql
 }
 
+@CompileStatic
+def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeNuts,int srid, int batchSize) {
+    def writer = new WKTWriter(3)
+
+    // Create a logger to display messages in the geoserver logs and in the command prompt.
+    Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
+
+    for(cbstype in ['A', 'C']) {
+        for(typesource in ['R', 'F']) {
+            for(indicetype in ['LD', 'LN']) {
+                // on génère le nom de la table à partir des éléments ci-dessus
+                def inputTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeNuts
+
+                // on teste si la table existe dans NM
+                if((sqlH2gis.firstRow("SELECT count(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE table_name ='" + inputTableCBS +"';")[0] as Integer) > 0) {
+                    logger.info("La table $inputTableCBS va être exportée dans la table $table_cbs")
+                    sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.'+ table_cbs +' (the_geom, cbstype, typesource, indicetype, nutscode, pk, uueid, noiselevel) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?)'.toString()) { BatchingPreparedStatementWrapper ps ->
+                        sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, $cbstype, $typesource, $indicetype, $codeNuts, pk, uueid, noiselevel FROM " + inputTableCBS +";"){row ->
+                            ps.addBatch(writer.write(row[0] as Geometry), srid, row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+                        }
+                    }
+                    logger.info("La carte du bruit $inputTableCBS a été exportée sur le serveur")
+                }
+                else {logger.info("La table $inputTableCBS n'existe pas")}
+            }
+        }
+    }
+}
 
 def exec(Connection connection, input) {
 
@@ -108,7 +144,15 @@ def exec(Connection connection, input) {
 
 
     // Get provided parameters
-    def databaseUrl = "jdbc:postgres_jts://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    def databaseUrl
+    if(input["inputServer"].equals('cerema')) {
+        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    } else if(input["inputServer"].equals('cloud')) {
+        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
+    } else{
+        return "Vous n'avez pas spécifié le bon nom de serveur"
+    }
+
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
 
@@ -182,27 +226,7 @@ def exec(Connection connection, input) {
     // On insère les nouvelles données dans la table des CBS
     logger.info("Export des CBS")
 
-
-    for(cbstype in ['A', 'C']) {
-        for(typesource in ['R', 'F']) {
-            for(indicetype in ['LD', 'LN']) {
-                // on génère le nom de la table à partir des éléments ci-dessus
-                def inputTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeNuts
-
-                // on teste si la table existe dans NM
-                if(sqlH2gis.firstRow("SELECT count(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE table_name ='" + inputTableCBS +"';").count>0) {
-                    logger.info("La table $inputTableCBS va être exportée dans la table $table_cbs")
-                    sqlPostgre.withBatch(input["batchSize"] as int, 'INSERT INTO noisemodelling_resultats.'+ table_cbs +' (the_geom, cbstype, typesource, indicetype, nutscode, pk, uueid, noiselevel) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?)'.toString()) { ps ->
-                        sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, $cbstype, $typesource, $indicetype, $codeNuts, pk, uueid, noiselevel FROM " + inputTableCBS +";"){row ->
-                            ps.addBatch(writer.write(row[0]), srid, row[1], row[2], row[3], row[4], row[5], row[6], row[7])
-                        }
-                    }
-                    logger.info("La carte du bruit $inputTableCBS a été exportée sur le serveur")
-                }
-                else {logger.info("La table $inputTableCBS n'existe pas")}
-            }
-        }
-    }
+    doExport(sqlH2gis, sqlPostgre, table_cbs as String, codeNuts as String, srid as Integer, input["batchSize"] as Integer)
 
     logger.info("Les cartes du bruit du département $codeDep ont été exporté sur le serveur")
 

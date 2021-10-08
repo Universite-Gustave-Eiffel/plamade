@@ -135,9 +135,26 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
+    public static JsonNode convertToJson(List<ArrayList<PointNoiseMap.CellIndex>> cells) {
+        ObjectMapper mapper = new ObjectMapper();
+        ArrayNode rootNode = mapper.createArrayNode();
+        int nodeIndex = 0;
+        for(ArrayList<PointNoiseMap.CellIndex> node : cells) {
+            for(PointNoiseMap.CellIndex cellIndex : node) {
+                ObjectNode cellNode = mapper.createObjectNode();
+                cellNode.put("nodeIndex", nodeIndex);
+                cellNode.put("latitudeIndex", cellIndex.getLatitudeIndex());
+                cellNode.put("longitudeIndex", cellIndex.getLongitudeIndex());
+                rootNode.add(cellNode);
+            }
+            nodeIndex++;
+        }
+        return rootNode;
+    }
+
     public void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("../script_groovy", "s42_Load_Noise_level.groovy"));
+        Script process= shell.parse(new File("../script_groovy", "s41_ClusterConfiguration.groovy"));
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("confId", configuration.getConfigurationId());
         inputs.put("numberOfNodes", 8);
@@ -146,18 +163,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         if(result instanceof List) {
             // Convert to json
             List<ArrayList<PointNoiseMap.CellIndex>> cells = (List<ArrayList<PointNoiseMap.CellIndex>>)result;
+            JsonNode rootNode = convertToJson(cells);
             ObjectMapper mapper = new ObjectMapper();
-            ArrayNode rootNode = mapper.createArrayNode();
-            for(ArrayList<PointNoiseMap.CellIndex> node : cells) {
-                ArrayNode currentNode = mapper.createArrayNode();
-                for(PointNoiseMap.CellIndex cellIndex : node) {
-                    ObjectNode cellNode = mapper.createObjectNode();
-                    cellNode.put("latitudeIndex", cellIndex.getLatitudeIndex());
-                    cellNode.put("longitudeIndex", cellIndex.getLongitudeIndex());
-                    currentNode.add(cellNode);
-                }
-                rootNode.add(currentNode);
-            }
             mapper.writerWithDefaultPrettyPrinter().writeValue(new File(configuration.workingDirectory, "cluster_config.json"), rootNode);
         }
     }

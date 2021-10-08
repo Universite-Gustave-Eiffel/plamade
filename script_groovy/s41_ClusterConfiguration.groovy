@@ -46,13 +46,9 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 def List<ArrayList<PointNoiseMap.CellIndex>> splitCells(Map<PointNoiseMap.CellIndex, Integer> cells, int numberOfNodes) {
-
-    Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
-
     Integer numberOfReceiver = cells.values().sum() as Integer
 
     int minReceiverByNodes = numberOfReceiver / numberOfNodes
-
     int currentNodeIndex = 0
     int currentNodeReceiversCount = 0
     ArrayList<PointNoiseMap.CellIndex> currentNodeCells = new ArrayList<>()
@@ -67,10 +63,6 @@ def List<ArrayList<PointNoiseMap.CellIndex>> splitCells(Map<PointNoiseMap.CellIn
             currentNodeCells = new ArrayList<>()
             resultValues.add(currentNodeCells)
         }
-        int latIndex = entry.key.latitudeIndex
-        int longIndex = entry.key.longitudeIndex
-        logger.info(String.format(Locale.ROOT, "Node %d lat:%d long:%d",
-                currentNodeIndex, latIndex, longIndex))
     }
     if(!resultValues.isEmpty() && resultValues.last().isEmpty()) {
         // remove last entry if empty

@@ -1,11 +1,15 @@
 package org.noise_planet.plamade
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import groovy.sql.GroovyResultSet
 import groovy.sql.Sql
 import org.junit.Test
+import org.noise_planet.noisemodelling.jdbc.PointNoiseMap
 import org.noise_planet.noisemodelling.pathfinder.ComputeRays
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation
+import org.noise_planet.plamade.config.DataBaseConfig
 import org.noise_planet.plamade.process.NoiseModellingInstance
 
 import javax.sql.DataSource
@@ -58,7 +62,7 @@ class testPerf {
         }
     }
 
-    //@Test
+    @Test
     public void testCell() {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
@@ -70,14 +74,18 @@ class testPerf {
                 Sql sql = new Sql(connection)
                 def conf = sql.firstRow("SELECT CONFID, CONFREFLORDER, CONFMAXSRCDIST, CONFMAXREFLDIST, CONFDISTBUILDINGSRECEIVERS, CONFTHREADNUMBER, CONFDIFFVERTICAL, CONFDIFFHORIZONTAL, CONFSKIPLDAY, CONFSKIPLEVENING, CONFSKIPLNIGHT, CONFSKIPLDEN, CONFEXPORTSOURCEID, WALL_ALPHA\n" +
                         "FROM PUBLIC.CONF WHERE CONFID = 4")
-                def result = ""
                 GroovyShell shell = new GroovyShell()
                 Script shellScript= shell.parse(new File("../script_groovy", "s41_ClusterConfiguration.groovy"))
                 Map<String, Object> inputs = new HashMap<>()
                 inputs.put("confId", conf.CONFID)
                 inputs.put("numberOfNodes", 8)
-                result = shellScript.invokeMethod("exec", [connection, inputs])
-                System.out.println(result)
+                def result = shellScript.invokeMethod("exec", [connection, inputs])
+                List<ArrayList<PointNoiseMap.CellIndex>> cells = (List<ArrayList<PointNoiseMap.CellIndex>>)result;
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode rootNode = NoiseModellingInstance.convertToJson(cells);
+                mapper.writerWithDefaultPrettyPrinter().writeValue(new File("build/", "cluster_config.json"), rootNode);
+
+//                System.out.println(result)
                 //def result = receiversGrid.invokeMethod("exec", [connection, inputs])
 
 //                shellScript= shell.parse(new File("script_groovy", "s3_Emission_Noise_level.groovy"))
