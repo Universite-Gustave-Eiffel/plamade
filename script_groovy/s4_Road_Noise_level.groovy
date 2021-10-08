@@ -160,7 +160,7 @@ def forgeCreateTable(Sql sql, String tableName, LDENConfig ldenConfig, String ge
 }
 
 // main function of the script
-def exec(Connection connection, input) {
+def exec(Connection connection, Map input) {
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
@@ -426,8 +426,15 @@ def exec(Connection connection, input) {
         // Iterate over computation areas
         int k = 0
         Map cells = pointNoiseMap.searchPopulatedCells(connection)
+        Collection<PointNoiseMap.CellIndex> cellsToProcess;
+
+        if("cellsToProcess" in input) {
+            cellsToProcess = input["cellsToProcess"] as Collection<PointNoiseMap.CellIndex>
+        } else {
+            cellsToProcess = cells.keySet();
+        }
         ProgressVisitor progressVisitor = progressLogger.subProcess(cells.size())
-        new TreeSet<>(cells.keySet()).each { cellIndex ->
+        new TreeSet<>(cellsToProcess).each { cellIndex ->
             // Run ray propagation
             logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100 * k++ / cells.size(), cells.get(cellIndex)))
             IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers)

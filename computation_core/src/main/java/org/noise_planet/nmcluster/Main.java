@@ -11,14 +11,29 @@
  */
 package org.noise_planet.nmcluster;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NumericNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import groovy.lang.GroovyShell;
+import groovy.lang.Script;
 import org.h2.util.OsgiDataSourceFactory;
+import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.osgi.service.jdbc.DataSourceFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.sql.DataSource;
 import java.io.File;
+import java.io.IOException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Properties;
+import java.util.*;
 
 
 public class Main {
@@ -45,6 +60,60 @@ public class Main {
     }
 
     public static void main(String... args) throws Exception {
+        Logger logger = LoggerFactory.getLogger("org.noise_planet");
+        // Read node id parameter
+        int nodeId = -1;
+        for (int i = 0; args != null && i < args.length; i++) {
+            String a = args[i];
+            if(a != null && a.startsWith("-n")) {
+                nodeId = Integer.parseInt(a.substring(2));
+            }
+        }
+        if(nodeId == -1) {
+            throw new IllegalArgumentException("Missing node identifier. -a[nodeId]");
+        }
+        // Load Json cluster configuration file
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree("cluster_config.json");
+        JsonNode v;
+        List<PointNoiseMap.CellIndex> cellIndexList = new ArrayList<>();
+        if(node instanceof ArrayNode) {
+            ArrayNode aNode = (ArrayNode)node;
+            for(JsonNode cellNode : aNode) {
+                v = cellNode.get("nodeIndex");
+                if(v != null && v.canConvertToInt() && v.intValue() == nodeId) {
+                    cellIndexList.add(new PointNoiseMap.CellIndex(cellNode.get("longitudeIndex").intValue(),
+                            cellNode.get("latitudeIndex").intValue()));
+                }
+            }
+        }
+        // Open database
+        DataSource ds = createDataSource("", "", new File("./").getAbsolutePath(), "h2gisdb", false);
 
+        try(Connection connection = ds.getConnection()) {
+            RoadNoiselevel(connection,
+                    new RootProgressVisitor(1, true, 1.0),
+                    cellIndexList);
+
+
+        } catch (SQLException ex) {
+            while (ex != null) {
+                logger.error(ex.getLocalizedMessage(), ex);
+                ex = ex.getNextException();
+            }
+        }
+    }
+
+
+    public static Object RoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor, List<PointNoiseMap.CellIndex> cellIndexList) throws SQLException, IOException {
+        GroovyShell shell = new GroovyShell();
+        Script process= shell.parse(new File("../script_groovy", "s4_Road_Noise_level.groovy"));
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("confId", 4);
+        //inputs.put("workingDirectory", configuration.getWorkingDirectory());
+        inputs.put("progressVisitor", progressVisitor);
+        inputs.put("outputToSql", false);
+        inputs.put("cellsToProcess", cellIndexList);
+        return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 }
