@@ -11,6 +11,9 @@ compileJava {
     targetCompatibility = '1.8'
 }
 
+compileJava.options.encoding = "UTF-8"
+compileTestJava.options.encoding = "UTF-8"
+
 repositories {
     mavenCentral()
 }
@@ -23,6 +26,7 @@ task copyDependencies(type: Copy) {
 dependencies {
     implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
     implementation group: 'net.postgis', name: 'postgis-jdbc-jtsparser', version: '2.3.0'
+    runtimeOnly group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
     implementation fileTree(dir: 'dependencies', include: '*.jar')
 }
 

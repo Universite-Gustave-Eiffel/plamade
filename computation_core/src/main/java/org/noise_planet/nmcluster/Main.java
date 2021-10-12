@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import org.apache.log4j.PropertyConfigurator;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
@@ -60,6 +61,9 @@ public class Main {
     }
 
     public static void main(String... args) throws Exception {
+        PropertyConfigurator.configure(Objects.requireNonNull(
+                Main.class.getResource("log4j.properties")).getFile());
+
         Logger logger = LoggerFactory.getLogger("org.noise_planet");
         // Read node id parameter
         int nodeId = -1;
@@ -70,11 +74,15 @@ public class Main {
             }
         }
         if(nodeId == -1) {
-            throw new IllegalArgumentException("Missing node identifier. -a[nodeId]");
+            logger.info("Command line arguments :");
+            for (String arg : args) {
+                logger.info("Got argument [" + arg + "]");
+            }
+            throw new IllegalArgumentException("Missing node identifier. -n[nodeId]");
         }
         // Load Json cluster configuration file
         ObjectMapper mapper = new ObjectMapper();
-        JsonNode node = mapper.readTree("cluster_config.json");
+        JsonNode node = mapper.readTree(new File("cluster_config.json"));
         JsonNode v;
         List<PointNoiseMap.CellIndex> cellIndexList = new ArrayList<>();
         if(node instanceof ArrayNode) {
