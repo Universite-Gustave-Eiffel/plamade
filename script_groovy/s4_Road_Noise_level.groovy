@@ -491,7 +491,8 @@ def exec(Connection connection, input) {
 }
 
 
-def parseScript(File scriptFile, Sql sql, ProgressVisitor progressLogger, boolean compressed) {
+@CompileStatic
+static def parseScript(File scriptFile, Sql sql, ProgressVisitor progressLogger, boolean compressed) {
     long scriptFileSize = Files.size(scriptFile.toPath())
     int BUFFER_LENGTH = 65536
     ProgressVisitor subProgress = progressLogger.subProcess((int)(scriptFileSize / BUFFER_LENGTH))
