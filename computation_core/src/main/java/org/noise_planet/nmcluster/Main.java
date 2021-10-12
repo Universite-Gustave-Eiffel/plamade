@@ -65,50 +65,53 @@ public class Main {
                 Main.class.getResource("log4j.properties")).getFile());
 
         Logger logger = LoggerFactory.getLogger("org.noise_planet");
-        // Read node id parameter
-        int nodeId = -1;
-        for (int i = 0; args != null && i < args.length; i++) {
-            String a = args[i];
-            if(a != null && a.startsWith("-n")) {
-                nodeId = Integer.parseInt(a.substring(2));
-            }
-        }
-        if(nodeId == -1) {
-            logger.info("Command line arguments :");
-            for (String arg : args) {
-                logger.info("Got argument [" + arg + "]");
-            }
-            throw new IllegalArgumentException("Missing node identifier. -n[nodeId]");
-        }
-        // Load Json cluster configuration file
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode node = mapper.readTree(new File("cluster_config.json"));
-        JsonNode v;
-        List<PointNoiseMap.CellIndex> cellIndexList = new ArrayList<>();
-        if(node instanceof ArrayNode) {
-            ArrayNode aNode = (ArrayNode)node;
-            for(JsonNode cellNode : aNode) {
-                v = cellNode.get("nodeIndex");
-                if(v != null && v.canConvertToInt() && v.intValue() == nodeId) {
-                    cellIndexList.add(new PointNoiseMap.CellIndex(cellNode.get("longitudeIndex").intValue(),
-                            cellNode.get("latitudeIndex").intValue()));
+
+
+        try {
+            // Read node id parameter
+            int nodeId = -1;
+            for (int i = 0; args != null && i < args.length; i++) {
+                String a = args[i];
+                if (a != null && a.startsWith("-n")) {
+                    nodeId = Integer.parseInt(a.substring(2));
                 }
             }
-        }
-        // Open database
-        DataSource ds = createDataSource("", "", new File("./").getAbsolutePath(), "h2gisdb", false);
-
-        try(Connection connection = ds.getConnection()) {
-            RoadNoiselevel(connection,
-                    new RootProgressVisitor(1, true, 1.0),
-                    cellIndexList);
-
-
-        } catch (SQLException ex) {
-            while (ex != null) {
-                logger.error(ex.getLocalizedMessage(), ex);
-                ex = ex.getNextException();
+            if (nodeId == -1) {
+                logger.info("Command line arguments :");
+                for (String arg : args) {
+                    logger.info("Got argument [" + arg + "]");
+                }
+                throw new IllegalArgumentException("Missing node identifier. -n[nodeId]");
             }
+            // Load Json cluster configuration file
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode node = mapper.readTree(new File("cluster_config.json"));
+            JsonNode v;
+            List<PointNoiseMap.CellIndex> cellIndexList = new ArrayList<>();
+            if (node instanceof ArrayNode) {
+                ArrayNode aNode = (ArrayNode) node;
+                for (JsonNode cellNode : aNode) {
+                    v = cellNode.get("nodeIndex");
+                    if (v != null && v.canConvertToInt() && v.intValue() == nodeId) {
+                        cellIndexList.add(new PointNoiseMap.CellIndex(cellNode.get("longitudeIndex").intValue(), cellNode.get("latitudeIndex").intValue()));
+                    }
+                }
+            }
+            // Open database
+            DataSource ds = createDataSource("", "", new File("./").getAbsolutePath(), "h2gisdb", false);
+
+            try (Connection connection = ds.getConnection()) {
+                RoadNoiselevel(connection, new RootProgressVisitor(1, true, 1.0), cellIndexList);
+
+
+            } catch (SQLException ex) {
+                while (ex != null) {
+                    logger.error(ex.getLocalizedMessage(), ex);
+                    ex = ex.getNextException();
+                }
+            }
+        } catch (Exception ex) {
+            logger.error(ex.getLocalizedMessage(), ex);
         }
     }
 
