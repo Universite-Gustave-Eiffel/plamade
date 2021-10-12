@@ -31,7 +31,9 @@ import geoserver.GeoServer
 import geoserver.catalog.Store
 import groovy.sql.Sql
 import groovy.time.TimeCategory
+import groovy.transform.CompileStatic
 import org.geotools.jdbc.JDBCDataStore
+import org.h2.util.ScriptReader
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
@@ -51,10 +53,12 @@ import org.noise_planet.noisemodelling.pathfinder.utils.ReceiverStatsMetric
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import java.nio.file.Files
 import java.sql.Connection
 import java.sql.SQLException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.zip.GZIPInputStream
 
 
 title = 'Compute LDay,Levening,LNight,Lden from road traffic'
@@ -460,13 +464,54 @@ def exec(Connection connection, input) {
 
     sql.execute(String.format("UPDATE metadata SET road_end = NOW();"))
 
-    resultString = "Calculation Done ! " + createdTables.toString() + " table(s) have been created."
+    logger.info("Table(s) " + createdTables.toString() + " have been created and saved into the Road_Noise_level.sql.gz file.")
+
+
+    // ---------------------------------------------------------
+    // Start the upload into the NM db
+    logger.info('Start uploading the Road_Noise_level.sql.gz file into NoiseModelling.')
+
+    File scriptFile = new File("Road_Noise_level.sql.gz")
+    if("workingDirectory" in input) {
+        scriptFile = new File(new File(input["workingDirectory"] as String), "Road_Noise_level.sql.gz")
+    }
+    if(!scriptFile.exists()) {
+        return scriptFile.absolutePath + " does not exists"
+    }
+
+
+    parseScript(scriptFile, sql, progressLogger, true)
+
+    resultString = "Process done! Table(s) " + createdTables.toString() + " have been uploaded into NoiseModelling."
 
     // print to command window
     logger.info('Result : ' + resultString)
-    logger.info('End : LDAY from Traffic')
-
     // print to WPS Builder
     return resultString
+}
 
+
+@CompileStatic
+static def parseScript(File scriptFile, Sql sql, ProgressVisitor progressLogger, boolean compressed) {
+    long scriptFileSize = Files.size(scriptFile.toPath())
+    int BUFFER_LENGTH = 65536
+    ProgressVisitor subProgress = progressLogger.subProcess((int)(scriptFileSize / BUFFER_LENGTH))
+    Reader reader = null
+    try {
+        FileInputStream s = new FileInputStream(scriptFile)
+        InputStream is = s
+        if(compressed) {
+            is = new GZIPInputStream(s, BUFFER_LENGTH)
+        }
+        reader  = new BufferedReader(new InputStreamReader(is))
+        ScriptReader scriptReader = new ScriptReader(reader)
+        String statement = scriptReader.readStatement()
+        while (statement != null) {
+            sql.execute(statement)
+            subProgress.setStep((int)(s.getChannel().position() / BUFFER_LENGTH))
+            statement = scriptReader.readStatement()
+        }
+    } finally {
+        reader.close()
+    }
 }
