@@ -14,10 +14,9 @@ package org.noise_planet.nmcluster;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.NumericNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import groovy.sql.Sql;
 import org.apache.log4j.PropertyConfigurator;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.ProgressVisitor;
@@ -31,34 +30,12 @@ import org.slf4j.LoggerFactory;
 import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
-import java.sql.Array;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
 
 
 public class Main {
-
-    public static DataSource createDataSource(String user, String password, String dbDirectory, String dbName, boolean debug) throws SQLException {
-        // Create H2 memory DataSource
-        org.h2.Driver driver = org.h2.Driver.load();
-        OsgiDataSourceFactory dataSourceFactory = new OsgiDataSourceFactory(driver);
-        Properties properties = new Properties();
-        String databasePath = "jdbc:h2:" + new File(dbDirectory, dbName).getAbsolutePath();
-        properties.setProperty(DataSourceFactory.JDBC_URL, databasePath);
-        properties.setProperty(DataSourceFactory.JDBC_USER, user);
-        properties.setProperty(DataSourceFactory.JDBC_PASSWORD, password);
-        if(debug) {
-            properties.setProperty("TRACE_LEVEL_FILE", "3"); // enable debug
-        }
-        DataSource dataSource = dataSourceFactory.createDataSource(properties);
-        // Init spatial ext
-        try (Connection connection = dataSource.getConnection()) {
-            H2GISFunctions.load(connection);
-        }
-        return dataSource;
-
-    }
 
     public static void main(String... args) throws Exception {
         PropertyConfigurator.configure(Objects.requireNonNull(
@@ -70,10 +47,20 @@ public class Main {
         try {
             // Read node id parameter
             int nodeId = -1;
+            String workingDir = "";
             for (int i = 0; args != null && i < args.length; i++) {
                 String a = args[i];
-                if (a != null && a.startsWith("-n")) {
+                if(a == null) {
+                    continue;
+                }
+                if (a.startsWith("-n")) {
                     nodeId = Integer.parseInt(a.substring(2));
+                } else if (a.startsWith("-w")) {
+                    workingDir = a.substring(2);
+                    if(!(new File(workingDir).exists())) {
+                        logger.error(workingDir + " folder does not exists");
+                        workingDir = "";
+                    }
                 }
             }
             if (nodeId == -1) {
@@ -85,7 +72,7 @@ public class Main {
             }
             // Load Json cluster configuration file
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode node = mapper.readTree(new File("cluster_config.json"));
+            JsonNode node = mapper.readTree(new File(workingDir, "cluster_config.json"));
             JsonNode v;
             List<PointNoiseMap.CellIndex> cellIndexList = new ArrayList<>();
             if (node instanceof ArrayNode) {
@@ -98,12 +85,17 @@ public class Main {
                 }
             }
             // Open database
-            DataSource ds = createDataSource("", "", new File("./").getAbsolutePath(), "h2gisdb", false);
+            DataSource ds = NoiseModellingInstance.createDataSource("", "", new File(workingDir).getAbsolutePath(), "h2gisdb", false);
 
             try (Connection connection = ds.getConnection()) {
-                RoadNoiselevel(connection, new RootProgressVisitor(1, true, 1.0), cellIndexList);
-
-
+                //RoadNoiselevel(connection, new RootProgressVisitor(1, true, 1.0), cellIndexList);
+                // Fetch configuration ID
+                Sql sql = new Sql(connection);
+                int confId = (Integer)sql.firstRow("SELECT grid_conf from metadata").get("GRID_CONF");
+                NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
+                nm.setConfigurationId(confId);
+                nm.roadNoiseLevel(new RootProgressVisitor(1, true,
+                        1), cellIndexList);
             } catch (SQLException ex) {
                 while (ex != null) {
                     logger.error(ex.getLocalizedMessage(), ex);

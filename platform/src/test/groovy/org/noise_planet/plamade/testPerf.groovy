@@ -71,35 +71,7 @@ class testPerf {
                 "/home/nicolas/data/plamade/dep38/", "h2gisdb", false)
         ds.getConnection().withCloseable {
             Connection connection ->
-                Sql sql = new Sql(connection)
-                def conf = sql.firstRow("SELECT CONFID, CONFREFLORDER, CONFMAXSRCDIST, CONFMAXREFLDIST, CONFDISTBUILDINGSRECEIVERS, CONFTHREADNUMBER, CONFDIFFVERTICAL, CONFDIFFHORIZONTAL, CONFSKIPLDAY, CONFSKIPLEVENING, CONFSKIPLNIGHT, CONFSKIPLDEN, CONFEXPORTSOURCEID, WALL_ALPHA\n" +
-                        "FROM PUBLIC.CONF WHERE CONFID = 4")
-                GroovyShell shell = new GroovyShell()
-                Script shellScript= shell.parse(new File("../script_groovy", "s41_ClusterConfiguration.groovy"))
-                Map<String, Object> inputs = new HashMap<>()
-                inputs.put("confId", conf.CONFID)
-                inputs.put("numberOfNodes", 8)
-                def result = shellScript.invokeMethod("exec", [connection, inputs])
-                List<ArrayList<PointNoiseMap.CellIndex>> cells = (List<ArrayList<PointNoiseMap.CellIndex>>)result;
-                ObjectMapper mapper = new ObjectMapper();
-                JsonNode rootNode = NoiseModellingInstance.convertToJson(cells);
-                mapper.writerWithDefaultPrettyPrinter().writeValue(new File("build/", "cluster_config.json"), rootNode);
-
-//                System.out.println(result)
-                //def result = receiversGrid.invokeMethod("exec", [connection, inputs])
-
-//                shellScript= shell.parse(new File("script_groovy", "s3_Emission_Noise_level.groovy"))
-//                inputs = new HashMap<>()
-//                inputs.put("confId", conf.CONFID)
-//                result = shellScript.invokeMethod("exec", [connection, inputs])
-
-//                shellScript= shell.parse(new File("script_groovy", "s4_Rail_Noise_level.groovy"))
-//                inputs = new HashMap<>()
-//                inputs.put("confId", conf.CONFID)
-//                result = shellScript.invokeMethod("exec", [connection, inputs])
-//                System.out.println(result)
-
-                //POINT(866138.95 6506059.04 236.27) 16 seconds
+                NoiseModellingInstance.generateClusterConfig(connection, new RootProgressVisitor(1, true, 1), 4, "build/");
         }
     }
 }

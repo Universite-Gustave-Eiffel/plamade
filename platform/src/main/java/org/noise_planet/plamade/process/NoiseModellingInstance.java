@@ -16,34 +16,25 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
-import org.noise_planet.noisemodelling.jdbc.LDENConfig;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
-import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
-import org.noise_planet.plamade.config.AdminConfig;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.osgi.service.jdbc.DataSourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ratpack.handling.Context;
 
 import javax.sql.DataSource;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Timestamp;
+import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This process hold one instance of NoiseModelling
@@ -152,21 +143,57 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return rootNode;
     }
 
-    public void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
-        GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("../script_groovy", "s41_ClusterConfiguration.groovy"));
-        Map<String, Object> inputs = new HashMap<>();
-        inputs.put("confId", configuration.getConfigurationId());
-        inputs.put("numberOfNodes", 8);
-        inputs.put("progressVisitor", progressVisitor);
-        Object result = process.invokeMethod("exec", new Object[] {nmConnection, inputs});
-        if(result instanceof List) {
-            // Convert to json
-            List<ArrayList<PointNoiseMap.CellIndex>> cells = (List<ArrayList<PointNoiseMap.CellIndex>>)result;
-            JsonNode rootNode = convertToJson(cells);
-            ObjectMapper mapper = new ObjectMapper();
-            mapper.writerWithDefaultPrettyPrinter().writeValue(new File(configuration.workingDirectory, "cluster_config.json"), rootNode);
+    public static void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfNodes, String workingDirectory) throws SQLException, IOException {
+        // Sum UUEID roads length
+        // because the length of the roads should be proportional with the work load
+        Map<String, Double> uueidToRoadLength = new HashMap<>();
+        try(ResultSet rs = nmConnection.createStatement().executeQuery("SELECT UUEID , SUM(st_length(the_geom)) weight  FROM ROADS r GROUP BY uueid;")) {
+            while(rs.next()) {
+                uueidToRoadLength.put(rs.getString("UUEID"), rs.getDouble("WEIGHT"));
+            }
         }
+        double quota = uueidToRoadLength.values().stream().mapToDouble(Double::doubleValue).sum() / numberOfNodes;
+        AtomicInteger nodeId = new AtomicInteger();
+        double nodeTotalLength = 0;
+        ObjectMapper mapper = new ObjectMapper();
+        ArrayNode rootDoc = mapper.createArrayNode();
+        ObjectNode nodeDoc = mapper.createObjectNode();
+        rootDoc.add(nodeDoc);
+        nodeDoc.put("nodeId", nodeId.getAndIncrement());
+        ArrayNode nodeUUEIDs = mapper.createArrayNode();
+        nodeDoc.set("uueids", nodeUUEIDs);
+        // create lists so that each node have at least the quota length of roads (except the last one)
+        for (Map.Entry<String, Double> entry : uueidToRoadLength.entrySet()) {
+            String uueid = entry.getKey();
+            Double roadLength = entry.getValue();
+            if (nodeTotalLength > quota) {
+                nodeDoc.put("node_sum_length", nodeTotalLength);
+                nodeDoc = mapper.createObjectNode();
+                rootDoc.add(nodeDoc);
+                nodeDoc.put("nodeId", nodeId.getAndIncrement());
+                nodeUUEIDs = mapper.createArrayNode();
+                nodeDoc.set("uueids", nodeUUEIDs);
+                nodeTotalLength = 0;
+            }
+            nodeUUEIDs.add(uueid);
+            nodeTotalLength += roadLength;
+        }
+        nodeDoc.put("node_sum_length", nodeTotalLength);
+        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(workingDirectory, "cluster_config.json"), rootDoc);
+//        GroovyShell shell = new GroovyShell();
+//        Script process= shell.parse(new File("../script_groovy", "s41_ClusterConfiguration.groovy"));
+//        Map<String, Object> inputs = new HashMap<>();
+//        inputs.put("confId", configuration.getConfigurationId());
+//        inputs.put("numberOfNodes", 8);
+//        inputs.put("progressVisitor", progressVisitor);
+//        Object result = process.invokeMethod("exec", new Object[] {nmConnection, inputs});
+//        if(result instanceof List) {
+//            // Convert to json
+//            List<ArrayList<PointNoiseMap.CellIndex>> cells = (List<ArrayList<PointNoiseMap.CellIndex>>)result;
+//            JsonNode rootNode = convertToJson(cells);
+//            ObjectMapper mapper = new ObjectMapper();
+//            mapper.writerWithDefaultPrettyPrinter().writeValue(new File(configuration.workingDirectory, "cluster_config.json"), rootNode);
+//        }
     }
     public Object LoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
@@ -234,7 +261,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 subProg.endStep();
                 makeEmission(nmConnection);
                 subProg.endStep();
-                generateClusterConfig(nmConnection, subProg);
+                generateClusterConfig(nmConnection, subProg, 4, configuration.workingDirectory);
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);
