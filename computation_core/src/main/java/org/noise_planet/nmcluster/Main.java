@@ -21,6 +21,7 @@ import org.apache.log4j.PropertyConfigurator;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.osgi.service.jdbc.DataSourceFactory;
@@ -74,28 +75,33 @@ public class Main {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode node = mapper.readTree(new File(workingDir, "cluster_config.json"));
             JsonNode v;
-            List<PointNoiseMap.CellIndex> cellIndexList = new ArrayList<>();
+            List<String> uueidList = new ArrayList<>();
             if (node instanceof ArrayNode) {
                 ArrayNode aNode = (ArrayNode) node;
                 for (JsonNode cellNode : aNode) {
-                    v = cellNode.get("nodeIndex");
-                    if (v != null && v.canConvertToInt() && v.intValue() == nodeId) {
-                        cellIndexList.add(new PointNoiseMap.CellIndex(cellNode.get("longitudeIndex").intValue(), cellNode.get("latitudeIndex").intValue()));
+                    JsonNode nodeIdProp = cellNode.get("nodeId");
+                    if(nodeIdProp != null && nodeIdProp.canConvertToInt() && nodeIdProp.intValue() == nodeId) {
+                        if(cellNode.get("uueids") instanceof ArrayNode) {
+                            for (JsonNode uueidNode : cellNode.get("uueids")) {
+                                uueidList.add(uueidNode.asText());
+                            }
+                        }
+                        break;
                     }
                 }
             }
             // Open database
             DataSource ds = NoiseModellingInstance.createDataSource("", "", new File(workingDir).getAbsolutePath(), "h2gisdb", false);
 
-            try (Connection connection = ds.getConnection()) {
+            try (Connection connection = new ConnectionWrapper(ds.getConnection())) {
                 //RoadNoiselevel(connection, new RootProgressVisitor(1, true, 1.0), cellIndexList);
                 // Fetch configuration ID
                 Sql sql = new Sql(connection);
                 int confId = (Integer)sql.firstRow("SELECT grid_conf from metadata").get("GRID_CONF");
                 NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
                 nm.setConfigurationId(confId);
-                nm.roadNoiseLevel(new RootProgressVisitor(1, true,
-                        1), cellIndexList);
+                nm.uueidsLoop(new RootProgressVisitor(1, true,
+                        1), uueidList);
             } catch (SQLException ex) {
                 while (ex != null) {
                     logger.error(ex.getLocalizedMessage(), ex);
@@ -105,18 +111,5 @@ public class Main {
         } catch (Exception ex) {
             logger.error(ex.getLocalizedMessage(), ex);
         }
-    }
-
-
-    public static Object RoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor, List<PointNoiseMap.CellIndex> cellIndexList) throws SQLException, IOException {
-        GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("../script_groovy", "s4_Road_Noise_level.groovy"));
-        Map<String, Object> inputs = new HashMap<>();
-        inputs.put("confId", 4);
-        //inputs.put("workingDirectory", configuration.getWorkingDirectory());
-        inputs.put("progressVisitor", progressVisitor);
-        inputs.put("outputToSql", false);
-        inputs.put("cellsToProcess", cellIndexList);
-        return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 }

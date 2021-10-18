@@ -3,6 +3,7 @@ package org.noise_planet.nmcluster;
 import groovy.sql.GroovyRowResult;
 import groovy.sql.Sql;
 import org.h2.util.OsgiDataSourceFactory;
+import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
 import org.noise_planet.noisemodelling.jdbc.*;
@@ -25,6 +26,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NoiseModellingInstance {
+    Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Connection connection;
     String workingDirectory;
     int configurationId = 0;
@@ -63,20 +65,68 @@ public class NoiseModellingInstance {
 
     }
 
-    public void roadNoiseLevel(ProgressVisitor progressLogger, List<PointNoiseMap.CellIndex> cellIndexList) throws SQLException, IOException {
-        Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
+    public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList) throws SQLException, IOException {
+        Sql sql = new Sql(connection);
+
+        GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
+        int maxSrcDist = (Integer)rs.get("confmaxsrcdist");
+
+        for(String uueid : uueidList) {
+            // Keep only receivers near selected UUEID
+            logger.info("Fetch receivers near roads with uueid " + uueid);
+            sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
+            sql.execute("CREATE TABLE RECEIVERS_UUEID (THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer);");
+            sql.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, (SELECT st_accum(roads.the_geom) the_geom FROM ROADS WHERE UUEID = 'FR_A_rd384038' GROUP BY UUEID) R2 WHERE R.THE_GEOM && ST_EXPAND(R2.the_geom," + (double) maxSrcDist + ", " + (double) maxSrcDist + ") AND ST_DISTANCE(R2.THE_GEOM, R.THE_GEOM) < " + (double) maxSrcDist);
+            sql.execute("ALTER TABLE RECEIVERS_UUEID ADD PRIMARY KEY(PK)");
+            sql.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
+            sql.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
+            // Filter only sound source that match the UUEID
+            logger.info("Fetch sound sources that match with uueid " + uueid);
+            sql.execute("DROP TABLE IF EXISTS LW_ROADS_UUEID");
+            sql.execute("CREATE TABLE LW_ROADS_UUEID AS SELECT LW.* FROM LW_ROADS LW, ROADS R WHERE LW.PK = R.PK AND R.UUEID = '" + uueid + "'");
+            sql.execute("ALTER TABLE LW_ROADS_UUEID ALTER COLUMN PK INTEGER NOT NULL");
+            sql.execute("ALTER TABLE LW_ROADS_UUEID ADD PRIMARY KEY(PK)");
+            sql.execute("CREATE SPATIAL INDEX ON LW_ROADS_UUEID(THE_GEOM)");
+            int nbSources = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM LW_ROADS_UUEID").get("CPT"));
+            logger.info(String.format(Locale.ROOT, "There is %d sound sources with this UUEID", nbSources));
+            if(nbSources > 0) {
+                ProgressVisitor uueidVisitor = progressLogger.subProcess(uueidList.size());
+                roadNoiseLevel(uueidVisitor, uueid);
+            }
+        }
+    }
+
+    public static Double asDouble(Object v) {
+        if(v instanceof Number) {
+            return ((Number)v).doubleValue();
+        } else {
+            return null;
+        }
+    }
+
+    public static Integer asInteger(Object v) {
+        if(v instanceof Number) {
+            return ((Number)v).intValue();
+        } else {
+            return null;
+        }
+    }
+
+    public void roadNoiseLevel(ProgressVisitor progressLogger, String uueid) throws SQLException, IOException {
 
 
-        PointNoiseMap pointNoiseMap = new PointNoiseMap("buildings_screens",
-                "LW_ROADS_UEEID", "RECEIVERS_UEEID");
+        PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
+                "LW_ROADS_UUEID", "RECEIVERS_UUEID");
 
 
         LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
 
         Sql sql = new Sql(connection);
         GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
-        int reflectionOrder = (Integer)rs.get("confreflorder");
-        int maxSrcDist = (Integer)rs.get("confmaxsrcdist");
+        int reflectionOrder = asInteger(rs.get("confreflorder"));
+        int maxSrcDist = asInteger(rs.get("confmaxsrcdist"));
+        int maxReflectionDistance = asInteger(rs.get("confmaxrefldist"));
+        double wallAlpha = asDouble(rs.get("wall_alpha"));
         // overwrite with the system number of thread - 1
         Runtime runtime = Runtime.getRuntime();
         int nThread = Math.max(1, runtime.availableProcessors() - 1);
@@ -98,9 +148,9 @@ public class NoiseModellingInstance {
 
 
 
-        pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction)
-        pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction)
-        pointNoiseMap.setSoundReflectionOrder(reflectionOrder)
+        pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction);
+        pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction);
+        pointNoiseMap.setSoundReflectionOrder(reflectionOrder);
 
         // Set environmental parameters
         PropagationProcessPathData environmentalData = new PropagationProcessPathData(false);
@@ -108,8 +158,8 @@ public class NoiseModellingInstance {
 
         GroovyRowResult row_zone = sql.firstRow("SELECT * FROM ZONE");
 
-        double confHumidity = (Double)row_zone.get("hygro_d");
-        double confTemperature = (Double)row_zone.get("temp_d");
+        double confHumidity = asDouble(row_zone.get("hygro_d"));
+        double confTemperature = asDouble(row_zone.get("temp_d"));
         String confFavorableOccurrences = (String)row_zone.get("pfav_06_18");
 
         environmentalData.setHumidity(confHumidity);
@@ -131,54 +181,52 @@ public class NoiseModellingInstance {
         pointNoiseMap.setSoilTableName("landcover");
         // Point cloud height above sea level POINT(X Y Z)
         pointNoiseMap.setDemTable("DEM");
-        ProfilerThread profilerThread = new ProfilerThread(new File(workingDirectory, "profile.csv"));
+
+
+        pointNoiseMap.setMaximumPropagationDistance(maxSrcDist);
+        pointNoiseMap.setMaximumReflectionDistance(maxReflectionDistance);
+        pointNoiseMap.setWallAbsorption(wallAlpha);
+
+
+        ProfilerThread profilerThread = new ProfilerThread(new File(workingDirectory, "profile_"+uueid+".csv"));
         profilerThread.addMetric(ldenProcessing);
         profilerThread.addMetric(new ProgressMetric(progressLogger));
         profilerThread.addMetric(new JVMMemoryMetric());
         profilerThread.addMetric(new ReceiverStatsMetric());
         pointNoiseMap.setProfilerThread(profilerThread);
 
-        final List<String> uueidList = new ArrayList<>();
-        sql.rows("SELECT DISTINCT UUEID FROM SOURCE ORDER BY UUEID ASC").forEach(
-                (groovyRowResult) -> uueidList.add((String)groovyRowResult.get("UUEID")));
+        // Set of already processed receivers
+        Set<Long> receivers = new HashSet<>();
 
+        // Do not propagate for low emission or far away sources
+        // Maximum error in dB
+        pointNoiseMap.setMaximumError(0.2d);
 
-        ProgressVisitor ueeidVisitor = progressLogger.subProcess(uueidList.size());
-        for(String uueid : uueidList) {
-            // Keep only receivers near selected UUEID
-            sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
-            sql.execute("CREATE TABLE RECEIVERS_UUEID (THE_GEOM geometry, PK integer PRIMARY KEY, PK_1 integer, RCV_TYPE integer);");
-            sql.execute("INSERT INTO RECEIVERS_UUEID (THE_GEOM ,PK, PK_1 , RCV_TYPE) SORTED SELECT THE_GEOM, PK, PK_1, 2 FROM RECEIVERS R WHERE EXISTS (SELECT 1 FROM ROADS S WHERE ST_EXPAND(R.THE_GEOM," + (double) maxSrcDist + ", " + (double) maxSrcDist + ") && S.THE_GEOM AND ST_DISTANCE(S.THE_GEOM, R.THE_GEOM) < " + (double) maxSrcDist + " AND UEEID = '"+uueid+"' LIMIT 1 ) ORDER BY PK");
-            sql.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
-            sql.execute("CREATE SPATIAL INDEX ON RECEIVERS_UUEID_PK1(THE_GEOM)");
-            // Filter only sound source that match the UUEID
-            sql.execute("DROP TABLE IF EXISTS LW_ROADS_UEEID");
-            sql.execute("CREATE TABLE LW_ROADS_UEEID AS SORTED SELECT LW.* FROM LW_ROADS LW, ROADS R WHERE LW.PK = R.PK AND R.UUEID = '"+uueid+"' ORDER BY LW.PK");
-            sql.execute("ALTER TABLE LW_ROADS_UEEID ADD PRIMARY KEY(PK)");
-            sql.execute("CREATE SPATIAL INDEX ON LW_ROADS_UEEID(THE_GEOM)");
+        // --------------------------------------------
+        pointNoiseMap.setComputeRaysOutFactory(ldenProcessing);
+        pointNoiseMap.setPropagationProcessDataFactory(ldenProcessing);
 
-            // Set of already processed receivers
-            Set<Long> receivers = new HashSet<>();
-
-            try {
-                ldenProcessing.start();
-                new Thread(profilerThread).start();
-                // Iterate over computation areas
-                AtomicInteger k = new AtomicInteger();
-                Map<PointNoiseMap.CellIndex, Integer> cells = pointNoiseMap.searchPopulatedCells(connection);
-                ProgressVisitor progressVisitor = ueeidVisitor.subProcess(cells.size());
-                for (PointNoiseMap.CellIndex cellIndex : cells.keySet()) {// Run ray propagation
-                    logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100.0 * (k.getAndIncrement() / cells.size()), cells.get(cellIndex)));
-                    IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers);
-                }
-            } catch (IllegalArgumentException | IllegalStateException ex) {
-                System.err.println(ex);
-                throw ex;
-            } finally {
-                profilerThread.stop();
-                ldenProcessing.stop();
+        // Init Map
+        pointNoiseMap.initialize(connection, new EmptyProgressVisitor());
+        try {
+            ldenProcessing.start();
+            new Thread(profilerThread).start();
+            // Iterate over computation areas
+            AtomicInteger k = new AtomicInteger();
+            Map<PointNoiseMap.CellIndex, Integer> cells = pointNoiseMap.searchPopulatedCells(connection);
+            ProgressVisitor progressVisitor = progressLogger.subProcess(cells.size());
+            for (PointNoiseMap.CellIndex cellIndex : cells.keySet()) {// Run ray propagation
+                logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100.0 * (k.getAndIncrement() / cells.size()), cells.get(cellIndex)));
+                IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers);
             }
-            // TODO ISOContour
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            System.err.println(ex);
+            throw ex;
+        } finally {
+            profilerThread.stop();
+            ldenProcessing.stop();
         }
+        // TODO ISOContour
     }
+
 }
