@@ -76,7 +76,7 @@ public class NoiseModellingInstance {
             logger.info("Fetch receivers near roads with uueid " + uueid);
             sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
             sql.execute("CREATE TABLE RECEIVERS_UUEID (THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer);");
-            sql.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, (SELECT st_accum(roads.the_geom) the_geom FROM ROADS WHERE UUEID = 'FR_A_rd384038' GROUP BY UUEID) R2 WHERE R.THE_GEOM && ST_EXPAND(R2.the_geom," + (double) maxSrcDist + ", " + (double) maxSrcDist + ") AND ST_DISTANCE(R2.THE_GEOM, R.THE_GEOM) < " + (double) maxSrcDist);
+            sql.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, (SELECT st_accum(roads.the_geom) the_geom FROM ROADS WHERE UUEID = '"+uueid+"' GROUP BY UUEID) R2 WHERE R.THE_GEOM && ST_EXPAND(R2.the_geom," + (double) maxSrcDist + ", " + (double) maxSrcDist + ") AND ST_DISTANCE(R2.THE_GEOM, R.THE_GEOM) < " + (double) maxSrcDist);
             sql.execute("ALTER TABLE RECEIVERS_UUEID ADD PRIMARY KEY(PK)");
             sql.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
             sql.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
@@ -93,6 +93,8 @@ public class NoiseModellingInstance {
                 ProgressVisitor uueidVisitor = progressLogger.subProcess(uueidList.size());
                 roadNoiseLevel(uueidVisitor, uueid);
             }
+
+            break;
         }
     }
 
