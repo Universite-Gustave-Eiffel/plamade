@@ -101,7 +101,7 @@ public class Main {
                 NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
                 nm.setConfigurationId(confId);
                 nm.uueidsLoop(new RootProgressVisitor(1, true,
-                        1), uueidList);
+                        1), uueidList, 2);
             } catch (SQLException ex) {
                 while (ex != null) {
                     logger.error(ex.getLocalizedMessage(), ex);

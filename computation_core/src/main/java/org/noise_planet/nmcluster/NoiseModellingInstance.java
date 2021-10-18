@@ -109,11 +109,10 @@ public class NoiseModellingInstance {
 
     }
 
-    public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList) throws SQLException, IOException {
+    public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList, int railRoad) throws SQLException, IOException {
         Sql sql = new Sql(connection);
 
-        recreateCBS(1);
-        recreateCBS(2);
+        recreateCBS(railRoad);
 
         GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
         int maxSrcDist = (Integer)rs.get("confmaxsrcdist");
@@ -138,9 +137,13 @@ public class NoiseModellingInstance {
             logger.info(String.format(Locale.ROOT, "There is %d sound sources with this UUEID", nbSources));
             if(nbSources > 0) {
                 ProgressVisitor uueidVisitor = progressLogger.subProcess(uueidList.size());
-                roadNoiseLevel(uueidVisitor, uueid);
+                if(railRoad == 2) {
+                    roadNoiseLevel(uueidVisitor, uueid);
+                } else {
+                    // TODO rail
+                }
+                isoSurface(uueid, railRoad);
             }
-
             break;
         }
     }
@@ -292,21 +295,33 @@ public class NoiseModellingInstance {
     public void isoSurface(String uueid, int railRoad) throws SQLException {
         Sql sql = new Sql(connection);
 
+        String tableDEN, tableNIGHT;
+        if (railRoad==1){
+            tableDEN = "LDEN_RAILWAY";
+            tableNIGHT = "LNIGHT_RAILWAY";
+        } else{
+            tableDEN = "LDEN_ROADS";
+            tableNIGHT = "LNIGHT_ROADS";
+        }
+
         String ldenOutput = uueid + "_CONTOURING_LDEN";
         String lnightOutput = uueid + "_CONTOURING_LNIGHT";
 
-        sql.execute("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput);
+        sql.execute(String.format("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN"));
+
+        logger.info(String.format("Create RECEIVERS_DELAUNAY_NIGHT for uueid= %s", uueid));
+        sql.execute("create table RECEIVERS_DELAUNAY_NIGHT(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, LAEQ FROM "+tableNIGHT+" L INNER JOIN RECEIVERS_UUEID RE ON L.IDRECEIVER = RE.PK WHERE RE.RCV_TYPE = 2;");
+        sql.execute("ALTER TABLE RECEIVERS_DELAUNAY_NIGHT ADD PRIMARY KEY (PK)");
+        logger.info(String.format("Create RECEIVERS_DELAUNAY_DEN for uueid= %s", uueid));
+        sql.execute("create table RECEIVERS_DELAUNAY_DEN(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, LAEQ FROM "+tableDEN+" L INNER JOIN RECEIVERS_UUEID RE ON L.IDRECEIVER = RE.PK WHERE RE.RCV_TYPE = 2;");
+        sql.execute("ALTER TABLE RECEIVERS_DELAUNAY_DEN ADD PRIMARY KEY (PK)");
+
+
 
         logger.info("Generate iso surfaces");
 
-        String ldenInput, lnightInput;
-        if (railRoad==1){
-            ldenInput = "LDEN_RAILWAY";
-            lnightInput = "LNIGHT_RAILWAY";
-        } else{
-            ldenInput = "LDEN_ROADS";
-            lnightInput = "LNIGHT_ROADS";
-        }
+        String ldenInput = "RECEIVERS_DELAUNAY_DEN";
+        String lnightInput = "RECEIVERS_DELAUNAY_NIGHT";
 
         // For A maps
         // Produce isocontours for LNIGHT (LN)
@@ -325,14 +340,15 @@ public class NoiseModellingInstance {
             generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, connection, uueid, "C", "LD", railRoad);
         }
 
-        sql.execute("DROP TABLE IF EXISTS RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN");
+        sql.execute("DROP TABLE IF EXISTS "+ldenInput + ", " + lnightInput);
     }
 
     public void roadNoiseLevel(ProgressVisitor progressLogger, String uueid) throws SQLException, IOException {
 
-
+        String sourceTable = "LW_ROADS_UUEID";
+        String receiversTable = "RECEIVERS_UUEID";
         PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
-                "LW_ROADS_UUEID", "RECEIVERS_UUEID");
+                sourceTable, receiversTable);
 
 
         LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
@@ -361,7 +377,6 @@ public class NoiseModellingInstance {
         ldenConfig_propa.setComputeLAEQOnly(true);
 
         LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa);
-
 
 
         pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction);
@@ -442,7 +457,6 @@ public class NoiseModellingInstance {
             profilerThread.stop();
             ldenProcessing.stop();
         }
-        // TODO ISOContour
     }
 
 }
