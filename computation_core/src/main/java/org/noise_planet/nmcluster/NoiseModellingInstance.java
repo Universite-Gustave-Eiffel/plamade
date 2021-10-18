@@ -25,14 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -135,6 +128,10 @@ public class NoiseModellingInstance {
             sql.execute("CREATE SPATIAL INDEX ON LW_ROADS_UUEID(THE_GEOM)");
             int nbSources = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM LW_ROADS_UUEID").get("CPT"));
             logger.info(String.format(Locale.ROOT, "There is %d sound sources with this UUEID", nbSources));
+            int nbReceivers = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM RECEIVERS_UUEID_PK1").get("CPT"));
+            logger.info(String.format(Locale.ROOT, "There is %d receivers with this UUEID", nbReceivers));
+
+
             if(nbSources > 0) {
                 ProgressVisitor uueidVisitor = progressLogger.subProcess(uueidList.size());
                 if(railRoad == 2) {
@@ -144,7 +141,6 @@ public class NoiseModellingInstance {
                 }
                 isoSurface(uueid, railRoad);
             }
-            break;
         }
     }
 
@@ -446,8 +442,8 @@ public class NoiseModellingInstance {
             AtomicInteger k = new AtomicInteger();
             Map<PointNoiseMap.CellIndex, Integer> cells = pointNoiseMap.searchPopulatedCells(connection);
             ProgressVisitor progressVisitor = progressLogger.subProcess(cells.size());
-            for (PointNoiseMap.CellIndex cellIndex : cells.keySet()) {// Run ray propagation
-                logger.info(String.format("Compute... %.3f %% (%d receivers in this cell)", 100.0 * (k.getAndIncrement() / cells.size()), cells.get(cellIndex)));
+            for (PointNoiseMap.CellIndex cellIndex : new TreeSet<>(cells.keySet())) {// Run ray propagation
+                logger.info(String.format("Compute... %d cells remaining (%d receivers in this cell)", cells.size() - k.getAndIncrement(), cells.get(cellIndex)));
                 IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers);
             }
         } catch (IllegalArgumentException | IllegalStateException ex) {
