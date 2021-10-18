@@ -6,6 +6,9 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.utilities.JDBCUtilities;
+import org.h2gis.utilities.SFSUtilities;
+import org.h2gis.utilities.TableLocation;
 import org.noise_planet.noisemodelling.jdbc.*;
 import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
 import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric;
@@ -22,14 +25,55 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Processing of noise maps
+ * @author Pierre Aumond, Université Gustave Eiffel
+ * @author Nicolas Fortin, Université Gustave Eiffel
+ * @author Gwendall Petit, Lab-STICC CNRS UMR 6285
+ */
 public class NoiseModellingInstance {
     Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Connection connection;
     String workingDirectory;
     int configurationId = 0;
+
+
+    // LDEN classes for A maps : 55-59, 60-64, 65-69, 70-74 et >75 dB
+    final List<Double> isoLevelsLDEN = Arrays.asList(55.0d,60.0d,65.0d,70.0d,75.0d,200.0d);
+    // LNIGHT classes for A maps : 50-54, 55-59, 60-64, 65-69 et >70 dB
+    final List<Double>  isoLevelsLNIGHT = Arrays.asList(50.0d,55.0d,60.0d,65.0d,70.0d,200.0d);
+
+    // LDEN classes for C maps: >68 dB
+    final List<Double>  isoCLevelsLDEN = Arrays.asList(68.0d,200.0d);
+    // LNIGHT classes for C maps : >62 dB
+    final List<Double>  isoCLevelsLNIGHT = Arrays.asList(62.0d,200.0d);
+
+    // LDEN classes for C maps and : >73 dB
+    final List<Double>  isoCFerConvLevelsLDEN= Arrays.asList(73.0d,200.0d);
+    // LNIGHT classes for C maps : >65 dB
+    final List<Double>  isoCFerConvLevelsLNIGHT= Arrays.asList(65.0d,200.0d);
+
+    String cbsARoadLden;
+    String cbsARoadLnight;
+    String cbsAFerLden;
+    String cbsAFerLnight;
+    String cbsCRoadLden;
+    String cbsCRoadLnight;
+    String cbsCFerLGVLden;
+    String cbsCFerLGVLnight;
+    String cbsCFerCONVLden;
+    String cbsCFerCONVLnight;
+
 
     public NoiseModellingInstance(Connection connection, String workingDirectory) {
         this.connection = connection;
@@ -67,6 +111,9 @@ public class NoiseModellingInstance {
 
     public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList) throws SQLException, IOException {
         Sql sql = new Sql(connection);
+
+        recreateCBS(1);
+        recreateCBS(2);
 
         GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
         int maxSrcDist = (Integer)rs.get("confmaxsrcdist");
@@ -112,6 +159,173 @@ public class NoiseModellingInstance {
         } else {
             return null;
         }
+    }
+
+    public void recreateCBS(int railRoad) throws SQLException {
+
+        // List of input tables : inputTable
+
+        Sql sql = new Sql(connection);
+
+        // -------------------
+        // Initialisation des tables dans lesquelles on stockera les surfaces par tranche d'iso, par type d'infra et d'indice
+
+        String nuts = (String)sql.firstRow("SELECT NUTS FROM METADATA").get("NUTS");
+        cbsARoadLden = "CBS_A_R_LD_"+nuts;
+        cbsARoadLnight = "CBS_A_R_LN_"+nuts;
+        cbsAFerLden = "CBS_A_F_LD_"+nuts;
+        cbsAFerLnight = "CBS_A_F_LN_"+nuts;
+
+        cbsCRoadLden = "CBS_C_R_LD_"+nuts;
+        cbsCRoadLnight = "CBS_C_R_LN_"+nuts;
+        cbsCFerLGVLden = "CBS_C_F_LGV_LD_"+nuts;
+        cbsCFerLGVLnight = "CBS_C_F_LGV_LN_"+nuts;
+        cbsCFerCONVLden = "CBS_C_F_CONV_LD_"+nuts;
+        cbsCFerCONVLnight = "CBS_C_F_CONV_LN_"+nuts;
+
+        // output string, the information given back to the user
+        String resultString = "Le processus est terminé - Les tables de sortie sont ";
+
+
+
+        // Tables are created according to the input parameter "rail" or "road"
+        if (railRoad==1){
+            resultString += cbsAFerLden + " " + cbsAFerLnight + " " + cbsCFerLGVLden + " " + cbsCFerLGVLnight + " " + cbsCFerCONVLden + " " + cbsCFerCONVLnight;
+            // For A maps
+            sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLden);
+            sql.execute("CREATE TABLE "+ cbsAFerLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+            sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLnight);
+            sql.execute("CREATE TABLE "+ cbsAFerLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+
+            // For C maps
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCFerLGVLden);
+            sql.execute("CREATE TABLE "+ cbsCFerLGVLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCFerLGVLnight);
+            sql.execute("CREATE TABLE "+ cbsCFerLGVLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCFerCONVLden);
+            sql.execute("CREATE TABLE "+ cbsCFerCONVLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCFerCONVLnight);
+            sql.execute("CREATE TABLE "+ cbsCFerCONVLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+        } else{
+            resultString += cbsARoadLden + " " + cbsARoadLnight + " " + cbsCRoadLden + " " + cbsCRoadLnight;
+            // For A maps
+            sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLden);
+            sql.execute("CREATE TABLE "+ cbsARoadLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+            sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLnight);
+            sql.execute("CREATE TABLE "+ cbsARoadLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+            // For C maps
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCRoadLden);
+            sql.execute("CREATE TABLE "+ cbsCRoadLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCRoadLnight);
+            sql.execute("CREATE TABLE "+ cbsCRoadLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+        }
+
+        logger.info(resultString);
+
+    }
+
+    void generateIsoSurfaces(String inputTable, List<Double> isoClasses, Connection connection, String uueid, String cbsType, String period, int railRoad) throws SQLException {
+
+        if(!JDBCUtilities.tableExists(connection, inputTable)) {
+            logger.info("La table "+inputTable+" n'est pas présente");
+            return;
+        }
+        int srid = SFSUtilities.getSRID(connection, TableLocation.parse(inputTable));
+
+        BezierContouring bezierContouring = new BezierContouring(isoClasses, srid);
+
+        bezierContouring.setPointTable(inputTable);
+        bezierContouring.setTriangleTable("TRIANGLES_DELAUNAY");
+        bezierContouring.setSmooth(false);
+
+        bezierContouring.createTable(connection);
+
+        Sql sql = new Sql(connection);
+
+        // Forces the SRID, as it is lost in the previous steps
+        sql.execute("UPDATE CONTOURING_NOISE_MAP SET THE_GEOM=ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))");
+
+        // Generate temporary table to store ISO areas
+        sql.execute("DROP TABLE IF EXISTS ISO_AREA");
+        sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, CBSTYPE varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT ST_ACCUM(the_geom) the_geom, null, '"+uueid+"', '"+cbsType+"', '"+period+"', ISOLABEL, SUM(ST_AREA(the_geom)) AREA FROM CONTOURING_NOISE_MAP GROUP BY ISOLABEL");
+
+        // For A maps
+        // Update noise classes for LDEN
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN 'Lden5559' WHEN NOISELEVEL = '60-65' THEN 'Lden6064' WHEN NOISELEVEL = '65-70' THEN 'Lden6569' WHEN NOISELEVEL = '70-75' THEN 'Lden7074' WHEN NOISELEVEL = '> 75' THEN 'LdenGreaterThan75' END) WHERE CBSTYPE = 'A' AND PERIOD='LD';");
+        // Update noise classes for LNIGHT
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '50-55' THEN 'Lnight5054' WHEN NOISELEVEL = '55-60' THEN 'Lnight5559' WHEN NOISELEVEL = '60-65' THEN 'Lnight6064' WHEN NOISELEVEL = '65-70' THEN 'Lnight6569' WHEN NOISELEVEL = '> 70' THEN 'LnightGreaterThan70' END) WHERE CBSTYPE = 'A' AND PERIOD='LN';");
+
+        // For C maps
+        // Update noise classes for LDEN
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 68' THEN 'LdenGreaterThan68' WHEN NOISELEVEL = '> 73' THEN 'LdenGreaterThan73' END) WHERE CBSTYPE = 'C' AND PERIOD='LD';");
+        // Update noise classes for LNIGHT
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 62' THEN 'LnightGreaterThan62' WHEN NOISELEVEL = '> 65' THEN 'LnightGreaterThan65' END) WHERE CBSTYPE = 'C' AND PERIOD='LN';");
+
+
+        sql.execute("DELETE FROM ISO_AREA WHERE NOISELEVEL IS NULL");
+
+        // Generate the PK
+        sql.execute("UPDATE ISO_AREA SET pk = CONCAT(uueid, '_',noiselevel)");
+        // Forces the SRID, as it is lost in the previous steps
+        sql.execute("UPDATE ISO_AREA SET THE_GEOM = ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))");
+
+        // Insert iso areas into common table, according to rail or road input parameter
+        if (railRoad==1){
+            sql.execute("INSERT INTO "+cbsAFerLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LD'");
+            sql.execute("INSERT INTO "+cbsAFerLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LN'");
+            sql.execute("INSERT INTO "+cbsCFerLGVLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD' AND NOISELEVEL = 'LdenGreaterThan68'");
+            sql.execute("INSERT INTO "+cbsCFerLGVLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN' AND NOISELEVEL = 'LnightGreaterThan62'");
+            sql.execute("INSERT INTO "+cbsCFerCONVLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD' AND NOISELEVEL = 'LdenGreaterThan73'");
+            sql.execute("INSERT INTO "+cbsCFerCONVLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN' AND NOISELEVEL = 'LnightGreaterThan65'");
+        } else {
+            sql.execute("INSERT INTO "+cbsARoadLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LD'");
+            sql.execute("INSERT INTO "+cbsARoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LN'");
+            sql.execute("INSERT INTO "+cbsCRoadLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD'");
+            sql.execute("INSERT INTO "+cbsCRoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN'");
+        }
+
+        sql.execute("DROP TABLE IF EXISTS CONTOURING_NOISE_MAP");
+        logger.info("End : Compute Isosurfaces");
+    }
+
+    public void isoSurface(String uueid, int railRoad) throws SQLException {
+        Sql sql = new Sql(connection);
+
+        String ldenOutput = uueid + "_CONTOURING_LDEN";
+        String lnightOutput = uueid + "_CONTOURING_LNIGHT";
+
+        sql.execute("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput);
+
+        logger.info("Generate iso surfaces");
+
+        String ldenInput, lnightInput;
+        if (railRoad==1){
+            ldenInput = "LDEN_RAILWAY";
+            lnightInput = "LNIGHT_RAILWAY";
+        } else{
+            ldenInput = "LDEN_ROADS";
+            lnightInput = "LNIGHT_ROADS";
+        }
+
+        // For A maps
+        // Produce isocontours for LNIGHT (LN)
+        generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, connection, uueid, "A", "LN", railRoad);
+        // Produce isocontours for LDEN (LD)
+        generateIsoSurfaces(ldenInput, isoLevelsLDEN, connection, uueid, "A", "LD", railRoad);
+
+        // For C maps
+        // Produce isocontours for LNIGHT (LN)
+        generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, connection, uueid, "C", "LN", railRoad);
+        // Produce isocontours for LDEN (LD)
+        generateIsoSurfaces(ldenInput, isoCLevelsLDEN, connection, uueid, "C", "LD", railRoad);
+
+        if (railRoad==1){
+            generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, connection, uueid, "C", "LN", railRoad);
+            generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, connection, uueid, "C", "LD", railRoad);
+        }
+
+        sql.execute("DROP TABLE IF EXISTS RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN");
     }
 
     public void roadNoiseLevel(ProgressVisitor progressLogger, String uueid) throws SQLException, IOException {
