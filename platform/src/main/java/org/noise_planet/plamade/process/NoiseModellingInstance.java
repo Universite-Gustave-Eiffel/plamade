@@ -180,21 +180,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
         nodeDoc.put("node_sum_length", nodeTotalLength);
         mapper.writerWithDefaultPrettyPrinter().writeValue(new File(workingDirectory, "cluster_config.json"), rootDoc);
-//        GroovyShell shell = new GroovyShell();
-//        Script process= shell.parse(new File("../script_groovy", "s41_ClusterConfiguration.groovy"));
-//        Map<String, Object> inputs = new HashMap<>();
-//        inputs.put("confId", configuration.getConfigurationId());
-//        inputs.put("numberOfNodes", 8);
-//        inputs.put("progressVisitor", progressVisitor);
-//        Object result = process.invokeMethod("exec", new Object[] {nmConnection, inputs});
-//        if(result instanceof List) {
-//            // Convert to json
-//            List<ArrayList<PointNoiseMap.CellIndex>> cells = (List<ArrayList<PointNoiseMap.CellIndex>>)result;
-//            JsonNode rootNode = convertToJson(cells);
-//            ObjectMapper mapper = new ObjectMapper();
-//            mapper.writerWithDefaultPrettyPrinter().writeValue(new File(configuration.workingDirectory, "cluster_config.json"), rootNode);
-//        }
     }
+
+
     public Object LoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
         Script process= shell.parse(new File("../script_groovy", "s42_Load_Noise_level.groovy"));
