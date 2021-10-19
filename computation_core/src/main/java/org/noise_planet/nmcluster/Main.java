@@ -100,6 +100,7 @@ public class Main {
                 int confId = (Integer)sql.firstRow("SELECT grid_conf from metadata").get("GRID_CONF");
                 NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
                 nm.setConfigurationId(confId);
+                nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
                 nm.uueidsLoop(new RootProgressVisitor(1, true,
                         1), uueidList, 2);
             } catch (SQLException ex) {

@@ -39,6 +39,7 @@ public class NoiseModellingInstance {
     Connection connection;
     String workingDirectory;
     int configurationId = 0;
+    String outputPrefix = "";
 
 
     // LDEN classes for A maps : 55-59, 60-64, 65-69, 70-74 et >75 dB
@@ -81,6 +82,14 @@ public class NoiseModellingInstance {
         this.configurationId = configurationId;
     }
 
+    public String getOutputPrefix() {
+        return outputPrefix;
+    }
+
+    public void setOutputPrefix(String outputPrefix) {
+        this.outputPrefix = outputPrefix;
+    }
+
     public static DataSource createDataSource(String user, String password, String dbDirectory, String dbName, boolean debug) throws SQLException {
         // Create H2 memory DataSource
         org.h2.Driver driver = org.h2.Driver.load();
@@ -105,7 +114,7 @@ public class NoiseModellingInstance {
     public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList, int railRoad) throws SQLException, IOException {
         Sql sql = new Sql(connection);
 
-        recreateCBS(railRoad);
+        List<String> outputTable = recreateCBS(railRoad);
 
         GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
         int maxSrcDist = (Integer)rs.get("confmaxsrcdist");
@@ -128,7 +137,7 @@ public class NoiseModellingInstance {
             sql.execute("CREATE SPATIAL INDEX ON LW_ROADS_UUEID(THE_GEOM)");
             int nbSources = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM LW_ROADS_UUEID").get("CPT"));
             logger.info(String.format(Locale.ROOT, "There is %d sound sources with this UUEID", nbSources));
-            int nbReceivers = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM RECEIVERS_UUEID_PK1").get("CPT"));
+            int nbReceivers = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM RECEIVERS_UUEID").get("CPT"));
             logger.info(String.format(Locale.ROOT, "There is %d receivers with this UUEID", nbReceivers));
 
 
@@ -141,6 +150,11 @@ public class NoiseModellingInstance {
                 }
                 isoSurface(uueid, railRoad);
             }
+        }
+
+        logger.info("Write output tables");
+        for(String tableName : outputTable) {
+            sql.execute("CALL SHPWRITE('" + new File(workingDirectory,  outputPrefix + tableName + ".shp").getAbsolutePath()+"', '" + tableName + "');");
         }
     }
 
@@ -160,7 +174,9 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void recreateCBS(int railRoad) throws SQLException {
+    public List<String> recreateCBS(int railRoad) throws SQLException {
+
+        List<String> outputTables = new ArrayList<>();
 
         // List of input tables : inputTable
 
@@ -183,13 +199,18 @@ public class NoiseModellingInstance {
         cbsCFerCONVLnight = "CBS_C_F_CONV_LN_"+nuts;
 
         // output string, the information given back to the user
-        String resultString = "Le processus est terminé - Les tables de sortie sont ";
+        StringBuilder resultString = new StringBuilder("Le processus est terminé - Les tables de sortie sont ");
 
 
 
         // Tables are created according to the input parameter "rail" or "road"
         if (railRoad==1){
-            resultString += cbsAFerLden + " " + cbsAFerLnight + " " + cbsCFerLGVLden + " " + cbsCFerLGVLnight + " " + cbsCFerCONVLden + " " + cbsCFerCONVLnight;
+            outputTables.add(cbsAFerLden);
+            outputTables.add(cbsAFerLnight);
+            outputTables.add(cbsCFerLGVLden);
+            outputTables.add(cbsCFerLGVLnight);
+            outputTables.add(cbsCFerCONVLden);
+            outputTables.add(cbsCFerCONVLnight);
             // For A maps
             sql.execute("DROP TABLE IF EXISTS "+ cbsAFerLden);
             sql.execute("CREATE TABLE "+ cbsAFerLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
@@ -207,7 +228,10 @@ public class NoiseModellingInstance {
             sql.execute("DROP TABLE IF EXISTS "+ cbsCFerCONVLnight);
             sql.execute("CREATE TABLE "+ cbsCFerCONVLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
         } else{
-            resultString += cbsARoadLden + " " + cbsARoadLnight + " " + cbsCRoadLden + " " + cbsCRoadLnight;
+            outputTables.add(cbsARoadLden);
+            outputTables.add(cbsARoadLnight);
+            outputTables.add(cbsCRoadLden);
+            outputTables.add(cbsCRoadLnight);
             // For A maps
             sql.execute("DROP TABLE IF EXISTS "+ cbsARoadLden);
             sql.execute("CREATE TABLE "+ cbsARoadLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
@@ -219,9 +243,12 @@ public class NoiseModellingInstance {
             sql.execute("DROP TABLE IF EXISTS "+ cbsCRoadLnight);
             sql.execute("CREATE TABLE "+ cbsCRoadLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
         }
+        for(String outputTable : outputTables) {
+            resultString.append(", ").append(outputTable);
+        }
 
-        logger.info(resultString);
-
+        logger.info(resultString.toString());
+        return outputTables;
     }
 
     void generateIsoSurfaces(String inputTable, List<Double> isoClasses, Connection connection, String uueid, String cbsType, String period, int railRoad) throws SQLException {
@@ -402,6 +429,7 @@ public class NoiseModellingInstance {
         pointNoiseMap.setPropagationProcessPathData(environmentalData);
 
         pointNoiseMap.setThreadCount(nThread);
+        logger.info(String.format("PARAM : Number of thread used %d ", nThread));
         // Building height field name
         pointNoiseMap.setHeightField("HEIGHT");
         // Import table with Snow, Forest, Grass, Pasture field polygons. Attribute G is associated with each polygon
