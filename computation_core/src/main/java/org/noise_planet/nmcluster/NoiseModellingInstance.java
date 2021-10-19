@@ -156,6 +156,8 @@ public class NoiseModellingInstance {
         for(String tableName : outputTable) {
             sql.execute("CALL SHPWRITE('" + new File(workingDirectory,  outputPrefix + tableName + ".shp").getAbsolutePath()+"', '" + tableName + "');");
         }
+        // export metadata
+        sql.execute("CALL DBFWRITE('" + new File(workingDirectory,  outputPrefix + "METADATA.dbf").getAbsolutePath()+"', 'METADATA');");
     }
 
     public static Double asDouble(Object v) {

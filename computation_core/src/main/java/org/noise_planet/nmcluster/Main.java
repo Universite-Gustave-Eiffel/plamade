@@ -37,6 +37,7 @@ import java.util.*;
 
 
 public class Main {
+    public static final int SECONDS_BETWEEN_PROGRESSION_PRINT = 5;
 
     public static void main(String... args) throws Exception {
         PropertyConfigurator.configure(Objects.requireNonNull(
@@ -102,7 +103,7 @@ public class Main {
                 nm.setConfigurationId(confId);
                 nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
                 nm.uueidsLoop(new RootProgressVisitor(1, true,
-                        1), uueidList, 2);
+                        SECONDS_BETWEEN_PROGRESSION_PRINT), uueidList, 2);
             } catch (SQLException ex) {
                 while (ex != null) {
                     logger.error(ex.getLocalizedMessage(), ex);
