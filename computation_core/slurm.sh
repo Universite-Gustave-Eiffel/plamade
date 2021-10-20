@@ -3,6 +3,13 @@
 # srun -n 1 --tasks-per-node=1 sh plamade.sh
 dbpath="/home2020/home/cerema/nfortin/dep38/"
 
+# copy gradle cache (faster build time)
+echo "Sync gradle cache"
+rsync -a --stats ~/.gradle/ /scratch/job."$SLURM_JOB_ID"/.gradle/
+export GRADLE_USER_HOME=/scratch/job."$SLURM_JOB_ID"/.gradle/
+
+echo "gradle path is now $GRADLE_USER_HOME"
+
 echo "copy data to local node"
 mkdir /scratch/job."$SLURM_JOB_ID"/data/
 rsync -a "$dbpath" /scratch/job."$SLURM_JOB_ID"/data/
