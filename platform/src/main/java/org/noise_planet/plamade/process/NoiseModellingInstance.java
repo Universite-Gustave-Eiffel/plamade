@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import groovy.sql.Sql;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
@@ -143,42 +144,60 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return rootNode;
     }
 
-    public static void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfNodes, String workingDirectory) throws SQLException, IOException {
+    private static class JobElement implements Comparable<JobElement> {
+        public List<String> UUEID = new ArrayList<>();
+        public double totalRoadLength = 0;
+
+
+        @Override
+        public int compareTo(JobElement o) {
+            return Double.compare(o.totalRoadLength, totalRoadLength);
+        }
+    }
+
+    public static Integer asInteger(Object v) {
+        if(v instanceof Number) {
+            return ((Number)v).intValue();
+        } else {
+            return null;
+        }
+    }
+
+    public static void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
         // Sum UUEID roads length
         // because the length of the roads should be proportional with the work load
-        Map<String, Double> uueidToRoadLength = new HashMap<>();
-        try(ResultSet rs = nmConnection.createStatement().executeQuery("SELECT UUEID , SUM(st_length(the_geom)) weight  FROM ROADS r GROUP BY uueid;")) {
+        // Can't have more jobs than UUEID
+        Sql sql = new Sql(nmConnection);
+        int numberOfUUEID = asInteger(sql.firstRow("SELECT COUNT(DISTINCT UUEID) CPT FROM ROADS").get("CPT"));
+        numberOfJobs = Math.min(numberOfUUEID, numberOfJobs);
+        // Distribute UUEID over numberOfJobs (least road length receive the next one
+        List<JobElement> jobElementList = new ArrayList<>(numberOfJobs);
+        for(int i=0; i < numberOfJobs; i++) {
+            jobElementList.add(new JobElement());
+        }
+        try(ResultSet rs = nmConnection.createStatement().executeQuery("SELECT UUEID , SUM(st_length(the_geom)) weight  FROM ROADS r GROUP BY uueid ORDER BY WEIGHT DESC;")) {
             while(rs.next()) {
-                uueidToRoadLength.put(rs.getString("UUEID"), rs.getDouble("WEIGHT"));
+                jobElementList.get(jobElementList.size() - 1).UUEID.add(rs.getString("UUEID"));
+                jobElementList.get(jobElementList.size() - 1).totalRoadLength+=rs.getDouble("WEIGHT");
+                // Sort by road length
+                Collections.sort(jobElementList);
             }
         }
-        double quota = uueidToRoadLength.values().stream().mapToDouble(Double::doubleValue).sum() / numberOfNodes;
         AtomicInteger nodeId = new AtomicInteger();
-        double nodeTotalLength = 0;
         ObjectMapper mapper = new ObjectMapper();
         ArrayNode rootDoc = mapper.createArrayNode();
-        ObjectNode nodeDoc = mapper.createObjectNode();
-        rootDoc.add(nodeDoc);
-        nodeDoc.put("nodeId", nodeId.getAndIncrement());
-        ArrayNode nodeUUEIDs = mapper.createArrayNode();
-        nodeDoc.set("uueids", nodeUUEIDs);
         // create lists so that each node have at least the quota length of roads (except the last one)
-        for (Map.Entry<String, Double> entry : uueidToRoadLength.entrySet()) {
-            String uueid = entry.getKey();
-            Double roadLength = entry.getValue();
-            if (nodeTotalLength > quota) {
-                nodeDoc.put("node_sum_length", nodeTotalLength);
-                nodeDoc = mapper.createObjectNode();
-                rootDoc.add(nodeDoc);
-                nodeDoc.put("nodeId", nodeId.getAndIncrement());
-                nodeUUEIDs = mapper.createArrayNode();
-                nodeDoc.set("uueids", nodeUUEIDs);
-                nodeTotalLength = 0;
+        for (JobElement jobElement : jobElementList) {
+            ObjectNode nodeDoc = mapper.createObjectNode();
+            rootDoc.add(nodeDoc);
+            nodeDoc.put("nodeId", nodeId.getAndIncrement());
+            nodeDoc.put("node_sum_length", jobElement.totalRoadLength);
+            ArrayNode nodeUUEIDs = mapper.createArrayNode();
+            nodeDoc.set("uueids", nodeUUEIDs);
+            for(String uueid : jobElement.UUEID) {
+                nodeUUEIDs.add(uueid);
             }
-            nodeUUEIDs.add(uueid);
-            nodeTotalLength += roadLength;
         }
-        nodeDoc.put("node_sum_length", nodeTotalLength);
         mapper.writerWithDefaultPrettyPrinter().writeValue(new File(workingDirectory, "cluster_config.json"), rootDoc);
     }
 
@@ -249,7 +268,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 subProg.endStep();
                 makeEmission(nmConnection);
                 subProg.endStep();
-                generateClusterConfig(nmConnection, subProg, 4, configuration.workingDirectory);
+                generateClusterConfig(nmConnection, subProg, 48, configuration.workingDirectory);
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);

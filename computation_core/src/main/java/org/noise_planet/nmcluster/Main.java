@@ -91,6 +91,8 @@ public class Main {
                     }
                 }
             }
+            logger.info(String.format(Locale.ROOT, "For job %d, will compute the following UUEID (%s)",
+                    nodeId, String.join(",", uueidList)));
             // Open database
             DataSource ds = NoiseModellingInstance.createDataSource("", "", new File(workingDir).getAbsolutePath(), "h2gisdb", false);
 

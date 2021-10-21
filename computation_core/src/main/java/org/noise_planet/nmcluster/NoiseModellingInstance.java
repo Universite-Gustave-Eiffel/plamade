@@ -157,7 +157,7 @@ public class NoiseModellingInstance {
             sql.execute("CALL SHPWRITE('" + new File(workingDirectory,  outputPrefix + tableName + ".shp").getAbsolutePath()+"', '" + tableName + "');");
         }
         // export metadata
-        sql.execute("CALL DBFWRITE('" + new File(workingDirectory,  outputPrefix + "METADATA.dbf").getAbsolutePath()+"', 'METADATA');");
+        sql.execute("CALL CSVWRITE('" + new File(workingDirectory,  outputPrefix + "METADATA.csv").getAbsolutePath()+"', 'SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA');");
     }
 
     public static Double asDouble(Object v) {

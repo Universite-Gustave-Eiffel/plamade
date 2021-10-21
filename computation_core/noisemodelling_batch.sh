@@ -1,6 +1,8 @@
 #! /bin/bash
+#SBATCH -a 0-23   # execute tasks from 0 to 23
+
 # run with this command
-# srun -n 1 --tasks-per-node=1 sh plamade.sh
+# sbatch noisemodelling_batch.sh
 dbpath="/home2020/home/cerema/nfortin/dep38/"
 
 # copy gradle cache (faster build time)
@@ -19,10 +21,10 @@ mkdir /scratch/job."$SLURM_JOB_ID"/code/
 rsync -a ../ /scratch/job."$SLURM_JOB_ID"/code
 
 echo "run noisemodelling"
-cd /scratch/job."$SLURM_JOB_ID"/code && ./gradlew computation_core:run --args="-n$SLURM_NODEID -w/scratch/job.$SLURM_JOB_ID/data/"
+cd /scratch/job."$SLURM_JOB_ID"/code && ./gradlew computation_core:run --args="-n$SLURM_ARRAY_TASK_ID -w/scratch/job.$SLURM_JOB_ID/data/"
 echo "copy results"
-mkdir -p ~/job_"$SLURM_JOB_ID"
-cp /scratch/job."$SLURM_JOB_ID"/data/*.shp ~/job_"$SLURM_JOB_ID"/
-cp /scratch/job."$SLURM_JOB_ID"/data/*.dbf ~/job_"$SLURM_JOB_ID"/
-cp /scratch/job."$SLURM_JOB_ID"/data/*.shx ~/job_"$SLURM_JOB_ID"/
-cp /scratch/job."$SLURM_JOB_ID"/data/*.prj ~/job_"$SLURM_JOB_ID"/
+mkdir -p ~/job_"$SLURM_ARRAY_JOB_ID"
+cp /scratch/job."$SLURM_JOB_ID"/data/*.shp ~/job_"$SLURM_ARRAY_JOB_ID"/
+cp /scratch/job."$SLURM_JOB_ID"/data/*.dbf ~/job_"$SLURM_ARRAY_JOB_ID"/
+cp /scratch/job."$SLURM_JOB_ID"/data/*.shx ~/job_"$SLURM_ARRAY_JOB_ID"/
+cp /scratch/job."$SLURM_JOB_ID"/data/*.prj ~/job_"$SLURM_ARRAY_JOB_ID"/

@@ -66,12 +66,13 @@ class testPerf {
     public void testCell() {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
-
+        String workingDir = "/home/nicolas/data/plamade/dep44/"
         DataSource ds = NoiseModellingInstance.createDataSource("", "",
-                "/home/nicolas/data/plamade/dep38/", "h2gisdb", false)
+                workingDir, "h2gisdb", false)
         ds.getConnection().withCloseable {
             Connection connection ->
-                NoiseModellingInstance.generateClusterConfig(connection, new RootProgressVisitor(1, true, 1), 4, "build/");
+                NoiseModellingInstance.generateClusterConfig(connection, new RootProgressVisitor(1,
+                        true, 1), 24, workingDir);
         }
     }
 }
