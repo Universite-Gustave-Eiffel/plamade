@@ -14,34 +14,27 @@ package org.noise_planet.nmcluster;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import groovy.lang.GroovyShell;
-import groovy.lang.Script;
 import groovy.sql.Sql;
 import org.apache.log4j.PropertyConfigurator;
-import org.h2.util.OsgiDataSourceFactory;
-import org.h2gis.api.ProgressVisitor;
-import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.utilities.wrapper.ConnectionWrapper;
-import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
-import org.osgi.service.jdbc.DataSourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 
 public class Main {
     public static final int SECONDS_BETWEEN_PROGRESSION_PRINT = 5;
 
     public static void main(String... args) throws Exception {
-        PropertyConfigurator.configure(Objects.requireNonNull(
-                Main.class.getResource("log4j.properties")).getFile());
+        PropertyConfigurator.configure(Main.class.getResourceAsStream("log4j.properties"));
 
         Logger logger = LoggerFactory.getLogger("org.noise_planet");
 
