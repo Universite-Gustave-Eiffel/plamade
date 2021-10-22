@@ -20,7 +20,7 @@ repositories {
 
 task copyDependencies(type: Copy) {
     from configurations.default
-    into 'libs'
+    into 'build/libs'
 }
 
 dependencies {
@@ -32,4 +32,10 @@ dependencies {
 
 application {
     mainClass = 'org.noise_planet.nmcluster.Main'
+}
+jar {
+    manifest {
+        attributes('Class-Path': configurations.default.collect { it.getName() }.join(' '),
+                'Main-Class': 'org.noise_planet.nmcluster.Main')
+    }
 }
