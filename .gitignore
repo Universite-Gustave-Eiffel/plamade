@@ -10,7 +10,7 @@ computation_core/libs
 ### Gradle ###
 .gradle
 **/build/
-src/ratpack/config.yaml
+platform/src/ratpack/config.yaml
 plamade_test_dep*
 out/
 application.log
