@@ -23,6 +23,7 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.utilities.JDBCUtilities;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.osgi.service.jdbc.DataSourceFactory;
@@ -42,7 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Nicolas Fortin, Université Gustave Eiffel
  */
 public class NoiseModellingInstance implements RunnableFuture<String> {
-    Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
+    private static final Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Configuration configuration;
     DataSource nmDataSource;
     DataSource plamadeDataSource;
@@ -69,7 +70,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         DataSource dataSource = dataSourceFactory.createDataSource(properties);
         // Init spatial ext
         try (Connection connection = dataSource.getConnection()) {
-            H2GISFunctions.load(connection);
+            if(!JDBCUtilities.tableExists(connection, "GEOMETRY_COLUMNS")) {
+                H2GISFunctions.load(connection);
+            }
         }
         return dataSource;
 
@@ -162,6 +165,85 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             return null;
         }
     }
+
+    public static class ShapeFileFilter implements FilenameFilter {
+        String prefix;
+        String suffix;
+
+        public ShapeFileFilter(String prefix, String suffix) {
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        @Override
+        public boolean accept(File dir, String name) {
+            if(!name.toLowerCase(Locale.ROOT).endsWith("shp")) {
+                return false;
+            }
+            if(!name.startsWith(prefix)) {
+                return false;
+            }
+            return suffix.isEmpty() || name.indexOf(suffix, prefix.length()) != -1;
+        }
+    }
+
+    /**
+     * Merge shape files with the same file name
+     * prefix[NUMJOB]suffix[TABLENAME].shp
+     * @param connection database connection
+     * @param folder folder that contains shp files
+     * @param prefix common prefix before the number
+     * @param suffix common suffix after the number
+     */
+    public static void mergeShapeFiles(Connection connection,String folder, String prefix, String suffix) throws SQLException {
+        String extension = ".shp";
+        File workingFolder = new File(folder);
+        // Search files that match expected file name format
+        String[] files = workingFolder.list(new ShapeFileFilter(prefix, suffix));
+        Map<String, ArrayList<String>> tableNameToFileNames = new HashMap<>();
+        for(String fileName : files) {
+            // Extract tableName from file name
+            String tableName = fileName.substring(fileName.indexOf(suffix, prefix.length()) + suffix.length(),
+                    fileName.length() - extension.length());
+            ArrayList<String> fileNames;
+            if(!tableNameToFileNames.containsKey(tableName)) {
+                fileNames = new ArrayList<>();
+                tableNameToFileNames.put(tableName, fileNames);
+            } else {
+                fileNames = tableNameToFileNames.get(tableName);
+            }
+            fileNames.add(fileName);
+        }
+        for(Map.Entry<String, ArrayList<String>> entry : tableNameToFileNames.entrySet()) {
+            try(Statement st = connection.createStatement()) {
+                ArrayList<String> fileNames = entry.getValue();
+                // Copy the first table as a new table
+                if(!fileNames.isEmpty()) {
+                    String fileName = fileNames.remove(0);
+                    String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
+                    st.execute("DROP TABLE IF EXISTS " + tableName);
+                    st.execute("CALL FILE_TABLE('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
+                    st.execute("DROP TABLE IF EXISTS " + entry.getKey().toUpperCase(Locale.ROOT));
+                    st.execute("CREATE TABLE " + entry.getKey().toUpperCase(Locale.ROOT) + " AS SELECT * FROM " + tableName);
+                    st.execute("DROP TABLE IF EXISTS " + tableName);
+                }
+                for(String fileName : fileNames) {
+                    // Link to shp file into the database
+                    String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
+                    st.execute("DROP TABLE IF EXISTS " + tableName);
+                    st.execute("CALL FILE_TABLE('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
+                    // insert into the existing table
+                    st.execute("INSERT INTO " + entry.getKey() + " SELECT * FROM " + tableName);
+                    st.execute("DROP TABLE IF EXISTS " + tableName);
+                }
+            }
+        }
+    }
+
+
+
+
+
 
     public static void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
         // Sum UUEID roads length
