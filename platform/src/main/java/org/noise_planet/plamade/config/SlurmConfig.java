@@ -20,5 +20,7 @@ public class SlurmConfig {
     public String password;
     public String sshFile;
     public String maxJobs;
+    public String serverKey;
+    public String serverKeyType;
 }
 

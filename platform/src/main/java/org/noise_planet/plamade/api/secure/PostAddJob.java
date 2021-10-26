@@ -90,7 +90,8 @@ public class PostAddJob implements Handler {
                                     dataBaseConfig.user = cfg.findValue("database").findValue("user").asText();
                                     dataBaseConfig.password = cfg.findValue("database").findValue("password").asText();
                                     long timeJob = System.currentTimeMillis();
-                                    String remoteJobFolder = "dep" + inseeDepartment + "_" + timeJob;
+                                    String jobFolder = "dep" + inseeDepartment + "_" + timeJob;
+                                    String remoteJobFolder = "~/" + jobFolder;
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(REMOTE_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
                                                     " VALUES (?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
@@ -108,7 +109,7 @@ public class PostAddJob implements Handler {
                                         RootProgressVisitor rootProgressVisitor = new RootProgressVisitor(1, false, 5);
                                         rootProgressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(plamadeDataSource, pk));
                                         NoiseModellingInstance.Configuration configuration = new NoiseModellingInstance.Configuration(
-                                                new File("jobs_running/"+remoteJobFolder).getAbsolutePath(),
+                                                new File("jobs_running/"+jobFolder).getAbsolutePath(),
                                                 Integer.parseInt(confId),
                                                 inseeDepartment, pk, dataBaseConfig
                                                 , rootProgressVisitor, remoteJobFolder);

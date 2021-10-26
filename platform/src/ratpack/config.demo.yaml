@@ -10,8 +10,10 @@ slurm:
   server: slurmcluster.com
   user: sshusername
   password: sshfilepassword
-  sshfile: sshfilepath
-  maxjobs: 12
+  sshFile: "/home/user/.ssh/id_rsa"
+  serverKey: "BASE64Key"
+  serverKeyType: "ssh-rsa"
+  maxJobs: 12
 
 
 

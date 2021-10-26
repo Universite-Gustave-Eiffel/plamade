@@ -56,7 +56,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     DataSource plamadeDataSource;
     boolean isRunning = false;
     boolean isCanceled = false;
-    private static final int SFTP_TIMEOUT = 60;
+    private static final int SFTP_TIMEOUT = 60000;
 
     public NoiseModellingInstance(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
@@ -357,10 +357,13 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
-    public static void copyFolder(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to) throws IOException, SftpException {
+    public static void copyFolder(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory) throws IOException, SftpException {
         // List All files
         File fromFile = new File(from);
-        File parentFile = fromFile.getParentFile();
+        File parentFile = fromFile;
+        if(createSubDirectory) {
+            parentFile = fromFile.getParentFile();
+        }
         List<Path> collectedPaths = new ArrayList<>();
         Files.walk(fromFile.toPath(), FileVisitOption.FOLLOW_LINKS).forEach(collectedPaths::add);
         ProgressVisitor subProg = progressVisitor.subProcess(collectedPaths.size());
@@ -368,10 +371,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             if(path.toFile().isDirectory()) {
                 // do create directory
                 Path destFolder = parentFile.toPath().relativize(path);
-                File remoteFolder = new File(to, destFolder.toString()));
+                File remoteFolder = new File(to, destFolder.toString());
                 logger.debug("mkdir " + remoteFolder);
                 if(c != null) {
-                    c.mkdir(remoteFolder.toString());
+                    try {
+                        c.mkdir(remoteFolder.toString());
+                    } catch (SftpException ex) {
+                        // dir exist / ignore
+                        logger.debug(ex.getLocalizedMessage());
+                    }
                 }
             } else {
                 // transfer file
@@ -386,16 +394,62 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
-    public void transferDataAndComputationCore(SlurmConfig slurmConfig) throws JSchException, SQLException {
+    private static final String[] names = {
+            "ssh-dss",
+            "ssh-rsa",
+            "ecdsa-sha2-nistp256",
+            "ecdsa-sha2-nistp384",
+            "ecdsa-sha2-nistp521"
+    };
+
+    protected static int name2type(String name){
+        for(int i = 0; i < names.length; i++){
+            if(names[i].equals(name)){
+                return i + 1;
+            }
+        }
+        return 6;
+    }
+
+    public void transferDataAndComputationCore(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
         JSch.setLogger(new jschSlf4jLogger(LoggerFactory.getLogger("JSCH")));
         JSch jsch=new JSch();
         jsch.addIdentity(slurmConfig.sshFile, slurmConfig.password);
+        // Load known_hosts
+        jsch.getHostKeyRepository().add(new HostKey(slurmConfig.host, name2type(slurmConfig.serverKeyType),
+                slurmConfig.serverKey.getBytes(StandardCharsets.UTF_8)), null);
         Session session = jsch.getSession(slurmConfig.user, slurmConfig.host, slurmConfig.port);
-        session.connect(60);
+        try {
+            session.connect(SFTP_TIMEOUT);
+            logger.info("Successfully connected to the server " + slurmConfig.host);
+        } catch (JSchException ex) {
+            if(ex.getMessage().contains("UnknownHostKey")) {
+                // Connect but only print the expected key
+                Session insecureSession = jsch.getSession(slurmConfig.user, slurmConfig.host, slurmConfig.port);
+                insecureSession.setConfig("StrictHostKeyChecking", "no");
+                insecureSession.connect(SFTP_TIMEOUT);
+                HostKey hk=insecureSession.getHostKey();
+                logger.error("Unknown host. Use the following configuration if you trust this server:\n" +
+                        " serverKeyType:\"" + hk.getType() + "\"\n serverKey:\""+hk.getKey()+"\"");
+                insecureSession.disconnect();
+                throw ex;
+            }
+        }
         try {
             Channel channel = session.openChannel("sftp");
             channel.connect(SFTP_TIMEOUT);
             ChannelSftp c = (ChannelSftp) channel;
+            c.mkdir(configuration.remoteJobFolder);
+            // copy computation core
+            File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
+            logger.debug("Computation core folder: "+computationCoreFolder);
+            String libFolder = new File(computationCoreFolder, "build" + File.pathSeparator + "libs").toString();
+            copyFolder(c, progressVisitor, libFolder,
+                    configuration.remoteJobFolder, true);
+            // copy data
+            copyFolder(c, progressVisitor,
+                    configuration.workingDirectory,
+                    configuration.remoteJobFolder, false);
 
         } finally {
             session.disconnect();
@@ -428,19 +482,20 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(6);
+            ProgressVisitor subProg = progressVisitor.subProcess(1);
             try (Connection nmConnection = nmDataSource.getConnection()) {
-                importData(nmConnection, subProg);
-                makeGrid(nmConnection);
-                subProg.endStep();
-                makeEmission(nmConnection);
-                subProg.endStep();
-                generateClusterConfig(nmConnection, subProg, 48, configuration.workingDirectory);
+//                importData(nmConnection, subProg);
+//                makeGrid(nmConnection);
+//                subProg.endStep();
+//                makeEmission(nmConnection);
+//                subProg.endStep();
+//                generateClusterConfig(nmConnection, subProg, 48, configuration.workingDirectory);
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);
 //                Export(nmConnection, subProg);
 //                subProg.endStep();
+                transferDataAndComputationCore(configuration.slurmConfig, subProg);
             }
         } catch (SQLException ex) {
             while(ex != null) {

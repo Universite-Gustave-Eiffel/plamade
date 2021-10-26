@@ -1,6 +1,5 @@
 package org.noise_planet.plamade;
 
-import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.SftpException;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.junit.Test;
@@ -26,6 +25,7 @@ public class TestCluster {
     @Test
     public void testCopy() throws IOException, SftpException {
         //
-        NoiseModellingInstance.copyFolder(null, new EmptyProgressVisitor(), "/home/nicolas/github/plamade/computation_core/build/libs", "~/");
+        NoiseModellingInstance.copyFolder(null, new EmptyProgressVisitor(),
+                "/home/nicolas/github/plamade/computation_core/build/libs", "./", false);
     }
 }

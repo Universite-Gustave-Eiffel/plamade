@@ -23,9 +23,12 @@ This example requires that you configure a Google API resource before running.
 
 9. Copy the newly created client id and client secret for use in the example.
 
-## Running the Example
-The example can be run using the following Gradle command:
+## Running plamade server
 
-    $ RATPACK_AUTH__CLIENT_ID={client id} RATPACK_AUTH__CLIENT_SECRET={client secret} ./gradlew run
+Copy platform/src/ratpack/config.demo.yaml to platform/src/ratpack/config.yaml
 
-Once the application has started, point your web browser to [http://localhost:5050](http://localhost:5050) to access the test page.
+Edit this file with the auth credentials.
+
+Run ./gradlew platform:run
+
+Once the application has started, point your web browser to [http://localhost:9580](http://localhost:9580) to access the platform
