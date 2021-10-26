@@ -3,4 +3,15 @@ auth:
   clientSecret: "client secret here"
 admins:
   - ""
+database:
+  user: postgresqluser
+  password: postgresqlpassword
+slurm:
+  server: slurmcluster.com
+  user: sshusername
+  password: sshfilepassword
+  sshfile: sshfilepath
+  maxjobs: 12
+
+
 

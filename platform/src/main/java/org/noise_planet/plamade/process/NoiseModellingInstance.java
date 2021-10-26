@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.jcraft.jsch.*;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import groovy.sql.Sql;
@@ -26,6 +27,7 @@ import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.utilities.JDBCUtilities;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.plamade.config.DataBaseConfig;
+import org.noise_planet.plamade.config.SlurmConfig;
 import org.osgi.service.jdbc.DataSourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +35,12 @@ import org.slf4j.LoggerFactory;
 import javax.sql.DataSource;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitOption;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,6 +56,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     DataSource plamadeDataSource;
     boolean isRunning = false;
     boolean isCanceled = false;
+    private static final int SFTP_TIMEOUT = 60;
 
     public NoiseModellingInstance(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
@@ -318,6 +326,83 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
+    private static class jschSlf4jLogger implements com.jcraft.jsch.Logger {
+        private Logger logger;
+
+        public jschSlf4jLogger(Logger logger) {
+            this.logger = logger;
+        }
+
+        @Override
+        public boolean isEnabled(int level) {
+            return true;
+        }
+
+        @Override
+        public void log(int level, String message) {
+            switch (level) {
+                case DEBUG:
+                    logger.debug(message);
+                    break;
+                case INFO:
+                    logger.info(message);
+                    break;
+                case WARN:
+                    logger.warn(message);
+                    break;
+                default:
+                    logger.error(message);
+                    break;
+            }
+        }
+    }
+
+    public static void copyFolder(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to) throws IOException, SftpException {
+        // List All files
+        File fromFile = new File(from);
+        File parentFile = fromFile.getParentFile();
+        List<Path> collectedPaths = new ArrayList<>();
+        Files.walk(fromFile.toPath(), FileVisitOption.FOLLOW_LINKS).forEach(collectedPaths::add);
+        ProgressVisitor subProg = progressVisitor.subProcess(collectedPaths.size());
+        for(Path path : collectedPaths) {
+            if(path.toFile().isDirectory()) {
+                // do create directory
+                Path destFolder = parentFile.toPath().relativize(path);
+                File remoteFolder = new File(to, destFolder.toString()));
+                logger.debug("mkdir " + remoteFolder);
+                if(c != null) {
+                    c.mkdir(remoteFolder.toString());
+                }
+            } else {
+                // transfer file
+                Path dest = parentFile.toPath().relativize(path);
+                File remoteFile = new File(to, dest.toString());
+                if(c != null) {
+                    c.put(path.toFile().toString(), remoteFile.toString());
+                }
+                logger.debug("put " + path.toFile() + " " + remoteFile);
+            }
+            subProg.endStep();
+        }
+    }
+
+    public void transferDataAndComputationCore(SlurmConfig slurmConfig) throws JSchException, SQLException {
+        JSch.setLogger(new jschSlf4jLogger(LoggerFactory.getLogger("JSCH")));
+        JSch jsch=new JSch();
+        jsch.addIdentity(slurmConfig.sshFile, slurmConfig.password);
+        Session session = jsch.getSession(slurmConfig.user, slurmConfig.host, slurmConfig.port);
+        session.connect(60);
+        try {
+            Channel channel = session.openChannel("sftp");
+            channel.connect(SFTP_TIMEOUT);
+            ChannelSftp c = (ChannelSftp) channel;
+
+        } finally {
+            session.disconnect();
+        }
+
+    }
+
     @Override
     public void run() {
         Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
@@ -411,15 +496,26 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         private int taskPrimaryKey;
         private DataBaseConfig dataBaseConfig;
         private ProgressVisitor progressVisitor = new EmptyProgressVisitor();
+        private SlurmConfig slurmConfig;
+        private String remoteJobFolder;
 
         public Configuration(String workingDirectory, int configurationId, String inseeDepartment, int taskPrimaryKey
-                , DataBaseConfig dataBaseConfig, ProgressVisitor progressVisitor) {
+                , DataBaseConfig dataBaseConfig, ProgressVisitor progressVisitor, String remoteJobFolder) {
             this.workingDirectory = workingDirectory;
             this.configurationId = configurationId;
             this.inseeDepartment = inseeDepartment;
             this.taskPrimaryKey = taskPrimaryKey;
             this.dataBaseConfig = dataBaseConfig;
             this.progressVisitor = progressVisitor;
+            this.remoteJobFolder = remoteJobFolder;
+        }
+
+        public SlurmConfig getSlurmConfig() {
+            return slurmConfig;
+        }
+
+        public void setSlurmConfig(SlurmConfig slurmConfig) {
+            this.slurmConfig = slurmConfig;
         }
 
         public String getWorkingDirectory() {

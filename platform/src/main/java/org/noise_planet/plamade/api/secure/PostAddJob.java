@@ -19,9 +19,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.collect.Maps;
-import groovy.util.Eval;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.noise_planet.plamade.config.DataBaseConfig;
+import org.noise_planet.plamade.config.SlurmConfigRoot;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
@@ -39,7 +39,6 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.sql.*;
-import java.text.DateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -84,12 +83,14 @@ public class PostAddJob implements Handler {
                                 try (Connection connection = plamadeDataSource.getConnection()) {
 
                                     ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+                                    mapper.findAndRegisterModules();
                                     DataBaseConfig dataBaseConfig = new DataBaseConfig();
+                                    SlurmConfigRoot slurmConfigList = mapper.readValue(ctx.file("config.yaml").toFile(), SlurmConfigRoot.class);
                                     JsonNode cfg = mapper.readTree(ctx.file("config.yaml").toFile());
                                     dataBaseConfig.user = cfg.findValue("database").findValue("user").asText();
                                     dataBaseConfig.password = cfg.findValue("database").findValue("password").asText();
-
-                                    String remoteJobFolder = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy_MM_dd.HH'h'mm'm'ss's'", Locale.ROOT))+"."+System.currentTimeMillis();
+                                    long timeJob = System.currentTimeMillis();
+                                    String remoteJobFolder = "dep" + inseeDepartment + "_" + timeJob;
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(REMOTE_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
                                                     " VALUES (?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
@@ -106,12 +107,14 @@ public class PostAddJob implements Handler {
                                         ThreadPoolExecutor pool = ctx.get(ThreadPoolExecutor.class);
                                         RootProgressVisitor rootProgressVisitor = new RootProgressVisitor(1, false, 5);
                                         rootProgressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(plamadeDataSource, pk));
+                                        NoiseModellingInstance.Configuration configuration = new NoiseModellingInstance.Configuration(
+                                                new File("jobs_running/"+remoteJobFolder).getAbsolutePath(),
+                                                Integer.parseInt(confId),
+                                                inseeDepartment, pk, dataBaseConfig
+                                                , rootProgressVisitor, remoteJobFolder);
+                                        configuration.setSlurmConfig(slurmConfigList.slurm);
                                         pool.execute(new NoiseModellingInstance(
-                                                new NoiseModellingInstance.Configuration(
-                                                        new File("jobs_running/"+remoteJobFolder).getAbsolutePath(),
-                                                        Integer.parseInt(confId),
-                                                        inseeDepartment, pk, dataBaseConfig
-                                                , rootProgressVisitor ), plamadeDataSource));
+                                                configuration, plamadeDataSource));
                                     } else {
                                         LOG.error("Could not insert new job without exceptions");
                                         return false;

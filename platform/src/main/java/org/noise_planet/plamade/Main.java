@@ -12,10 +12,7 @@
 
 package org.noise_planet.plamade;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.PatternLayout;
 import org.apache.log4j.PropertyConfigurator;
-import org.apache.log4j.jdbc.JDBCAppender;
 import org.noise_planet.plamade.api.ApiEndpoints;
 import org.noise_planet.plamade.api.ApiModule;
 import org.noise_planet.plamade.auth.AuthModule;
@@ -24,17 +21,14 @@ import org.noise_planet.plamade.process.ExecutorServiceModule;
 import org.pac4j.oidc.client.GoogleOidcClient;
 import ratpack.groovy.template.TextTemplateModule;
 import ratpack.guice.Guice;
+import ratpack.hikari.HikariModule;
 import ratpack.pac4j.RatpackPac4j;
 import ratpack.server.BaseDir;
 import ratpack.server.RatpackServer;
-import ratpack.session.SessionModule;
-
 import ratpack.service.Service;
 import ratpack.service.StartEvent;
-import ratpack.hikari.HikariModule;
+import ratpack.session.SessionModule;
 import ratpack.thymeleaf.ThymeleafModule;
-
-import static ratpack.handling.Handlers.redirect;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -46,6 +40,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Objects;
+
+import static ratpack.handling.Handlers.redirect;
 
 /**
  * Starts the plamade application.
