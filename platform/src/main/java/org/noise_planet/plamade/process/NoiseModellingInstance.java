@@ -39,8 +39,6 @@ import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +55,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     boolean isRunning = false;
     boolean isCanceled = false;
     private static final int SFTP_TIMEOUT = 60000;
+    private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
 
     public NoiseModellingInstance(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
@@ -371,20 +370,32 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             if(path.toFile().isDirectory()) {
                 // do create directory
                 Path destFolder = parentFile.toPath().relativize(path);
-                File remoteFolder = new File(to, destFolder.toString());
-                logger.debug("mkdir " + remoteFolder);
-                if(c != null) {
-                    try {
-                        c.mkdir(remoteFolder.toString());
-                    } catch (SftpException ex) {
-                        // dir exist / ignore
-                        logger.debug(ex.getLocalizedMessage());
+                File remoteFolder;
+                if(to.isEmpty()) {
+                    remoteFolder = new File(destFolder.toString());
+                } else {
+                    remoteFolder = new File(to, destFolder.toString());
+                }
+                if(!remoteFolder.toString().isEmpty()) {
+                    logger.debug("mkdir " + remoteFolder);
+                    if (c != null) {
+                        try {
+                            c.mkdir(remoteFolder.toString());
+                        } catch (SftpException ex) {
+                            // dir exist / ignore
+                            logger.debug(ex.getLocalizedMessage());
+                        }
                     }
                 }
             } else {
                 // transfer file
                 Path dest = parentFile.toPath().relativize(path);
-                File remoteFile = new File(to, dest.toString());
+                File remoteFile;
+                if(to.isEmpty()) {
+                    remoteFile = new File(dest.toString());
+                } else {
+                    remoteFile = new File(to, dest.toString());
+                }
                 if(c != null) {
                     c.put(path.toFile().toString(), remoteFile.toString());
                 }
@@ -414,26 +425,31 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     public void transferDataAndComputationCore(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
         JSch.setLogger(new jschSlf4jLogger(LoggerFactory.getLogger("JSCH")));
         JSch jsch=new JSch();
-        jsch.addIdentity(slurmConfig.sshFile, slurmConfig.password);
+        HostKeyRepository hkr = jsch.getHostKeyRepository();
+        // Add host identification if not already in the repository
+        if(hkr.getHostKey(slurmConfig.host, slurmConfig.serverKeyType).length == 0) {
+            hkr.add(new HostKey(slurmConfig.host, name2type(slurmConfig.serverKeyType),
+                    Base64.getDecoder().decode(slurmConfig.serverKey)), null);
+        }
+
+        jsch.addIdentity(slurmConfig.sshFile, slurmConfig.sshFilePassword);
         // Load known_hosts
-        jsch.getHostKeyRepository().add(new HostKey(slurmConfig.host, name2type(slurmConfig.serverKeyType),
-                slurmConfig.serverKey.getBytes(StandardCharsets.UTF_8)), null);
         Session session = jsch.getSession(slurmConfig.user, slurmConfig.host, slurmConfig.port);
         try {
             session.connect(SFTP_TIMEOUT);
             logger.info("Successfully connected to the server " + slurmConfig.host);
         } catch (JSchException ex) {
-            if(ex.getMessage().contains("UnknownHostKey")) {
+            if(ex.getMessage().contains("UnknownHostKey") || ex.getMessage().contains("has been changed")) {
                 // Connect but only print the expected key
                 Session insecureSession = jsch.getSession(slurmConfig.user, slurmConfig.host, slurmConfig.port);
                 insecureSession.setConfig("StrictHostKeyChecking", "no");
                 insecureSession.connect(SFTP_TIMEOUT);
                 HostKey hk=insecureSession.getHostKey();
-                logger.error("Unknown host. Use the following configuration if you trust this server:\n" +
+                logger.error("Unknown host. Use the following configuration in config.yaml file if you trust this server:\n" +
                         " serverKeyType:\"" + hk.getType() + "\"\n serverKey:\""+hk.getKey()+"\"");
                 insecureSession.disconnect();
-                throw ex;
             }
+            throw ex;
         }
         try {
             Channel channel = session.openChannel("sftp");
@@ -443,14 +459,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             // copy computation core
             File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
             logger.debug("Computation core folder: "+computationCoreFolder);
-            String libFolder = new File(computationCoreFolder, "build" + File.pathSeparator + "libs").toString();
+            String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
             copyFolder(c, progressVisitor, libFolder,
                     configuration.remoteJobFolder, true);
             // copy data
             copyFolder(c, progressVisitor,
                     configuration.workingDirectory,
                     configuration.remoteJobFolder, false);
-
+            // copy slurm file
+            c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(),
+                    new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
         } finally {
             session.disconnect();
         }
