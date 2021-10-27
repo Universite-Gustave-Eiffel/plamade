@@ -12,13 +12,17 @@
 
 package org.noise_planet.plamade;
 
+import com.jcraft.jsch.JSch;
 import org.apache.log4j.PropertyConfigurator;
 import org.noise_planet.plamade.api.ApiEndpoints;
 import org.noise_planet.plamade.api.ApiModule;
 import org.noise_planet.plamade.auth.AuthModule;
 import org.noise_planet.plamade.config.AuthConfig;
 import org.noise_planet.plamade.process.ExecutorServiceModule;
+import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.oidc.client.GoogleOidcClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ratpack.groovy.template.TextTemplateModule;
 import ratpack.guice.Guice;
 import ratpack.hikari.HikariModule;
@@ -53,8 +57,11 @@ public class Main {
     private static String dataSourceClassName;
 
     public static void main(String... args) throws Exception {
+        // Init loggers
         PropertyConfigurator.configure(Objects.requireNonNull(
                 Main.class.getResource("log4j.properties")).getFile());
+        JSch.setLogger(new JschSlf4jLogger(LoggerFactory.getLogger("JSCH")));
+
         Path basePath = BaseDir.find();
         File configPath = new File(basePath.toFile(), "config.yaml");
         if(!configPath.exists()) {
@@ -84,6 +91,37 @@ public class Main {
                         .files(files -> files.files("js"))  //  share all static files from js folder
                         .files(files -> files.files("img"))  //  share all static files from img folder
                         .all(RatpackPac4j.authenticator(chain.getRegistry().get(GoogleOidcClient.class))).insert(ApiEndpoints.class)));
+    }
+
+    private static class JschSlf4jLogger implements com.jcraft.jsch.Logger {
+        private Logger logger;
+
+        public JschSlf4jLogger(Logger logger) {
+            this.logger = logger;
+        }
+
+        @Override
+        public boolean isEnabled(int level) {
+            return true;
+        }
+
+        @Override
+        public void log(int level, String message) {
+            switch (level) {
+                case DEBUG:
+                    logger.debug(message);
+                    break;
+                case INFO:
+                    logger.info(message);
+                    break;
+                case WARN:
+                    logger.warn(message);
+                    break;
+                default:
+                    logger.error(message);
+                    break;
+            }
+        }
     }
 
     static class InitDb implements Service {

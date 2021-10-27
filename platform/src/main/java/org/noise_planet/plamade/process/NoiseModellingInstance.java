@@ -325,37 +325,6 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
-    private static class jschSlf4jLogger implements com.jcraft.jsch.Logger {
-        private Logger logger;
-
-        public jschSlf4jLogger(Logger logger) {
-            this.logger = logger;
-        }
-
-        @Override
-        public boolean isEnabled(int level) {
-            return true;
-        }
-
-        @Override
-        public void log(int level, String message) {
-            switch (level) {
-                case DEBUG:
-                    logger.debug(message);
-                    break;
-                case INFO:
-                    logger.info(message);
-                    break;
-                case WARN:
-                    logger.warn(message);
-                    break;
-                default:
-                    logger.error(message);
-                    break;
-            }
-        }
-    }
-
     public static void copyFolder(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory) throws IOException, SftpException {
         // List All files
         File fromFile = new File(from);
@@ -460,8 +429,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
-    public void transferDataAndComputationCore(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
-        JSch.setLogger(new jschSlf4jLogger(LoggerFactory.getLogger("JSCH")));
+    public static Session openSshSession(SlurmConfig slurmConfig) throws JSchException {
         JSch jsch=new JSch();
         HostKeyRepository hkr = jsch.getHostKeyRepository();
         // Add host identification if not already in the repository
@@ -489,6 +457,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             }
             throw ex;
         }
+        return session;
+    }
+
+    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
+        Session session = openSshSession(slurmConfig);
         try {
             Channel channel = session.openChannel("sftp");
             channel.connect(SFTP_TIMEOUT);
@@ -540,18 +513,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             ProgressVisitor progressVisitor = configuration.progressVisitor;
             ProgressVisitor subProg = progressVisitor.subProcess(1);
             try (Connection nmConnection = nmDataSource.getConnection()) {
-//                importData(nmConnection, subProg);
-//                makeGrid(nmConnection);
-//                subProg.endStep();
-//                makeEmission(nmConnection);
-//                subProg.endStep();
-//                generateClusterConfig(nmConnection, subProg, 48, configuration.workingDirectory);
+                importData(nmConnection, subProg);
+                makeGrid(nmConnection);
+                subProg.endStep();
+                makeEmission(nmConnection);
+                subProg.endStep();
+                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
+                slurmInitAndStart(configuration.slurmConfig, subProg);
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);
 //                Export(nmConnection, subProg);
 //                subProg.endStep();
-                transferDataAndComputationCore(configuration.slurmConfig, subProg);
             }
         } catch (SQLException ex) {
             while(ex != null) {

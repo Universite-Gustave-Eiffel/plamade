@@ -19,7 +19,7 @@ public class SlurmConfig {
     public String user;
     public String sshFilePassword;
     public String sshFile;
-    public String maxJobs;
+    public int maxJobs;
     public String serverKey;
     public String serverKeyType;
     public String serverTempFolder;
