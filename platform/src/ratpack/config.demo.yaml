@@ -7,13 +7,15 @@ database:
   user: postgresqluser
   password: postgresqlpassword
 slurm:
-  server: slurmcluster.com
-  user: sshusername
-  password: sshfilepassword
+  server: "slurmcluster.com"
+  port: 22
+  user: "sshusername"
+  sshFilePassword: "sshfilepassword"
   sshFile: "/home/user/.ssh/id_rsa"
   serverKey: "BASE64Key"
   serverKeyType: "ssh-rsa"
   maxJobs: 12
+  serverTempFolder: "plamade_jobs"
 
 
 

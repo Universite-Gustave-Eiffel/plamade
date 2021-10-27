@@ -91,7 +91,7 @@ public class PostAddJob implements Handler {
                                     dataBaseConfig.password = cfg.findValue("database").findValue("password").asText();
                                     long timeJob = System.currentTimeMillis();
                                     String jobFolder = "dep" + inseeDepartment + "_" + timeJob;
-                                    String remoteJobFolder = jobFolder;
+                                    String remoteJobFolder = slurmConfigList.slurm.serverTempFolder+"/"+jobFolder;
                                     PreparedStatement statement = connection.prepareStatement(
                                             "INSERT INTO JOBS(REMOTE_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER)" +
                                                     " VALUES (?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);

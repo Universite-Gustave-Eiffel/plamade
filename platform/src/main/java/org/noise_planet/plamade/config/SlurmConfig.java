@@ -22,5 +22,6 @@ public class SlurmConfig {
     public String maxJobs;
     public String serverKey;
     public String serverKeyType;
+    public String serverTempFolder;
 }
 

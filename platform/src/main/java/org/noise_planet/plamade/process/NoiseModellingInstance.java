@@ -422,6 +422,44 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return 6;
     }
 
+    public void recurseMkDir(ChannelSftp c, String folder) throws SftpException {
+        Path folderPath = new File(folder).toPath();
+        int folderCount = 1;
+        while(folderCount <= folderPath.getNameCount()) {
+            Path firstFolder = folderPath.subpath(0, folderCount);
+            Path parentPath;
+            if(folderCount > 1) {
+                parentPath = folderPath.subpath(0, folderCount - 1);
+            } else {
+                parentPath = new File(c.getHome()).toPath();
+            }
+            boolean foundFolder = false;
+            try {
+                Vector files = c.ls(parentPath.toString());
+                for (Object oEntry : files) {
+                    if (oEntry instanceof ChannelSftp.LsEntry) {
+                        if (((ChannelSftp.LsEntry) oEntry).getFilename().equals(firstFolder.getFileName().toString())) {
+                            foundFolder = true;
+                            break;
+                        }
+                    }
+                }
+            } catch (SftpException ex) {
+                logger.info("Error while checking folder \"" + parentPath + "\" content");
+                throw ex;
+            }
+            if(!foundFolder) {
+                try {
+                    c.mkdir(firstFolder.toString());
+                } catch (SftpException ex) {
+                    logger.info("Error while trying to create folder \"" + firstFolder + "\"");
+                    throw ex;
+                }
+            }
+            folderCount++;
+        }
+    }
+
     public void transferDataAndComputationCore(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
         JSch.setLogger(new jschSlf4jLogger(LoggerFactory.getLogger("JSCH")));
         JSch jsch=new JSch();
@@ -455,7 +493,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             Channel channel = session.openChannel("sftp");
             channel.connect(SFTP_TIMEOUT);
             ChannelSftp c = (ChannelSftp) channel;
-            c.mkdir(configuration.remoteJobFolder);
+            recurseMkDir(c, configuration.remoteJobFolder);
             // copy computation core
             File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
             logger.debug("Computation core folder: "+computationCoreFolder);
