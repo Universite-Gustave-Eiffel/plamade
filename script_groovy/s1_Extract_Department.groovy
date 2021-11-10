@@ -195,6 +195,12 @@ def exec(Connection connection, input) {
     def table_land = "C_NATURESOL_S_2154"
     def table_infra = "infra_2154"
     def table_bd_topo_route = "t_route_metro_corse"
+    def table_bd_topo_rail = "t_fer_metro_corse"
+    def table_bd_topo_oro = "oro_metro_corse"
+    def table_bd_topo_hydro = "t_hydro_metro_corse"
+
+
+
 
     if(codeDep=='971' || codeDep=='972') {
         srid="5490"
@@ -247,14 +253,29 @@ def exec(Connection connection, input) {
 
     if(codeDep=='971') {
         table_bd_topo_route = 't_route_guadeloupe'
+        table_bd_topo_rail = 't_fer_guadeloupe'
+        table_bd_topo_oro = 'oro_guadeloupe'
+        table_bd_topo_hydro = 't_hydro_guadeloupe'
     } else if(codeDep == '972') {
         table_bd_topo_route = 't_route_martinique'
+        table_bd_topo_rail = 't_fer_martinique'
+        table_bd_topo_oro = 'oro_martinique'
+        table_bd_topo_hydro = 't_hydro_martinique'
     } else if(codeDep == '973') {
         table_bd_topo_route = 't_route_guyane'
+        table_bd_topo_rail = 't_fer_guyane'
+        table_bd_topo_oro = 'oro_guyane'
+        table_bd_topo_hydro = 't_hydro_guyane'
     } else if(codeDep == '974') {
         table_bd_topo_route = 't_route_reunion'
+        table_bd_topo_rail = 't_fer_reunion'
+        table_bd_topo_oro = 'oro_reunion'
+        table_bd_topo_hydro = 't_hydro_reunion'
     } else if(codeDep == '976') {
         table_bd_topo_route = 't_route_mayotte'
+        table_bd_topo_rail = 't_fer_mayotte'
+        table_bd_topo_oro = 'oro_mayotte'
+        table_bd_topo_hydro = 't_hydro_mayotte'
     }
 
     def sql = new Sql(connection)
@@ -344,12 +365,23 @@ def exec(Connection connection, input) {
     CREATE LINKED TABLE roads_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
     '(SELECT  st_translate(st_force3dz(a.the_geom), 0, 0, 0.05) as the_geom, 
      a."IDTRONCON" as id_troncon, a."IDROUTE" as id_route, f."NOMROUTE" as nom_route,
-     b."TMHVLD" as lv_d, b."TMHVLS" as lv_e, b."TMHVLN" as lv_n, b."TMHPLD" * b."PCENTMPL" as mv_d,b."TMHPLS" * b."PCENTMPL" as mv_e, 
-     b."TMHPLN" * b."PCENTMPL" as mv_n, b."TMHPLD" * b."PCENTHPL" as hgv_d, b."TMHPLS" * b."PCENTHPL" as hgv_e, b."TMHPLN" * b."PCENTHPL" as hgv_n, 
-     b."TMH2RD" * b."PCENT2R4A" as wav_d,b."TMH2RS" * b."PCENT2R4A" as wav_e, b."TMH2RN" * b."PCENT2R4A" as wav_n, b."TMH2RD" * b."PCENT2R4B" as wbv_d, 
-     b."TMH2RS" * b."PCENT2R4B" as wbv_e,b."TMH2RN" * b."PCENT2R4B" as wbv_n, c."VITESSEVL" as lv_spd_d, c."VITESSEVL" as lv_spd_e, 
-     c."VITESSEVL" as lv_spd_n, c."VITESSEPL" as mv_spd_d,c."VITESSEPL" as mv_spd_e, c."VITESSEPL" as mv_spd_n, c."VITESSEPL" as hgv_spd_d, 
-     c."VITESSEPL" as hgv_spd_e, c."VITESSEPL" as hgv_spd_n, c."VITESSE4A" as wav_spd_d, c."VITESSE4A" as wav_spd_e, c."VITESSE4A" as wav_spd_n, 
+     b."TMHVLD" as lv_d, b."TMHVLS" as lv_e, b."TMHVLN" as lv_n,
+     (CASE  WHEN b."PCENTPL" > 0 THEN b."TMHPLD" * b."PCENTMPL"/b."PCENTPL" ELSE 0 END) as mv_d,
+     (CASE  WHEN b."PCENTPL" > 0 THEN b."TMHPLS" * b."PCENTMPL"/b."PCENTPL" ELSE 0 END) as mv_e,
+     (CASE  WHEN b."PCENTPL" > 0 THEN b."TMHPLN" * b."PCENTMPL"/b."PCENTPL" ELSE 0 END) as mv_n,
+     (CASE  WHEN b."PCENTPL" > 0 THEN b."TMHPLD" * b."PCENTHPL"/b."PCENTPL" ELSE 0 END) as hgv_d,
+     (CASE  WHEN b."PCENTPL" > 0 THEN b."TMHPLS" * b."PCENTHPL"/b."PCENTPL" ELSE 0 END) as hgv_e,
+     (CASE  WHEN b."PCENTPL" > 0 THEN b."TMHPLN" * b."PCENTHPL"/b."PCENTPL" ELSE 0 END) as hgv_n,
+     (CASE  WHEN b."PCENT2R" > 0 THEN b."TMH2RD" * b."PCENT2R4A"/b."PCENT2R" ELSE 0 END) as wav_d,
+     (CASE  WHEN b."PCENT2R" > 0 THEN b."TMH2RS" * b."PCENT2R4A"/b."PCENT2R" ELSE 0 END) as wav_e,
+     (CASE  WHEN b."PCENT2R" > 0 THEN b."TMH2RN" * b."PCENT2R4A"/b."PCENT2R" ELSE 0 END) as wav_n,
+     (CASE  WHEN b."PCENT2R" > 0 THEN b."TMH2RD" * b."PCENT2R4B"/b."PCENT2R" ELSE 0 END) as wbv_d,
+     (CASE  WHEN b."PCENT2R" > 0 THEN b."TMH2RS" * b."PCENT2R4B"/b."PCENT2R" ELSE 0 END) as wbv_e,
+     (CASE  WHEN b."PCENT2R" > 0 THEN b."TMH2RN" * b."PCENT2R4B"/b."PCENT2R" ELSE 0 END) as wbv_n,
+     c."VITESSEVL" as lv_spd_d, c."VITESSEVL" as lv_spd_e, c."VITESSEVL" as lv_spd_n, 
+     c."VITESSEPL" as mv_spd_d,c."VITESSEPL" as mv_spd_e, c."VITESSEPL" as mv_spd_n, 
+     c."VITESSEPL" as hgv_spd_d, c."VITESSEPL" as hgv_spd_e, c."VITESSEPL" as hgv_spd_n, 
+     c."VITESSE4A" as wav_spd_d, c."VITESSE4A" as wav_spd_e, c."VITESSE4A" as wav_spd_n, 
      c."VITESSE4B" as wbv_spd_d, c."VITESSE4B" as wbv_spd_e, c."VITESSE4B" as wbv_spd_n,
      d."REVETEMENT" as revetement,
      d."GRANULO" as granulo,
@@ -683,46 +715,111 @@ def exec(Connection connection, input) {
     """
     def queries_dem = """
     ----------------------------------
-    -- Manage DEM (import and filter within 1000m the BD Alti)
+    -- Import data and filtering within 1000m around infra
 
+    -- Import DEM from BD Alti
     DROP TABLE IF EXISTS bdalti_link, dem;
     CREATE LINKED TABLE bdalti_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
     '(SELECT distinct b.* FROM bd_alti.pt3d_alti_d$codeDepFormat b, noisemodelling.$table_infra i WHERE ST_EXPAND(B.THE_GEOM, $buffer) && i.THE_GEOM AND ST_DISTANCE(b.the_geom, i.the_geom) < $buffer)');
-    CREATE TABLE dem AS SELECT * FROM bdalti_link;
-    DROP TABLE IF EXISTS bdalti_link;
+    CREATE TABLE dem AS SELECT *, 'DEM' as SOURCE FROM bdalti_link;
+
+    -- Import orography
+    DROP TABLE IF EXISTS bdtopo_oro_link, bdtopo_oro;
+    CREATE LINKED TABLE bdtopo_oro_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+            '(SELECT r.THE_GEOM FROM bd_topo.$table_bd_topo_oro r,
+            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > 0)');
+
+    -- Remove objects that are far from studied roads
+    CREATE TABLE bdtopo_oro AS SELECT * FROM bdtopo_oro_link;
+    DELETE FROM bdtopo_oro B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    ALTER TABLE bdtopo_oro ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_oro add primary key(pk_line);
+
+
+    -- Import hydrography
+    DROP TABLE IF EXISTS bdtopo_hydro_link, bdtopo_hydro;
+    CREATE LINKED TABLE bdtopo_hydro_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+            '(SELECT r.THE_GEOM FROM bd_topo.$table_bd_topo_hydro r,
+            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > 0)');
+
+    CREATE TABLE bdtopo_hydro AS SELECT * FROM bdtopo_hydro_link;
+    DELETE FROM bdtopo_hydro B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    ALTER TABLE bdtopo_hydro ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_hydro add primary key(pk_line);
+
+    
+
+
+    -- Import roads (that are on the floor --> POS_SOL=0)
+    DROP TABLE IF EXISTS bdtopo_route_link, bdtopo_route;
+    CREATE LINKED TABLE bdtopo_route_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+            '(SELECT r.* FROM bd_topo.$table_bd_topo_route r,
+            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND R.POS_SOL = ''0'' AND st_zmin(R.THE_GEOM) > 0)');
+    
+    CREATE TABLE bdtopo_route AS SELECT * FROM bdtopo_route_link;
+    DELETE FROM bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    CREATE SPATIAL INDEX ON bdtopo_route(the_geom);
+
+
+    -- Import railways (that are on the floor --> POS_SOL=0)
+    DROP TABLE IF EXISTS bdtopo_rail_link, bdtopo_rail;
+    CREATE LINKED TABLE bdtopo_rail_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
+            '(SELECT r.* FROM noisemodelling."$table_rail" r,
+            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > 0)');
+    
+    CREATE TABLE bdtopo_rail AS SELECT * FROM bdtopo_rail_link;
+    DELETE FROM bdtopo_rail B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    CREATE SPATIAL INDEX ON bdtopo_rail(the_geom);
+
 
     ----------------------------------
-    -- Clean tables
+    -- Remove non-needed linked tables
+    DROP TABLE IF EXISTS bdalti_link, bdtopo_oro_link, bdtopo_hydro_link, bdtopo_route_link, bdtopo_rail_link;
     
-    DROP TABLE PVMT;
-    DROP TABLE INFRA;
-    -- COPY BDTOPO roads (3 dimensions) for the studied area
-    CREATE LINKED TABLE t_bdtopo_route ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
-            '(SELECT r.* FROM bd_topo.$table_bd_topo_route r,
-            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > -1000)');
+    ----------------------------------
+    -- Enrich the DEM
+
     
-    -- Remove BDTOPO roads that are far from studied roads
-    DROP TABLE IF EXISTS bdtopo_route;
-    create table bdtopo_route as select * from t_bdtopo_route;
-    delete from bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM ROADS R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
-    
-    drop table t_bdtopo_route;     
-    
-    create spatial index on bdtopo_route(the_geom);
- 
+    -- Insert orography into DEM
+    --INSERT INTO DEM(THE_GEOM, SOURCE) SELECT THE_GEOM, 'ORO' FROM ST_EXPLODE('(Select ST_ToMultiPoint(ST_Densify(THE_GEOM,25)) the_geom FROM BDTOPO_ORO)');
+
+    DROP TABLE IF EXISTS BDTOPO_ORO_DENSIFY;
+    CREATE TABLE BDTOPO_ORO_DENSIFY AS SELECT ST_ToMultiPoint(ST_Densify(the_geom, 25 )) the_geom, pk_line from BDTOPO_ORO where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'ORO' FROM ST_EXPLODE('BDTOPO_ORO_DENSIFY') P, BDTOPO_ORO L WHERE P.pk_line = L.pk_line;
+    DROP TABLE IF EXISTS BDTOPO_ORO_DENSIFY;
+
+
+    -- Insert hydrography into DEM
+    DROP TABLE IF EXISTS BDTOPO_HYDRO_DENSIFY;
+    CREATE TABLE BDTOPO_HYDRO_DENSIFY AS SELECT ST_ToMultiPoint(ST_Densify(the_geom, 25 )) the_geom, pk_line from BDTOPO_HYDRO where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'HYD' FROM ST_EXPLODE('BDTOPO_HYDRO_DENSIFY') P, BDTOPO_HYDRO L WHERE P.pk_line = L.pk_line;
+    DROP TABLE IF EXISTS BDTOPO_HYDRO_DENSIFY;
+
+
+    -- Insert roads into DEM
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
-    CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT d.the_geom FROM dem d;    
-    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_route b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15)   && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
+    CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT THE_GEOM, SOURCE FROM DEM;    
+    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_route b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15) && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
     ALTER TABLE bdtopo_route ADD pk_line INT AUTO_INCREMENT NOT NULL;
     ALTER TABLE bdtopo_route add primary key(pk_line);
+    
     -- Create buffer points from roads and copy the elevation from the roads to the point
     DROP TABLE IF EXISTS BUFFERED_PTLINE;
-    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from bdtopo_route rmc where st_length(st_simplify(the_geom, 2)) > 0 ;
-    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM) SELECT ST_MAKEPOINT(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
+    -- The buffer size correspond to the greatest value between "largeur" and 3m. If "largeur" is null or lower than 3m, then 3m is returned
+    CREATE TABLE BUFFERED_PTLINE AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), GREATEST(LARGEUR/2, 1.5), 'endcap=flat join=mitre'), 25 )) the_geom, pk_line from bdtopo_route rmc where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'ROU' FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);
     
     DROP TABLE IF EXISTS DEM;
     ALTER TABLE DEM_WITHOUT_PTLINE RENAME TO DEM;
+
+
+
+    ----------------------------------
+    -- Remove non needed tables
+    
+    --DROP TABLE PVMT, INFRA, BDTOPO_ROUTE, BUFFERED_PTLINE;
+
     """
 
 

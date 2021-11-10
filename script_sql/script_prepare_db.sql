@@ -986,6 +986,41 @@ CREATE TABLE noisemodelling.infra_2154 AS
 	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" WHERE "CBS_GITT";
 CREATE INDEX infra_2154_geom_idx ON noisemodelling.infra_2154 USING gist (the_geom);
 
+
+
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_2154;
+CREATE TABLE noisemodelling.infra_road_2154 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_2154" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_2154;
+CREATE TABLE noisemodelling.infra_rail_2154 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
+
+DROP TABLE IF EXISTS noisemodelling.infra_2154;
+CREATE TABLE noisemodelling.infra_2154 AS 
+	SELECT the_geom FROM noisemodelling.infra_road_2154 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_2154;
+CREATE INDEX infra_2154_geom_idx ON noisemodelling.infra_2154 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_2154, noisemodelling.infra_rail_2154;
+
+
+
+
 DROP TABLE IF EXISTS noisemodelling.infra_2972;
 CREATE TABLE noisemodelling.infra_2972 AS 
 	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2972" WHERE "CBS_GITT" UNION ALL 
