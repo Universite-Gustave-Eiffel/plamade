@@ -980,15 +980,7 @@ UPDATE noisemodelling."C_BATIMENT_S_5490" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
 -- 5- Generate INFRA table, used in order to filter DEM tables
 ---------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS noisemodelling.infra_2154;
-CREATE TABLE noisemodelling.infra_2154 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2154" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" WHERE "CBS_GITT";
-CREATE INDEX infra_2154_geom_idx ON noisemodelling.infra_2154 USING gist (the_geom);
-
-
-
-
+-- For 2154
 DROP TABLE IF EXISTS noisemodelling.infra_road_2154;
 CREATE TABLE noisemodelling.infra_road_2154 AS SELECT a.the_geom
 	FROM 
@@ -999,7 +991,6 @@ CREATE TABLE noisemodelling.infra_road_2154 AS SELECT a.the_geom
 	    a."CBS_GITT" and
 	    b."CONCESSION"='N' and 
 	    a."IDROUTE"=b."IDROUTE";
-
 
 DROP TABLE IF EXISTS noisemodelling.infra_rail_2154;
 CREATE TABLE noisemodelling.infra_rail_2154 AS SELECT a.the_geom
@@ -1019,28 +1010,118 @@ CREATE INDEX infra_2154_geom_idx ON noisemodelling.infra_2154 USING gist (the_ge
 DROP TABLE IF EXISTS noisemodelling.infra_road_2154, noisemodelling.infra_rail_2154;
 
 
+-- For 2972
+DROP TABLE IF EXISTS noisemodelling.infra_road_2972;
+CREATE TABLE noisemodelling.infra_road_2972 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_2972" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
 
+DROP TABLE IF EXISTS noisemodelling.infra_rail_2972;
+CREATE TABLE noisemodelling.infra_rail_2972 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_2972;
 CREATE TABLE noisemodelling.infra_2972 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2972" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_2972 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_2972;
 CREATE INDEX infra_2972_geom_idx ON noisemodelling.infra_2972 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_2972, noisemodelling.infra_rail_2972;
+
+-- For 2975
+DROP TABLE IF EXISTS noisemodelling.infra_road_2975;
+CREATE TABLE noisemodelling.infra_road_2975 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_2975" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_2975;
+CREATE TABLE noisemodelling.infra_rail_2975 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_2975;
 CREATE TABLE noisemodelling.infra_2975 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2975" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_2975 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_2975;
 CREATE INDEX infra_2975_geom_idx ON noisemodelling.infra_2975 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_2975, noisemodelling.infra_rail_2975;
+
+-- For 4471
+DROP TABLE IF EXISTS noisemodelling.infra_road_4471;
+CREATE TABLE noisemodelling.infra_road_4471 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_4471" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_4471;
+CREATE TABLE noisemodelling.infra_rail_4471 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_4471;
 CREATE TABLE noisemodelling.infra_4471 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_4471" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_4471 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_4471;
 CREATE INDEX infra_4471_geom_idx ON noisemodelling.infra_4471 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_4471, noisemodelling.infra_rail_4471;
+
+-- For 5490
+DROP TABLE IF EXISTS noisemodelling.infra_road_5490;
+CREATE TABLE noisemodelling.infra_road_5490 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_5490" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_5490;
+CREATE TABLE noisemodelling.infra_rail_5490 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_5490;
 CREATE TABLE noisemodelling.infra_5490 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_5490" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_5490 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_5490;
 CREATE INDEX infra_5490_geom_idx ON noisemodelling.infra_5490 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_5490, noisemodelling.infra_rail_5490;
