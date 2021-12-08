@@ -39,9 +39,8 @@ public class ExecutorServiceModule extends AbstractModule implements Provider<Jo
     @Override
     public JobExecutorService get() {
         if(executor == null) {
-            executor = new JobExecutorServiceImpl(1, 1,
-                            0L, TimeUnit.MILLISECONDS,
-                            new LinkedBlockingQueue<Runnable>());
+            executor = new JobExecutorServiceImpl(CORE_POOL_SIZE, MAXIMUM_POOL_SIZE,
+                    KEEP_ALIVE_TIME, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
         }
         return executor;
     }

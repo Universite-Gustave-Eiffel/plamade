@@ -1,8 +1,11 @@
 package org.noise_planet.plamade.process;
 
+import java.util.ArrayList;
 import java.util.concurrent.*;
 
 public class JobExecutorServiceImpl extends ThreadPoolExecutor implements JobExecutorService {
+    ArrayList<NoiseModellingInstance> instances = new ArrayList<>();
+
     public JobExecutorServiceImpl(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
                                   BlockingQueue<Runnable> workQueue) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue);
@@ -21,5 +24,14 @@ public class JobExecutorServiceImpl extends ThreadPoolExecutor implements JobExe
     public JobExecutorServiceImpl(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
                                   BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
+    }
+
+    @Override
+    public void execute(Runnable command) {
+        // add runnable in list
+        if(command instanceof NoiseModellingInstance) {
+            instances.add((NoiseModellingInstance) command);
+        }
+        super.execute(command);
     }
 }
