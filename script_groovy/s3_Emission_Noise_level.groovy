@@ -177,6 +177,11 @@ def exec(Connection connection, input) {
         generalTools = new File(new File("").absolutePath + "/src/main/groovy/org/noise_planet/noisemodelling/wpsTools/GeneralTools.groovy")
     }
 
+    // Get external tools
+    Class groovyClass = new GroovyClassLoader(getClass().getClassLoader()).parseClass(generalTools)
+    GroovyObject tools = (GroovyObject) groovyClass.newInstance()
+
+
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
@@ -217,7 +222,7 @@ def exec(Connection connection, input) {
     //Get the geometry field of the source table
     TableLocation sourceTableIdentifier = TableLocation.parse(rail_sections)
     int nrows = JDBCUtilities.getRowCount(connection, rail_sections)
-    if (false && nrows!=0) {
+    if (nrows!=0) {
 
       // Check if srid are in metric projection.
       int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse(rail_sections))
@@ -522,6 +527,7 @@ def exec(Connection connection, input) {
 
 
     int k = 0
+    int currentVal = 0
     sql.withBatch(100, qry) { ps ->
         st = connection.prepareStatement("SELECT * FROM " + sources_table_name)
         SpatialResultSet rs = st.executeQuery().unwrap(SpatialResultSet.class)
@@ -529,6 +535,8 @@ def exec(Connection connection, input) {
         while (rs.next()) {
 
             k++
+            currentVal = tools.invokeMethod("ProgressBar", [Math.round(10 * k / nbRoads).toInteger(), currentVal])
+
             Geometry geo = rs.getGeometry()
 
             // Compute emission sound level for each road segment

@@ -1,5 +1,5 @@
-/**
- * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
+/*
+ * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user-friendly web interface.
  *
  * This version is developed by the DECIDE team from the Lab-STICC (CNRS) and by the Mixt Research Unit in Environmental Acoustics (Université Gustave Eiffel).
  * <http://noise-planet.org/noisemodelling.html>
@@ -9,6 +9,7 @@
  * Contact: contact@noise-planet.org
  *
  */
+
 
 package org.noise_planet.plamade;
 
@@ -143,15 +144,16 @@ public class Main {
                     st.executeUpdate("CREATE TABLE USERS(PK_USER SERIAL, USER_OID VARCHAR)");
                     st.executeUpdate("CREATE TABLE USER_ASK_INVITATION(PK_INVITE SERIAL, USER_OID VARCHAR, MAIL VARCHAR)");
                     st.executeUpdate("CREATE TABLE IF NOT EXISTS JOBS(PK_JOB SERIAL,REMOTE_JOB_FOLDER VARCHAR NOT NULL," +
-                            " BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE, END_DATE TIMESTAMP WITHOUT TIME ZONE, PROGRESSION REAL DEFAULT 0, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER NOT NULL)");
+                            " BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE, END_DATE TIMESTAMP WITHOUT TIME ZONE, PROGRESSION REAL DEFAULT 0, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR, PK_USER INTEGER NOT NULL, STATE VARCHAR)");
 
                 }
                 // In the future check databaseVersion for database upgrades
                 if(databaseVersion != DATABASE_VERSION) {
                     if(databaseVersion == 1) {
                         databaseVersion = 2;
+                        st.execute("ALTER TABLE JOBS ADD COLUMN STATE VARCHAR");
                     }
-                    st.executeUpdate("UPDATE ATTRIBUTES SET DATABASE_VERSION = " + DATABASE_VERSION);
+                    st.executeUpdate("UPDATE ATTRIBUTES SET DATABASE_VERSION = " + databaseVersion);
                 }
             }
         }

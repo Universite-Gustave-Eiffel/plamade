@@ -34,7 +34,7 @@ public class Main {
     public static final int SECONDS_BETWEEN_PROGRESSION_PRINT = 5;
 
     public static void main(String... args) throws Exception {
-        PropertyConfigurator.configure(Main.class.getResourceAsStream("log4j.properties"));
+        PropertyConfigurator.configure(Main.class.getResource("log4j.properties"));
 
         Logger logger = LoggerFactory.getLogger("org.noise_planet");
 

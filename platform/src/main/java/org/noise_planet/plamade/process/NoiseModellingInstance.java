@@ -1,5 +1,5 @@
-/**
- * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
+/*
+ * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user-friendly web interface.
  *
  * This version is developed by the DECIDE team from the Lab-STICC (CNRS) and by the Mixt Research Unit in Environmental Acoustics (Université Gustave Eiffel).
  * <http://noise-planet.org/noisemodelling.html>
@@ -9,6 +9,7 @@
  * Contact: contact@noise-planet.org
  *
  */
+
 
 package org.noise_planet.plamade.process;
 
@@ -48,6 +49,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Nicolas Fortin, Université Gustave Eiffel
  */
 public class NoiseModellingInstance implements RunnableFuture<String> {
+    public enum JOB_STATES {
+        CREATED,
+        RUNNING,
+        FAILED,
+        COMPLETED
+    }
     private static final Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Configuration configuration;
     DataSource nmDataSource;
@@ -513,13 +520,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             ProgressVisitor progressVisitor = configuration.progressVisitor;
             ProgressVisitor subProg = progressVisitor.subProcess(1);
             try (Connection nmConnection = nmDataSource.getConnection()) {
-                importData(nmConnection, subProg);
-                makeGrid(nmConnection);
-                subProg.endStep();
-                makeEmission(nmConnection);
-                subProg.endStep();
-                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
-                slurmInitAndStart(configuration.slurmConfig, subProg);
+                ProgressVisitor demo = subProg.subProcess(60);
+                for(int i = 0; i < 60; i++) {
+                    Thread.sleep(1000);
+                    demo.endStep();
+                }
+//                importData(nmConnection, subProg);
+//                makeGrid(nmConnection);
+//                subProg.endStep();
+//                makeEmission(nmConnection);
+//                subProg.endStep();
+//               generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
+//                slurmInitAndStart(configuration.slurmConfig, subProg);
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);

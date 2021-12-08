@@ -16,11 +16,11 @@
  * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285 
  */
 
-/* TODO
-   - Merge 3D lines topo with BD Alti
-   - Confirm that screens are taken 2 times into account for railway
-   - Check spatial index and srids
-*/
+ /* TODO
+    - Merge 3D lines topo with BD Alti
+    - Confirm that screens are taken 2 times into account for railway
+    - Check spatial index and srids
+ */ 
 
 package org.noise_planet.noisemodelling.wps.plamade
 
@@ -69,7 +69,7 @@ inputs = [
                 description: 'Insee code for the area ex:75',
                 type       : String.class
         ],
-        inputServer : [
+	inputServer : [
                 name       : 'DB Server used',
                 title      : 'DB server used',
                 description: 'Choose between cerema or cloud',
@@ -126,17 +126,17 @@ def exec(Connection connection, input) {
     // Loop over the tables
     tables.each { t ->
         TableLocation tab = TableLocation.parse(t)
-        if (!ignorelst.contains(tab.getTable())) {
-            // Add the name of the table in the string builder
-            if (sb.size() > 0) {
-                sb.append(" || ")
+            if (!ignorelst.contains(tab.getTable())) {
+                // Add the name of the table in the string builder
+                if (sb.size() > 0) {
+                    sb.append(" || ")
+                }
+                sb.append(tab.getTable())
+                // Create a connection statement to interact with the database in SQL
+                Statement stmt = connection.createStatement()
+                // Drop the table
+                stmt.execute("drop table if exists " + tab)
             }
-            sb.append(tab.getTable())
-            // Create a connection statement to interact with the database in SQL
-            Statement stmt = connection.createStatement()
-            // Drop the table
-            stmt.execute("drop table if exists " + tab)
-        }
     }
 
     //------------------------------------------------------
@@ -178,8 +178,8 @@ def exec(Connection connection, input) {
         databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory"
     } else{
         return "Vous n'avez pas spécifié le bon nom de serveur"
-    }
-
+    }	
+	
     def user = input["databaseUser"] as String
     def pwd = input["databasePassword"] as String
 
@@ -187,7 +187,7 @@ def exec(Connection connection, input) {
     def srid = "2154"
     def table_station = "station_pfav_2154"
     def table_dept = "departement_2154"
-    def table_route = "N_ROUTIER_TRONCON_L_2154"
+    def table_route = "N_ROUTIER_TRONCON_L_2154" 
     def table_rail = "N_FERROVIAIRE_TRONCON_L_2154"
     def table_bati = "C_BATIMENT_S_2154"
     def table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2154"
@@ -221,29 +221,29 @@ def exec(Connection connection, input) {
         table_infra = "infra_2972"
     }
     else if(codeDep=='974') {
-            srid="2975"
-            table_station = "station_pfav_2975"
-            table_dept = "departement_2975"
-            table_route = "N_ROUTIER_TRONCON_L_2975"
-            table_rail = "N_FERROVIAIRE_TRONCON_L_2975"
-            table_bati = "C_BATIMENT_S_2975"
-            table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2975"
-            table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2975"
-            table_land = "C_NATURESOL_S_2975"
-            table_infra = "infra_2975"
-        }
-        else if(codeDep=='976') {
-                srid="4471"
-                table_station = "station_pfav_4471"
-                table_dept = "departement_4471"
-                table_route = "N_ROUTIER_TRONCON_L_4471"
-                table_rail = "N_FERROVIAIRE_TRONCON_L_4471"
-                table_bati = "C_BATIMENT_S_4471"
-                table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_4471"
-                table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_4471"
-                table_land = "C_NATURESOL_S_4471"
-                table_infra = "infra_4471"
-            }
+        srid="2975"
+        table_station = "station_pfav_2975"
+        table_dept = "departement_2975"
+        table_route = "N_ROUTIER_TRONCON_L_2975"
+        table_rail = "N_FERROVIAIRE_TRONCON_L_2975"
+        table_bati = "C_BATIMENT_S_2975"
+        table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2975"
+        table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2975"
+        table_land = "C_NATURESOL_S_2975"
+        table_infra = "infra_2975"
+    }
+    else if(codeDep=='976') {
+        srid="4471"
+        table_station = "station_pfav_4471"
+        table_dept = "departement_4471"
+        table_route = "N_ROUTIER_TRONCON_L_4471"
+        table_rail = "N_FERROVIAIRE_TRONCON_L_4471"
+        table_bati = "C_BATIMENT_S_4471"
+        table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_4471"
+        table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_4471"
+        table_land = "C_NATURESOL_S_4471"
+        table_infra = "infra_4471"
+    }
 
     if(codeDep=='971') {
         table_bd_topo_route = 't_route_guadeloupe'
@@ -717,7 +717,7 @@ def exec(Connection connection, input) {
     ALTER TABLE bdtopo_route add primary key(pk_line);
     -- Create buffer points from roads and copy the elevation from the roads to the point
     DROP TABLE IF EXISTS BUFFERED_PTLINE;
-    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from bdtopo_route rmc where ST_NPoints(st_simplify(the_geom, 2)) >= 2 ;
+    CREATE TABLE BUFFERED_PTLINE AS SELECT st_tomultipoint(st_densify(st_buffer(st_simplify(the_geom, 2), GREATEST(NB_VOIES, 1) * 3.5  ,'endcap=flat join=mitre'), 25 )) the_geom,  pk_line from bdtopo_route rmc where st_length(st_simplify(the_geom, 2)) > 0 ;
     INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM) SELECT ST_MAKEPOINT(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);
     
@@ -839,7 +839,7 @@ def exec(Connection connection, input) {
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage statistics (11/11)')
+        logger.info('Manage statistics (11/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_stats).make(binding)
     sql.execute(template.toString())
@@ -958,9 +958,9 @@ def exec(Connection connection, input) {
         </body>
         </html>
     """
-
+    
     // Remove non needed tables
-    sql.execute("DROP TABLE BUILDINGS, departement_link");
+    sql.execute("DROP TABLE BUILDINGS, departement_link"); 
 
     def bindingRapport = ["stat_roads_track" : stat_roads_track, "stat_roads_track_cbsgitt" : stat_roads_track_cbsgitt, "nb_roads_track" : nb_roads_track, "nb_roads" : nb_roads, "nb_build" : nb_build, "nb_build_h0" : nb_build_h0, "nb_build_hnull" : nb_build_hnull, "nb_build_id_erps" : nb_build_id_erps, "nb_build_pop" : nb_build_pop, "nb_rail_sections" : nb_rail_sections, "nb_rail_traffic" : nb_rail_traffic, "nb_land" : nb_land, "buffer": buffer, "codeDep": codeDep, "dept_name" : dept_name, "srid" : srid]
     def templateRapport = engine.createTemplate(rapport).make(bindingRapport)
