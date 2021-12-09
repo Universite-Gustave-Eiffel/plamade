@@ -543,6 +543,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     Thread.sleep(1000);
                     demo.endStep();
                     if(demo.isCanceled()) {
+                        setJobState(JOB_STATES.CANCELED);
                         break;
                     }
                 }

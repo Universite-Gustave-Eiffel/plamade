@@ -16,13 +16,7 @@
  */
 package org.noise_planet.plamade.api.secure;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.collect.Maps;
-import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
-import org.noise_planet.plamade.config.DataBaseConfig;
-import org.noise_planet.plamade.config.SlurmConfigRoot;
 import org.noise_planet.plamade.process.JobExecutorService;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.core.profile.CommonProfile;
@@ -34,16 +28,12 @@ import ratpack.form.Form;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
-import ratpack.thymeleaf.Template;
 
 import javax.sql.DataSource;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.io.File;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Create new job
@@ -92,42 +82,5 @@ public class PostManageJob implements Handler {
                 }
             });
         });
-    }
-
-    private static class ProgressionTracker implements PropertyChangeListener {
-        DataSource plamadeDataSource;
-        int jobPk;
-        private Logger logger = LoggerFactory.getLogger(ProgressionTracker.class);
-        String lastProg = "";
-        long lastProgressionUpdate = 0;
-        private static final long TABLE_UPDATE_DELAY = 5000;
-
-        public ProgressionTracker(DataSource plamadeDataSource, int jobPk) {
-            this.plamadeDataSource = plamadeDataSource;
-            this.jobPk = jobPk;
-        }
-
-        @Override
-        public void propertyChange(PropertyChangeEvent evt) {
-            if(evt.getNewValue() instanceof Double) {
-                String newLogProgress = String.format("%.2f", (Double)(evt.getNewValue()) * 100.0D);
-                if(!lastProg.equals(newLogProgress)) {
-                    lastProg = newLogProgress;
-                    long t = System.currentTimeMillis();
-                    if(t - lastProgressionUpdate > TABLE_UPDATE_DELAY) {
-                        lastProgressionUpdate = t;
-                        try (Connection connection = plamadeDataSource.getConnection()) {
-                            PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET PROGRESSION = ? WHERE PK_JOB = ?");
-                            st.setDouble(1, (Double) (evt.getNewValue()) * 100.0);
-                            st.setInt(2, jobPk);
-                            st.setQueryTimeout((int)(TABLE_UPDATE_DELAY / 1000));
-                            st.execute();
-                        } catch (SQLException ex) {
-                            logger.error(ex.getLocalizedMessage(), ex);
-                        }
-                    }
-                }
-            }
-        }
     }
 }
