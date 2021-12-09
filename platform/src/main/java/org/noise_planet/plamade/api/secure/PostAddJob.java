@@ -46,7 +46,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Create new job
@@ -100,7 +99,7 @@ public class PostAddJob implements Handler {
                                 statement.setInt(3, Integer.parseInt(confId));
                                 statement.setString(4, inseeDepartment);
                                 statement.setInt(5, pkUser);
-                                statement.setString(6, NoiseModellingInstance.JOB_STATES.CREATED.toString());
+                                statement.setString(6, NoiseModellingInstance.JOB_STATES.QUEUED.toString());
                                 statement.executeUpdate();
                                 // retrieve primary key
                                 ResultSet rs = statement.getGeneratedKeys();

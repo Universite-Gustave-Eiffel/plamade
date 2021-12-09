@@ -69,18 +69,23 @@ public class PostManageJob implements Handler {
                                 JobExecutorService pool = ctx.get(JobExecutorService.class);
                                 try (Connection connection = plamadeDataSource.getConnection()) {
                                     for(String jobId : cancelJobsList) {
-
+                                        for(NoiseModellingInstance instance : pool.getNoiseModellingInstance()) {
+                                            if(instance.getConfiguration().getTaskPrimaryKey() == Integer.parseInt(jobId)) {
+                                                instance.cancel(false);
+                                                break;
+                                            }
+                                        }
                                     }
                                     for(String jobId : deleteJobsList) {
                                         PreparedStatement st = connection.prepareStatement("DELETE FROM JOBS WHERE pk_job = ? AND pk_user = ?");
                                         st.setInt(1, Integer.parseInt(jobId));
                                         st.setInt(2, pkUser);
+                                        st.execute();
                                     }
                                 }
                                 return true;
                             }).then(ok -> {
-                                model.put("message", ok ? "Job added" : "Could not create job");
-                                ctx.render(Template.thymeleafTemplate(model, "add_job"));
+                                ctx.redirect("/manage/job_list");
                             });
                         }
                     });

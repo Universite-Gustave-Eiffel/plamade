@@ -50,9 +50,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class NoiseModellingInstance implements RunnableFuture<String> {
     public enum JOB_STATES {
-        CREATED,
+        QUEUED,
         RUNNING,
         FAILED,
+        CANCELED,
         COMPLETED
     }
     private static final Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
@@ -60,7 +61,6 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     DataSource nmDataSource;
     DataSource plamadeDataSource;
     boolean isRunning = false;
-    boolean isCanceled = false;
     private static final int SFTP_TIMEOUT = 60000;
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
 
@@ -69,7 +69,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         this.plamadeDataSource = plamadeDataSource;
     }
 
-    public static DataSource createDataSource(String user, String password, String dbDirectory,String dbName, boolean debug) throws SQLException {
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
+    public static DataSource createDataSource(String user, String password, String dbDirectory, String dbName, boolean debug) throws SQLException {
         // Create H2 memory DataSource
         org.h2.Driver driver = org.h2.Driver.load();
         OsgiDataSourceFactory dataSourceFactory = new OsgiDataSourceFactory(driver);
@@ -493,10 +497,24 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     }
 
+    void setJobState(JOB_STATES newState) {
+        try (Connection connection = plamadeDataSource.getConnection()) {
+            PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET STATE = ? WHERE PK_JOB = ?");
+            st.setString(1, newState.toString());
+            st.setInt(2, configuration.getTaskPrimaryKey());
+            st.execute();
+        } catch (SQLException | SecurityException ex) {
+            logger.error(ex.getLocalizedMessage(), ex);
+        }
+    }
+
+
+
     @Override
     public void run() {
         Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
         isRunning = true;
+        setJobState(JOB_STATES.RUNNING);
         try {
             // create folder
             File workingDir = new File(configuration.workingDirectory);
@@ -524,6 +542,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 for(int i = 0; i < 60; i++) {
                     Thread.sleep(1000);
                     demo.endStep();
+                    if(demo.isCanceled()) {
+                        break;
+                    }
                 }
 //                importData(nmConnection, subProg);
 //                makeGrid(nmConnection);
@@ -538,6 +559,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 //                Export(nmConnection, subProg);
 //                subProg.endStep();
             }
+            setJobState(JOB_STATES.COMPLETED);
         } catch (SQLException ex) {
             while(ex != null) {
                 logger.error(ex.getLocalizedMessage(), ex);
@@ -545,6 +567,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             }
         } catch (Exception ex) {
             logger.error(ex.getLocalizedMessage(), ex);
+            setJobState(JOB_STATES.FAILED);
         } finally {
             // Update Job informations
             try (Connection connection = plamadeDataSource.getConnection()) {
@@ -561,13 +584,13 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        isCanceled = true;
+        configuration.progressVisitor.cancel();
         return false;
     }
 
     @Override
     public boolean isCancelled() {
-        return isCanceled;
+        return configuration.progressVisitor.isCanceled();
     }
 
     @Override

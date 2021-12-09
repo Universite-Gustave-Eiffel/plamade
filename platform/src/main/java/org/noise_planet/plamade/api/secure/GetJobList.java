@@ -87,11 +87,11 @@ public class GetJobList implements Handler {
                                             row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
                                             Timestamp eDate = rs.getTimestamp("END_DATE");
                                             row.put("endDate", !rs.wasNull() ? mediumDateFormatEN.format(eDate) : "-");
-                                            row.put("status", f.format(rs.getDouble("PROGRESSION")));
+                                            row.put("status", rs.getString("STATE"));
+                                            row.put("progression", f.format(rs.getDouble("PROGRESSION")));
                                             row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
                                             row.put("conf_id", rs.getInt("CONF_ID"));
                                             String jobFolder = rs.getString("REMOTE_JOB_FOLDER");
-                                            row.put("state", rs.getString("STATE"));
                                             row.put("result", "<a href=\"/rjobs/"+jobFolder+"\" target='_blank'>Result</a> - <a href=\"/manage/job/"+pkJob+"/logs\">Logs</a>");
                                             row.put("remote_job_folder", rs.getString("REMOTE_JOB_FOLDER"));
                                         }
