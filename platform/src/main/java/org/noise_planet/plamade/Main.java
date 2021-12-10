@@ -76,7 +76,7 @@ public class Main {
         dbUrl = "jdbc:h2:" + databasePath + ";DB_CLOSE_DELAY=30;TRACE_LEVEL_FILE=4";
         dataSourceClassName = "org.h2.jdbcx.JdbcDataSource";
 
-        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").port(9580).env().require("/auth", AuthConfig.class)
+        RatpackServer.start(s -> s.serverConfig(c -> c.yaml("config.yaml").port(9595).env().require("/auth", AuthConfig.class)
                 .baseDir(basePath).build()).registry(Guice.registry(b -> b.module(ApiModule.class)
                 .module(AuthModule.class)
                 .module(TextTemplateModule.class)

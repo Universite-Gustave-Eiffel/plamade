@@ -536,24 +536,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(1);
+            ProgressVisitor subProg = progressVisitor.subProcess(4);
             try (Connection nmConnection = nmDataSource.getConnection()) {
-                ProgressVisitor demo = subProg.subProcess(60);
-                for(int i = 0; i < 60; i++) {
-                    Thread.sleep(1000);
-                    demo.endStep();
-                    if(demo.isCanceled()) {
-                        setJobState(JOB_STATES.CANCELED);
-                        break;
-                    }
+                importData(nmConnection, subProg);
+                if(subProg.isCanceled()) {
+                    setJobState(JOB_STATES.CANCELED);
+                    return;
                 }
-//                importData(nmConnection, subProg);
-//                makeGrid(nmConnection);
-//                subProg.endStep();
-//                makeEmission(nmConnection);
-//                subProg.endStep();
-//               generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
-//                slurmInitAndStart(configuration.slurmConfig, subProg);
+                makeGrid(nmConnection);
+                subProg.endStep();
+                makeEmission(nmConnection);
+                subProg.endStep();
+                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
+                slurmInitAndStart(configuration.slurmConfig, subProg);
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);
