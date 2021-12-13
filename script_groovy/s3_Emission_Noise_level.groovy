@@ -38,7 +38,7 @@ import groovy.time.TimeCategory
 
 import org.geotools.jdbc.JDBCDataStore
 
-import org.h2gis.functions.spatial.edit.ST_AddZ
+import org.h2gis.functions.spatial.edit.ST_UpdateZ
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
@@ -334,9 +334,9 @@ def exec(Connection connection, input) {
       sql.execute("DROP TABLE IF EXISTS LW_RAILWAY;")
 
       // Build and execute queries
-      StringBuilder createTableQuery = new StringBuilder("CREATE TABLE LW_RAILWAY (ID_SECTION int, the_geom geometry, DIR_ID int, GS double")
-      StringBuilder insertIntoQuery = new StringBuilder("INSERT INTO LW_RAILWAY(ID_SECTION, the_geom, DIR_ID, GS")
-      StringBuilder insertIntoValuesQuery = new StringBuilder("?,?,?,?")
+      StringBuilder createTableQuery = new StringBuilder("CREATE TABLE LW_RAILWAY (ID_SECTION varchar, UUEID varchar, the_geom geometry, DIR_ID int, GS double")
+      StringBuilder insertIntoQuery = new StringBuilder("INSERT INTO LW_RAILWAY(ID_SECTION, UUEID, the_geom, DIR_ID, GS")
+      StringBuilder insertIntoValuesQuery = new StringBuilder("?,?,?,?,?")
       for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
           createTableQuery.append(", LWD")
           createTableQuery.append(thirdOctave)
@@ -399,7 +399,10 @@ def exec(Connection connection, input) {
           double[] LWNight
           double heightSource
           int directivityId
+          double speedUse = railWayLWGeom.getSpeedUse()
+          int bridgeUse = railWayLWGeom.getBridgeUse()
           double gs = railWayLWGeom.getGs()
+        
           for (int iSource = 0; iSource < 6; iSource++) {
               switch (iSource) {
                   case 0:
@@ -445,25 +448,26 @@ def exec(Connection connection, input) {
                       directivityId = 6
                       break
               }
-              for (int nTrack = 0; nTrack < geometries.size(); nTrack++) {
-
-                  sql.withBatch(100, insertIntoQuery.toString()) { ps ->
-                      Geometry trackGeometry = (Geometry) geometries.get(nTrack)
-                      Geometry sourceGeometry = trackGeometry.copy()
-                      // offset geometry z
-                      sourceGeometry.apply(new ST_AddZ.AddZCoordinateSequenceFilter(heightSource))
-                      def batchData = [pk as int, sourceGeometry as Geometry, directivityId as int, gs as double]
-                      batchData.addAll(LWDay)
-                      batchData.addAll(LWEvening)
-                      batchData.addAll(LWNight)
-                      ps.addBatch(batchData)
-                  }
-              }
+            if((iSource==3&&speedUse<200)||(iSource==4&&speedUse<200)||(iSource==5&&bridgeUse==0)){}else{
+                for (int nTrack = 0; nTrack < geometries.size(); nTrack++) {
+                    sql.withBatch(100, insertIntoQuery.toString()) { ps ->
+                        Geometry trackGeometry = (Geometry) geometries.get(nTrack)
+                        Geometry sourceGeometry = trackGeometry.copy()
+                        // offset geometry z
+                        sourceGeometry.apply(new ST_UpdateZ.UpdateZCoordinateSequenceFilter(heightSource, 1))
+                        def batchData = [ railWayLWGeom.getIdSection() as String,railWayLWGeom.getUueid() as String, sourceGeometry as Geometry, directivityId as int,gs as double]
+                        batchData.addAll(LWDay)
+                        batchData.addAll(LWEvening)
+                        batchData.addAll(LWNight)
+                        ps.addBatch(batchData)
+                    }
+                }
+            }
           }
       }
 
       //DELETE sections where LW are lower than 0
-      sql.execute("DELETE FROM LW_RAILWAY WHERE LEAST (LWD50, LWD63, LWD80, LWD100, LWD125, LWD160, LWD200, LWD250, LWD315, LWD400, LWD500, LWD630, LWD800, LWD1000, LWD1250, LWD1600, LWD2000, LWD2500, LWD3150, LWD4000, LWD5000, LWD6300, LWD8000, LWD10000, LWE50, LWE63, LWE80, LWE100, LWE125, LWE160, LWE200, LWE250, LWE315, LWE400, LWE500, LWE630, LWE800, LWE1000, LWE1250, LWE1600, LWE2000, LWE2500, LWE3150, LWE4000, LWE5000, LWE6300, LWE8000, LWE10000, LWN50, LWN63, LWN80, LWN100, LWN125, LWN160, LWN200, LWN250, LWN315, LWN400, LWN500, LWN630, LWN800, LWN1000, LWN1250, LWN1600, LWN2000, LWN2500, LWN3150, LWN4000, LWN5000, LWN6300, LWN8000, LWN10000)<0;")
+      //sql.execute("DELETE FROM LW_RAILWAY WHERE LEAST (LWD50, LWD63, LWD80, LWD100, LWD125, LWD160, LWD200, LWD250, LWD315, LWD400, LWD500, LWD630, LWD800, LWD1000, LWD1250, LWD1600, LWD2000, LWD2500, LWD3150, LWD4000, LWD5000, LWD6300, LWD8000, LWD10000, LWE50, LWE63, LWE80, LWE100, LWE125, LWE160, LWE200, LWE250, LWE315, LWE400, LWE500, LWE630, LWE800, LWE1000, LWE1250, LWE1600, LWE2000, LWE2500, LWE3150, LWE4000, LWE5000, LWE6300, LWE8000, LWE10000, LWN50, LWN63, LWN80, LWN100, LWN125, LWN160, LWN200, LWN250, LWN315, LWN400, LWN500, LWN630, LWN800, LWN1000, LWN1250, LWN1600, LWN2000, LWN2500, LWN3150, LWN4000, LWN5000, LWN6300, LWN8000, LWN10000)<0;")
 
       // Add primary key to the LW table
       sql.execute("ALTER TABLE LW_RAILWAY ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
@@ -478,16 +482,16 @@ def exec(Connection connection, input) {
 
     // Drop table LW_ROADS if exists and the create and prepare the table
     sql.execute("DROP TABLE IF EXISTS LW_ROADS;")
-    sql.execute("CREATE TABLE LW_ROADS (pk integer, the_geom Geometry, " +
+    sql.execute("CREATE TABLE LW_ROADS (pk integer, the_geom Geometry, ID_TRONCON varchar, UUEID varchar, " +
             "LWD63 double precision, LWD125 double precision, LWD250 double precision, LWD500 double precision, LWD1000 double precision, LWD2000 double precision, LWD4000 double precision, LWD8000 double precision," +
             "LWE63 double precision, LWE125 double precision, LWE250 double precision, LWE500 double precision, LWE1000 double precision, LWE2000 double precision, LWE4000 double precision, LWE8000 double precision," +
             "LWN63 double precision, LWN125 double precision, LWN250 double precision, LWN500 double precision, LWN1000 double precision, LWN2000 double precision, LWN4000 double precision, LWN8000 double precision);")
 
-    def qry = 'INSERT INTO LW_ROADS(pk,the_geom, ' +
+    def qry = 'INSERT INTO LW_ROADS(pk,the_geom, ID_TRONCON, UUEID, ' +
             'LWD63, LWD125, LWD250, LWD500, LWD1000,LWD2000, LWD4000, LWD8000,' +
             'LWE63, LWE125, LWE250, LWE500, LWE1000,LWE2000, LWE4000, LWE8000,' +
             'LWN63, LWN125, LWN250, LWN500, LWN1000,LWN2000, LWN4000, LWN8000) ' +
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);'
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);'
 
 
     // --------------------------------------
@@ -545,7 +549,7 @@ def exec(Connection connection, input) {
             def levening = ComputeRays.wToDba(results[1])
             def lnight = ComputeRays.wToDba(results[2])
             // fill the LW_ROADS table
-            ps.addBatch(rs.getLong(pkIndex) as Integer, geo as Geometry,
+            ps.addBatch(rs.getLong(pkIndex) as Integer, geo as Geometry, rs.getString(2) as String, rs.getString(45) as String,
                     lday[0] as Double, lday[1] as Double, lday[2] as Double,
                     lday[3] as Double, lday[4] as Double, lday[5] as Double,
                     lday[6] as Double, lday[7] as Double,
