@@ -469,18 +469,21 @@ def exec(Connection connection, input) {
         (CASE   WHEN c."TYPELIGNE" = ''01'' THEN 3.67::float 
                 WHEN c."TYPELIGNE" = ''02'' THEN 4.5::float 
         END) as trackspc,
-        c."UUEID" as uueid 
+        c."UUEID" as uueid,
+        d.idplatform, d.d1, d.g1, d.g2, d.g3, d.h1, d.h2
     FROM 
         noisemodelling."$table_rail" a,
         echeance4."N_FERROVIAIRE_VITESSE" b,
-        echeance4."N_FERROVIAIRE_LIGNE" c
+        echeance4."N_FERROVIAIRE_LIGNE" c,
+        noisemodelling.platform d     
     WHERE
         ST_LENGTH(a.the_geom)>0 and 
         a."CODEDEPT" = lpad(''$codeDep'',3,''0'') and
         a."CBS_GITT" and
         a."REFPROD"=''412280737'' and  
         a."IDTRONCON" = b."IDTRONCON" and
-        a."IDLIGNE" = c."IDLIGNE")');
+        a."IDLIGNE" = c."IDLIGNE" and
+        d.idplatform=''SNCF'')');
 
     CREATE TABLE rail_sections_geom AS SELECT * FROM rail_sections_link;
 
@@ -495,11 +498,11 @@ def exec(Connection connection, input) {
 
     CREATE TABLE rail_tunnel AS SELECT * FROM rail_tunnel_link;
 
-    CREATE TABLE rail_sections AS SELECT ST_SETSRID(a.THE_GEOM,$srid) THE_GEOM,a.IDSECTION,a.NTRACK,a.IDLINE,a.NUMLINE,a.TRACKSPD,a.TRANSFER,a.ROUGHNESS,a.IMPACT,a.CURVATURE,a.BRIDGE,a.D2,a.D3,a.D4,a.COMSPD,a.LINETYPE,a.TRACKSPC,a.UUEID,a.BRIDGEOPT, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
+    CREATE TABLE rail_sections AS SELECT ST_SETSRID(a.THE_GEOM,$srid) as THE_GEOM, a.idsection, a.ntrack, a.idline, a.numline, a.trackspd, a.transfer, a.roughness, a.impact, a.curvature, a.bridge, a.d2, a.d3, a.d4, a.comspd, a.linetype, a.trackspc, a.uueid, a.idplatform, a.d1, a.g1, a.g2, a.g3, a.h1, a.h2, a.bridgeopt, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
     ALTER TABLE rail_sections ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX rail_sections_geom_idx ON rail_sections (the_geom);
     CREATE INDEX ON rail_sections (idsection);
-    CREATE INDEX ON rail_sections(UUEID);
+    CREATE INDEX ON rail_sections(uueid);
 
     -- Rail_traffic
     CREATE LINKED TABLE rail_traffic_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
@@ -693,7 +696,7 @@ def exec(Connection connection, input) {
 	----------------------------------
 	-- Manage Landcover
     
-	DROP TABLE IF EXISTS alllandcover_link, landcover;
+	DROP TABLE IF EXISTS alllandcover_link, landcover_source;
     CREATE LINKED TABLE alllandcover_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', '(SELECT 
      a.the_geom, 
      a."IDNATSOL" as pk, 
@@ -707,23 +710,76 @@ def exec(Connection connection, input) {
      ST_INTERSECTS(a.the_geom, c.the_geom) and 
      a."NATSOL_CNO" > 0)');
     
-    CREATE TABLE landcover as select * from alllandcover_link;
-    CREATE SPATIAL INDEX ON landcover(the_geom);
-    DELETE FROM landcover B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    CREATE TABLE landcover_source as select * from alllandcover_link;
+    CREATE SPATIAL INDEX ON landcover_source(the_geom);
+    DELETE FROM landcover_source B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     DROP TABLE alllandcover_link;
+
+
+    -- Integrates RAIL_SECTIONS into the Landcover
+    ------------------------------------------------------------------
+
+    DROP TABLE IF EXISTS rail_buff_d1, rail_buff_d3, rail_buff_d4;
+    CREATE TABLE rail_buff_d1 AS SELECT ST_UNION(ST_ACCUM(ST_BUFFER(the_geom, d1/2))) as the_geom FROM rail_sections;
+    CREATE TABLE rail_buff_d3 AS SELECT ST_UNION(ST_ACCUM(ST_BUFFER(the_geom, d3/2))) as the_geom FROM rail_sections;
+    CREATE TABLE rail_buff_d4 AS SELECT ST_UNION(ST_ACCUM(ST_BUFFER(the_geom, d4/2))) as the_geom FROM rail_sections;
+
+    DROP TABLE IF EXISTS rail_diff_d3_d1, rail_diff_d4_d3;
+    CREATE TABLE rail_diff_d3_d1 as select ST_SymDifference(a.the_geom, b.the_geom) as the_geom from rail_buff_d3 a, rail_buff_d1 b where a.the_geom && b.the_geom and st_intersects(a.the_geom, b.the_geom);
+    CREATE TABLE rail_diff_d4_d3 as select ST_SymDifference(a.the_geom, b.the_geom) as the_geom from rail_buff_d4 a, rail_buff_d3 b where a.the_geom && b.the_geom and st_intersects(a.the_geom, b.the_geom);
+
+    DROP TABLE IF EXISTS rail_buff_d1_expl, rail_buff_d3_expl, rail_buff_d4_expl;
+    CREATE TABLE rail_buff_d1_expl AS SELECT a.the_geom, b.g3 as g FROM ST_Explode('RAIL_BUFF_D1') a, PLATEFORM  b WHERE b.IDPLATFORM ='SNCF';
+    CREATE TABLE rail_buff_d3_expl AS SELECT a.the_geom, b.g2 as g FROM ST_Explode('RAIL_DIFF_D3_D1 ') a, PLATEFORM  b WHERE b.IDPLATFORM ='SNCF';
+    CREATE TABLE rail_buff_d4_expl AS SELECT a.the_geom, b.g1 as g FROM ST_Explode('RAIL_DIFF_D4_D3 ') a, PLATEFORM  b WHERE b.IDPLATFORM ='SNCF';
+
+    DROP TABLE IF EXISTS LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1;
+    CREATE TABLE LANDCOVER_G_0 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=0;
+    CREATE TABLE LANDCOVER_G_03 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=0.3;
+    CREATE TABLE LANDCOVER_G_07 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=0.7;
+    CREATE TABLE LANDCOVER_G_1 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=1;
+
+    DROP TABLE IF EXISTS LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4;
+    CREATE TABLE LANDCOVER_0_DIFF_D4 AS SELECT ST_Difference(b.the_geom, a.the_geom) as the_geom from rail_buff_d4 a, LANDCOVER_G_0 b where a.the_geom && b.the_geom and st_intersects(a.the_geom, b.the_geom);
+    CREATE TABLE LANDCOVER_03_DIFF_D4 AS SELECT ST_Difference(b.the_geom, a.the_geom) as the_geom from rail_buff_d4 a, LANDCOVER_G_03 b where a.the_geom && b.the_geom and st_intersects(a.the_geom, b.the_geom);
+    CREATE TABLE LANDCOVER_07_DIFF_D4 AS SELECT ST_Difference(b.the_geom, a.the_geom) as the_geom from rail_buff_d4 a, LANDCOVER_G_07 b where a.the_geom && b.the_geom and st_intersects(a.the_geom, b.the_geom);
+    CREATE TABLE LANDCOVER_1_DIFF_D4 AS SELECT ST_Difference(b.the_geom, a.the_geom) as the_geom from rail_buff_d4 a, LANDCOVER_G_1 b where a.the_geom && b.the_geom and st_intersects(a.the_geom, b.the_geom);
+
+    DROP TABLE IF EXISTS LANDCOVER_0_EXPL, LANDCOVER_03_EXPL, LANDCOVER_07_EXPL, LANDCOVER_1_EXPL;
+    CREATE TABLE LANDCOVER_0_EXPL AS SELECT the_geom, 0 as g FROM ST_Explode('LANDCOVER_0_DIFF_D4 ');
+    CREATE TABLE LANDCOVER_03_EXPL AS SELECT the_geom, 0.3 as g FROM ST_Explode('LANDCOVER_03_DIFF_D4 ');
+    CREATE TABLE LANDCOVER_07_EXPL AS SELECT the_geom, 0.7 as g FROM ST_Explode('LANDCOVER_07_DIFF_D4 ');
+    CREATE TABLE LANDCOVER_1_EXPL AS SELECT the_geom, 1 as g FROM ST_Explode('LANDCOVER_1_DIFF_D4 ');
+
+    -- Unifiy tables
+    DROP TABLE IF EXISTS LANDCOVER_UNION, LANDCOVER_MERGE, LANDCOVER;
+    CREATE TABLE LANDCOVER_UNION AS SELECT * FROM LANDCOVER_0_EXPL UNION SELECT * FROM LANDCOVER_03_EXPL UNION SELECT * FROM LANDCOVER_07_EXPL 
+    UNION SELECT * FROM LANDCOVER_1_EXPL UNION SELECT * FROM RAIL_BUFF_D1_EXPL UNION SELECT * FROM RAIL_BUFF_D3_EXPL UNION SELECT * FROM RAIL_BUFF_D4_EXPL ; 
+
+    -- Merge geometries that have the same G
+    CREATE TABLE LANDCOVER_MERGE AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, g FROM LANDCOVER_UNION GROUP BY g;
+    CREATE TABLE LANDCOVER AS SELECT ST_SETSRID(the_geom,$srid) as the_geom, g FROM ST_Explode('LANDCOVER_MERGE ');
+
+    DROP TABLE IF EXISTS rail_buff_d1, rail_buff_d3, rail_buff_d4, rail_diff_d3_d1, rail_diff_d4_d3, rail_buff_d1_expl, rail_buff_d3_expl, rail_buff_d4_expl, LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1, LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4, LANDCOVER_0_EXPL, LANDCOVER_03_EXPL, LANDCOVER_07_EXPL, LANDCOVER_1_EXPL, LANDCOVER_UNION, LANDCOVER_MERGE, landcover_source;
+
 
     """
     def queries_dem = """
     ----------------------------------
     -- Import data and filtering within 1000m around infra
 
+    ------------
     -- Import DEM from BD Alti
+
     DROP TABLE IF EXISTS bdalti_link, dem;
     CREATE LINKED TABLE bdalti_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
     '(SELECT distinct b.* FROM bd_alti.pt3d_alti_d$codeDepFormat b, noisemodelling.$table_infra i WHERE ST_EXPAND(B.THE_GEOM, $buffer) && i.THE_GEOM AND ST_DISTANCE(b.the_geom, i.the_geom) < $buffer)');
     CREATE TABLE dem AS SELECT *, 'DEM' as SOURCE FROM bdalti_link;
 
+
+    ------------
     -- Import orography
+
     DROP TABLE IF EXISTS bdtopo_oro_link, bdtopo_oro;
     CREATE LINKED TABLE bdtopo_oro_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
             '(SELECT r.THE_GEOM FROM bd_topo.$table_bd_topo_oro r,
@@ -736,7 +792,9 @@ def exec(Connection connection, input) {
     ALTER TABLE bdtopo_oro add primary key(pk_line);
 
 
+    ------------
     -- Import hydrography
+
     DROP TABLE IF EXISTS bdtopo_hydro_link, bdtopo_hydro;
     CREATE LINKED TABLE bdtopo_hydro_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
             '(SELECT r.THE_GEOM FROM bd_topo.$table_bd_topo_hydro r,
@@ -747,29 +805,36 @@ def exec(Connection connection, input) {
     ALTER TABLE bdtopo_hydro ADD pk_line INT AUTO_INCREMENT NOT NULL;
     ALTER TABLE bdtopo_hydro add primary key(pk_line);
 
-    
 
-
+    ------------
     -- Import roads (that are on the floor --> POS_SOL=0)
+
     DROP TABLE IF EXISTS bdtopo_route_link, bdtopo_route;
     CREATE LINKED TABLE bdtopo_route_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
-            '(SELECT r.* FROM bd_topo.$table_bd_topo_route r,
-            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND R.POS_SOL = ''0'' AND st_zmin(R.THE_GEOM) > 0)');
+            '(SELECT r.THE_GEOM, r.LARGEUR FROM bd_topo.$table_bd_topo_route r,
+            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where r.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(r.THE_GEOM, e.THE_GEOM) < 1000 AND r.POS_SOL = ''0'' AND st_zmin(r.THE_GEOM) > 0)');
     
-    CREATE TABLE bdtopo_route AS SELECT * FROM bdtopo_route_link;
+    -- Road width is precalculated into WIDTH column. When largeur < 3, then 3m
+    CREATE TABLE bdtopo_route AS SELECT THE_GEOM, (CASE WHEN LARGEUR>3 THEN LARGEUR/2 ELSE 1.5 END) as WIDTH FROM bdtopo_route_link;
     DELETE FROM bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     CREATE SPATIAL INDEX ON bdtopo_route(the_geom);
+    ALTER TABLE bdtopo_route ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_route add primary key(pk_line);
 
 
+    ------------
     -- Import railways (that are on the floor --> POS_SOL=0)
+
     DROP TABLE IF EXISTS bdtopo_rail_link, bdtopo_rail;
     CREATE LINKED TABLE bdtopo_rail_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
             '(SELECT r.* FROM noisemodelling."$table_rail" r,
-            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > 0)');
+            (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where r.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(r.THE_GEOM, e.THE_GEOM) < 1000 AND st_zmin(r.THE_GEOM) > 0)');
     
-    CREATE TABLE bdtopo_rail AS SELECT * FROM bdtopo_rail_link;
+    CREATE TABLE bdtopo_rail AS SELECT a.THE_GEOM, a.LARGEMPRIS, b.* FROM bdtopo_rail_link a, PLATEFORM b WHERE b.IDPLATFORM ='SNCF';
     DELETE FROM bdtopo_rail B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     CREATE SPATIAL INDEX ON bdtopo_rail(the_geom);
+    ALTER TABLE bdtopo_rail ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_rail add primary key(pk_line);
 
 
     ----------------------------------
@@ -779,8 +844,9 @@ def exec(Connection connection, input) {
     ----------------------------------
     -- Enrich the DEM
 
-    
+    ------------
     -- Insert orography into DEM
+
     --INSERT INTO DEM(THE_GEOM, SOURCE) SELECT THE_GEOM, 'ORO' FROM ST_EXPLODE('(Select ST_ToMultiPoint(ST_Densify(THE_GEOM,25)) the_geom FROM BDTOPO_ORO)');
 
     DROP TABLE IF EXISTS BDTOPO_ORO_DENSIFY;
@@ -789,36 +855,62 @@ def exec(Connection connection, input) {
     DROP TABLE IF EXISTS BDTOPO_ORO_DENSIFY;
 
 
+    ------------
     -- Insert hydrography into DEM
+
     DROP TABLE IF EXISTS BDTOPO_HYDRO_DENSIFY;
     CREATE TABLE BDTOPO_HYDRO_DENSIFY AS SELECT ST_ToMultiPoint(ST_Densify(the_geom, 25 )) the_geom, pk_line from BDTOPO_HYDRO where st_length(st_simplify(the_geom, 2)) > 0 ;
     INSERT INTO DEM(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'HYD' FROM ST_EXPLODE('BDTOPO_HYDRO_DENSIFY') P, BDTOPO_HYDRO L WHERE P.pk_line = L.pk_line;
     DROP TABLE IF EXISTS BDTOPO_HYDRO_DENSIFY;
 
-
+    
+    ------------
     -- Insert roads into DEM
+
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
-    CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT THE_GEOM, SOURCE FROM DEM;    
-    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_route b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM,15, 15) && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom )< 15 LIMIT 1) ;
-    ALTER TABLE bdtopo_route ADD pk_line INT AUTO_INCREMENT NOT NULL;
-    ALTER TABLE bdtopo_route add primary key(pk_line);
+    CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT THE_GEOM, SOURCE FROM DEM;
+    CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);   
+    -- Remove DEM points that are less than "WIDTH" far from roads
+    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_route b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM, 20) && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom)< b.WIDTH LIMIT 1) ;
     
     -- Create buffer points from roads and copy the elevation from the roads to the point
     DROP TABLE IF EXISTS BUFFERED_PTLINE;
     -- The buffer size correspond to the greatest value between "largeur" and 3m. If "largeur" is null or lower than 3m, then 3m is returned
-    CREATE TABLE BUFFERED_PTLINE AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), GREATEST(LARGEUR/2, 1.5), 'endcap=flat join=mitre'), 25 )) the_geom, pk_line from bdtopo_route rmc where st_length(st_simplify(the_geom, 2)) > 0 ;
+    CREATE TABLE BUFFERED_PTLINE AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), WIDTH, 'endcap=flat join=mitre'), 25 )) the_geom, pk_line from bdtopo_route  where st_length(st_simplify(the_geom, 2)) > 0 ;
     INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'ROU' FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
-    CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);
+    
+    CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM); 
+    
+    ------------
+    -- Insert rail platform into DEM
+
+    -- Remove DEM points that are less than "LARGEMPRIS/2" far from rails
+    DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_rail b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM, 20) && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom)< b.LARGEMPRIS/2 LIMIT 1) ;
+    
+    -- Create buffer points from rails and copy the elevation from the rails to the point
+    DROP TABLE IF EXISTS BUFFERED_D2, BUFFERED_D3, BUFFERED_D4;
+    -- The buffer size correspond to 
+    -- d2 = (LARGEMPRIS - 5.5)/2
+    CREATE TABLE BUFFERED_D2 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), (LARGEMPRIS - 5.5)/2, 'endcap=flat join=mitre'), 25 )) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D2') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
+    
+    -- d3 = (LARGEMPRIS - 4)/2
+    CREATE TABLE BUFFERED_D3 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), (LARGEMPRIS - 4)/2, 'endcap=flat join=mitre'), 25 )) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))-L.H1) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D3') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
+
+    -- d4 = (LARGEMPRIS)/2
+    CREATE TABLE BUFFERED_D4 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), LARGEMPRIS/2, 'endcap=flat join=mitre'), 25 )) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))-L.H1) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D4') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
+
     
     DROP TABLE IF EXISTS DEM;
     ALTER TABLE DEM_WITHOUT_PTLINE RENAME TO DEM;
-
-
+    CREATE SPATIAL INDEX ON DEM (THE_GEOM);
 
     ----------------------------------
     -- Remove non needed tables
     
-    --DROP TABLE PVMT, INFRA, BDTOPO_ROUTE, BUFFERED_PTLINE;
+    DROP TABLE PVMT, INFRA, BDTOPO_ROUTE, BDTOPO_RAIL, BDTOPO_HYDRO, BDTOPO_ORO, BUFFERED_D2, BUFFERED_D3, BUFFERED_D4, BUFFERED_PTLINE;
 
     """
 

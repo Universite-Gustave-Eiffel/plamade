@@ -551,7 +551,7 @@ COMMENT ON COLUMN noisemodelling.platform.g3 IS 'Facteur de sol entre les rails'
 COMMENT ON COLUMN noisemodelling.platform.h1 IS 'Hauteur de la banquette de ballast (en mètre)';
 COMMENT ON COLUMN noisemodelling.platform.h2 IS 'Hauteur des rails libres au-dessus du ballast (en mètre)';
 
-INSERT INTO noisemodelling.platform VALUES ('SNCF', 1.435, 0, 1, 1, 1, 0.18);
+INSERT INTO noisemodelling.platform VALUES ('SNCF', 1.435, 0, 1, 1, 0.5, 0.18);
 
 
 ----------------------------------
