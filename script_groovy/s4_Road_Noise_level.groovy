@@ -196,7 +196,7 @@ def exec(Connection connection, input) {
     // -------------------
 
     boolean export = false
-    String pathOutput = "/home/output/" // if true change this repertory
+    String pathOutput = "C:\\Users\\aumond\\Documents\\Logiciels\\NoiseModelling_3.3.2\\NoiseModelling_3.4.4" // if true change this repertory
 
     String sources_table_name = "LW_ROADS"
 
@@ -393,7 +393,7 @@ def exec(Connection connection, input) {
     // Init Map
     pointNoiseMap.initialize(connection, new EmptyProgressVisitor())
 
-    pointNoiseMap.setGridDim(25)
+    pointNoiseMap.setGridDim(100)
     logger.info("Taille de cellulle : " + pointNoiseMap.getCellWidth().toString())
 
     // --------------------------------------------
@@ -444,7 +444,10 @@ def exec(Connection connection, input) {
                 logger.info(String.format("This computation area contains %d receivers %d sound sources and %d buildings",
                         ldenPropagationProcessData.receivers.size(), ldenPropagationProcessData.sourceGeometries.size(),
                         ldenPropagationProcessData.freeFieldFinder.getBuildingCount()));
-                if (export) exportDomain(ldenPropagationProcessData,pathOutput.toString() + "\\" + String.format("Domain_part_%d.kml", cellIndex),sridBuildings)
+                if (export) {
+                     logger.info(String.format("Export Domain : ") + String.format("Domain_part_%d.kml", k))
+                    exportDomain(ldenPropagationProcessData,pathOutput.toString() + "\\" + String.format("Domain_part_%d.kml", k),sridBuildings)
+                    }
             }
         }
     } catch(IllegalArgumentException | IllegalStateException ex) {
