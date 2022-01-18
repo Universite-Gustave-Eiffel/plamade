@@ -169,19 +169,6 @@ def forgeCreateTable(Sql sql, String tableName, LDENConfig ldenConfig, String ge
 // main function of the script
 def exec(Connection connection, input) {
 
-    //Load GeneralTools.groovy
-    File generalTools = new File(new File("").absolutePath + "/data_dir/scripts/wpsTools/GeneralTools.groovy")
-
-    //if we are in dev, the path is not the same as for geoserver
-    if (new File("").absolutePath.substring(new File("").absolutePath.length() - 11) == 'wps_scripts') {
-        generalTools = new File(new File("").absolutePath + "/src/main/groovy/org/noise_planet/noisemodelling/wpsTools/GeneralTools.groovy")
-    }
-
-    // Get external tools
-    Class groovyClass = new GroovyClassLoader(getClass().getClassLoader()).parseClass(generalTools)
-    GroovyObject tools = (GroovyObject) groovyClass.newInstance()
-
-
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
@@ -539,8 +526,7 @@ def exec(Connection connection, input) {
         while (rs.next()) {
 
             k++
-            currentVal = tools.invokeMethod("ProgressBar", [Math.round(10 * k / nbRoads).toInteger(), currentVal])
-
+              
             Geometry geo = rs.getGeometry()
 
             // Compute emission sound level for each road segment
