@@ -491,6 +491,13 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             // copy slurm file
             c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(),
                     new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
+            // Run batch jobs
+
+
+            // Loop check for job status
+
+
+            // retrieve data
         } finally {
             session.disconnect();
         }
@@ -549,6 +556,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 subProg.endStep();
                 generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
                 slurmInitAndStart(configuration.slurmConfig, subProg);
+
+                // merge shape files
+
+
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);
