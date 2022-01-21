@@ -2,6 +2,8 @@ package org.noise_planet.nmcluster;
 
 import groovy.sql.GroovyRowResult;
 import groovy.sql.Sql;
+import org.cts.crs.CRSException;
+import org.cts.op.CoordinateOperationException;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
@@ -9,19 +11,19 @@ import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.SFSUtilities;
 import org.h2gis.utilities.TableLocation;
+import org.locationtech.jts.geom.Coordinate;
 import org.noise_planet.noisemodelling.jdbc.*;
 import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
-import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric;
-import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread;
-import org.noise_planet.noisemodelling.pathfinder.utils.ProgressMetric;
-import org.noise_planet.noisemodelling.pathfinder.utils.ReceiverStatsMetric;
+import org.noise_planet.noisemodelling.pathfinder.utils.*;
 import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData;
 import org.osgi.service.jdbc.DataSourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import javax.xml.stream.XMLStreamException;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -109,6 +111,22 @@ public class NoiseModellingInstance {
         }
         return dataSource;
 
+    }
+
+    public void exportDomain(LDENPropagationProcessData inputData, String path, int epsg) {
+        try {
+            logger.info("Export domain : Cell number " + inputData.cellId);
+            FileOutputStream outData = new FileOutputStream(path);
+            KMLDocument kmlDocument = new KMLDocument(outData);
+            kmlDocument.setInputCRS("EPSG:" + epsg);
+            kmlDocument.writeHeader();
+            kmlDocument.setOffset(new Coordinate(0, 0, 0));
+            kmlDocument.writeTopographic(inputData.freeFieldFinder.getTriangles(), inputData.freeFieldFinder.getVertices());
+            kmlDocument.writeBuildings(inputData.freeFieldFinder);
+            kmlDocument.writeFooter();
+        } catch (IOException | CRSException | XMLStreamException | CoordinateOperationException ex) {
+            logger.error("Error while exporting domain", ex);
+        }
     }
 
     public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList, int railRoad) throws SQLException, IOException {
@@ -372,6 +390,8 @@ public class NoiseModellingInstance {
 
         String sourceTable = "LW_ROADS_UUEID";
         String receiversTable = "RECEIVERS_UUEID";
+
+        int sridBuildings = SFSUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS"));
         PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
                 sourceTable, receiversTable);
 
@@ -475,6 +495,9 @@ public class NoiseModellingInstance {
             for (PointNoiseMap.CellIndex cellIndex : new TreeSet<>(cells.keySet())) {// Run ray propagation
                 logger.info(String.format("Compute... %d cells remaining (%d receivers in this cell)", cells.size() - k.getAndIncrement(), cells.get(cellIndex)));
                 IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers);
+                if(ro instanceof LDENComputeRaysOut && ((LDENComputeRaysOut)ro).inputData instanceof LDENPropagationProcessData) {
+                    exportDomain((LDENPropagationProcessData)(((LDENComputeRaysOut)ro).inputData), outputPrefix + String.format("domain_part_%d_%d.kml",cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex()), sridBuildings);
+                }
             }
         } catch (IllegalArgumentException | IllegalStateException ex) {
             System.err.println(ex);

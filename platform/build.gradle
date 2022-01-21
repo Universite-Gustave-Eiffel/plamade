@@ -38,7 +38,8 @@ test{
 repositories {
     mavenCentral()
     maven { url 'https://repo1.maven.org/maven2/' }
-    maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
+    maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    maven { url 'https://oss.sonatype.org/content/repositories/releases/' }
     maven {
         url "https://repo.osgeo.org/repository/release/"
     }
@@ -47,9 +48,6 @@ repositories {
     }
     maven {
         url "https://maven.geo-solutions.it/"
-    }
-    maven {
-        url "https://nexus.orbisgis.org/repository/orbisgis-snapshot/"
     }
     maven {
         url "https://repo.matsim.org/repository/matsim/"
@@ -69,11 +67,13 @@ dependencies {
 
     implementation group: 'net.postgis', name: 'postgis-jdbc-jtsparser', version: '2.3.0'
 
+    implementation group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '3.4.5-SNAPSHOT'
+    implementation group: 'org.orbisgis', name: 'h2gis-utilities', version: '1.5.1-SNAPSHOT'
+    implementation group: 'org.orbisgis', name: 'h2gis', version: '1.5.1-SNAPSHOT'
+
     implementation 'com.jcraft:jsch:0.1.55'
 
     runtimeOnly group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
-
-    implementation fileTree(dir: '../computation_core/dependencies', include: '*.jar')
 }
 
 mainClassName = 'org.noise_planet.plamade.Main'

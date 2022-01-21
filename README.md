@@ -25,9 +25,9 @@ This example requires that you configure a Google API resource before running.
 
 ## Running plamade server
 
-Copy platform/src/ratpack/config.demo.yaml to platform/src/ratpack/config.yaml
+Run ./gradlew platform:run
 
-Edit this file with the auth credentials.
+Edit the configuration file located in  this file with the auth credentials.
 
 Run ./gradlew platform:run
 

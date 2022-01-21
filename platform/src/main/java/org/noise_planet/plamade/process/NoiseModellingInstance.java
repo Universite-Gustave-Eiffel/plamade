@@ -491,6 +491,13 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             // copy slurm file
             c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(),
                     new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
+            // Run batch jobs
+
+
+            // Loop check for job status
+
+
+            // retrieve data
         } finally {
             session.disconnect();
         }
