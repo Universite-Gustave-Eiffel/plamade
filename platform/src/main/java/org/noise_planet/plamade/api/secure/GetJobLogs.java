@@ -47,17 +47,18 @@ public class GetJobLogs implements Handler {
 
     public static List<String> filterByThread(List<String> messages, String threadId) {
         List<String> filtered = new ArrayList<>();
-        Pattern p = Pattern.compile("\\[(.*)] (\\w*) (.*)$");
         boolean match = false;
         StringBuilder sb = new StringBuilder();
         for(String line : messages) {
-            Matcher m = p.matcher(line);
-            if(m.matches() && m.groupCount() > 2) { // found start of log message with expected format
-                match = threadId.equalsIgnoreCase(m.group(1));
-                if(match && sb.length() > 0) {
-                    filtered.add(sb.toString());
-                    sb = new StringBuilder();
-                }
+            int firstHook = line.indexOf("[");
+            int lastHook = line.indexOf("]");
+            if(firstHook > -1 && lastHook > -1 && firstHook < lastHook) {
+                String thread = line.substring(firstHook + 1, lastHook);
+                match = thread.equals(threadId);
+            }
+            if(match && sb.length() > 0) {
+                filtered.add(sb.toString());
+                sb = new StringBuilder();
             }
             if(match) {
                 sb.append(line);
@@ -95,7 +96,7 @@ public class GetJobLogs implements Handler {
                 int lastEndOfLine = sb.lastIndexOf("\n");
                 while (lastEndOfLine != -1 && lastLines.size() < numberOfLines) {
                     if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
-                        lastLines.add(0, sb.substring(lastEndOfLine + 1, sb.length()));
+                        lastLines.add(0, sb.substring(lastEndOfLine + 1, sb.length()).trim());
                     }
                     sb.delete(lastEndOfLine, sb.length());
                     lastEndOfLine = sb.lastIndexOf("\n");

@@ -23,13 +23,14 @@ compileJava {
     targetCompatibility = '1.8'
 }
 
-sourceSets {
-    main {
-        groovy {
-            srcDirs=['../script_groovy']
-        }
-    }
-}
+// Decomment to try compile external groovy script
+//sourceSets {
+//    main {
+//        groovy {
+//            srcDirs=['../script_groovy']
+//        }
+//    }
+//}
 test{
     maxHeapSize = "12g"
 }
@@ -70,10 +71,10 @@ dependencies {
     implementation group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '3.4.5-SNAPSHOT'
     implementation group: 'org.orbisgis', name: 'h2gis-utilities', version: '1.5.1-SNAPSHOT'
     implementation group: 'org.orbisgis', name: 'h2gis', version: '1.5.1-SNAPSHOT'
+    implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
 
     implementation 'com.jcraft:jsch:0.1.55'
 
-    runtimeOnly group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
 }
 
 mainClassName = 'org.noise_planet.plamade.Main'

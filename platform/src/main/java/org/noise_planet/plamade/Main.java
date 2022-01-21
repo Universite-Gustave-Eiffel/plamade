@@ -20,7 +20,6 @@ import org.noise_planet.plamade.api.ApiModule;
 import org.noise_planet.plamade.auth.AuthModule;
 import org.noise_planet.plamade.config.AuthConfig;
 import org.noise_planet.plamade.process.ExecutorServiceModule;
-import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.oidc.client.GoogleOidcClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
