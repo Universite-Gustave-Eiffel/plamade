@@ -8,7 +8,7 @@ buildscript {
 plugins {
     id 'java'
     id 'groovy'
-    id 'maven'
+    id 'maven-publish'
     id "io.ratpack.ratpack-java" version "1.5.0"
 }
 

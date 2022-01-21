@@ -7,7 +7,7 @@ database:
   user: postgresqluser
   password: postgresqlpassword
 slurm:
-  server: "slurmcluster.com"
+  host: "slurmcluster.com"
   port: 22
   user: "sshusername"
   sshFilePassword: "sshfilepassword"

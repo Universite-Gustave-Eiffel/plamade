@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Create new job
+ * Stop And/Or Delete jobs
  */
 public class PostManageJob implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(PostManageJob.class);
@@ -48,10 +48,8 @@ public class PostManageJob implements Handler {
             RatpackPac4j.userProfile(ctx).then(commonProfile -> {
                 if (commonProfile.isPresent()) {
                     CommonProfile profile = commonProfile.get();
-                    final Map<String, Object> model = Maps.newHashMap();
                     final List<String> deleteJobsList = f.getAll("delete");
                     final List<String> cancelJobsList = f.getAll("cancel");
-                    model.put("profile", profile);
                     SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                         if(pkUser > -1) {
                             Blocking.get(() -> {

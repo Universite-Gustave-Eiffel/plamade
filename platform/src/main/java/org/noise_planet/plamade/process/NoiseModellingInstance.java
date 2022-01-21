@@ -548,7 +548,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 makeEmission(nmConnection);
                 subProg.endStep();
                 generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
-                slurmInitAndStart(configuration.slurmConfig, subProg);
+//                slurmInitAndStart(configuration.slurmConfig, subProg);
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);

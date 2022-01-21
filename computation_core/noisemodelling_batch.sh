@@ -9,7 +9,7 @@ echo "copy data and code to local node"
 rsync -a ./ /scratch/job."$SLURM_JOB_ID"/
 
 echo "run noisemodelling"
-cd /scratch/job."$SLURM_JOB_ID"/ && java -jar libs/computation_core.jar -n"$SLURM_ARRAY_TASK_ID" -w/scratch/job."$SLURM_JOB_ID"/
+cd /scratch/job."$SLURM_JOB_ID"/ && java -jar build/libs/computation_core.jar -n"$SLURM_ARRAY_TASK_ID" -w/scratch/job."$SLURM_JOB_ID"/
 
 echo "copy results"
 mkdir -p ~/results

@@ -1,8 +1,8 @@
 .idea
-jobs_complete/*
-jobs_running/*
-!jobs_complete/README.txt
-!jobs_running/README.txt
+platform/jobs_complete/*
+platform/jobs_running/*
+!platform/jobs_complete/README.txt
+!platform/jobs_running/README.txt
 computation_core/dependencies/*.jar
 computation_core/libs
 *.mv.db
