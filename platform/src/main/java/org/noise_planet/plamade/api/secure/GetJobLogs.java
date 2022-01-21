@@ -17,29 +17,21 @@
 package org.noise_planet.plamade.api.secure;
 
 import com.google.common.collect.Maps;
-import org.h2gis.utilities.JDBCUtilities;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ratpack.exec.Blocking;
 import ratpack.handling.Context;
 import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
 import ratpack.thymeleaf.Template;
 
-import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
-import java.sql.*;
-import java.text.DateFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
