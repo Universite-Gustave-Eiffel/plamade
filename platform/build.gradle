@@ -24,13 +24,13 @@ compileJava {
 }
 
 // Decomment to try compile external groovy script
-//sourceSets {
-//    main {
-//        groovy {
-//            srcDirs=['../script_groovy']
-//        }
-//    }
-//}
+sourceSets {
+    main {
+        groovy {
+            srcDirs=['../script_groovy']
+        }
+    }
+}
 test{
     maxHeapSize = "12g"
 }

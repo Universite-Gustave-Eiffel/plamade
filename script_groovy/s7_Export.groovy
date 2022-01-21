@@ -18,12 +18,11 @@
 
 package org.noise_planet.noisemodelling.wps.plamade
 
-import geoserver.GeoServer
-import geoserver.catalog.Store
 import groovy.sql.BatchingPreparedStatementWrapper
+import groovy.sql.GroovyResultSet
+import groovy.sql.GroovyResultSetProxy
 import groovy.text.SimpleTemplateEngine
 import groovy.transform.CompileStatic
-import org.geotools.jdbc.JDBCDataStore
 import org.locationtech.jts.geom.Point
 import org.locationtech.jts.geom.LineString
 import org.locationtech.jts.geom.Geometry
@@ -78,16 +77,6 @@ outputs = [
         ]
 ]
 
-
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
-    }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
-}
-
 def run(input) {
 
     // Get name of the database
@@ -125,7 +114,7 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeNuts,int
                 if((sqlH2gis.firstRow("SELECT count(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE table_name ='" + inputTableCBS +"';")[0] as Integer) > 0) {
                     logger.info("La table $inputTableCBS va être exportée dans la table $table_cbs")
                     sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.'+ table_cbs +' (the_geom, cbstype, typesource, indicetype, nutscode, pk, uueid, noiselevel) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?)'.toString()) { BatchingPreparedStatementWrapper ps ->
-                        sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, $cbstype, $typesource, $indicetype, $codeNuts, pk, uueid, noiselevel FROM " + inputTableCBS +";"){row ->
+                        sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, $cbstype, $typesource, $indicetype, $codeNuts, pk, uueid, noiselevel FROM " + inputTableCBS +";"){ GroovyResultSet row ->
                             ps.addBatch(writer.write(row[0] as Geometry), srid, row[1], row[2], row[3], row[4], row[5], row[6], row[7])
                         }
                     }

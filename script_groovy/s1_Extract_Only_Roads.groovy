@@ -30,11 +30,8 @@ import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.sql.Statement
-import geoserver.GeoServer
-import geoserver.catalog.Store
 import groovy.sql.Sql
 import groovy.time.TimeCategory
-import org.geotools.jdbc.JDBCDataStore
 import org.h2gis.functions.spatial.edit.ST_AddZ
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
@@ -99,15 +96,6 @@ outputs = [
                 type       : String.class
         ]
 ]
-
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
-    }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
-}
 
 def run(input) {
 

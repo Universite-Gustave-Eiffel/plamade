@@ -16,9 +16,6 @@
 
 package org.noise_planet.noisemodelling.wps.plamade;
 
-import geoserver.GeoServer
-import geoserver.catalog.Store
-import org.geotools.jdbc.JDBCDataStore
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
@@ -54,15 +51,6 @@ outputs = [
                 type       : String.class
         ]
 ]
-
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
-    }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
-}
 
 def exec(Connection connection, input) {
 

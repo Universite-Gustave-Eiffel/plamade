@@ -30,39 +30,22 @@
 
 package org.noise_planet.noisemodelling.wps.plamade
 
-import geoserver.GeoServer
-import geoserver.catalog.Store
-
 import groovy.sql.Sql
-import groovy.time.TimeCategory
-
-import org.geotools.jdbc.JDBCDataStore
-
-import org.h2gis.functions.spatial.edit.ST_UpdateZ
-import org.h2gis.api.EmptyProgressVisitor
-import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.SFSUtilities
-import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.SpatialResultSet
+import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.wrapper.ConnectionWrapper
-
 import org.locationtech.jts.geom.Geometry
-import org.locationtech.jts.geom.LineString
-
-import org.noise_planet.noisemodelling.emission.*
-import org.noise_planet.noisemodelling.pathfinder.*
-import org.noise_planet.noisemodelling.propagation.*
-import org.noise_planet.noisemodelling.jdbc.*
-
+import org.noise_planet.noisemodelling.jdbc.LDENConfig
+import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData
+import org.noise_planet.noisemodelling.pathfinder.ComputeRays
+import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
-import java.sql.PreparedStatement
 import java.sql.ResultSet
-import java.sql.SQLException
-
 
 title = 'Compute LW_RAILWAY and LW_ROADS'
 description = 'Compute LW_RAILWAY and LW_ROADS from traffic flow rate and speed estimates (specific format, see input details).' +
@@ -90,16 +73,6 @@ outputs = [
                 type       : String.class
         ]
 ]
-
-// Open Connection to Geoserver
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
-    }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
-}
 
 // run the script
 def run(input) {

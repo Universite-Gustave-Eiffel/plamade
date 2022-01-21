@@ -30,21 +30,12 @@
 
 package org.noise_planet.noisemodelling.wps.plamade
 
-import geoserver.GeoServer
-import geoserver.catalog.Store
 import groovy.sql.Sql
-import groovy.time.TimeCategory
-import org.geotools.jdbc.JDBCDataStore
-import org.h2gis.functions.spatial.crs.ST_SetSRID
-import org.h2gis.functions.spatial.crs.ST_Transform
-import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
-import org.locationtech.jts.geom.*
-import org.locationtech.jts.io.WKTReader
-import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
 import java.sql.Connection
 
 title = 'Buildings Grid'
@@ -68,15 +59,6 @@ outputs = [
                 type       : String.class
         ]
 ]
-
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
-    }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
-}
 
 def run(input) {
 

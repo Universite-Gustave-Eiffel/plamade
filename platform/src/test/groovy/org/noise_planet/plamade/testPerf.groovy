@@ -34,7 +34,7 @@ class testPerf {
         return String.format(Locale.ROOT, "%.1f %cB", bytes / 1000.0, ci.current());
     }
 
-    @Test
+    //@Test
     void testParseSQL() {
         URL resourcePath = testPerf.class.getResource("Road_Noise_level.sql")
         String workingFolder = new File(resourcePath.getPath()).getParent()
@@ -62,7 +62,7 @@ class testPerf {
         }
     }
 
-    @Test
+    //@Test
     public void testCell() {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))

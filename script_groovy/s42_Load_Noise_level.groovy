@@ -27,39 +27,19 @@
 
 
 
-import geoserver.GeoServer
-import geoserver.catalog.Store
+
 import groovy.sql.Sql
-import groovy.time.TimeCategory
 import groovy.transform.CompileStatic
-import org.geotools.jdbc.JDBCDataStore
 import org.h2.util.ScriptReader
-import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.utilities.JDBCUtilities
-import org.h2gis.utilities.SFSUtilities
-import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.wrapper.ConnectionWrapper
-
-import org.noise_planet.noisemodelling.emission.*
-import org.noise_planet.noisemodelling.pathfinder.*
-import org.noise_planet.noisemodelling.propagation.*
-import org.noise_planet.noisemodelling.jdbc.*
-import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric
-import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread
-import org.noise_planet.noisemodelling.pathfinder.utils.ProgressMetric
-import org.noise_planet.noisemodelling.pathfinder.utils.ReceiverStatsMetric
-
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.nio.file.Files
 import java.sql.Connection
-import java.sql.SQLException
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.util.zip.GZIPInputStream
-
 
 title = 'Load SQL File LDay,Levening,LNight,Lden'
 description = ''
@@ -81,16 +61,6 @@ outputs = [
                 type       : String.class
         ]
 ]
-
-// Open Connection to Geoserver
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
-    }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
-}
 
 // run the script
 def run(input) {
