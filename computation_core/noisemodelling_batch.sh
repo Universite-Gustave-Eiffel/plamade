@@ -18,3 +18,5 @@ cp /scratch/job."$SLURM_JOB_ID"/data/*.dbf ~/results_"$SLURM_ARRAY_JOB_ID"/
 cp /scratch/job."$SLURM_JOB_ID"/data/*.shx ~/results_"$SLURM_ARRAY_JOB_ID"/
 cp /scratch/job."$SLURM_JOB_ID"/data/*.prj ~/results_"$SLURM_ARRAY_JOB_ID"/
 cp /scratch/job."$SLURM_JOB_ID"/data/*.csv ~/results_"$SLURM_ARRAY_JOB_ID"/
+cp /scratch/job."$SLURM_JOB_ID"/data/*.kml ~/results_"$SLURM_ARRAY_JOB_ID"/
+cp /scratch/job."$SLURM_JOB_ID"/data/*.sql ~/results_"$SLURM_ARRAY_JOB_ID"/

@@ -12,6 +12,7 @@ import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.SFSUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
 import org.noise_planet.noisemodelling.jdbc.*;
 import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
 import org.noise_planet.noisemodelling.pathfinder.utils.*;
@@ -42,7 +43,7 @@ public class NoiseModellingInstance {
     String workingDirectory;
     int configurationId = 0;
     String outputPrefix = "";
-
+    boolean isExportDomain = false;
 
     // LDEN classes for A maps : 55-59, 60-64, 65-69, 70-74 et >75 dB
     final List<Double> isoLevelsLDEN = Arrays.asList(55.0d,60.0d,65.0d,70.0d,75.0d,200.0d);
@@ -120,7 +121,6 @@ public class NoiseModellingInstance {
             KMLDocument kmlDocument = new KMLDocument(outData);
             kmlDocument.setInputCRS("EPSG:" + epsg);
             kmlDocument.writeHeader();
-            kmlDocument.setOffset(new Coordinate(0, 0, 0));
             kmlDocument.writeTopographic(inputData.freeFieldFinder.getTriangles(), inputData.freeFieldFinder.getVertices());
             kmlDocument.writeBuildings(inputData.freeFieldFinder);
             kmlDocument.writeFooter();
@@ -495,13 +495,14 @@ public class NoiseModellingInstance {
             for (PointNoiseMap.CellIndex cellIndex : new TreeSet<>(cells.keySet())) {// Run ray propagation
                 logger.info(String.format("Compute... %d cells remaining (%d receivers in this cell)", cells.size() - k.getAndIncrement(), cells.get(cellIndex)));
                 IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers);
-                if(ro instanceof LDENComputeRaysOut && ((LDENComputeRaysOut)ro).inputData instanceof LDENPropagationProcessData) {
-                    exportDomain((LDENPropagationProcessData)(((LDENComputeRaysOut)ro).inputData), outputPrefix + String.format("domain_part_%d_%d.kml",cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex()), sridBuildings);
+                if(isExportDomain && ro instanceof LDENComputeRaysOut && ((LDENComputeRaysOut)ro).inputData instanceof LDENPropagationProcessData) {
+                    String path = new File(workingDirectory,
+                            String.format("domain_%s_part_%d_%d.kml",uueid, cellIndex.getLatitudeIndex(),
+                                    cellIndex.getLongitudeIndex())).getAbsolutePath();
+                    exportDomain((LDENPropagationProcessData)(((LDENComputeRaysOut)ro).inputData), path,
+                            sridBuildings);
                 }
             }
-        } catch (IllegalArgumentException | IllegalStateException ex) {
-            System.err.println(ex);
-            throw ex;
         } finally {
             profilerThread.stop();
             ldenProcessing.stop();
