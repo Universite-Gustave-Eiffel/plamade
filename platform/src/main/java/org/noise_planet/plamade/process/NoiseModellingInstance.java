@@ -492,8 +492,12 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(),
                     new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
             // Run batch jobs
-
-
+            ChannelExec shell = (ChannelExec) session.openChannel("exec");
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            shell.setOutputStream(byteArrayOutputStream);
+            shell.setCommand(String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder, configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
+            // run command
+            shell.connect(SFTP_TIMEOUT);
             // Loop check for job status
 
 
@@ -525,19 +529,21 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         try {
             // create folder
             File workingDir = new File(configuration.workingDirectory);
-            if (workingDir.exists() && workingDir.isDirectory()) {
-                if (workingDir.getAbsolutePath().startsWith(new File("").getAbsolutePath())) {
-                    if (!workingDir.delete()) {
-                        logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
-                        return;
-                    }
-                } else {
-                    logger.error(String.format(Locale.ROOT, "Can delete only sub-folder \n%s\n%s", new File("").getAbsolutePath(), workingDir.getAbsolutePath()));
+//            if (workingDir.exists() && workingDir.isDirectory()) {
+//                if (workingDir.getAbsolutePath().startsWith(new File("").getAbsolutePath())) {
+//                    if (!workingDir.delete()) {
+//                        logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
+//                        return;
+//                    }
+//                } else {
+//                    logger.error(String.format(Locale.ROOT, "Can delete only sub-folder \n%s\n%s", new File("").getAbsolutePath(), workingDir.getAbsolutePath()));
+//                }
+//            }
+            if(!workingDir.exists()) {
+                if (!(workingDir.mkdirs())) {
+                    logger.error("Cannot create the working directory\n" + configuration.workingDirectory);
+                    return;
                 }
-            }
-            if (!(workingDir.mkdirs())) {
-                logger.error("Cannot create the working directory\n" + configuration.workingDirectory);
-                return;
             }
             nmDataSource = createDataSource("", "", configuration.workingDirectory, "h2gisdb", false);
 
@@ -545,17 +551,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             ProgressVisitor progressVisitor = configuration.progressVisitor;
             ProgressVisitor subProg = progressVisitor.subProcess(4);
             try (Connection nmConnection = nmDataSource.getConnection()) {
-                importData(nmConnection, subProg);
-                if(subProg.isCanceled()) {
-                    setJobState(JOB_STATES.CANCELED);
-                    return;
-                }
-                makeGrid(nmConnection);
-                subProg.endStep();
-                makeEmission(nmConnection);
-                subProg.endStep();
+//                importData(nmConnection, subProg);
+//                if(subProg.isCanceled()) {
+//                    setJobState(JOB_STATES.CANCELED);
+//                    return;
+//                }
+//                makeGrid(nmConnection);
+//                subProg.endStep();
+//                makeEmission(nmConnection);
+//                subProg.endStep();
                 generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
-//                slurmInitAndStart(configuration.slurmConfig, subProg);
+                slurmInitAndStart(configuration.slurmConfig, subProg);
+
+
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
 //                Isosurface(nmConnection, subProg);

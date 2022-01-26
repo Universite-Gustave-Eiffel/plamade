@@ -1,9 +1,8 @@
 #! /bin/bash
-#SBATCH -a 0-11   # execute tasks from 0 to 23
 
 # run with this command
 # must be run in the same folder than the database
-# sbatch noisemodelling_batch.sh
+# sbatch --array=0-11 noisemodelling_batch.sh
 
 echo "copy data and code to local node"
 rsync -a ./ /scratch/job."$SLURM_JOB_ID"/data/
