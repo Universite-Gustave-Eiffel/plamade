@@ -62,6 +62,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     DataSource plamadeDataSource;
     boolean isRunning = false;
     private static final int SFTP_TIMEOUT = 60000;
+
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
 
     public NoiseModellingInstance(Configuration configuration, DataSource plamadeDataSource) {
@@ -493,11 +494,33 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
             // Run batch jobs
             ChannelExec shell = (ChannelExec) session.openChannel("exec");
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            shell.setOutputStream(byteArrayOutputStream);
             shell.setCommand(String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder, configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
+            shell.setInputStream(null);
+            shell.setErrStream(System.err);
+
+            InputStream in = channel.getInputStream();
+
+            InputStreamReader inputStreamReader = new InputStreamReader(in);
+            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+
             // run command
             shell.connect(SFTP_TIMEOUT);
+            StringBuilder sb = new StringBuilder();
+            while(true){
+                String line = bufferedReader.readLine();
+                if(line != null) {
+                    logger.info(line);
+                    sb.append(line);
+                } else {
+                    if (channel.isClosed()) {
+                        if (in.available() > 0) continue;
+                        logger.info("exit-status: " + channel.getExitStatus());
+                        break;
+                    }
+                }
+            }
+            // Parse Cluster Job identifier
+
             // Loop check for job status
 
 
@@ -580,7 +603,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             logger.error(ex.getLocalizedMessage(), ex);
             setJobState(JOB_STATES.FAILED);
         } finally {
-            // Update Job informations
+            // Update Job data
             try (Connection connection = plamadeDataSource.getConnection()) {
                 PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET END_DATE = ?, PROGRESSION = 100 WHERE PK_JOB = ?");
                 st.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
