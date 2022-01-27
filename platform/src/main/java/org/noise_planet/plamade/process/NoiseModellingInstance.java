@@ -43,6 +43,7 @@ import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * This process hold one instance of NoiseModelling
@@ -378,9 +379,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     remoteFile = new File(to, dest.toString());
                 }
                 if(c != null) {
+                    logger.debug("put " + path.toFile() + " " + remoteFile);
                     c.put(path.toFile().toString(), remoteFile.toString());
                 }
-                logger.debug("put " + path.toFile() + " " + remoteFile);
             }
             subProg.endStep();
         }
@@ -472,57 +473,110 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return session;
     }
 
-    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
-        Session session = openSshSession(slurmConfig);
+    public List<String> runCommand(Session session, String command) throws JSchException, IOException {
+        List<String> lines = new ArrayList<>();
+        ChannelExec shell = (ChannelExec) session.openChannel("exec");
         try {
-            Channel channel = session.openChannel("sftp");
-            channel.connect(SFTP_TIMEOUT);
-            ChannelSftp c = (ChannelSftp) channel;
-            recurseMkDir(c, configuration.remoteJobFolder);
-            // copy computation core
-            File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
-            logger.debug("Computation core folder: "+computationCoreFolder);
-            String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
-            copyFolder(c, progressVisitor, libFolder,
-                    configuration.remoteJobFolder, true);
-            // copy data
-            copyFolder(c, progressVisitor,
-                    configuration.workingDirectory,
-                    configuration.remoteJobFolder, false);
-            // copy slurm file
-            c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(),
-                    new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
-            // Run batch jobs
-            ChannelExec shell = (ChannelExec) session.openChannel("exec");
-            shell.setCommand(String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder, configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
+            shell.setCommand(command);
             shell.setInputStream(null);
             shell.setErrStream(System.err);
 
-            InputStream in = channel.getInputStream();
+            InputStream in = shell.getInputStream();
 
             InputStreamReader inputStreamReader = new InputStreamReader(in);
             BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-
             // run command
             shell.connect(SFTP_TIMEOUT);
-            StringBuilder sb = new StringBuilder();
-            while(true){
+
+            while (true) {
                 String line = bufferedReader.readLine();
-                if(line != null) {
+                if (line != null) {
                     logger.info(line);
-                    sb.append(line);
+                    lines.add(line);
                 } else {
-                    if (channel.isClosed()) {
-                        if (in.available() > 0) continue;
-                        logger.info("exit-status: " + channel.getExitStatus());
-                        break;
+                    if (shell.isClosed()) {
+                        logger.info("exit-status: " + shell.getExitStatus());
+                    } else {
+                        logger.warn("Stream is closed but the channel is still open");
                     }
+                    break;
                 }
             }
+        } finally {
+            shell.disconnect();
+        }
+        return lines;
+    }
+
+
+    public static final List<SlurmJobStatus> parseSlurmStatus(List<String> commandOutput, int jobId) {
+        List<SlurmJobStatus> slurmJobStatus = new ArrayList<>();
+        for(String line : commandOutput) {
+            line = line.trim();
+            if(line.contains(BATCH_FILE_NAME.substring(0, 9))) {
+                StringTokenizer stringTokenizer = new StringTokenizer(line, " ");
+                List<String> columns = Collections.list(new StringTokenizer(line, " ")).stream()
+                        .map(token -> (String) token)
+                        .collect(Collectors.toList());
+                String jobColumn = columns.get(0);
+                int jobColumnId = Integer.parseInt(jobColumn.substring(0, jobColumn.lastIndexOf("_")));
+                if(jobColumnId == jobId) {
+                    int jobIndex = Integer.parseInt(jobColumn.substring(jobColumn.lastIndexOf("_") + 1));
+                    String status = columns.get(6);
+                    slurmJobStatus.add(new SlurmJobStatus(status, jobIndex));
+                }
+            }
+        }
+
+
+        return slurmJobStatus;
+    }
+
+    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
+        Session session = openSshSession(slurmConfig);
+        try {
+            Channel sftp = session.openChannel("sftp");
+            try {
+                sftp.connect(SFTP_TIMEOUT);
+                ChannelSftp c = (ChannelSftp) sftp;
+                recurseMkDir(c, configuration.remoteJobFolder);
+                // copy computation core
+                File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
+                logger.debug("Computation core folder: " + computationCoreFolder);
+                String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
+                copyFolder(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
+                // copy data
+                copyFolder(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
+                // copy slurm file
+                c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(), new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
+            } finally {
+                sftp.disconnect();
+            }
+            logger.info("File transferred running computation core on cluster");
+            // Run batch jobs
+            List<String> output = runCommand(session,
+                    String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder,
+                            configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
             // Parse Cluster Job identifier
-
+            if(output.isEmpty()) {
+                logger.info("Cannot read the job identifier");
+                throw new IOException("No output in ssh command");
+            }
+            int slurmJobId = -1;
+            for(String line : output) {
+                line = line.trim();
+                if(line.startsWith("Submitted batch job")) {
+                    slurmJobId = Integer.parseInt(line.substring(line.lastIndexOf(" ")).trim());
+                    break;
+                }
+            }
+            if(slurmJobId == -1) {
+                logger.info("Cannot read the job identifier");
+                throw new IOException("Not expected output in ssh command");
+            }
             // Loop check for job status
-
+            output = runCommand(session,
+                    String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
 
             // retrieve data
         } finally {
@@ -689,6 +743,17 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
         public DataBaseConfig getDataBaseConfig() {
             return dataBaseConfig;
+        }
+    }
+
+
+    public static class SlurmJobStatus {
+        public final String status;
+        public final int taskId;
+
+        public SlurmJobStatus(String status, int taskId) {
+            this.status = status;
+            this.taskId = taskId;
         }
     }
 }

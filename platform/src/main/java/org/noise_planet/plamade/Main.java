@@ -52,7 +52,7 @@ import static ratpack.handling.Handlers.redirect;
  * @Author Nicolas Fortin, Université Gustave Eiffel
  */
 public class Main {
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
     private static String dbUrl;
     private static String dataSourceClassName;
 
@@ -151,6 +151,9 @@ public class Main {
                     if(databaseVersion == 1) {
                         databaseVersion = 2;
                         st.execute("ALTER TABLE JOBS ADD COLUMN STATE VARCHAR");
+                    }
+                    if(databaseVersion == 2) {
+                        st.execute("ALTER TABLE JOBS ADD COLUMN SLURM_JOB_ID BIGINT");
                     }
                     st.executeUpdate("UPDATE ATTRIBUTES SET DATABASE_VERSION = " + databaseVersion);
                 }
