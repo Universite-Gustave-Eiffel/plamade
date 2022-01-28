@@ -718,16 +718,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         try {
             // create folder
             File workingDir = new File(configuration.workingDirectory);
-//            if (workingDir.exists() && workingDir.isDirectory()) {
-//                if (workingDir.getAbsolutePath().startsWith(new File("").getAbsolutePath())) {
-//                    if (!workingDir.delete()) {
-//                        logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
-//                        return;
-//                    }
-//                } else {
-//                    logger.error(String.format(Locale.ROOT, "Can delete only sub-folder \n%s\n%s", new File("").getAbsolutePath(), workingDir.getAbsolutePath()));
-//                }
-//            }
+            if (workingDir.exists() && workingDir.isDirectory()) {
+                if (workingDir.getAbsolutePath().startsWith(new File("").getAbsolutePath())) {
+                    if (!workingDir.delete()) {
+                        logger.error("Cannot delete the working directory\n" + configuration.workingDirectory);
+                        return;
+                    }
+                } else {
+                    logger.error(String.format(Locale.ROOT, "Can delete only sub-folder \n%s\n%s", new File("").getAbsolutePath(), workingDir.getAbsolutePath()));
+                }
+            }
             if(!workingDir.exists()) {
                 if (!(workingDir.mkdirs())) {
                     logger.error("Cannot create the working directory\n" + configuration.workingDirectory);
@@ -738,22 +738,24 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
-            ProgressVisitor subProg = progressVisitor.subProcess(4);
+            ProgressVisitor subProg = progressVisitor.subProcess(8);
             try (Connection nmConnection = nmDataSource.getConnection()) {
-//                importData(nmConnection, subProg);
-//                if(subProg.isCanceled()) {
-//                    setJobState(JOB_STATES.CANCELED);
-//                    return;
-//                }
-//                makeGrid(nmConnection);
-//                subProg.endStep();
-//                makeEmission(nmConnection);
-//                subProg.endStep();
-//                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
-//                slurmInitAndStart(configuration.slurmConfig, subProg);
+                importData(nmConnection, subProg);
+                if(subProg.isCanceled()) {
+                    setJobState(JOB_STATES.CANCELED);
+                    return;
+                }
+                makeGrid(nmConnection);
+                subProg.endStep();
+                makeEmission(nmConnection);
+                subProg.endStep();
+                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
+                subProg.endStep();
+                slurmInitAndStart(configuration.slurmConfig, subProg);
                 List<String> createdTables = mergeShapeFiles(nmConnection,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
                         "out_", "_");
+                subProg.endStep();
                 // Save merged final tables
                 File outDir = new File(configuration.workingDirectory, POST_PROCESS_RESULT_DIRECTORY_NAME);
                 if(!outDir.exists()) {
@@ -762,12 +764,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     }
                 }
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
-
-//                RoadNoiselevel(nmConnection, subProg);
-//                //LoadNoiselevel(nmConnection, subProg);
-//                Isosurface(nmConnection, subProg);
-//                Export(nmConnection, subProg);
-//                subProg.endStep();
+                subProg.endStep();
+                Export(nmConnection, subProg);
+                subProg.endStep();
             }
             setJobState(JOB_STATES.COMPLETED);
         } catch (SQLException ex) {

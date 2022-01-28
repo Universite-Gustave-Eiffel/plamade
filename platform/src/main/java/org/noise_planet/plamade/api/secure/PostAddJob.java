@@ -89,17 +89,18 @@ public class PostAddJob implements Handler {
                                 dataBaseConfig.user = cfg.findValue("database").findValue("user").asText();
                                 dataBaseConfig.password = cfg.findValue("database").findValue("password").asText();
                                 long timeJob = System.currentTimeMillis();
-                                String jobFolder = "dep07_1642668812590";//"dep" + inseeDepartment + "_" + timeJob;
+                                String jobFolder = "dep" + inseeDepartment + "_" + timeJob;
                                 String remoteJobFolder = slurmConfigList.slurm.serverTempFolder+"/"+jobFolder;
                                 PreparedStatement statement = connection.prepareStatement(
-                                        "INSERT INTO JOBS(REMOTE_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER, STATE)" +
-                                                " VALUES (?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+                                        "INSERT INTO JOBS(REMOTE_JOB_FOLDER, LOCAL_JOB_FOLDER, BEGIN_DATE, CONF_ID, INSEE_DEPARTMENT, PK_USER, STATE)" +
+                                                " VALUES (?, ?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
                                 statement.setString(1, remoteJobFolder);
-                                statement.setObject(2, t);
-                                statement.setInt(3, Integer.parseInt(confId));
-                                statement.setString(4, inseeDepartment);
-                                statement.setInt(5, pkUser);
-                                statement.setString(6, NoiseModellingInstance.JOB_STATES.QUEUED.toString());
+                                statement.setString(2, jobFolder);
+                                statement.setObject(3, t);
+                                statement.setInt(4, Integer.parseInt(confId));
+                                statement.setString(5, inseeDepartment);
+                                statement.setInt(6, pkUser);
+                                statement.setString(7, NoiseModellingInstance.JOB_STATES.QUEUED.toString());
                                 statement.executeUpdate();
                                 // retrieve primary key
                                 ResultSet rs = statement.getGeneratedKeys();

@@ -71,6 +71,10 @@ dependencies {
     implementation group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '3.4.5-SNAPSHOT'
     implementation group: 'org.orbisgis', name: 'h2gis-utilities', version: '1.5.1-SNAPSHOT'
     implementation group: 'org.orbisgis', name: 'h2gis', version: '1.5.1-SNAPSHOT'
+    implementation group: 'org.orbisgis', name: 'postgis-jts', version: '1.5.1-SNAPSHOT'
+    implementation group: 'org.orbisgis', name: 'postgis-jts-osgi', version: '1.5.1-SNAPSHOT'
+
+
     implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
 
     implementation 'com.jcraft:jsch:0.1.55'
