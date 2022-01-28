@@ -154,6 +154,7 @@ public class Main {
                     }
                     if(databaseVersion == 2) {
                         st.execute("ALTER TABLE JOBS ADD COLUMN SLURM_JOB_ID BIGINT");
+                        databaseVersion = 3;
                     }
                     st.executeUpdate("UPDATE ATTRIBUTES SET DATABASE_VERSION = " + databaseVersion);
                 }

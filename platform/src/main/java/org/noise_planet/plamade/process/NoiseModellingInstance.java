@@ -355,18 +355,25 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     public static void pullFromSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to) throws IOException, SftpException {
         Vector v = c.ls(from);
         ProgressVisitor dirProg = progressVisitor.subProcess(v.size());
+        File rootFolder = new File(to);
+        if(!rootFolder.exists()) {
+            logger.debug("mkdir " + to);
+            if(!rootFolder.mkdir()) {
+                return;
+            }
+        }
         for(Object e : v) {
             if(e instanceof ChannelSftp.LsEntry) {
                 ChannelSftp.LsEntry sftpEntry = (ChannelSftp.LsEntry)e;
                 File remoteFile = new File(from, sftpEntry.getFilename());
                 File localFile = new File(to, sftpEntry.getFilename());
-                if(sftpEntry.getAttrs().isDir() && !sftpEntry.getAttrs().isLink()) {
-                    logger.info("mkdir " + localFile.getAbsolutePath());
-                    // c.mkdir(localFile.getAbsolutePath());
-                    pullFromSSH(c, dirProg, remoteFile.getAbsolutePath(), localFile.getAbsolutePath());
+                if(sftpEntry.getAttrs().isDir()) {
+                    if(!sftpEntry.getAttrs().isLink() && !sftpEntry.getFilename().startsWith(".")) {
+                        pullFromSSH(c, dirProg, remoteFile.getAbsolutePath(), localFile.getAbsolutePath());
+                    }
                 } else {
-                    logger.info("get " + remoteFile.getAbsolutePath() + " " + localFile.getAbsolutePath());
-                    // c.get(remoteFile.getAbsolutePath(), localFile.getAbsolutePath());
+                    logger.debug("get " + remoteFile.getAbsolutePath() + " " + localFile.getAbsolutePath());
+                    c.get(remoteFile.getAbsolutePath(), localFile.getAbsolutePath());
                 }
             }
             dirProg.endStep();
@@ -569,82 +576,84 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException {
         Session session = openSshSession(slurmConfig);
         try {
-            Channel sftp = session.openChannel("sftp");
-            try {
-                sftp.connect(SFTP_TIMEOUT);
-                ChannelSftp c = (ChannelSftp) sftp;
-                recurseMkDir(c, configuration.remoteJobFolder);
-                // copy computation core
-                File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
-                logger.debug("Computation core folder: " + computationCoreFolder);
-                String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
-                pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
-                // copy data
-                pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
-                // copy slurm file
-                c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(), new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
-            } finally {
-                sftp.disconnect();
-            }
-            logger.info("File transferred running computation core on cluster");
-            // Run batch jobs
-            List<String> output = runCommand(session,
-                    String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder,
-                            configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
-            // Parse Cluster Job identifier
-            if(output.isEmpty()) {
-                logger.info("Cannot read the job identifier");
-                throw new IOException("No output in ssh command");
-            }
-            int slurmJobId = -1;
-            for(String line : output) {
-                line = line.trim();
-                if(line.startsWith("Submitted batch job")) {
-                    slurmJobId = Integer.parseInt(line.substring(line.lastIndexOf(" ")).trim());
-                    break;
-                }
-            }
-            if(slurmJobId == -1) {
-                logger.info("Cannot read the job identifier");
-                throw new IOException("Not expected output in ssh command");
-            }
-            // Loop check for job status
-            Set<String> finishedStates = new HashSet<>();
-            for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
-                if(s.finished) {
-                    finishedStates.add(s.status);
-                }
-            }
-            ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
-            int oldFinishedJobs = 0;
-            while(!progressVisitor.isCanceled()) {
-                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
-                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
-                int finishedStatusCount = 0;
-                for(SlurmJobStatus s : jobStatusList) {
-                    if(finishedStates.contains(s.status)) {
-                        finishedStatusCount++;
-                    }
-                }
-                // increase progress if needed
-                if(oldFinishedJobs != finishedStatusCount) {
-                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
-                        slurmJobProgress.endStep();
-                    }
-                    oldFinishedJobs = finishedStatusCount;
-                }
-                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
-                    break;
-                }
-                Thread.sleep(POLL_SLURM_STATUS_TIME);
-            }
+            Channel sftp;
+            int slurmJobId = 14905486;
+//
+//            sftp = session.openChannel("sftp");
+//            try {
+//                sftp.connect(SFTP_TIMEOUT);
+//                ChannelSftp c = (ChannelSftp) sftp;
+//                recurseMkDir(c, configuration.remoteJobFolder);
+//                // copy computation core
+//                File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
+//                logger.debug("Computation core folder: " + computationCoreFolder);
+//                String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
+//                pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
+//                // copy data
+//                pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
+//                // copy slurm file
+//                c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(), new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
+//            } finally {
+//                sftp.disconnect();
+//            }
+//            logger.info("File transferred running computation core on cluster");
+//            // Run batch jobs
+//            List<String> output = runCommand(session,
+//                    String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder,
+//                            configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
+//            // Parse Cluster Job identifier
+//            if(output.isEmpty()) {
+//                logger.info("Cannot read the job identifier");
+//                throw new IOException("No output in ssh command");
+//            }
+//            for(String line : output) {
+//                line = line.trim();
+//                if(line.startsWith("Submitted batch job")) {
+//                    slurmJobId = Integer.parseInt(line.substring(line.lastIndexOf(" ")).trim());
+//                    break;
+//                }
+//            }
+//            if(slurmJobId == -1) {
+//                logger.info("Cannot read the job identifier");
+//                throw new IOException("Not expected output in ssh command");
+//            }
+//            // Loop check for job status
+//            Set<String> finishedStates = new HashSet<>();
+//            for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
+//                if(s.finished) {
+//                    finishedStates.add(s.status);
+//                }
+//            }
+//            ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
+//            int oldFinishedJobs = 0;
+//            while(!progressVisitor.isCanceled()) {
+//                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
+//                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
+//                int finishedStatusCount = 0;
+//                for(SlurmJobStatus s : jobStatusList) {
+//                    if(finishedStates.contains(s.status)) {
+//                        finishedStatusCount++;
+//                    }
+//                }
+//                // increase progress if needed
+//                if(oldFinishedJobs != finishedStatusCount) {
+//                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
+//                        slurmJobProgress.endStep();
+//                    }
+//                    oldFinishedJobs = finishedStatusCount;
+//                }
+//                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
+//                    break;
+//                }
+//                Thread.sleep(POLL_SLURM_STATUS_TIME);
+//            }
             // retrieve data
             sftp = session.openChannel("sftp");
             try {
                 sftp.connect(SFTP_TIMEOUT);
                 ChannelSftp c = (ChannelSftp) sftp;
                 String remoteHome = c.getHome();
-                String resultDir = String.format("results_%ld", slurmJobId);
+                String resultDir = String.format("results_%d", slurmJobId);
                 pullFromSSH(c, progressVisitor,
                         new File(remoteHome, resultDir).getAbsolutePath(),
                         new File(configuration.workingDirectory, resultDir).getAbsolutePath());
