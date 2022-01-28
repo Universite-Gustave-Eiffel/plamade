@@ -25,7 +25,9 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.functions.io.shp.SHPWrite;
 import org.h2gis.utilities.JDBCUtilities;
+import org.h2gis.utilities.SFSUtilities;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
@@ -57,6 +59,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         CANCELED,
         COMPLETED
     }
+    public static final String RESULT_DIRECTORY_NAME = "results";
+    public static final String POST_PROCESS_RESULT_DIRECTORY_NAME = "results_post";
 
     // https://curc.readthedocs.io/en/latest/running-jobs/squeue-status-codes.html
     public static final SlurmJobKnownStatus[] SLURM_JOB_KNOWN_STATUSES = new SlurmJobKnownStatus[]{
@@ -228,12 +232,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
      * @param folder folder that contains shp files
      * @param prefix common prefix before the number
      * @param suffix common suffix after the number
+     * @return Tables created
      */
-    public static void mergeShapeFiles(Connection connection,String folder, String prefix, String suffix) throws SQLException {
+    public static List<String> mergeShapeFiles(Connection connection,String folder, String prefix, String suffix) throws SQLException {
         String extension = ".shp";
         File workingFolder = new File(folder);
         // Search files that match expected file name format
         String[] files = workingFolder.list(new ShapeFileFilter(prefix, suffix));
+        if(files == null) {
+            return new ArrayList<>();
+        }
         Map<String, ArrayList<String>> tableNameToFileNames = new HashMap<>();
         for(String fileName : files) {
             // Extract tableName from file name
@@ -248,6 +256,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             }
             fileNames.add(fileName);
         }
+        List<String> createdTables = new ArrayList<>();
         for(Map.Entry<String, ArrayList<String>> entry : tableNameToFileNames.entrySet()) {
             try(Statement st = connection.createStatement()) {
                 ArrayList<String> fileNames = entry.getValue();
@@ -259,6 +268,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     st.execute("CALL FILE_TABLE('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
                     st.execute("DROP TABLE IF EXISTS " + entry.getKey().toUpperCase(Locale.ROOT));
                     st.execute("CREATE TABLE " + entry.getKey().toUpperCase(Locale.ROOT) + " AS SELECT * FROM " + tableName);
+                    createdTables.add(entry.getKey().toUpperCase(Locale.ROOT));
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                 }
                 for(String fileName : fileNames) {
@@ -272,6 +282,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 }
             }
         }
+        return createdTables;
     }
 
 
@@ -578,75 +589,82 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         try {
             Channel sftp;
             int slurmJobId = 14905486;
-//
-//            sftp = session.openChannel("sftp");
-//            try {
-//                sftp.connect(SFTP_TIMEOUT);
-//                ChannelSftp c = (ChannelSftp) sftp;
-//                recurseMkDir(c, configuration.remoteJobFolder);
-//                // copy computation core
-//                File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
-//                logger.debug("Computation core folder: " + computationCoreFolder);
-//                String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
-//                pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
-//                // copy data
-//                pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
-//                // copy slurm file
-//                c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(), new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
-//            } finally {
-//                sftp.disconnect();
-//            }
-//            logger.info("File transferred running computation core on cluster");
-//            // Run batch jobs
-//            List<String> output = runCommand(session,
-//                    String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder,
-//                            configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
-//            // Parse Cluster Job identifier
-//            if(output.isEmpty()) {
-//                logger.info("Cannot read the job identifier");
-//                throw new IOException("No output in ssh command");
-//            }
-//            for(String line : output) {
-//                line = line.trim();
-//                if(line.startsWith("Submitted batch job")) {
-//                    slurmJobId = Integer.parseInt(line.substring(line.lastIndexOf(" ")).trim());
-//                    break;
-//                }
-//            }
-//            if(slurmJobId == -1) {
-//                logger.info("Cannot read the job identifier");
-//                throw new IOException("Not expected output in ssh command");
-//            }
-//            // Loop check for job status
-//            Set<String> finishedStates = new HashSet<>();
-//            for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
-//                if(s.finished) {
-//                    finishedStates.add(s.status);
-//                }
-//            }
-//            ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
-//            int oldFinishedJobs = 0;
-//            while(!progressVisitor.isCanceled()) {
-//                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
-//                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
-//                int finishedStatusCount = 0;
-//                for(SlurmJobStatus s : jobStatusList) {
-//                    if(finishedStates.contains(s.status)) {
-//                        finishedStatusCount++;
-//                    }
-//                }
-//                // increase progress if needed
-//                if(oldFinishedJobs != finishedStatusCount) {
-//                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
-//                        slurmJobProgress.endStep();
-//                    }
-//                    oldFinishedJobs = finishedStatusCount;
-//                }
-//                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
-//                    break;
-//                }
-//                Thread.sleep(POLL_SLURM_STATUS_TIME);
-//            }
+            sftp = session.openChannel("sftp");
+            try {
+                sftp.connect(SFTP_TIMEOUT);
+                ChannelSftp c = (ChannelSftp) sftp;
+                recurseMkDir(c, configuration.remoteJobFolder);
+                // copy computation core
+                File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
+                logger.debug("Computation core folder: " + computationCoreFolder);
+                String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
+                pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
+                // copy data
+                pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
+                // copy slurm file
+                c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(), new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
+            } finally {
+                sftp.disconnect();
+            }
+            logger.info("File transferred running computation core on cluster");
+            // Run batch jobs
+            List<String> output = runCommand(session,
+                    String.format("cd %s && sbatch --array=0-%d %s", configuration.remoteJobFolder,
+                            configuration.slurmConfig.maxJobs - 1, BATCH_FILE_NAME));
+            // Parse Cluster Job identifier
+            if(output.isEmpty()) {
+                logger.info("Cannot read the job identifier");
+                throw new IOException("No output in ssh command");
+            }
+            for(String line : output) {
+                line = line.trim();
+                if(line.startsWith("Submitted batch job")) {
+                    slurmJobId = Integer.parseInt(line.substring(line.lastIndexOf(" ")).trim());
+                    break;
+                }
+            }
+            if(slurmJobId == -1) {
+                logger.info("Cannot read the job identifier");
+                throw new IOException("Not expected output in ssh command");
+            }
+            try (Connection connection = plamadeDataSource.getConnection()) {
+                PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET SLURM_JOB_ID = ? WHERE PK_JOB = ?");
+                st.setInt(1, slurmJobId);
+                st.setInt(2, configuration.getTaskPrimaryKey());
+                st.execute();
+            } catch (SQLException | SecurityException ex) {
+                logger.error(ex.getLocalizedMessage(), ex);
+            }
+            // Loop check for job status
+            Set<String> finishedStates = new HashSet<>();
+            for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
+                if(s.finished) {
+                    finishedStates.add(s.status);
+                }
+            }
+            ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
+            int oldFinishedJobs = 0;
+            while(!progressVisitor.isCanceled()) {
+                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
+                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
+                int finishedStatusCount = 0;
+                for(SlurmJobStatus s : jobStatusList) {
+                    if(finishedStates.contains(s.status)) {
+                        finishedStatusCount++;
+                    }
+                }
+                // increase progress if needed
+                if(oldFinishedJobs != finishedStatusCount) {
+                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
+                        slurmJobProgress.endStep();
+                    }
+                    oldFinishedJobs = finishedStatusCount;
+                }
+                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
+                    break;
+                }
+                Thread.sleep(POLL_SLURM_STATUS_TIME);
+            }
             // retrieve data
             sftp = session.openChannel("sftp");
             try {
@@ -656,7 +674,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 String resultDir = String.format("results_%d", slurmJobId);
                 pullFromSSH(c, progressVisitor,
                         new File(remoteHome, resultDir).getAbsolutePath(),
-                        new File(configuration.workingDirectory, resultDir).getAbsolutePath());
+                        new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath());
             } finally {
                 sftp.disconnect();
             }
@@ -677,6 +695,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
+    /**
+     * Export provided spatial table names to a specified folder
+     * @param connection JDBC connection
+     * @param tablesToExport Table name to export
+     * @param folder Folder to save shape files
+     * @throws SQLException
+     * @throws IOException
+     */
+    public static void exportTables(Connection connection, List<String> tablesToExport, String folder) throws SQLException, IOException {
+        for(String tableName : tablesToExport) {
+            SHPWrite.exportTable(connection, new File(folder, tableName + ".shp").getAbsolutePath(), tableName);
+        }
+    }
 
 
     @Override
@@ -718,9 +749,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 //                subProg.endStep();
 //                makeEmission(nmConnection);
 //                subProg.endStep();
-                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
-                slurmInitAndStart(configuration.slurmConfig, subProg);
-
+//                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
+//                slurmInitAndStart(configuration.slurmConfig, subProg);
+                List<String> createdTables = mergeShapeFiles(nmConnection,
+                        new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
+                        "out_", "_");
+                // Save merged final tables
+                File outDir = new File(configuration.workingDirectory, POST_PROCESS_RESULT_DIRECTORY_NAME);
+                if(!outDir.exists()) {
+                    if(!outDir.mkdir()) {
+                        return;
+                    }
+                }
+                exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
 
 //                RoadNoiselevel(nmConnection, subProg);
 //                //LoadNoiselevel(nmConnection, subProg);
