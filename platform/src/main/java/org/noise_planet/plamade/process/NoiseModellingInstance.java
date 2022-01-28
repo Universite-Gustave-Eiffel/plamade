@@ -57,12 +57,26 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         CANCELED,
         COMPLETED
     }
+
+    // https://curc.readthedocs.io/en/latest/running-jobs/squeue-status-codes.html
+    public static final SlurmJobKnownStatus[] SLURM_JOB_KNOWN_STATUSES = new SlurmJobKnownStatus[]{
+            new SlurmJobKnownStatus("COMPLETED", true), // The job has completed successfully.
+            new SlurmJobKnownStatus("COMPLETING", false), // The job is finishing but some processes are still active.
+            new SlurmJobKnownStatus("FAILED", true), // The job terminated with a non-zero exit code and failed to execute.
+            new SlurmJobKnownStatus("PENDING", false), // The job is waiting for resource allocation. It will eventually run.
+            new SlurmJobKnownStatus("PREEMPTED", false), // The job was terminated because of preemption by another job.
+            new SlurmJobKnownStatus("RUNNING", false), // The job currently is allocated to a node and is running.
+            new SlurmJobKnownStatus("SUSPENDED", false), // A running job has been stopped with its cores released to other jobs.
+            new SlurmJobKnownStatus("STOPPED", true) // A running job has been stopped with its cores retained.
+    };
+
     private static final Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Configuration configuration;
     DataSource nmDataSource;
     DataSource plamadeDataSource;
     boolean isRunning = false;
     private static final int SFTP_TIMEOUT = 60000;
+    private static final int POLL_SLURM_STATUS_TIME = 15000;
 
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
 
@@ -338,7 +352,27 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
-    public static void copyFolder(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory) throws IOException, SftpException {
+    public static void pullFromSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to) throws IOException, SftpException {
+        Vector v = c.ls(from);
+        ProgressVisitor dirProg = progressVisitor.subProcess(v.size());
+        for(Object e : v) {
+            if(e instanceof ChannelSftp.LsEntry) {
+                ChannelSftp.LsEntry sftpEntry = (ChannelSftp.LsEntry)e;
+                File remoteFile = new File(from, sftpEntry.getFilename());
+                File localFile = new File(to, sftpEntry.getFilename());
+                if(sftpEntry.getAttrs().isDir() && !sftpEntry.getAttrs().isLink()) {
+                    logger.info("mkdir " + localFile.getAbsolutePath());
+                    // c.mkdir(localFile.getAbsolutePath());
+                    pullFromSSH(c, dirProg, remoteFile.getAbsolutePath(), localFile.getAbsolutePath());
+                } else {
+                    logger.info("get " + remoteFile.getAbsolutePath() + " " + localFile.getAbsolutePath());
+                    // c.get(remoteFile.getAbsolutePath(), localFile.getAbsolutePath());
+                }
+            }
+            dirProg.endStep();
+        }
+    }
+    public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory) throws IOException, SftpException {
         // List All files
         File fromFile = new File(from);
         File parentFile = fromFile;
@@ -509,7 +543,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     }
 
 
-    public static final List<SlurmJobStatus> parseSlurmStatus(List<String> commandOutput, int jobId) {
+    public static List<SlurmJobStatus> parseSlurmStatus(List<String> commandOutput, int jobId) {
         List<SlurmJobStatus> slurmJobStatus = new ArrayList<>();
         for(String line : commandOutput) {
             line = line.trim();
@@ -532,7 +566,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return slurmJobStatus;
     }
 
-    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException {
+    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException {
         Session session = openSshSession(slurmConfig);
         try {
             Channel sftp = session.openChannel("sftp");
@@ -544,9 +578,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
                 logger.debug("Computation core folder: " + computationCoreFolder);
                 String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
-                copyFolder(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
+                pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
                 // copy data
-                copyFolder(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
+                pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
                 // copy slurm file
                 c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(), new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
             } finally {
@@ -575,10 +609,48 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 throw new IOException("Not expected output in ssh command");
             }
             // Loop check for job status
-            output = runCommand(session,
-                    String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
-
+            Set<String> finishedStates = new HashSet<>();
+            for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
+                if(s.finished) {
+                    finishedStates.add(s.status);
+                }
+            }
+            ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
+            int oldFinishedJobs = 0;
+            while(!progressVisitor.isCanceled()) {
+                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
+                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
+                int finishedStatusCount = 0;
+                for(SlurmJobStatus s : jobStatusList) {
+                    if(finishedStates.contains(s.status)) {
+                        finishedStatusCount++;
+                    }
+                }
+                // increase progress if needed
+                if(oldFinishedJobs != finishedStatusCount) {
+                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
+                        slurmJobProgress.endStep();
+                    }
+                    oldFinishedJobs = finishedStatusCount;
+                }
+                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
+                    break;
+                }
+                Thread.sleep(POLL_SLURM_STATUS_TIME);
+            }
             // retrieve data
+            sftp = session.openChannel("sftp");
+            try {
+                sftp.connect(SFTP_TIMEOUT);
+                ChannelSftp c = (ChannelSftp) sftp;
+                String remoteHome = c.getHome();
+                String resultDir = String.format("results_%ld", slurmJobId);
+                pullFromSSH(c, progressVisitor,
+                        new File(remoteHome, resultDir).getAbsolutePath(),
+                        new File(configuration.workingDirectory, resultDir).getAbsolutePath());
+            } finally {
+                sftp.disconnect();
+            }
         } finally {
             session.disconnect();
         }
@@ -754,6 +826,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         public SlurmJobStatus(String status, int taskId) {
             this.status = status;
             this.taskId = taskId;
+        }
+    }
+
+    public static class SlurmJobKnownStatus {
+        public final String status;
+        public final boolean finished;
+
+        public SlurmJobKnownStatus(String status, boolean finished) {
+            this.status = status;
+            this.finished = finished;
         }
     }
 }
