@@ -360,6 +360,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         inputs.put("databaseUser", configuration.getDataBaseConfig().user);
         inputs.put("databasePassword", configuration.getDataBaseConfig().password);
         inputs.put("batchSize", 1000);
+        inputs.put("inputServer", "cloud");
         return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
@@ -765,7 +766,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 }
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
                 subProg.endStep();
-                Export(nmConnection, subProg);
+                logger.info((String)Export(nmConnection, subProg));
                 subProg.endStep();
             }
             setJobState(JOB_STATES.COMPLETED);
