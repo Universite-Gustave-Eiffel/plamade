@@ -18,6 +18,36 @@ import static junit.framework.TestCase.assertEquals;
 
 public class TestCluster {
 
+    public static List<String> splitCommand(String command) {
+        List<String> commandLines = new ArrayList<>();
+        StringTokenizer s = new StringTokenizer(command, "\n");
+        while(s.hasMoreTokens()) {
+            commandLines.add(s.nextToken());
+        }
+        return commandLines;
+    }
+
+    @Test
+    public void testParseSelect() {
+        String command = "slurm-14909537_0.out  slurm-14909537_10.out  slurm-14909537_2.out  slurm-14909537_4.out  " +
+                "slurm-14909537_6.out  slurm-14909537_8.out\n" + "slurm-14909537_1.out  slurm-14909537_11.out  " +
+                "slurm-14909537_3.out  slurm-14909537_5.out  slurm-14909537_7.out  slurm-14909537_9.out";
+        List<String> commandLines = splitCommand(command);
+        List<String> files = NoiseModellingInstance.parseLSCommand(commandLines);
+        assertEquals("slurm-14909537_0.out", files.remove(0));
+        assertEquals("slurm-14909537_10.out", files.remove(0));
+        assertEquals("slurm-14909537_2.out", files.remove(0));
+        assertEquals("slurm-14909537_4.out", files.remove(0));
+        assertEquals("slurm-14909537_6.out", files.remove(0));
+        assertEquals("slurm-14909537_8.out", files.remove(0));
+        assertEquals("slurm-14909537_1.out", files.remove(0));
+        assertEquals("slurm-14909537_11.out", files.remove(0));
+        assertEquals("slurm-14909537_3.out", files.remove(0));
+        assertEquals("slurm-14909537_5.out", files.remove(0));
+        assertEquals("slurm-14909537_7.out", files.remove(0));
+        assertEquals("slurm-14909537_9.out", files.remove(0));
+    }
+
     @Test
     public void testParseSacct() {
         String command = "       JobID    JobName               Start                 End    Elapsed        NodeList " +
@@ -52,11 +82,7 @@ public class TestCluster {
                 "COMPLETED      0:0   01:29:42 \n" + "14904827_10+      batch 2022-01-27T13:10:08 2022-01-27T13:15:42" +
                 "   00:05:34        hpc-n775  COMPLETED      0:0   01:29:42";
 
-        List<String> commandLines = new ArrayList<>();
-        StringTokenizer s = new StringTokenizer(command, "\n");
-        while(s.hasMoreTokens()) {
-            commandLines.add(s.nextToken());
-        }
+        List<String> commandLines = splitCommand(command);
         List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14904827);
         assertEquals(11, jobList.size());
         assertEquals("RUNNING", jobList.get(1).status);

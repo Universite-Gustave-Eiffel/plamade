@@ -21,6 +21,7 @@ import com.jcraft.jsch.*;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import groovy.sql.Sql;
+import org.apache.commons.compress.utils.CountingInputStream;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
@@ -45,6 +46,7 @@ import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -527,6 +529,12 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     }
 
     public List<String> runCommand(Session session, String command) throws JSchException, IOException {
+        return runCommand(session, command, true);
+    }
+    public List<String> runCommand(Session session, String command, boolean logResult) throws JSchException, IOException {
+        return runCommand(session, command, logResult, new AtomicLong());
+    }
+    public List<String> runCommand(Session session, String command, boolean logResult, AtomicLong readBytes) throws JSchException, IOException {
         List<String> lines = new ArrayList<>();
         ChannelExec shell = (ChannelExec) session.openChannel("exec");
         try {
@@ -536,7 +544,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
             InputStream in = shell.getInputStream();
 
-            InputStreamReader inputStreamReader = new InputStreamReader(in);
+            CountingInputStream countingInputStream = new CountingInputStream(in);
+            InputStreamReader inputStreamReader = new InputStreamReader(countingInputStream);
             BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
             // run command
             shell.connect(SFTP_TIMEOUT);
@@ -544,20 +553,26 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             while (true) {
                 String line = bufferedReader.readLine();
                 if (line != null) {
-                    logger.info(line);
+                    if(logResult) {
+                        logger.info(line);
+                    }
                     lines.add(line);
                 } else {
                     if (shell.isClosed()) {
-                        logger.info("exit-status: " + shell.getExitStatus());
+                        if(logResult || shell.getExitStatus() != 0) {
+                            logger.info("exit-status: " + shell.getExitStatus());
+                        }
                     } else {
                         logger.warn("Stream is closed but the channel is still open");
                     }
                     break;
                 }
             }
+            readBytes.addAndGet(countingInputStream.getBytesRead());
         } finally {
             shell.disconnect();
         }
+
         return lines;
     }
 
@@ -583,6 +598,13 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
 
         return slurmJobStatus;
+    }
+
+    public static List<String> parseLSCommand(List<String> lines) {
+        List<String> fileList = Collections.list(new StringTokenizer(String.join(" ", lines))).stream()
+                .map(token -> (String) token)
+                .collect(Collectors.toList());
+        return fileList;
     }
 
     public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException {
@@ -645,7 +667,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             }
             ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
             int oldFinishedJobs = 0;
+            Map<String, Long> bytesReadInFiles = new HashMap<>();
             while(!progressVisitor.isCanceled()) {
+                long lastPullTime = System.currentTimeMillis();
                 output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
                 List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
                 int finishedStatusCount = 0;
@@ -664,7 +688,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
                     break;
                 }
-                Thread.sleep(POLL_SLURM_STATUS_TIME);
+                // Log output of the computing nodes into the logger
+                // we have to keep track of how much bytes we have already read in order to not read two times the same log rows
+                // we will use the ls command in conjunction with the tail command
+                output = runCommand(session, String.format("cd %s && ls *.out", configuration.remoteJobFolder), false);
+                List<String> files = parseLSCommand(output);
+                for(String file : files) {
+                    AtomicLong readBytes = new AtomicLong(0L);
+                    Long alreadyReadBytes = 0;
+                    runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file, readBytes), true);
+
+                }
+                // Sleep up to POLL_SLURM_STATUS_TIME
+                Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)));
             }
             // retrieve data
             sftp = session.openChannel("sftp");
@@ -766,7 +802,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 }
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
                 subProg.endStep();
-                logger.info((String)Export(nmConnection, subProg));
+                logger.info(Export(nmConnection, subProg).toString());
                 subProg.endStep();
             }
             setJobState(JOB_STATES.COMPLETED);
