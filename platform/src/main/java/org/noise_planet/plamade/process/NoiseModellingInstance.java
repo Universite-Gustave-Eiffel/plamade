@@ -691,30 +691,42 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 // Log output of the computing nodes into the logger
                 // we have to keep track of how much bytes we have already read in order to not read two times the same log rows
                 // we will use the ls command in conjunction with the tail command
-                output = runCommand(session, String.format("cd %s && ls *.out", configuration.remoteJobFolder), false);
-                List<String> files = parseLSCommand(output);
-                for(String file : files) {
-                    AtomicLong readBytes = new AtomicLong(0L);
-                    Long alreadyReadBytes = 0;
-                    runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file, readBytes), true);
-
+                try {
+                    output = runCommand(session, String.format("cd %s && ls *.out", configuration.remoteJobFolder), false);
+                    List<String> files = parseLSCommand(output);
+                    for (String file : files) {
+                        AtomicLong readBytes = new AtomicLong(0L);
+                        Long alreadyReadBytes = 0L;
+                        if (bytesReadInFiles.containsKey(file)) {
+                            alreadyReadBytes = bytesReadInFiles.get(file);
+                        }
+                        // the command "tail -c +N" will skip N bytes and read the remaining bytes
+                        runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file), true, readBytes);
+                        bytesReadInFiles.put(file, alreadyReadBytes + readBytes.get());
+                    }
+                } catch (JSchException | IOException e) {
+                    logger.error("Error while reading remote log files", e);
                 }
                 // Sleep up to POLL_SLURM_STATUS_TIME
                 Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)));
             }
             // retrieve data
             sftp = session.openChannel("sftp");
+            String remoteHome = c.getHome();
+            String resultDir = new File(remoteHome, String.format("results_%d", slurmJobId)).getAbsolutePath();
             try {
                 sftp.connect(SFTP_TIMEOUT);
                 ChannelSftp c = (ChannelSftp) sftp;
-                String remoteHome = c.getHome();
-                String resultDir = String.format("results_%d", slurmJobId);
                 pullFromSSH(c, progressVisitor,
-                        new File(remoteHome, resultDir).getAbsolutePath(),
+                        resultDir,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath());
             } finally {
                 sftp.disconnect();
             }
+            // Remote cleaning
+            logger.info("Clean remote data");
+            runCommand(session, String.format("rm -rvf %s", configuration.remoteJobFolder));
+            runCommand(session, String.format("rm -rvf %s", resultDir));
         } finally {
             session.disconnect();
         }
