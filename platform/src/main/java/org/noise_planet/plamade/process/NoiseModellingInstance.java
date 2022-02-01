@@ -559,8 +559,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     lines.add(line);
                 } else {
                     if (shell.isClosed()) {
-                        if(logResult || shell.getExitStatus() != 0) {
-                            logger.info("exit-status: " + shell.getExitStatus());
+                        if(shell.getExitStatus() != 0) {
+                            logger.error(String.format("Command %s \n exit-status: %d", command, shell.getExitStatus()));
                         }
                     } else {
                         logger.warn("Stream is closed but the channel is still open");
@@ -712,11 +712,12 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             }
             // retrieve data
             sftp = session.openChannel("sftp");
-            String remoteHome = c.getHome();
-            String resultDir = new File(remoteHome, String.format("results_%d", slurmJobId)).getAbsolutePath();
+            String resultDir;
             try {
                 sftp.connect(SFTP_TIMEOUT);
                 ChannelSftp c = (ChannelSftp) sftp;
+                String remoteHome = c.getHome();
+                resultDir = new File(remoteHome, String.format("results_%d", slurmJobId)).getAbsolutePath();
                 pullFromSSH(c, progressVisitor,
                         resultDir,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath());

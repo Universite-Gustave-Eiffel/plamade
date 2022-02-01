@@ -107,7 +107,9 @@ public class GetJobLogs implements Handler {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
                         List<String> rows = getLastLines(new File("application.log"), FETCH_NUMBER_OF_LINES);
-                        rows = filterByThread(rows, Thread.currentThread().getName());
+                        LOG.info(String.format("Got %d log rows", rows.size()));
+                        final String jobId = ctx.getAllPathTokens().get("jobid");
+                        rows = filterByThread(rows, String.format("JOB_%s", jobId));
                         model.put("rows", rows);
                         model.put("profile", profile);
                         ctx.render(Template.thymeleafTemplate(model, "joblogs"));
