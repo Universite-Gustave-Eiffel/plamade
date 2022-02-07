@@ -31,7 +31,6 @@
 package org.noise_planet.noisemodelling.wps.plamade;
 
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.noise_planet.noisemodelling.jdbc.BezierContouring
@@ -261,7 +260,7 @@ def generateIsoSurfaces(def inputTable, def isoClasses, def connection, String u
         logger.info "La table $inputTable n'est pas présente"
         return
         }
-        int srid = SFSUtilities.getSRID(connection, TableLocation.parse(inputTable))
+        int srid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(inputTable))
 
         Integer railRoad = input["rail_or_road"]
 

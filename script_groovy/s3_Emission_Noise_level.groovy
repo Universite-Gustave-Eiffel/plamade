@@ -31,15 +31,16 @@
 package org.noise_planet.noisemodelling.wps.plamade
 
 import groovy.sql.Sql
+import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
-import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.SpatialResultSet
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.dbtypes.DBTypes
+import org.h2gis.utilities.dbtypes.DBUtils
 import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.noisemodelling.jdbc.LDENConfig
 import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData
-import org.noise_planet.noisemodelling.pathfinder.ComputeRays
 import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -141,6 +142,8 @@ def forgeCreateTable(Sql sql, String tableName, LDENConfig ldenConfig, String ge
 
 // main function of the script
 def exec(Connection connection, input) {
+    DBTypes dbTypes = DBUtils.getDBType(connection)
+
     //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
     connection = new ConnectionWrapper(connection)
 
@@ -184,7 +187,7 @@ def exec(Connection connection, input) {
 //    if (nrows!=0) {
 //
 //      // Check if srid are in metric projection.
-//      int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse(rail_sections))
+//      int sridSources = GeometryTableUtilities.getSRID(connection, TableLocation.parse(rail_sections))
 //      if (sridSources == 3785 || sridSources == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+rail_sections+".")
 //      if (sridSources == 0) throw new IllegalArgumentException("Error : The table "+rail_sections+" does not have an associated SRID.")
 //
@@ -215,7 +218,7 @@ def exec(Connection connection, input) {
 //          throw new SQLException(String.format("The table %s does not exists or does not contain a geometry field", receiverTableIdentifier))
 //      }
 //      // Check if srid are in metric projection and are all the same.
-//      int sridReceivers = SFSUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
+//      int sridReceivers = GeometryTableUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
 //      if (sridReceivers == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+receivers_table_name+".")
 //      if (sridReceivers == 0) throw new IllegalArgumentException("Error : The table "+receivers_table_name+" does not have an associated SRID.")
 //      if (sridReceivers != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+rail_sections+" and "+receivers_table_name+" are not the same.")
@@ -464,17 +467,17 @@ def exec(Connection connection, input) {
 
     LDENPropagationProcessData ldenData = new LDENPropagationProcessData(null, ldenConfig2)
 
-    sources_table_name = "ROADS"
+    def sources_table_name = "ROADS"
 
         //Get the primary key field of the source table
-    pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, sources_table_name)
+    def pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(sources_table_name, dbTypes))
     if (pkIndex < 1) {
         throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
     }
 
 
     // Check if srid are in metric projection.
-    int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
+    int sridSources = GeometryTableUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
     if (sridSources == 3785 || sridSources == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+sources_table_name+".")
     if (sridSources == 0) throw new IllegalArgumentException("Error : The table "+sources_table_name+" does not have an associated SRID.")
 

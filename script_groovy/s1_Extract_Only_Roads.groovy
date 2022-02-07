@@ -25,6 +25,9 @@
 package org.noise_planet.noisemodelling.wps.plamade
 
 import groovy.text.SimpleTemplateEngine
+import org.h2gis.utilities.GeometryTableUtilities
+import org.h2gis.utilities.dbtypes.DBTypes
+import org.h2gis.utilities.dbtypes.DBUtils
 import org.locationtech.jts.geom.Point
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
@@ -36,7 +39,6 @@ import org.h2gis.functions.spatial.edit.ST_AddZ
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
-import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.SpatialResultSet
 import org.h2gis.utilities.wrapper.ConnectionWrapper
@@ -858,10 +860,11 @@ def exec(Connection connection, input) {
     // --------------------------------------
     // Start calculation and fill the table
     // --------------------------------------
-    pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, "ROADS")
+    DBTypes dbTypes = DBUtils.getDBType(connection)
+    pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse("ROADS", dbTypes))
     
     // Check if srid are in metric projection.
-    int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse("ROADS"))
+    int sridSources = GeometryTableUtilities.getSRID(connection, TableLocation.parse("ROADS"))
     
     // Get Class to compute LW
     LDENConfig ldenConfig2 = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_TRAFFIC_FLOW)

@@ -28,7 +28,6 @@ import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.functions.io.shp.SHPWrite;
 import org.h2gis.utilities.JDBCUtilities;
-import org.h2gis.utilities.SFSUtilities;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;

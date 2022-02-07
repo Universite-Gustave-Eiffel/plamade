@@ -1,20 +1,12 @@
 package org.noise_planet.plamade
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+
 import groovy.sql.GroovyResultSet
 import groovy.sql.Sql
-import org.junit.Test
-import org.noise_planet.noisemodelling.jdbc.PointNoiseMap
-import org.noise_planet.noisemodelling.pathfinder.ComputeRays
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
-import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation
-import org.noise_planet.plamade.config.DataBaseConfig
 import org.noise_planet.plamade.process.NoiseModellingInstance
 
 import javax.sql.DataSource
-import java.nio.file.Files
-import java.nio.file.Path
 import java.sql.Connection
 import java.text.CharacterIterator
 import java.text.StringCharacterIterator

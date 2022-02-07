@@ -77,7 +77,7 @@ public class GetJobLogs implements Handler {
                             }
                         }
                         if (match && sbMatch.length() > 0) {
-                            lastLines.add(sbMatch.toString());
+                            lastLines.add(0, sbMatch.toString());
                             sbMatch = new StringBuilder();
                         }
                         if(match) {

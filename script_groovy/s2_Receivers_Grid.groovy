@@ -30,8 +30,10 @@ import groovy.sql.Sql
 
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.utilities.SFSUtilities
+import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.dbtypes.DBTypes
+import org.h2gis.utilities.dbtypes.DBUtils
 import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.h2gis.utilities.JDBCUtilities
 
@@ -143,15 +145,18 @@ def exec(Connection connection, input) {
     sql.execute(String.format("DROP TABLE IF EXISTS %s", receivers_table_name))
 
     // Reproject fence
-    int targetSrid = SFSUtilities.getSRID(connection, TableLocation.parse(building_table_name))
+    int targetSrid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(building_table_name))
     //if (targetSrid == 0 && input['sourcesTableName']) {
     if (targetSrid == 0 && sources_table_name) {
-        targetSrid = SFSUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
+        targetSrid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
     }
 
     Geometry fenceGeom = null
 
-    def buildingPk = JDBCUtilities.getFieldName(connection.getMetaData(), building_table_name, JDBCUtilities.getIntegerPrimaryKey(connection, building_table_name));
+    DBTypes dbTypes = DBUtils.getDBType(connection)
+
+    def buildingPk = JDBCUtilities.getColumnName(connection, building_table_name,
+            JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(building_table_name, dbTypes)));
     if (buildingPk == "") {
         return "Buildings table must have a primary key"
     }
@@ -301,7 +306,7 @@ def exec(Connection connection, input) {
 
     Double maxArea = 2500
 
-    int srid = SFSUtilities.getSRID(connection, TableLocation.parse(building_table_name))
+    int srid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(building_table_name))
 
     Geometry fence = null
 

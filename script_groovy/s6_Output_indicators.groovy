@@ -31,7 +31,6 @@
 package org.noise_planet.noisemodelling.wps.plamade
 
 import groovy.sql.Sql
-import org.h2gis.utilities.SFSUtilities
 import org.h2gis.utilities.TableLocation
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -105,7 +104,7 @@ def exec(Connection connection, input) {
 
     }
     
-    def srid = SFSUtilities.getSRID(connection, TableLocation.parse(source))
+    def srid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(source))
 
 
     //Statement sql = connection.createStatement()

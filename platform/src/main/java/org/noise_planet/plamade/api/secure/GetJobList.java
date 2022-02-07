@@ -74,7 +74,7 @@ public class GetJobList implements Handler {
                                 DecimalFormat f = (DecimalFormat)(DecimalFormat.getInstance(Locale.ROOT));
                                 f.applyPattern("#.### '%'");
                                 try (ResultSet rs = statement.executeQuery()) {
-                                    List<String> fields = JDBCUtilities.getFieldNames(rs.getMetaData());
+                                    List<String> fields = JDBCUtilities.getColumnNames(rs.getMetaData());
                                     while (rs.next()) {
                                         Map<String, Object> row = new HashMap<>();
                                         for (int idField = 1; idField <= fields.size(); idField += 1) {

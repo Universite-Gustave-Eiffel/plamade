@@ -8,14 +8,23 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
-import org.h2gis.utilities.SFSUtilities;
 import org.h2gis.utilities.TableLocation;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Envelope;
-import org.noise_planet.noisemodelling.jdbc.*;
+import org.h2gis.utilities.dbtypes.DBTypes;
+import org.h2gis.utilities.dbtypes.DBUtils;
+import org.noise_planet.noisemodelling.jdbc.BezierContouring;
+import org.noise_planet.noisemodelling.jdbc.LDENComputeRaysOut;
+import org.noise_planet.noisemodelling.jdbc.LDENConfig;
+import org.noise_planet.noisemodelling.jdbc.LDENPointNoiseMapFactory;
+import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData;
+import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
-import org.noise_planet.noisemodelling.pathfinder.utils.*;
+import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric;
+import org.noise_planet.noisemodelling.pathfinder.utils.KMLDocument;
+import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread;
+import org.noise_planet.noisemodelling.pathfinder.utils.ProgressMetric;
+import org.noise_planet.noisemodelling.pathfinder.utils.ReceiverStatsMetric;
 import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData;
 import org.osgi.service.jdbc.DataSourceFactory;
 import org.slf4j.Logger;
@@ -28,7 +37,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -121,8 +139,8 @@ public class NoiseModellingInstance {
             KMLDocument kmlDocument = new KMLDocument(outData);
             kmlDocument.setInputCRS("EPSG:" + epsg);
             kmlDocument.writeHeader();
-            kmlDocument.writeTopographic(inputData.freeFieldFinder.getTriangles(), inputData.freeFieldFinder.getVertices());
-            kmlDocument.writeBuildings(inputData.freeFieldFinder);
+            kmlDocument.writeTopographic(inputData.profileBuilder.getTriangles(), inputData.profileBuilder.getVertices());
+            kmlDocument.writeBuildings(inputData.profileBuilder);
             kmlDocument.writeFooter();
         } catch (IOException | CRSException | XMLStreamException | CoordinateOperationException ex) {
             logger.error("Error while exporting domain", ex);
@@ -277,7 +295,8 @@ public class NoiseModellingInstance {
             logger.info("La table "+inputTable+" n'est pas présente");
             return;
         }
-        int srid = SFSUtilities.getSRID(connection, TableLocation.parse(inputTable));
+        DBTypes dbTypes = DBUtils.getDBType(connection);
+        int srid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(inputTable, dbTypes));
 
         BezierContouring bezierContouring = new BezierContouring(isoClasses, srid);
 
@@ -350,7 +369,7 @@ public class NoiseModellingInstance {
         String ldenOutput = uueid + "_CONTOURING_LDEN";
         String lnightOutput = uueid + "_CONTOURING_LNIGHT";
 
-        sql.execute(String.format("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN"));
+        sql.execute("DROP TABLE IF EXISTS "+ ldenOutput +", "+ lnightOutput +", RECEIVERS_DELAUNAY_NIGHT, RECEIVERS_DELAUNAY_DEN");
 
         logger.info(String.format("Create RECEIVERS_DELAUNAY_NIGHT for uueid= %s", uueid));
         sql.execute("create table RECEIVERS_DELAUNAY_NIGHT(PK INT NOT NULL, THE_GEOM GEOMETRY, LAEQ DECIMAL(6,2)) as SELECT RE.PK_1, RE.THE_GEOM, LAEQ FROM "+tableNIGHT+" L INNER JOIN RECEIVERS_UUEID RE ON L.IDRECEIVER = RE.PK WHERE RE.RCV_TYPE = 2;");
@@ -391,7 +410,8 @@ public class NoiseModellingInstance {
         String sourceTable = "LW_ROADS_UUEID";
         String receiversTable = "RECEIVERS_UUEID";
 
-        int sridBuildings = SFSUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS"));
+        DBTypes dbTypes = DBUtils.getDBType(connection);
+        int sridBuildings = GeometryTableUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS", dbTypes));
         PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
                 sourceTable, receiversTable);
 

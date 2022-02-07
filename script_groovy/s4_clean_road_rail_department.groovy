@@ -17,18 +17,13 @@
 package org.noise_planet.noisemodelling.wps.plamade;
 
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.utilities.SFSUtilities
-import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.wrapper.ConnectionWrapper
-import org.noise_planet.noisemodelling.jdbc.BezierContouring
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
 import groovy.sql.Sql
-
-import org.h2gis.utilities.JDBCUtilities
 
 title = 'Remove roads and rail sections that are outside the studied department.'
 
