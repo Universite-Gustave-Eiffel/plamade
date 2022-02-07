@@ -82,7 +82,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     DataSource plamadeDataSource;
     boolean isRunning = false;
     private static final int SFTP_TIMEOUT = 60000;
-    private static final int POLL_SLURM_STATUS_TIME = 15000;
+    private static final int POLL_SLURM_STATUS_TIME = 40000;
 
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
 

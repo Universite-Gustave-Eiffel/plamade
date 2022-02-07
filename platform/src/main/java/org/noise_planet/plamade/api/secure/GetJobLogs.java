@@ -26,6 +26,7 @@ import ratpack.pac4j.RatpackPac4j;
 import ratpack.thymeleaf.Template;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
@@ -35,32 +36,8 @@ import java.util.Map;
 
 public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
-    static final int FETCH_NUMBER_OF_LINES = 5000;
+    static final int FETCH_NUMBER_OF_LINES = 1000;
 
-    public static List<String> filterByThread(List<String> messages, String threadId) {
-        List<String> filtered = new ArrayList<>();
-        boolean match = false;
-        StringBuilder sb = new StringBuilder();
-        for(String line : messages) {
-            int firstHook = line.indexOf("[");
-            int lastHook = line.indexOf("]");
-            if(firstHook > -1 && lastHook > -1 && firstHook < lastHook) {
-                String thread = line.substring(firstHook + 1, lastHook);
-                match = thread.equals(threadId);
-            }
-            if(match && sb.length() > 0) {
-                filtered.add(sb.toString());
-                sb = new StringBuilder();
-            }
-            if(match) {
-                sb.append(line);
-            }
-        }
-        if(sb.length() > 0) {
-            filtered.add(sb.toString());
-        }
-        return filtered;
-    }
     /**
      * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
      * @param logFile
@@ -68,7 +45,9 @@ public class GetJobLogs implements Handler {
      * @return
      * @throws IOException
      */
-    public static List<String> getLastLines(File logFile, int numberOfLines) throws IOException {
+    public static List<String> getLastLines(File logFile, int numberOfLines, String threadId) throws IOException {
+        boolean match = threadId.isEmpty();
+        StringBuilder sbMatch = new StringBuilder();
         ArrayList<String> lastLines = new ArrayList<>(Math.max(20, numberOfLines));
         final int buffer = 8192;
         long fileSize = Files.size(logFile.toPath());
@@ -88,7 +67,22 @@ public class GetJobLogs implements Handler {
                 int lastEndOfLine = sb.lastIndexOf("\n");
                 while (lastEndOfLine != -1 && lastLines.size() < numberOfLines) {
                     if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
-                        lastLines.add(0, sb.substring(lastEndOfLine + 1, sb.length()).trim());
+                        String line = sb.substring(lastEndOfLine + 1, sb.length()).trim();
+                        if(!threadId.isEmpty()) {
+                            int firstHook = line.indexOf("[");
+                            int lastHook = line.indexOf("]");
+                            if (firstHook > -1 && lastHook > -1 && firstHook < lastHook) {
+                                String thread = line.substring(firstHook + 1, lastHook);
+                                match = thread.equals(threadId);
+                            }
+                        }
+                        if (match && sbMatch.length() > 0) {
+                            lastLines.add(sbMatch.toString());
+                            sbMatch = new StringBuilder();
+                        }
+                        if(match) {
+                            sbMatch.append(line);
+                        }
                     }
                     sb.delete(lastEndOfLine, sb.length());
                     lastEndOfLine = sb.lastIndexOf("\n");
@@ -106,10 +100,10 @@ public class GetJobLogs implements Handler {
                 SecureEndpoint.getUserPk(ctx, profile).then(pkUser -> {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
-                        List<String> rows = getLastLines(new File("application.log"), FETCH_NUMBER_OF_LINES);
-                        LOG.info(String.format("Got %d log rows", rows.size()));
                         final String jobId = ctx.getAllPathTokens().get("jobid");
-                        rows = filterByThread(rows, String.format("JOB_%s", jobId));
+                        List<String> rows = getLastLines(new File("application.log"), FETCH_NUMBER_OF_LINES,
+                                String.format("JOB_%s", jobId));
+                        LOG.info(String.format("Got %d log rows", rows.size()));
                         model.put("rows", rows);
                         model.put("profile", profile);
                         ctx.render(Template.thymeleafTemplate(model, "joblogs"));
