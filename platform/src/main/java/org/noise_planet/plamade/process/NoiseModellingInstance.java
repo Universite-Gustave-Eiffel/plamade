@@ -812,6 +812,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                         return;
                     }
                 }
+                createdTables.add("ROADS");
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
                 subProg.endStep();
                 logger.info(Export(nmConnection, subProg).toString());

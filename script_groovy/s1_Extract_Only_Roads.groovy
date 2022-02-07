@@ -128,7 +128,7 @@ def exec(Connection connection, input) {
     StringBuilder sb = new StringBuilder()
 
     // Get every table names
-    List<String> tables = JDBCUtilities.getTableNames(connection.getMetaData(), null, "PUBLIC", "%", null)
+    List<String> tables = JDBCUtilities.getTableNames(connection, null, "PUBLIC", "%", null)
 
     // Loop over the tables
     tables.each { t ->
