@@ -161,9 +161,9 @@ def exec(Connection connection, input) {
 
     def databaseUrl
     if(input["inputServer"].equals('cerema')) {
-        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslmode=disable"
+        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslmode=prefer"
     } else if(input["inputServer"].equals('cloud')) {
-        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslmode=disable"
+        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslmode=prefer"
     } else{
         return "Vous n'avez pas spécifié le bon nom de serveur"
     }	
@@ -835,10 +835,8 @@ def exec(Connection connection, input) {
     ------------
     -- Insert orography into DEM
 
-    --INSERT INTO DEM(THE_GEOM, SOURCE) SELECT THE_GEOM, 'ORO' FROM ST_EXPLODE('(Select ST_ToMultiPoint(ST_Densify(THE_GEOM,5)) the_geom FROM BDTOPO_ORO)');
-
     DROP TABLE IF EXISTS BDTOPO_ORO_DENSIFY;
-    CREATE TABLE BDTOPO_ORO_DENSIFY AS SELECT ST_ToMultiPoint(ST_Densify(the_geom, 5 )) the_geom, pk_line from BDTOPO_ORO where st_length(st_simplify(the_geom, 2)) > 0 ;
+    CREATE TABLE BDTOPO_ORO_DENSIFY AS SELECT ST_ToMultiPoint(ST_Densify(st_force2D(the_geom), 5 )) the_geom, pk_line from BDTOPO_ORO where st_length(st_simplify(the_geom, 2)) > 0 ;
     INSERT INTO DEM(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'ORO' FROM ST_EXPLODE('BDTOPO_ORO_DENSIFY') P, BDTOPO_ORO L WHERE P.pk_line = L.pk_line;
     DROP TABLE IF EXISTS BDTOPO_ORO_DENSIFY;
 
@@ -847,7 +845,7 @@ def exec(Connection connection, input) {
     -- Insert hydrography into DEM
 
     DROP TABLE IF EXISTS BDTOPO_HYDRO_DENSIFY;
-    CREATE TABLE BDTOPO_HYDRO_DENSIFY AS SELECT ST_ToMultiPoint(ST_Densify(the_geom, 5 )) the_geom, pk_line from BDTOPO_HYDRO where st_length(st_simplify(the_geom, 2)) > 0 ;
+    CREATE TABLE BDTOPO_HYDRO_DENSIFY AS SELECT ST_ToMultiPoint(ST_Densify(st_force2D(the_geom), 5 )) the_geom, pk_line from BDTOPO_HYDRO where st_length(st_simplify(the_geom, 2)) > 0 ;
     INSERT INTO DEM(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'HYD' FROM ST_EXPLODE('BDTOPO_HYDRO_DENSIFY') P, BDTOPO_HYDRO L WHERE P.pk_line = L.pk_line;
     DROP TABLE IF EXISTS BDTOPO_HYDRO_DENSIFY;
 
@@ -856,7 +854,7 @@ def exec(Connection connection, input) {
     -- Insert roads into DEM
 
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
-    CREATE TABLE DEM_WITHOUT_PTLINE AS SELECT THE_GEOM, SOURCE FROM DEM;
+    CREATE TABLE DEM_WITHOUT_PTLINE(the_geom geometry(POINTZ, $srid), source varchar) AS SELECT st_setsrid(THE_GEOM, $srid), SOURCE FROM DEM;
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);   
     -- Remove DEM points that are less than "WIDTH" far from roads
     DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_route b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM, 20) && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom)< b.WIDTH+5 LIMIT 1) ;
@@ -864,8 +862,8 @@ def exec(Connection connection, input) {
     -- Create buffer points from roads and copy the elevation from the roads to the point
     DROP TABLE IF EXISTS BUFFERED_PTLINE;
     -- The buffer size correspond to the greatest value between "largeur" and 3m. If "largeur" is null or lower than 3m, then 3m is returned
-    CREATE TABLE BUFFERED_PTLINE AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), WIDTH, 'endcap=flat join=mitre'), 5 )) the_geom, pk_line from bdtopo_route  where st_length(st_simplify(the_geom, 2)) > 0 ;
-    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'ROU' FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
+    CREATE TABLE BUFFERED_PTLINE AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(st_force2D(the_geom), 2), WIDTH, 'endcap=flat join=mitre'), 5)) the_geom, pk_line from bdtopo_route  where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT st_setsrid(ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))), $srid) THE_GEOM, 'ROU' FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
     
     CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM); 
     
@@ -879,16 +877,16 @@ def exec(Connection connection, input) {
     DROP TABLE IF EXISTS BUFFERED_D2, BUFFERED_D3, BUFFERED_D4;
     -- The buffer size correspond to 
     -- d2 = (LARGEMPRIS - 5.5)/2
-    CREATE TABLE BUFFERED_D2 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), (LARGEMPRIS - 5.5)/2, 'endcap=flat join=mitre'), 5 )) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
-    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D2') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
+    CREATE TABLE BUFFERED_D2 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(st_force2D(the_geom), 2), (LARGEMPRIS - 5.5)/2, 'endcap=flat join=mitre'), 5)) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT st_setsrid(ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))), $srid) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D2') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
     
     -- d3 = (LARGEMPRIS - 4)/2
-    CREATE TABLE BUFFERED_D3 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), (LARGEMPRIS - 4)/2, 'endcap=flat join=mitre'), 5 )) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
-    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))-L.H1) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D3') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
+    CREATE TABLE BUFFERED_D3 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), (LARGEMPRIS - 4)/2, 'endcap=flat join=mitre'), 5)) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT st_setsrid(ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))-L.H1), $srid) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D3') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
 
     -- d4 = (LARGEMPRIS)/2
-    CREATE TABLE BUFFERED_D4 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), LARGEMPRIS/2, 'endcap=flat join=mitre'), 5 )) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
-    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))-L.H1) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D4') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
+    CREATE TABLE BUFFERED_D4 AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(the_geom, 2), LARGEMPRIS/2, 'endcap=flat join=mitre'), 5)) the_geom, pk_line from bdtopo_rail where st_length(st_simplify(the_geom, 2)) > 0 ;
+    INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT st_setsrid(ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))-L.H1), $srid) THE_GEOM, 'RAI' FROM ST_EXPLODE('BUFFERED_D4') P, bdtopo_rail L WHERE P.PK_LINE = L.PK_LINE;
 
     
     DROP TABLE IF EXISTS DEM;

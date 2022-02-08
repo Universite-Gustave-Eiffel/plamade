@@ -71,7 +71,7 @@ public class GetJobLogs implements Handler {
                         if(!threadId.isEmpty()) {
                             int firstHook = line.indexOf("[");
                             int lastHook = line.indexOf("]");
-                            if (firstHook > -1 && lastHook > -1 && firstHook < lastHook) {
+                            if (firstHook == 0 && firstHook < lastHook) {
                                 String thread = line.substring(firstHook + 1, lastHook);
                                 match = thread.equals(threadId);
                             }
