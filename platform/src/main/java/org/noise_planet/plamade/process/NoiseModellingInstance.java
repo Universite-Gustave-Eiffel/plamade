@@ -610,7 +610,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         Session session = openSshSession(slurmConfig);
         try {
             Channel sftp;
-            int slurmJobId = 14905486;
+            int slurmJobId = 0;
             sftp = session.openChannel("sftp");
             try {
                 sftp.connect(SFTP_TIMEOUT);
@@ -669,24 +669,6 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             Map<String, Long> bytesReadInFiles = new HashMap<>();
             while(!progressVisitor.isCanceled()) {
                 long lastPullTime = System.currentTimeMillis();
-                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
-                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
-                int finishedStatusCount = 0;
-                for(SlurmJobStatus s : jobStatusList) {
-                    if(finishedStates.contains(s.status)) {
-                        finishedStatusCount++;
-                    }
-                }
-                // increase progress if needed
-                if(oldFinishedJobs != finishedStatusCount) {
-                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
-                        slurmJobProgress.endStep();
-                    }
-                    oldFinishedJobs = finishedStatusCount;
-                }
-                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
-                    break;
-                }
                 // Log output of the computing nodes into the logger
                 // we have to keep track of how much bytes we have already read in order to not read two times the same log rows
                 // we will use the ls command in conjunction with the tail command
@@ -705,6 +687,25 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     }
                 } catch (JSchException | IOException e) {
                     logger.error("Error while reading remote log files", e);
+                }
+                // Check status of jobs on cluster side
+                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
+                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
+                int finishedStatusCount = 0;
+                for(SlurmJobStatus s : jobStatusList) {
+                    if(finishedStates.contains(s.status)) {
+                        finishedStatusCount++;
+                    }
+                }
+                // increase progress if needed
+                if(oldFinishedJobs != finishedStatusCount) {
+                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
+                        slurmJobProgress.endStep();
+                    }
+                    oldFinishedJobs = finishedStatusCount;
+                }
+                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
+                    break;
                 }
                 // Sleep up to POLL_SLURM_STATUS_TIME
                 Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)));

@@ -145,7 +145,8 @@ public class Main {
                     st.executeUpdate("CREATE TABLE IF NOT EXISTS JOBS(PK_JOB SERIAL,REMOTE_JOB_FOLDER VARCHAR NOT NULL," +
                             " BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE, END_DATE TIMESTAMP WITHOUT TIME ZONE," +
                             " PROGRESSION REAL DEFAULT 0, CONF_ID INTEGER, INSEE_DEPARTMENT VARCHAR," +
-                            " PK_USER INTEGER NOT NULL, STATE VARCHAR, LOCAL_JOB_FOLDER VARCHAR DEFAULT '')");
+                            " PK_USER INTEGER NOT NULL, STATE VARCHAR, LOCAL_JOB_FOLDER VARCHAR DEFAULT ''," +
+                            " SLURM_JOB_ID BIGINT)");
 
                 }
                 // In the future check databaseVersion for database upgrades

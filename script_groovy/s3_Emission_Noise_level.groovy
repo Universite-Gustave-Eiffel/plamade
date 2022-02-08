@@ -41,6 +41,7 @@ import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.noisemodelling.jdbc.LDENConfig
 import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData
+import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils
 import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -499,15 +500,14 @@ def exec(Connection connection, input) {
         SpatialResultSet rs = st.executeQuery().unwrap(SpatialResultSet.class)
 
         while (rs.next()) {
-
             k++
             Geometry geo = rs.getGeometry()
 
             // Compute emission sound level for each road segment
             def results = ldenData.computeLw(rs)
-            def lday = ComputeRays.wToDba(results[0])
-            def levening = ComputeRays.wToDba(results[1])
-            def lnight = ComputeRays.wToDba(results[2])
+            def lday = PowerUtils.wToDba(results[0])
+            def levening = PowerUtils.wToDba(results[1])
+            def lnight = PowerUtils.wToDba(results[2])
             // fill the LW_ROADS table
             ps.addBatch(rs.getLong(pkIndex) as Integer, geo as Geometry, rs.getString(2) as String, rs.getString(45) as String,
                     lday[0] as Double, lday[1] as Double, lday[2] as Double,
