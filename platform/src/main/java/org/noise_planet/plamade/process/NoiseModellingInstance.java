@@ -616,6 +616,36 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return fileList;
     }
 
+    /**
+     * Log output of the computing nodes into the logger
+     * we have to keep track of how much bytes we have already read in order to not read two times the same log rows
+     * we will use the ls command in conjunction with the tail command
+     * @param session
+     * @param bytesReadInFiles keep track of logged bytes
+     */
+    void logSlurmJobs(Session session, Map<String, Long> bytesReadInFiles) {
+        try {
+            List<String>  output = runCommand(session, String.format("cd %s && find ./*.out -type f -printf \"%%s,%%f\\n\"", configuration.remoteJobFolder), false);
+            List<FileAttributes> files = parseLSCommand(output);
+            for (FileAttributes file : files) {
+                Long alreadyReadBytes = 0L;
+                if (bytesReadInFiles.containsKey(file.fileName)) {
+                    alreadyReadBytes = bytesReadInFiles.get(file.fileName);
+                }
+                // check if more bytes can be read
+                if(file.fileSize > alreadyReadBytes) {
+                    AtomicLong readBytes = new AtomicLong(0L);
+                    // the command "tail -c +N" will skip N bytes and read the remaining bytes
+                    logger.info("--------" + file + "--------");
+                    runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file), true, readBytes);
+                    bytesReadInFiles.put(file.fileName, alreadyReadBytes + readBytes.get());
+                }
+            }
+        } catch (JSchException | IOException e) {
+            logger.error("Error while reading remote log files", e);
+        }
+    }
+
     public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException {
         Session session = openSshSession(slurmConfig);
         try {
@@ -679,26 +709,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             Map<String, Long> bytesReadInFiles = new HashMap<>();
             while(!progressVisitor.isCanceled()) {
                 long lastPullTime = System.currentTimeMillis();
-                // Log output of the computing nodes into the logger
-                // we have to keep track of how much bytes we have already read in order to not read two times the same log rows
-                // we will use the ls command in conjunction with the tail command
-                try {
-                    output = runCommand(session, String.format("cd %s && find ./*.out -type f -printf \"%%s,%%f\\n\"", configuration.remoteJobFolder), false);
-                    List<FileAttributes> files = parseLSCommand(output);
-                    for (FileAttributes file : files) {
-                        AtomicLong readBytes = new AtomicLong(0L);
-                        Long alreadyReadBytes = 0L;
-                        if (bytesReadInFiles.containsKey(file.fileName)) {
-                            alreadyReadBytes = bytesReadInFiles.get(file.fileName);
-                        }
-                        // the command "tail -c +N" will skip N bytes and read the remaining bytes
-                        logger.info("--------" + file + "--------");
-                        runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file), true, readBytes);
-                        bytesReadInFiles.put(file.fileName, alreadyReadBytes + readBytes.get());
-                    }
-                } catch (JSchException | IOException e) {
-                    logger.error("Error while reading remote log files", e);
-                }
+                logSlurmJobs(session, bytesReadInFiles);
                 // Check status of jobs on cluster side
                 output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
                 List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
