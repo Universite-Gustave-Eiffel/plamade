@@ -599,10 +599,20 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         return slurmJobStatus;
     }
 
-    public static List<String> parseLSCommand(List<String> lines) {
-        List<String> fileList = Collections.list(new StringTokenizer(String.join(" ", lines))).stream()
-                .map(token -> (String) token)
-                .collect(Collectors.toList());
+    public static List<FileAttributes> parseLSCommand(List<String> lines) {
+        List<FileAttributes> fileList = new ArrayList<>(Math.max(12, lines.size()));
+        for(String line : lines) {
+            StringTokenizer stringTokenizer = new StringTokenizer(line, ",");
+            if(!stringTokenizer.hasMoreTokens()) {
+                continue;
+            }
+            long fileSize = Long.parseLong(stringTokenizer.nextToken().trim());
+            if(!stringTokenizer.hasMoreTokens()) {
+                continue;
+            }
+            String fileName = stringTokenizer.nextToken().trim();
+            fileList.add(new FileAttributes(fileName, fileSize));
+        }
         return fileList;
     }
 
@@ -673,17 +683,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 // we have to keep track of how much bytes we have already read in order to not read two times the same log rows
                 // we will use the ls command in conjunction with the tail command
                 try {
-                    output = runCommand(session, String.format("cd %s && ls *.out", configuration.remoteJobFolder), false);
-                    List<String> files = parseLSCommand(output);
-                    for (String file : files) {
+                    output = runCommand(session, String.format("cd %s && find ./*.out -type f -printf \"%%s,%%f\\n\"", configuration.remoteJobFolder), false);
+                    List<FileAttributes> files = parseLSCommand(output);
+                    for (FileAttributes file : files) {
                         AtomicLong readBytes = new AtomicLong(0L);
                         Long alreadyReadBytes = 0L;
-                        if (bytesReadInFiles.containsKey(file)) {
-                            alreadyReadBytes = bytesReadInFiles.get(file);
+                        if (bytesReadInFiles.containsKey(file.fileName)) {
+                            alreadyReadBytes = bytesReadInFiles.get(file.fileName);
                         }
                         // the command "tail -c +N" will skip N bytes and read the remaining bytes
+                        logger.info("--------" + file + "--------");
                         runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file), true, readBytes);
-                        bytesReadInFiles.put(file, alreadyReadBytes + readBytes.get());
+                        bytesReadInFiles.put(file.fileName, alreadyReadBytes + readBytes.get());
                     }
                 } catch (JSchException | IOException e) {
                     logger.error("Error while reading remote log files", e);
@@ -936,6 +947,16 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         public SlurmJobKnownStatus(String status, boolean finished) {
             this.status = status;
             this.finished = finished;
+        }
+    }
+
+    public static class FileAttributes {
+        public final String fileName;
+        public final long fileSize;
+
+        public FileAttributes(String fileName, long fileSize) {
+            this.fileName = fileName;
+            this.fileSize = fileSize;
         }
     }
 }

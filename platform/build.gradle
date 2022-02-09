@@ -1,7 +1,6 @@
 buildscript {
     repositories {
         mavenCentral()
-        jcenter()
     }
 }
 
@@ -71,7 +70,9 @@ dependencies {
 
     implementation group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '4.0.0-SNAPSHOT'
     implementation group: 'org.orbisgis', name: 'h2gis-utilities', version: '2.0.0'
-    implementation group: 'org.orbisgis', name: 'h2gis', version: '2.0.0'
+    implementation( group: 'org.orbisgis', name: 'h2gis', version: '2.0.0') {
+        exclude(group: 'org.slf4j', module: 'slf4j-simple')
+    }
     implementation group: 'org.orbisgis', name: 'postgis-jts', version: '2.0.0'
     implementation group: 'org.orbisgis', name: 'postgis-jts-osgi', version: '2.0.0'
 

@@ -8,7 +8,7 @@ echo "copy data and code to local node"
 rsync -a ./ /scratch/job."$SLURM_JOB_ID"/data/
 
 echo "run noisemodelling"
-cd /scratch/job."$SLURM_JOB_ID"/data/ && java -jar libs/computation_core.jar -n"$SLURM_ARRAY_TASK_ID" -w/scratch/job."$SLURM_JOB_ID"/data/
+cd /scratch/job."$SLURM_JOB_ID"/data/ && /home2020/home/cerema/nfortin/jdk-11.0.13/bin/java -jar libs/computation_core.jar -n"$SLURM_ARRAY_TASK_ID" -w/scratch/job."$SLURM_JOB_ID"/data/
 
 echo "copy results"
 mkdir -p ~/results_"$SLURM_ARRAY_JOB_ID"

@@ -27,25 +27,55 @@ public class TestCluster {
         return commandLines;
     }
 
+    /**
+     * Parse command output of
+     * find ./*.out -type f -printf "%s,%f\n"
+     */
     @Test
     public void testParseSelect() {
-        String command = "slurm-14909537_0.out  slurm-14909537_10.out  slurm-14909537_2.out  slurm-14909537_4.out  " +
-                "slurm-14909537_6.out  slurm-14909537_8.out\n" + "slurm-14909537_1.out  slurm-14909537_11.out  " +
-                "slurm-14909537_3.out  slurm-14909537_5.out  slurm-14909537_7.out  slurm-14909537_9.out";
+        String command = "7468,slurm-14927317_0.out\n" +
+                "2694,slurm-14927317_1.out\n" +
+                "8094,slurm-14927317_10.out\n" +
+                "2417,slurm-14927317_11.out\n" +
+                "6317,slurm-14927317_12.out\n" +
+                "5875,slurm-14927317_13.out\n" +
+                "7993,slurm-14927317_14.out\n" +
+                "2945,slurm-14927317_15.out\n" +
+                "2572,slurm-14927317_16.out\n" +
+                "3345,slurm-14927317_17.out\n" +
+                "2807,slurm-14927317_18.out\n" +
+                "3275,slurm-14927317_19.out\n" +
+                "8045,slurm-14927317_2.out\n" +
+                "4444,slurm-14927317_20.out\n" +
+                "7467,slurm-14927317_21.out\n" +
+                "3420,slurm-14927317_22.out\n" +
+                "2662,slurm-14927317_23.out\n" +
+                "2471,slurm-14927317_24.out\n" +
+                "2596,slurm-14927317_25.out\n" +
+                "3143,slurm-14927317_26.out\n" +
+                "5188,slurm-14927317_27.out\n" +
+                "4507,slurm-14927317_28.out\n" +
+                "6415,slurm-14927317_29.out\n" +
+                "4939,slurm-14927317_3.out\n" +
+                "13617,slurm-14927317_30.out\n" +
+                "3673,slurm-14927317_31.out\n" +
+                "8816,slurm-14927317_4.out\n" +
+                "15190,slurm-14927317_5.out\n" +
+                "6747,slurm-14927317_6.out\n" +
+                "9322,slurm-14927317_7.out\n" +
+                "2416,slurm-14927317_8.out\n" +
+                "10503,slurm-14927317_9.out";
         List<String> commandLines = splitCommand(command);
-        List<String> files = NoiseModellingInstance.parseLSCommand(commandLines);
-        assertEquals("slurm-14909537_0.out", files.remove(0));
-        assertEquals("slurm-14909537_10.out", files.remove(0));
-        assertEquals("slurm-14909537_2.out", files.remove(0));
-        assertEquals("slurm-14909537_4.out", files.remove(0));
-        assertEquals("slurm-14909537_6.out", files.remove(0));
-        assertEquals("slurm-14909537_8.out", files.remove(0));
-        assertEquals("slurm-14909537_1.out", files.remove(0));
-        assertEquals("slurm-14909537_11.out", files.remove(0));
-        assertEquals("slurm-14909537_3.out", files.remove(0));
-        assertEquals("slurm-14909537_5.out", files.remove(0));
-        assertEquals("slurm-14909537_7.out", files.remove(0));
-        assertEquals("slurm-14909537_9.out", files.remove(0));
+        List<NoiseModellingInstance.FileAttributes> files = NoiseModellingInstance.parseLSCommand(commandLines);
+        assertEquals(32, files.size());
+        assertEquals("slurm-14927317_0.out", files.get(0).fileName);
+        assertEquals(7468, files.get(0).fileSize);
+        assertEquals("slurm-14927317_1.out", files.get(1).fileName);
+        assertEquals(2694, files.get(1).fileSize);
+        assertEquals("slurm-14927317_10.out", files.get(2).fileName);
+        assertEquals(8094, files.get(2).fileSize);
+        assertEquals("slurm-14927317_11.out", files.get(3).fileName);
+        assertEquals(2417, files.get(3).fileSize);
     }
 
     @Test
