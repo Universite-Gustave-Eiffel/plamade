@@ -1,7 +1,7 @@
 ------------------------------------------------------------------------------------
 -- Script d'alimentation de NoiseModelling à partir de la base de données Plamade --
 -- Auteur : Gwendall Petit (Lab-STICC - CNRS UMR 6285)                            --
--- Dernière mise à jour : 02/2021                                                 --
+-- Dernière mise à jour : 02/2022                                                 --
 ------------------------------------------------------------------------------------
 
 
@@ -1125,3 +1125,42 @@ CREATE TABLE noisemodelling.infra_5490 AS
 CREATE INDEX infra_5490_geom_idx ON noisemodelling.infra_5490 USING gist (the_geom);
 
 DROP TABLE IF EXISTS noisemodelling.infra_road_5490, noisemodelling.infra_rail_5490;
+
+
+---------------------------------------------------------------------------------
+-- 6- Identify buildings that are in agglomeration
+---------------------------------------------------------------------------------
+
+-- NB : only the metropole (2154) has agglomeration
+
+-- Add a boolean new column called AGGLO (default value is false)
+ALTER TABLE noisemodelling."C_BATIMENT_S_2154" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_2972" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_2975" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_4471" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_5490" ADD COLUMN "AGGLO" boolean DEFAULT false;
+
+
+-- Generate agglomerations for metropole (2154)
+DROP TABLE IF EXISTS noisemodelling.agglo_2154;
+CREATE TABLE noisemodelling.agglo_2154 AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "AUTCOMCBS" as autcomcbs, "CODEDEPT"  as codedept, "UUEID" as uueid 
+	FROM echeance4."'"C_CONTOUR_AUTCOMCBS_S"'";
+
+CREATE INDEX agglo_2154_geom_idx ON noisemodelling.agglo_2154 USING gist (the_geom);
+CREATE INDEX agglo_2154_insee_dep_idx ON noisemodelling.agglo_2154 USING btree (uueid);
+
+-- Merge geometries (useful for the Paris region where several agglomerations touch each other)
+DROP TABLE IF EXISTS noisemodelling.agglo_2154_unify;
+CREATE TABLE noisemodelling.agglo_2154_unify AS SELECT (ST_Dump(ST_Union(ST_Accum(the_geom)))).geom as the_geom FROM noisemodelling.agglo_2154;
+CREATE INDEX agglo_2154_unify_geom_idx ON noisemodelling.agglo_2154_unify USING gist (the_geom);
+
+-- Selection of the identifier of buildings that intersect an agglomeration
+DROP TABLE IF EXISTS noisemodelling.building_2154_agglo;
+CREATE TABLE noisemodelling.building_2154_agglo AS SELECT a."IDBAT" FROM noisemodelling."C_BATIMENT_S_2154" a, noisemodelling.agglo_2154_unify b WHERE a.the_geom && b.the_geom AND ST_INTERSECTS(a.the_geom, b.the_geom);
+CREATE INDEX building_2154_agglo_idbat_idx ON noisemodelling.building_2154_agglo USING btree ("IDBAT"); 
+
+-- Update AGGLO column (= true) for buildings which ID is in 'building_2154_agglo" table
+UPDATE noisemodelling."C_BATIMENT_S_2154" SET "AGGLO" = true WHERE "IDBAT" in (SELECT "IDBAT" FROM noisemodelling.building_2154_agglo);
+
+DROP TABLE IF EXISTS noisemodelling.building_2154_agglo;
