@@ -426,7 +426,7 @@ public class NoiseModellingInstance {
         double wallAlpha = asDouble(rs.get("wall_alpha"));
         // overwrite with the system number of thread - 1
         Runtime runtime = Runtime.getRuntime();
-        int nThread = Math.max(1, runtime.availableProcessors() - 1);
+        int nThread = 1; // TODO RESTORE Math.max(1, runtime.availableProcessors() - 1);
 
         boolean compute_vertical_diffraction = (Boolean)rs.get("confdiffvertical");
         boolean compute_horizontal_diffraction = (Boolean)rs.get("confdiffhorizontal");

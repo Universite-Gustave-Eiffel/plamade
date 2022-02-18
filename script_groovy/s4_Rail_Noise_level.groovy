@@ -175,7 +175,7 @@ def exec(Connection connection, input) {
     //Get the geometry field of the receiver table
     TableLocation receiverTableIdentifier = TableLocation.parse(receivers_table_name)
     List<String> geomFieldsRcv = GeometryTableUtilities.getGeometryColumnNames(connection,
-            TableLoction.parse(receiverTableIdentifier, dbTypes))
+            receiverTableIdentifier)
     if (geomFieldsRcv.isEmpty()) {
         throw new SQLException(String.format("The table %s does not exists or does not contain a geometry field", receiverTableIdentifier))
     }

@@ -147,6 +147,7 @@ def exec(Connection connection, input) {
     //
     // For NIGHT 
 
+
     // LNIGHT classes : 50-54, 55-59, 60-64, 65-69 et >70 dB
 
     logger.info("Start computing LNIGHT tables")
@@ -155,11 +156,11 @@ def exec(Connection connection, input) {
 
     // rajouter SOMME de BUILDING, SCHOOL, HOSPITAL
 
-    sql.execute("CREATE TABLE ROADS_POP_NIGHT1 AS SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 0.0 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight<50 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_NIGHT2 AS SELECT * FROM ROADS_POP_NIGHT1 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 52.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>50 AND lnight<55 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_NIGHT3 AS SELECT * FROM ROADS_POP_NIGHT2 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 57.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>55 and lnight<60 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_NIGHT4 AS SELECT * FROM ROADS_POP_NIGHT3 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 62.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>60 and lnight<65 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_NIGHT5 AS SELECT * FROM ROADS_POP_NIGHT4 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 67.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>65 and lnight<70 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_NIGHT1 AS SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 0.0 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight<=50 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_NIGHT2 AS SELECT * FROM ROADS_POP_NIGHT1 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 52.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>50 AND lnight<=55 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_NIGHT3 AS SELECT * FROM ROADS_POP_NIGHT2 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 57.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>55 and lnight<=60 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_NIGHT4 AS SELECT * FROM ROADS_POP_NIGHT3 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 62.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>60 and lnight<=65 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_NIGHT5 AS SELECT * FROM ROADS_POP_NIGHT4 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 67.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>65 and lnight<=70 GROUP BY UUEID;")
 
     // final table
     sql.execute("CREATE TABLE "+outputNIGHT+" AS SELECT * FROM ROADS_POP_NIGHT5 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 72.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_NIGHT WHERE lnight>70 GROUP BY UUEID;")
@@ -177,11 +178,11 @@ def exec(Connection connection, input) {
 
     sql.execute("DROP TABLE IF EXISTS ROADS_POP_DEN1, ROADS_POP_DEN2, ROADS_POP_DEN3, ROADS_POP_DEN4, ROADS_POP_DEN5;")
 
-    sql.execute("CREATE TABLE ROADS_POP_DEN1 AS SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 0.0 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden<55 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_DEN2 AS SELECT * FROM ROADS_POP_DEN1 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 57.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>55 AND lden<60 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_DEN3 AS SELECT * FROM ROADS_POP_DEN2 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 62.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>60 and lden<65 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_DEN4 AS SELECT * FROM ROADS_POP_DEN3 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 67.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>65 and lden<70 GROUP BY UUEID;")
-    sql.execute("CREATE TABLE ROADS_POP_DEN5 AS SELECT * FROM ROADS_POP_DEN4 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 72.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>70 and lden<75 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_DEN1 AS SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 0.0 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden<=55 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_DEN2 AS SELECT * FROM ROADS_POP_DEN1 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 57.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>55 AND lden<=60 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_DEN3 AS SELECT * FROM ROADS_POP_DEN2 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 62.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>60 and lden<=65 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_DEN4 AS SELECT * FROM ROADS_POP_DEN3 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 67.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>65 and lden<=70 GROUP BY UUEID;")
+    sql.execute("CREATE TABLE ROADS_POP_DEN5 AS SELECT * FROM ROADS_POP_DEN4 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 72.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) as sum_hospital FROM BUILD_MAX_DEN WHERE lden>70 and lden<=75 GROUP BY UUEID;")
 
     // final table
     sql.execute("CREATE TABLE "+outputDEN+" AS SELECT * FROM ROADS_POP_DEN5 UNION ALL SELECT UUEID, ROUND(SUM(pop),1) as sum_pop, 77.5 as range, SUM(BUILDING) as sum_building, SUM(SCHOOL) as sum_school, SUM(HOSPITAL) FROM BUILD_MAX_DEN WHERE lden>75 GROUP BY UUEID;")
