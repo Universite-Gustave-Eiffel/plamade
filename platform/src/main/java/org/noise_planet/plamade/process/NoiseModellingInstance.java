@@ -707,7 +707,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
             int oldFinishedJobs = 0;
             Map<String, Long> bytesReadInFiles = new HashMap<>();
-            while(!progressVisitor.isCanceled()) {
+            while(true) {
+                if(progressVisitor.isCanceled()) {
+                    runCommand(session, String.format("scancel %d", slurmJobId));
+                    break;
+                }
                 long lastPullTime = System.currentTimeMillis();
                 logSlurmJobs(session, bytesReadInFiles);
                 // Check status of jobs on cluster side

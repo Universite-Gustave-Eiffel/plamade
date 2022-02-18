@@ -27,15 +27,31 @@ package org.noise_planet.noisemodelling.wps.plamade
 import groovy.text.SimpleTemplateEngine
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.locationtech.jts.geom.Point
-import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
+import groovy.sql.Sql
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import groovy.sql.Sql
+
 import java.sql.Connection
 import java.sql.Statement
+import groovy.sql.Sql
+import groovy.time.TimeCategory
+import org.h2gis.functions.spatial.edit.ST_AddZ
+import org.h2gis.api.EmptyProgressVisitor
+import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.SpatialResultSet
+import org.h2gis.utilities.wrapper.ConnectionWrapper
+import org.locationtech.jts.geom.Geometry
+import org.locationtech.jts.geom.LineString
+import org.noise_planet.noisemodelling.emission.*
+import org.noise_planet.noisemodelling.pathfinder.*
+import org.noise_planet.noisemodelling.propagation.*
+import org.noise_planet.noisemodelling.jdbc.*
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.ResultSet
+import java.sql.SQLException
 
 title = 'Extract department'
 description = 'Connect to a distant PostGIS database and extract departments according to Plamade specification'
@@ -180,6 +196,7 @@ def exec(Connection connection, input) {
     def table_bati = "C_BATIMENT_S_2154"
     def table_route_protect = "N_ROUTIER_PROTECTION_ACOUSTIQUE_L_2154"
     def table_rail_protect = "N_FERROVIAIRE_PROTECTION_ACOUSTIQUE_L_2154"
+    def table_agglo = "agglo_2154"
     def table_land = "C_NATURESOL_S_2154"
     def table_infra = "infra_2154"
     def table_bd_topo_route = "t_route_metro_corse"
@@ -531,7 +548,8 @@ def exec(Connection connection, input) {
      a."IDBAT" as id_bat, 
      a."BAT_UUEID" as bat_uueid,
      a."BAT_HAUT" as height,
-     b."POP_BAT" as pop
+     b."POP_BAT" as pop,
+     a."AGGLO" as agglo 
     FROM 
      noisemodelling."$table_bati" a,
      echeance4."C_POPULATION" b,
@@ -565,7 +583,7 @@ def exec(Connection connection, input) {
     CREATE INDEX ON buildings_erps(id_bat);
 
 	-- Merge both geom and ERPS tables into builings table
-	CREATE TABLE buildings as SELECT a.the_geom, a.id_bat, a.bat_uueid, a.height, a.pop, b.id_erps, b.erps_natur FROM buildings_geom a LEFT JOIN buildings_erps b ON a.id_bat = b.id_bat;
+	CREATE TABLE buildings as SELECT a.the_geom, a.id_bat, a.bat_uueid, a.height, a.pop, a.agglo, b.id_erps, b.erps_natur FROM buildings_geom a LEFT JOIN buildings_erps b ON a.id_bat = b.id_bat;
     ALTER TABLE buildings ADD COLUMN pk serial PRIMARY KEY;
     ALTER TABLE buildings ADD COLUMN g float DEFAULT 0.1;
     ALTER TABLE buildings ADD COLUMN origin varchar DEFAULT 'building';
@@ -635,7 +653,7 @@ def exec(Connection connection, input) {
     UPDATE screens SET g = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
 
     ALTER TABLE screens ADD COLUMN pop integer DEFAULT 0;
-    --ALTER TABLE screens ADD COLUMN id_erps integer DEFAULT 0;
+    ALTER TABLE screens ADD COLUMN agglo boolean DEFAULT false;
     ALTER TABLE screens ADD COLUMN id_erps varchar;    
     ALTER TABLE screens ADD COLUMN erps_natur varchar;
     ALTER TABLE screens ADD COLUMN pk serial PRIMARY KEY;
@@ -655,24 +673,24 @@ def exec(Connection connection, input) {
         WHERE b.the_geom && s.the_geom AND ST_Distance(b.the_geom, s.the_geom) <= 0.5;
 
     -- For intersecting screens, remove parts closer than distance_truncate_screens
-    CREATE TABLE tmp_screen_truncated AS SELECT pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 0.5)) the_geom, s.id_bat, s.bat_uueid, s.height, s.pop, s.id_erps, s.erps_natur, s.g, s.origin 
+    CREATE TABLE tmp_screen_truncated AS SELECT pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 0.5)) the_geom, s.id_bat, s.bat_uueid, s.height, s.pop, s.agglo, s.id_erps, s.erps_natur, s.g, s.origin 
         FROM tmp_relation_screen_building r, buildings b, screens s 
         WHERE pk_building = b.pk AND pk_screen = s.pk 
         GROUP BY pk_screen, s.id_bat, s.bat_uueid, s.height, s.pop, s.id_erps, s.erps_natur, s.g, s.origin;
 
     -- Merge untruncated screens and truncated screens
     CREATE TABLE tmp_screens AS 
-        SELECT the_geom, pk, id_bat, bat_uueid, height, pop, id_erps, erps_natur, g, origin FROM screens WHERE pk not in (SELECT pk_screen FROM tmp_screen_truncated) UNION ALL 
-        SELECT the_geom, pk_screen as pk, id_bat, bat_uueid, height, pop, id_erps, erps_natur, g, origin FROM tmp_screen_truncated;
+        SELECT the_geom, pk, id_bat, bat_uueid, height, pop, agglo, id_erps, erps_natur, g, origin FROM screens WHERE pk not in (SELECT pk_screen FROM tmp_screen_truncated) UNION ALL 
+        SELECT the_geom, pk_screen as pk, id_bat, bat_uueid, height, pop, agglo, id_erps, erps_natur, g, origin FROM tmp_screen_truncated;
 
     -- Convert linestring screens to polygons with buffer function
-    CREATE TABLE tmp_buffered_screens AS SELECT ST_SETSRID(ST_BUFFER(sc.the_geom, 0.1, 'join=mitre endcap=flat'), ST_SRID(sc.the_geom)) as the_geom, pk, id_bat, bat_uueid, height, pop, id_erps, erps_natur, g, origin 
+    CREATE TABLE tmp_buffered_screens AS SELECT ST_SETSRID(ST_BUFFER(sc.the_geom, 0.1, 'join=mitre endcap=flat'), ST_SRID(sc.the_geom)) as the_geom, pk, id_bat, bat_uueid, height, pop, agglo, id_erps, erps_natur, g, origin 
         FROM tmp_screens sc;
 
     -- Merge buildings and buffered screens
     CREATE TABLE buildings_screens as 
-        SELECT the_geom, id_bat, bat_uueid, height, pop, id_erps, erps_natur, g, origin FROM tmp_buffered_screens sc UNION ALL 
-        SELECT the_geom, id_bat, bat_uueid, height, pop, id_erps, erps_natur, g, origin FROM buildings;
+        SELECT the_geom, id_bat, bat_uueid, height, pop, agglo, id_erps, erps_natur, g, origin FROM tmp_buffered_screens sc UNION ALL 
+        SELECT the_geom, id_bat, bat_uueid, height, pop, agglo, id_erps, erps_natur, g, origin FROM buildings;
 
     ALTER TABLE buildings_screens ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX ON buildings_screens(the_geom);
@@ -680,6 +698,8 @@ def exec(Connection connection, input) {
     DROP TABLE IF EXISTS tmp_relation_screen_building, tmp_screen_truncated, tmp_screens, tmp_buffered_screens, buffered_screens;
     
     """
+
+
     def queries_landcover = """
 	----------------------------------
 	-- Manage Landcover
@@ -1014,7 +1034,7 @@ def exec(Connection connection, input) {
     sql.execute(template.toString())
     progress.endStep()
 
-        logger.info('Manage statistics (11/11)')
+    logger.info('Manage statistics (11/11)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_stats).make(binding)
     sql.execute(template.toString())

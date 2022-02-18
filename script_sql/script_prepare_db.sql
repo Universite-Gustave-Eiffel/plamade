@@ -1,7 +1,7 @@
 ------------------------------------------------------------------------------------
 -- Script d'alimentation de NoiseModelling à partir de la base de données Plamade --
 -- Auteur : Gwendall Petit (Lab-STICC - CNRS UMR 6285)                            --
--- Dernière mise à jour : 02/2021                                                 --
+-- Dernière mise à jour : 02/2022                                                 --
 ------------------------------------------------------------------------------------
 
 
@@ -551,7 +551,7 @@ COMMENT ON COLUMN noisemodelling.platform.g3 IS 'Facteur de sol entre les rails'
 COMMENT ON COLUMN noisemodelling.platform.h1 IS 'Hauteur de la banquette de ballast (en mètre)';
 COMMENT ON COLUMN noisemodelling.platform.h2 IS 'Hauteur des rails libres au-dessus du ballast (en mètre)';
 
-INSERT INTO noisemodelling.platform VALUES ('SNCF', 1.435, 0, 1, 1, 1, 0.18);
+INSERT INTO noisemodelling.platform VALUES ('SNCF', 1.435, 0, 1, 1, 0.5, 0.18);
 
 
 ----------------------------------
@@ -980,32 +980,187 @@ UPDATE noisemodelling."C_BATIMENT_S_5490" SET "BAT_HAUT"=7 WHERE "BAT_HAUT"=0;
 -- 5- Generate INFRA table, used in order to filter DEM tables
 ---------------------------------------------------------------------------------
 
+-- For 2154
+DROP TABLE IF EXISTS noisemodelling.infra_road_2154;
+CREATE TABLE noisemodelling.infra_road_2154 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_2154" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_2154;
+CREATE TABLE noisemodelling.infra_rail_2154 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
+
 DROP TABLE IF EXISTS noisemodelling.infra_2154;
 CREATE TABLE noisemodelling.infra_2154 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2154" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2154" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_2154 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_2154;
 CREATE INDEX infra_2154_geom_idx ON noisemodelling.infra_2154 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_2154, noisemodelling.infra_rail_2154;
+
+
+-- For 2972
+DROP TABLE IF EXISTS noisemodelling.infra_road_2972;
+CREATE TABLE noisemodelling.infra_road_2972 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_2972" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_2972;
+CREATE TABLE noisemodelling.infra_rail_2972 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_2972;
 CREATE TABLE noisemodelling.infra_2972 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2972" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2972" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_2972 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_2972;
 CREATE INDEX infra_2972_geom_idx ON noisemodelling.infra_2972 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_2972, noisemodelling.infra_rail_2972;
+
+-- For 2975
+DROP TABLE IF EXISTS noisemodelling.infra_road_2975;
+CREATE TABLE noisemodelling.infra_road_2975 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_2975" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_2975;
+CREATE TABLE noisemodelling.infra_rail_2975 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_2975;
 CREATE TABLE noisemodelling.infra_2975 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_2975" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_2975" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_2975 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_2975;
 CREATE INDEX infra_2975_geom_idx ON noisemodelling.infra_2975 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_2975, noisemodelling.infra_rail_2975;
+
+-- For 4471
+DROP TABLE IF EXISTS noisemodelling.infra_road_4471;
+CREATE TABLE noisemodelling.infra_road_4471 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_4471" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_4471;
+CREATE TABLE noisemodelling.infra_rail_4471 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_4471;
 CREATE TABLE noisemodelling.infra_4471 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_4471" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_4471" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_4471 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_4471;
 CREATE INDEX infra_4471_geom_idx ON noisemodelling.infra_4471 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_4471, noisemodelling.infra_rail_4471;
+
+-- For 5490
+DROP TABLE IF EXISTS noisemodelling.infra_road_5490;
+CREATE TABLE noisemodelling.infra_road_5490 AS SELECT a.the_geom
+	FROM 
+     	noisemodelling."N_ROUTIER_TRONCON_L_5490" a,
+     	echeance4."N_ROUTIER_ROUTE" b 
+    WHERE 
+	    ST_LENGTH(a.the_geom)>0 and
+	    a."CBS_GITT" and
+	    b."CONCESSION"='N' and 
+	    a."IDROUTE"=b."IDROUTE";
+
+DROP TABLE IF EXISTS noisemodelling.infra_rail_5490;
+CREATE TABLE noisemodelling.infra_rail_5490 AS SELECT a.the_geom
+	FROM 
+        noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" a
+    WHERE
+        ST_LENGTH(a.the_geom)>0 and 
+        a."CBS_GITT" and
+        a."REFPROD"='412280737';
 
 DROP TABLE IF EXISTS noisemodelling.infra_5490;
 CREATE TABLE noisemodelling.infra_5490 AS 
-	SELECT the_geom FROM noisemodelling."N_ROUTIER_TRONCON_L_5490" WHERE "CBS_GITT" UNION ALL 
-	SELECT the_geom FROM noisemodelling."N_FERROVIAIRE_TRONCON_L_5490" WHERE "CBS_GITT";
+	SELECT the_geom FROM noisemodelling.infra_road_5490 UNION ALL
+	SELECT the_geom FROM noisemodelling.infra_rail_5490;
 CREATE INDEX infra_5490_geom_idx ON noisemodelling.infra_5490 USING gist (the_geom);
+
+DROP TABLE IF EXISTS noisemodelling.infra_road_5490, noisemodelling.infra_rail_5490;
+
+
+---------------------------------------------------------------------------------
+-- 6- Identify buildings that are in agglomeration
+---------------------------------------------------------------------------------
+
+-- NB : only the metropole (2154) has agglomeration
+
+-- Add a boolean new column called AGGLO (default value is false)
+ALTER TABLE noisemodelling."C_BATIMENT_S_2154" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_2972" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_2975" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_4471" ADD COLUMN "AGGLO" boolean DEFAULT false;
+ALTER TABLE noisemodelling."C_BATIMENT_S_5490" ADD COLUMN "AGGLO" boolean DEFAULT false;
+
+
+-- Generate agglomerations for metropole (2154)
+DROP TABLE IF EXISTS noisemodelling.agglo_2154;
+CREATE TABLE noisemodelling.agglo_2154 AS SELECT 
+	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "AUTCOMCBS" as autcomcbs, "CODEDEPT"  as codedept, "UUEID" as uueid 
+	FROM echeance4."'"C_CONTOUR_AUTCOMCBS_S"'";
+
+CREATE INDEX agglo_2154_geom_idx ON noisemodelling.agglo_2154 USING gist (the_geom);
+CREATE INDEX agglo_2154_insee_dep_idx ON noisemodelling.agglo_2154 USING btree (uueid);
+
+-- Merge geometries (useful for the Paris region where several agglomerations touch each other)
+DROP TABLE IF EXISTS noisemodelling.agglo_2154_unify;
+CREATE TABLE noisemodelling.agglo_2154_unify AS SELECT (ST_Dump(ST_Union(ST_Accum(the_geom)))).geom as the_geom FROM noisemodelling.agglo_2154;
+CREATE INDEX agglo_2154_unify_geom_idx ON noisemodelling.agglo_2154_unify USING gist (the_geom);
+
+-- Selection of the identifier of buildings that intersect an agglomeration
+DROP TABLE IF EXISTS noisemodelling.building_2154_agglo;
+CREATE TABLE noisemodelling.building_2154_agglo AS SELECT a."IDBAT" FROM noisemodelling."C_BATIMENT_S_2154" a, noisemodelling.agglo_2154_unify b WHERE a.the_geom && b.the_geom AND ST_INTERSECTS(a.the_geom, b.the_geom);
+CREATE INDEX building_2154_agglo_idbat_idx ON noisemodelling.building_2154_agglo USING btree ("IDBAT"); 
+
+-- Update AGGLO column (= true) for buildings which ID is in 'building_2154_agglo" table
+UPDATE noisemodelling."C_BATIMENT_S_2154" SET "AGGLO" = true WHERE "IDBAT" in (SELECT "IDBAT" FROM noisemodelling.building_2154_agglo);
+
+DROP TABLE IF EXISTS noisemodelling.building_2154_agglo;
