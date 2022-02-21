@@ -72,7 +72,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             new SlurmJobKnownStatus("PREEMPTED", false), // The job was terminated because of preemption by another job.
             new SlurmJobKnownStatus("RUNNING", false), // The job currently is allocated to a node and is running.
             new SlurmJobKnownStatus("SUSPENDED", false), // A running job has been stopped with its cores released to other jobs.
-            new SlurmJobKnownStatus("STOPPED", true) // A running job has been stopped with its cores retained.
+            new SlurmJobKnownStatus("STOPPED", true), // A running job has been stopped with its cores retained.
+            new SlurmJobKnownStatus("CANCELED", true), // Job canceled by system or user
+            new SlurmJobKnownStatus("TIMEOUT", true) // Job timeout (will not be restarted)
     };
 
     private static final Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
@@ -268,7 +270,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                     st.execute("CALL FILE_TABLE('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
                     st.execute("DROP TABLE IF EXISTS " + entry.getKey().toUpperCase(Locale.ROOT));
-                    st.execute("CREATE TABLE " + entry.getKey().toUpperCase(Locale.ROOT) + " AS SELECT * FROM " + tableName);
+                    st.execute("CREATE TABLE " + entry.getKey().toUpperCase(Locale.ROOT) + " AS SELECT * FROM " + tableName+ " WHERE ST_DIMENSION(the_geom)=2");
                     createdTables.add(entry.getKey().toUpperCase(Locale.ROOT));
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                 }
@@ -278,7 +280,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                     st.execute("CALL FILE_TABLE('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
                     // insert into the existing table
-                    st.execute("INSERT INTO " + entry.getKey() + " SELECT * FROM " + tableName);
+                    st.execute("INSERT INTO " + entry.getKey() + " SELECT * FROM " + tableName + " WHERE ST_DIMENSION(the_geom)=2");
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                 }
             }
@@ -618,7 +620,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     /**
      * Log output of the computing nodes into the logger
-     * we have to keep track of how much bytes we have already read in order to not read two times the same log rows
+     * we have to keep track of how many bytes we have already read in order to not read two times the same log rows
      * we will use the ls command in conjunction with the tail command
      * @param session
      * @param bytesReadInFiles keep track of logged bytes
@@ -636,8 +638,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 if(file.fileSize > alreadyReadBytes) {
                     AtomicLong readBytes = new AtomicLong(0L);
                     // the command "tail -c +N" will skip N bytes and read the remaining bytes
-                    logger.info("--------" + file + "--------");
-                    runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file), true, readBytes);
+                    logger.info("--------" + file.fileName + "--------");
+                    runCommand(session, String.format("cd %s && tail -c +%d %s", configuration.remoteJobFolder, alreadyReadBytes, file.fileName), true, readBytes);
                     bytesReadInFiles.put(file.fileName, alreadyReadBytes + readBytes.get());
                 }
             }
@@ -851,6 +853,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 logger.error(ex.getLocalizedMessage(), ex);
                 ex = ex.getNextException();
             }
+            setJobState(JOB_STATES.FAILED);
         } catch (Exception ex) {
             logger.error(ex.getLocalizedMessage(), ex);
             setJobState(JOB_STATES.FAILED);

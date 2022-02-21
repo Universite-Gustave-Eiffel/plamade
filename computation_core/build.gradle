@@ -18,6 +18,7 @@ repositories {
     mavenCentral()
     maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
     maven { url 'https://oss.sonatype.org/content/repositories/releases/' }
+    mavenLocal()
 }
 
 task copyDependencies(type: Copy) {
@@ -32,11 +33,11 @@ dependencies {
     implementation (group: 'org.orbisgis', name: 'h2gis', version: '2.0.0')  {
         exclude(group: 'org.slf4j', module: 'slf4j-simple')
     }
-    implementation group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '4.0.0-SNAPSHOT'
+    implementation (group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '4.0.0-SNAPSHOT')  {
+        exclude(group: 'org.slf4j', module: 'slf4j-simple')
+    }
+
     implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
-
-
-
     runtimeOnly group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
 }
 
