@@ -27,7 +27,11 @@ import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.functions.io.shp.SHPWrite;
+import org.h2gis.utilities.GeometryMetaData;
+import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
+import org.h2gis.utilities.TableLocation;
+import org.h2gis.utilities.dbtypes.DBTypes;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
@@ -207,18 +211,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
-    public static class ShapeFileFilter implements FilenameFilter {
+    public static class GEOJSONFileFilter implements FilenameFilter {
         String prefix;
         String suffix;
 
-        public ShapeFileFilter(String prefix, String suffix) {
+        public GEOJSONFileFilter(String prefix, String suffix) {
             this.prefix = prefix;
             this.suffix = suffix;
         }
 
         @Override
         public boolean accept(File dir, String name) {
-            if(!name.toLowerCase(Locale.ROOT).endsWith("shp")) {
+            if(!name.toLowerCase(Locale.ROOT).endsWith("geojson")) {
                 return false;
             }
             if(!name.startsWith(prefix)) {
@@ -237,11 +241,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
      * @param suffix common suffix after the number
      * @return Tables created
      */
-    public static List<String> mergeShapeFiles(Connection connection,String folder, String prefix, String suffix) throws SQLException {
-        String extension = ".shp";
+    public static List<String> mergeGeoJSON(Connection connection,String folder, String prefix, String suffix) throws SQLException {
+        String extension = ".geojson";
         File workingFolder = new File(folder);
         // Search files that match expected file name format
-        String[] files = workingFolder.list(new ShapeFileFilter(prefix, suffix));
+        String[] files = workingFolder.list(new GEOJSONFileFilter(prefix, suffix));
         if(files == null) {
             return new ArrayList<>();
         }
@@ -261,6 +265,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
         List<String> createdTables = new ArrayList<>();
         for(Map.Entry<String, ArrayList<String>> entry : tableNameToFileNames.entrySet()) {
+            String finalTableName = entry.getKey().toUpperCase(Locale.ROOT);
             try(Statement st = connection.createStatement()) {
                 ArrayList<String> fileNames = entry.getValue();
                 // Copy the first table as a new table
@@ -268,26 +273,25 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     String fileName = fileNames.remove(0);
                     String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
                     st.execute("DROP TABLE IF EXISTS " + tableName);
-                    st.execute("CALL FILE_TABLE('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
-                    st.execute("DROP TABLE IF EXISTS " + entry.getKey().toUpperCase(Locale.ROOT));
-                    st.execute("CREATE TABLE " + entry.getKey().toUpperCase(Locale.ROOT) + " AS SELECT * FROM " + tableName+ " WHERE ST_DIMENSION(the_geom)=2");
-                    createdTables.add(entry.getKey().toUpperCase(Locale.ROOT));
+                    st.execute("CALL GEOJSONREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
+                    st.execute("DROP TABLE IF EXISTS " + finalTableName);
+                    st.execute("CREATE TABLE " + finalTableName + " AS SELECT * FROM " + tableName);
+                    createdTables.add(finalTableName);
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                 }
                 for(String fileName : fileNames) {
                     // Link to shp file into the database
                     String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
                     st.execute("DROP TABLE IF EXISTS " + tableName);
-                    st.execute("CALL FILE_TABLE('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
+                    st.execute("CALL GEOJSONREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
                     // insert into the existing table
-                    st.execute("INSERT INTO " + entry.getKey() + " SELECT * FROM " + tableName + " WHERE ST_DIMENSION(the_geom)=2");
+                    st.execute("INSERT INTO " + finalTableName + " SELECT * FROM " + tableName);
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                 }
             }
         }
         return createdTables;
     }
-
 
 
 
@@ -582,8 +586,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         List<SlurmJobStatus> slurmJobStatus = new ArrayList<>();
         for(String line : commandOutput) {
             line = line.trim();
-            if(line.contains(BATCH_FILE_NAME.substring(0, 9))) {
-                StringTokenizer stringTokenizer = new StringTokenizer(line, " ");
+            if(line.contains(BATCH_FILE_NAME)) {
                 List<String> columns = Collections.list(new StringTokenizer(line, " ")).stream()
                         .map(token -> (String) token)
                         .collect(Collectors.toList());
@@ -591,7 +594,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 int jobColumnId = Integer.parseInt(jobColumn.substring(0, jobColumn.lastIndexOf("_")));
                 if(jobColumnId == jobId) {
                     int jobIndex = Integer.parseInt(jobColumn.substring(jobColumn.lastIndexOf("_") + 1));
-                    String status = columns.get(6);
+                    String status = columns.get(2);
                     slurmJobStatus.add(new SlurmJobStatus(status, jobIndex));
                 }
             }
@@ -717,7 +720,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 long lastPullTime = System.currentTimeMillis();
                 logSlurmJobs(session, bytesReadInFiles);
                 // Check status of jobs on cluster side
-                output = runCommand(session, String.format("sacct --format JobID,Jobname,Start,End,Elapsed,NodeList,State,ExitCode,TotalCPU -j %d", slurmJobId));
+                output = runCommand(session, String.format("sacct --format JobID%%18,Jobname%%30,State,Elapsed,TotalCPU -j %d", slurmJobId));
                 List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
                 int finishedStatusCount = 0;
                 for(SlurmJobStatus s : jobStatusList) {
@@ -830,7 +833,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
                 subProg.endStep();
                 slurmInitAndStart(configuration.slurmConfig, subProg);
-                List<String> createdTables = mergeShapeFiles(nmConnection,
+                List<String> createdTables = mergeGeoJSON(nmConnection,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
                         "out_", "_");
                 subProg.endStep();

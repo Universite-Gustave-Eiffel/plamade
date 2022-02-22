@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import groovy.sql.Sql;
 import org.apache.log4j.PropertyConfigurator;
+import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.slf4j.Logger;

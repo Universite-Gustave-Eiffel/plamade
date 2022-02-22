@@ -1,8 +1,11 @@
 package org.noise_planet.plamade;
 
+import com.fasterxml.jackson.core.JsonEncoding;
 import com.jcraft.jsch.SftpException;
 import org.h2gis.api.EmptyProgressVisitor;
+import org.h2gis.functions.io.geojson.GeoJsonWriteDriver;
 import org.junit.Test;
+import org.locationtech.spatial4j.io.GeoJSONWriter;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 
 import javax.sql.DataSource;
@@ -80,57 +83,54 @@ public class TestCluster {
 
     @Test
     public void testParseSacct() {
-        String command = "       JobID    JobName               Start                 End    Elapsed        NodeList " +
-                "     State ExitCode   TotalCPU \n" + "------------ ---------- ------------------- " +
-                "------------------- ---------- --------------- ---------- -------- ---------- \n14904827_0   " +
-                "noisemode+ 2022-01-27T13:10:08 2022-01-27T13:22:15   00:12:07        hpc-n867  COMPLETED      0:0   " +
-                "04:34:53 \n" + "14904827_0.+      batch 2022-01-27T13:10:08 2022-01-27T13:22:15   00:12:07        " +
-                "hpc-n867  COMPLETED      0:0   04:34:53 \n" + "14904827_1   noisemode+ 2022-01-27T13:10:08          " +
-                "   Unknown   00:18:48        hpc-n857    RUNNING      0:0   00:00:00 \n" + "14904827_2   noisemode+ " +
-                "2022-01-27T13:10:08 2022-01-27T13:19:37   00:09:29        hpc-n821  COMPLETED      0:0   02:09:34 " +
-                "\n" + "14904827_2.+      batch 2022-01-27T13:10:08 2022-01-27T13:19:37   00:09:29        hpc-n821  " +
-                "COMPLETED      0:0   02:09:34 \n" + "14904827_3   noisemode+ 2022-01-27T13:10:08 2022-01-27T13:12:44" +
-                "   00:02:36        hpc-n838  COMPLETED      0:0  37:09.578 \n" + "14904827_3.+      batch " +
-                "2022-01-27T13:10:08 2022-01-27T13:12:44   00:02:36        hpc-n838  COMPLETED      0:0  37:09.578 " +
-                "\n" + "14904827_4   noisemode+ 2022-01-27T13:10:08 2022-01-27T13:14:00   00:03:52        hpc-n892  " +
-                "COMPLETED      0:0   01:36:13 \n" + "14904827_4.+      batch 2022-01-27T13:10:08 2022-01-27T13:14:00" +
-                "   00:03:52        hpc-n892  COMPLETED      0:0   01:36:13 \n" + "14904827_5   noisemode+ " +
-                "2022-01-27T13:10:08 2022-01-27T13:11:34   00:01:26        hpc-n893  COMPLETED      0:0  24:47.312 " +
-                "\n" + "14904827_5.+      batch 2022-01-27T13:10:08 2022-01-27T13:11:34   00:01:26        hpc-n893  " +
-                "COMPLETED      0:0  24:47.312 \n" + "14904827_6   noisemode+ 2022-01-27T13:10:08 2022-01-27T13:21:07" +
-                "   00:10:59        hpc-n859  COMPLETED      0:0   03:34:59 \n" + "14904827_6.+      batch " +
-                "2022-01-27T13:10:08 2022-01-27T13:21:07   00:10:59        hpc-n859  COMPLETED      0:0   03:34:59 " +
-                "\n" + "14904827_7   noisemode+ 2022-01-27T13:10:08 2022-01-27T13:17:12   00:07:04        hpc-n860  " +
-                "COMPLETED      0:0   02:02:55 \n" + "14904827_7.+      batch 2022-01-27T13:10:08 2022-01-27T13:17:12" +
-                "   00:07:04        hpc-n860  COMPLETED      0:0   02:02:55 \n" + "14904827_8   noisemode+ " +
-                "2022-01-27T13:10:08 2022-01-27T13:16:46   00:06:38        hpc-n861  COMPLETED      0:0   01:53:33 " +
-                "\n" + "14904827_8.+      batch 2022-01-27T13:10:08 2022-01-27T13:16:46   00:06:38        hpc-n861  " +
-                "COMPLETED      0:0   01:53:33 \n" + "14904827_9   noisemode+ 2022-01-27T13:10:08 2022-01-27T13:18:28" +
-                "   00:08:20        hpc-n774  COMPLETED      0:0   02:20:29 \n" + "14904827_9.+      batch " +
-                "2022-01-27T13:10:08 2022-01-27T13:18:28   00:08:20        hpc-n774  COMPLETED      0:0   02:20:29 " +
-                "\n" + "14904827_10  noisemode+ 2022-01-27T13:10:08 2022-01-27T13:15:42   00:05:34        hpc-n775  " +
-                "COMPLETED      0:0   01:29:42 \n" + "14904827_10+      batch 2022-01-27T13:10:08 2022-01-27T13:15:42" +
-                "   00:05:34        hpc-n775  COMPLETED      0:0   01:29:42";
+        String command = "             JobID                        JobName      State \n" +
+                "------------------ ------------------------------ ---------- \n" +
+                "       14945373_31        noisemodelling_batch.sh  COMPLETED \n" +
+                " 14945373_31.batch                          batch  COMPLETED \n" +
+                "        14945373_0        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_0.batch                          batch  COMPLETED \n" +
+                "        14945373_1        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_1.batch                          batch  COMPLETED \n" +
+                "        14945373_2        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_2.batch                          batch  COMPLETED \n" +
+                "        14945373_3        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_3.batch                          batch  COMPLETED \n" +
+                "        14945373_4        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_4.batch                          batch  COMPLETED \n" +
+                "        14945373_5        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_5.batch                          batch  COMPLETED \n" +
+                "        14945373_6        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_6.batch                          batch  COMPLETED \n" +
+                "        14945373_7        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_7.batch                          batch  COMPLETED \n" +
+                "        14945373_8        noisemodelling_batch.sh  COMPLETED \n" +
+                "  14945373_8.batch                          batch  COMPLETED \n";
 
         List<String> commandLines = splitCommand(command);
-        List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14904827);
-        assertEquals(11, jobList.size());
-        assertEquals("RUNNING", jobList.get(1).status);
-        assertEquals(1, jobList.get(1).taskId);
+        List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14945373);
+        assertEquals(10, jobList.size());
+        assertEquals("COMPLETED", jobList.get(0).status);
+        assertEquals(31, jobList.get(0).taskId);
+        assertEquals("COMPLETED", jobList.get(1).status);
+        assertEquals(0, jobList.get(1).taskId);
         assertEquals("COMPLETED", jobList.get(2).status);
-        assertEquals(2, jobList.get(2).taskId);
-        //,
-        //                14904827
+        assertEquals(1, jobList.get(2).taskId);
     }
+
 //    @Test
-//    public void mergeShapeFilesTest() throws SQLException, IOException {
-//        String workingDir = "/home/nicolas/data/plamade/dep44/results/job_14770791";
+//    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
+//        String workingDir = "/home/nicolas/data/plamade/dep56_4x";
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "",
 //                "build", "h2gisdb", false);
 //        try(Connection sql = ds.getConnection()) {
-//            NoiseModellingInstance.mergeShapeFiles(sql, workingDir, "out_", "_");
+//            List<String> outputTables = NoiseModellingInstance.mergeGeoJSON(sql, workingDir, "out_", "_");
+//            for(String outputTable : outputTables) {
+//                new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
+//                        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
+//            }
 //        }
 //    }
+
 //
 //    @Test
 //    public void testCopy() throws IOException, SftpException {

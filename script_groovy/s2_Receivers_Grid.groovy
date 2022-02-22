@@ -330,6 +330,8 @@ def exec(Connection connection, input) {
     noiseMap.setRoadWidth(roadWidth)
     // No triangles larger than provided area
     noiseMap.setMaximumArea(maxArea)
+    // Do not remove isosurface behind buildings
+    noiseMap.setIsoSurfaceInBuildings(true)
     // Densification of receivers near sound sources
     //modifNico noiseMap.setSourceDensification(sourceDensification)
 

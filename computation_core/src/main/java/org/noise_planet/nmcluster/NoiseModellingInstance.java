@@ -8,6 +8,8 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.functions.io.geojson.GeoJsonWrite;
+import org.h2gis.functions.io.shp.SHPWrite;
 import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
@@ -190,7 +192,8 @@ public class NoiseModellingInstance {
 
         logger.info("Write output tables");
         for(String tableName : outputTable) {
-            sql.execute("CALL SHPWRITE('" + new File(workingDirectory,  outputPrefix + tableName + ".shp").getAbsolutePath()+"', '" + tableName + "');");
+            // Export shape file may fail if the final geometry type is not correct
+            sql.execute("CALL GEOJSONWRITE('" + new File(workingDirectory,  outputPrefix + tableName + ".geojson").getAbsolutePath()+"', '" + tableName + "');");
         }
         // export metadata
         sql.execute("CALL CSVWRITE('" + new File(workingDirectory,  outputPrefix + "METADATA.csv").getAbsolutePath()+"', 'SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA');");
