@@ -26,6 +26,7 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.functions.io.shp.SHPWrite;
 import org.h2gis.utilities.GeometryMetaData;
 import org.h2gis.utilities.GeometryTableUtilities;
@@ -57,6 +58,7 @@ import java.util.stream.Collectors;
  * @author Nicolas Fortin, Université Gustave Eiffel
  */
 public class NoiseModellingInstance implements RunnableFuture<String> {
+    public static final String H2GIS_DATABASE_NAME = "h2gisdb";
     public enum JOB_STATES {
         QUEUED,
         RUNNING,
@@ -233,10 +235,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     }
 
     /**
-     * Merge shape files with the same file name
-     * prefix[NUMJOB]suffix[TABLENAME].shp
+     * Merge geojson files with the same file name
+     * prefix[NUMJOB]suffix[TABLENAME].geojson
      * @param connection database connection
-     * @param folder folder that contains shp files
+     * @param folder folder that contains geojson files
      * @param prefix common prefix before the number
      * @param suffix common suffix after the number
      * @return Tables created
@@ -786,7 +788,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
      */
     public static void exportTables(Connection connection, List<String> tablesToExport, String folder) throws SQLException, IOException {
         for(String tableName : tablesToExport) {
-            SHPWrite.exportTable(connection, new File(folder, tableName + ".shp").getAbsolutePath(), tableName);
+            if(JDBCUtilities.tableExists(connection, tableName)) {
+                GeoJsonWrite.exportTable(connection, new File(folder, tableName + ".geojson").getAbsolutePath(),
+                        tableName, true);
+            }
         }
     }
 
@@ -815,7 +820,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     return;
                 }
             }
-            nmDataSource = createDataSource("", "", configuration.workingDirectory, "h2gisdb", false);
+            nmDataSource = createDataSource("", "", configuration.workingDirectory, H2GIS_DATABASE_NAME, false);
 
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
@@ -845,6 +850,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     }
                 }
                 createdTables.add("ROADS");
+                createdTables.add("BUILDINGS_SCREENS");
+                createdTables.add("LANDCOVER");
+                createdTables.add("SCREENS");
+                createdTables.add("RAIL_SECTIONS");
+
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
                 subProg.endStep();
                 logger.info(Export(nmConnection, subProg).toString());

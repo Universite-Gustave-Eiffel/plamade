@@ -30,8 +30,10 @@ import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
 
 import javax.sql.DataSource;
+import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +67,27 @@ public class PostManageJob implements Handler {
                                         }
                                     }
                                     for(String jobId : deleteJobsList) {
-                                        PreparedStatement st = connection.prepareStatement("DELETE FROM JOBS WHERE pk_job = ? AND pk_user = ?");
+                                        // Delete big files
+                                        PreparedStatement st = connection.prepareStatement(
+                                                "SELECT * FROM JOBS WHERE pk_job = ? AND pk_user = ?");
+                                        st.setInt(1, Integer.parseInt(jobId));
+                                        st.setInt(2, pkUser);
+                                        try(ResultSet rs = st.executeQuery()) {
+                                            if(rs.next()) {
+                                                String workingDir = rs.getString("LOCAL_JOB_FOLDER");
+                                                File dataBaseFile = new File(workingDir, NoiseModellingInstance.H2GIS_DATABASE_NAME + ".mv.db");
+                                                if(dataBaseFile.exists()) {
+                                                    if(dataBaseFile.delete()) {
+                                                        LOG.info("File " + dataBaseFile.getAbsolutePath() + "deleted");
+                                                    } else {
+                                                        LOG.info("Could not delete file " + dataBaseFile.getAbsolutePath());
+                                                    }
+                                                } else {
+                                                    LOG.info("File " + dataBaseFile.getAbsolutePath() + " does not exists");
+                                                }
+                                            }
+                                        }
+                                        st = connection.prepareStatement("DELETE FROM JOBS WHERE pk_job = ? AND pk_user = ?");
                                         st.setInt(1, Integer.parseInt(jobId));
                                         st.setInt(2, pkUser);
                                         st.execute();

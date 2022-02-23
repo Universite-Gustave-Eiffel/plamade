@@ -192,7 +192,7 @@ public class NoiseModellingInstance {
 
         logger.info("Write output tables");
         for(String tableName : outputTable) {
-            // Export shape file may fail if the final geometry type is not correct
+            // Export result tables as GeoJSON
             sql.execute("CALL GEOJSONWRITE('" + new File(workingDirectory,  outputPrefix + tableName + ".geojson").getAbsolutePath()+"', '" + tableName + "');");
         }
         // export metadata
