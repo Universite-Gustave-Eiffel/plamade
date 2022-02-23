@@ -826,7 +826,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             ProgressVisitor progressVisitor = configuration.progressVisitor;
             ProgressVisitor subProg = progressVisitor.subProcess(8);
             try (Connection nmConnection = nmDataSource.getConnection()) {
+                File outDir = new File(configuration.workingDirectory, POST_PROCESS_RESULT_DIRECTORY_NAME);
+                if(!outDir.exists()) {
+                    if(!outDir.mkdir()) {
+                        return;
+                    }
+                }
                 importData(nmConnection, subProg);
+                exportTables(nmConnection, Arrays.asList("ROADS", "BUILDINGS_SCREENS", "LANDCOVER", "SCREENS",
+                        "RAIL_SECTIONS"), outDir.getAbsolutePath());
                 if(subProg.isCanceled()) {
                     setJobState(JOB_STATES.CANCELED);
                     return;
@@ -834,6 +842,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 makeGrid(nmConnection);
                 subProg.endStep();
                 makeEmission(nmConnection);
+                exportTables(nmConnection, Arrays.asList("LW_ROADS", "LW_RAILWAY"), outDir.getAbsolutePath());
                 subProg.endStep();
                 generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
                 subProg.endStep();
@@ -843,18 +852,6 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                         "out_", "_");
                 subProg.endStep();
                 // Save merged final tables
-                File outDir = new File(configuration.workingDirectory, POST_PROCESS_RESULT_DIRECTORY_NAME);
-                if(!outDir.exists()) {
-                    if(!outDir.mkdir()) {
-                        return;
-                    }
-                }
-                createdTables.add("ROADS");
-                createdTables.add("BUILDINGS_SCREENS");
-                createdTables.add("LANDCOVER");
-                createdTables.add("SCREENS");
-                createdTables.add("RAIL_SECTIONS");
-
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
                 subProg.endStep();
                 logger.info(Export(nmConnection, subProg).toString());
