@@ -34,6 +34,7 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.functions.io.csv.CSVDriverFunction;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.utilities.JDBCUtilities;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
@@ -868,6 +869,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 importData(nmConnection, subProg);
                 exportTables(nmConnection, Arrays.asList("ROADS", "BUILDINGS_SCREENS", "LANDCOVER", "SCREENS",
                         "RAIL_SECTIONS"), outDir.getAbsolutePath());
+                // Export Dem as CSV file
+                new CSVDriverFunction().exportTable(nmConnection,
+                        "(SELECT ROUND(ST_X(THE_GEOM),2) X, ROUND(ST_Y(THE_GEOM), 2) Y," +
+                                "ROUND(ST_Z(THE_GEOM),2) Z FROM DEM)", new File(outDir, "dem.csv"),
+                        true, new EmptyProgressVisitor());
                 if(subProg.isCanceled()) {
                     setJobState(JOB_STATES.CANCELED);
                     return;
