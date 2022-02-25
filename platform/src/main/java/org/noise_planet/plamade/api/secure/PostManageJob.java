@@ -75,7 +75,8 @@ public class PostManageJob implements Handler {
                                         try(ResultSet rs = st.executeQuery()) {
                                             if(rs.next()) {
                                                 String workingDir = rs.getString("LOCAL_JOB_FOLDER");
-                                                File dataBaseFile = new File(workingDir, NoiseModellingInstance.H2GIS_DATABASE_NAME + ".mv.db");
+                                                File dataBaseFile = new File("jobs_running/"+workingDir,
+                                                        NoiseModellingInstance.H2GIS_DATABASE_NAME + ".mv.db");
                                                 if(dataBaseFile.exists()) {
                                                     if(dataBaseFile.delete()) {
                                                         LOG.info("File " + dataBaseFile.getAbsolutePath() + "deleted");

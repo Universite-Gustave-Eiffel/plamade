@@ -17,7 +17,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.jcraft.jsch.*;
+import com.jcraft.jsch.Channel;
+import com.jcraft.jsch.ChannelExec;
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.HostKey;
+import com.jcraft.jsch.HostKeyRepository;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+import com.jcraft.jsch.SftpException;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import groovy.sql.Sql;
@@ -27,12 +35,7 @@ import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
-import org.h2gis.functions.io.shp.SHPWrite;
-import org.h2gis.utilities.GeometryMetaData;
-import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
-import org.h2gis.utilities.TableLocation;
-import org.h2gis.utilities.dbtypes.DBTypes;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
@@ -41,14 +44,41 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.Vector;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -147,11 +177,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
-    public void makeGrid(Connection nmConnection) throws SQLException, IOException {
+    public static void makeGrid(Connection nmConnection, int configurationId) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
         Script receiversGrid= shell.parse(new File("../script_groovy", "s2_Receivers_Grid.groovy"));
         Map<String, Object> inputs = new HashMap<>();
-        inputs.put("confId", configuration.getConfigurationId());
+        inputs.put("confId", configurationId);
 
         Object result = receiversGrid.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
@@ -586,23 +616,26 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     public static List<SlurmJobStatus> parseSlurmStatus(List<String> commandOutput, int jobId) {
         List<SlurmJobStatus> slurmJobStatus = new ArrayList<>();
-        for(String line : commandOutput) {
-            line = line.trim();
-            if(line.contains(BATCH_FILE_NAME)) {
-                List<String> columns = Collections.list(new StringTokenizer(line, " ")).stream()
-                        .map(token -> (String) token)
-                        .collect(Collectors.toList());
-                String jobColumn = columns.get(0);
-                int jobColumnId = Integer.parseInt(jobColumn.substring(0, jobColumn.lastIndexOf("_")));
-                if(jobColumnId == jobId) {
-                    int jobIndex = Integer.parseInt(jobColumn.substring(jobColumn.lastIndexOf("_") + 1));
-                    String status = columns.get(2);
-                    slurmJobStatus.add(new SlurmJobStatus(status, jobIndex));
+        try {
+            for(String line : commandOutput) {
+                line = line.trim();
+                if (line.contains(BATCH_FILE_NAME)) {
+                    List<String> columns = Collections.list(new StringTokenizer(line, " ")).stream().map(token -> (String) token).collect(Collectors.toList());
+                    String jobColumn = columns.get(0);
+                    int jobColumnId = Integer.parseInt(jobColumn.substring(0, jobColumn.lastIndexOf("_")));
+                    String jobIndexString = jobColumn.substring(jobColumn.lastIndexOf("_") + 1);
+                    // jobIndexString may contain this [0-31]
+                    if (jobColumnId == jobId && !jobIndexString.contains("-")) {
+                        int jobIndex = Integer.parseInt(jobIndexString);
+                        String status = columns.get(2);
+                        slurmJobStatus.add(new SlurmJobStatus(status, jobIndex));
+                    }
                 }
             }
+        } catch (NumberFormatException | IndexOutOfBoundsException ex) {
+            // ignore
+            logger.error("Error while parsing job status", ex);
         }
-
-
         return slurmJobStatus;
     }
 
@@ -839,7 +872,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     setJobState(JOB_STATES.CANCELED);
                     return;
                 }
-                makeGrid(nmConnection);
+                makeGrid(nmConnection, configuration.getConfigurationId());
                 subProg.endStep();
                 makeEmission(nmConnection);
                 exportTables(nmConnection, Arrays.asList("LW_ROADS", "LW_RAILWAY"), outDir.getAbsolutePath());

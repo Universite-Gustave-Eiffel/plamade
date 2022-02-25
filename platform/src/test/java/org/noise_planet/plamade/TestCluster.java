@@ -1,21 +1,23 @@
 package org.noise_planet.plamade;
 
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.jcraft.jsch.SftpException;
+import org.apache.log4j.BasicConfigurator;
 import org.h2gis.api.EmptyProgressVisitor;
-import org.h2gis.functions.io.geojson.GeoJsonWriteDriver;
+import org.h2gis.api.ProgressVisitor;
+import org.h2gis.utilities.wrapper.ConnectionWrapper;
+import org.junit.BeforeClass;
 import org.junit.Test;
-import org.locationtech.spatial4j.io.GeoJSONWriter;
+import org.noise_planet.noisemodelling.jdbc.TriangleNoiseMap;
+import org.noise_planet.noisemodelling.pathfinder.LayerDelaunayError;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 
 import javax.sql.DataSource;
-import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.TestCase.assertEquals;
 
@@ -30,6 +32,10 @@ public class TestCluster {
         return commandLines;
     }
 
+    @BeforeClass
+    public static void initLogger() {
+        BasicConfigurator.configure();
+    }
     /**
      * Parse command output of
      * find ./*.out -type f -printf "%s,%f\n"
@@ -117,6 +123,53 @@ public class TestCluster {
         assertEquals(1, jobList.get(2).taskId);
     }
 
+    @Test
+    public void testParseSacctRegression1() {
+        String command = "             JobID                        JobName      State \n" +
+                "------------------ ------------------------------ ---------- \n" +
+                "14947161_[0-31] noisemodelling_batch.sh PENDING 00:00:00 00:00:00\n";
+
+        List<String> commandLines = splitCommand(command);
+        List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14947161);
+        assertEquals(0, jobList.size());
+    }
+//
+//    @Test
+//    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
+//        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+//                "/home/nicolas/data/plamade/dep44/", "h2gisdb", false);
+//        try(Connection sql = ds.getConnection()) {
+//            Connection connection = new ConnectionWrapper(sql);
+//            //NoiseModellingInstance.makeGrid(sql, 4);
+//            connection.createStatement().execute("DROP TABLE RECEIVERS IF EXISTS");
+//            TriangleNoiseMap noiseMap = new TriangleNoiseMap("BUILDINGS_SCREENS", "");
+//
+//            // Avoid loading to much geometries when doing Delaunay triangulation
+//            noiseMap.setMaximumPropagationDistance(800);
+//            // Receiver height relative to the ground
+//            noiseMap.setReceiverHeight(1.6);
+//            // No receivers closer than road width distance
+//            double roadWidth = 2.0;
+//
+//            double maxArea = 2500;
+//            noiseMap.setRoadWidth(roadWidth);
+//            // No triangles larger than provided area
+//            noiseMap.setMaximumArea(maxArea);
+//            // Do not remove isosurface behind buildings
+//            noiseMap.setIsoSurfaceInBuildings(true);
+//            // Densification of receivers near sound sources
+//            //modifNico noiseMap.setSourceDensification(sourceDensification)
+//
+//            noiseMap.initialize(connection, new EmptyProgressVisitor());
+//            noiseMap.setExceptionDumpFolder("data_dir/");
+//            AtomicInteger pk = new AtomicInteger(0);
+//            noiseMap.setGridDim(25);
+//            String triangleTable = "TRIANGLES_DELAUNAY";
+//            int i = 7;
+//            int j = 15;
+//            noiseMap.generateReceivers(connection, i, j, "RECEIVERS", triangleTable, pk);
+//        }
+//    }
 //    @Test
 //    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
 //        String workingDir = "/home/nicolas/data/plamade/dep56_4x";

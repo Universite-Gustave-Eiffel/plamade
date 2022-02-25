@@ -422,6 +422,7 @@ public class NoiseModellingInstance {
         LDENConfig ldenConfig_propa = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
 
         Sql sql = new Sql(connection);
+        sql.execute("UPDATE metadata SET road_start = NOW();");
         GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
         int reflectionOrder = asInteger(rs.get("confreflorder"));
         int maxSrcDist = asInteger(rs.get("confmaxsrcdist"));
@@ -530,6 +531,10 @@ public class NoiseModellingInstance {
             profilerThread.stop();
             ldenProcessing.stop();
         }
+        sql.execute("UPDATE metadata SET road_end = NOW();");
     }
 
 }
+
+
+

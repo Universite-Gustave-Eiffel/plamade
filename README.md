@@ -25,6 +25,10 @@ This example requires that you configure a Google API resource before running.
 
 ## Running plamade server
 
+Define memory to use with the command
+
+export _JAVA_OPTIONS="-Xms4000m -Xmx28000m"
+
 Run ./gradlew platform:run
 
 Edit the configuration file located in  this file with the auth credentials.

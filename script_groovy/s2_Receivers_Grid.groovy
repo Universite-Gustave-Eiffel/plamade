@@ -344,7 +344,8 @@ def exec(Connection connection, input) {
     String triangleTable = "TRIANGLES_DELAUNAY"
     for (int i = 0; i < noiseMap.getGridDim(); i++) {
         for (int j = 0; j < noiseMap.getGridDim(); j++) {
-            logger.info("Compute cell " + (i * noiseMap.getGridDim() + j + 1) + " of " + noiseMap.getGridDim() * noiseMap.getGridDim())
+            logger.info("Compute cell [" + i + ", " + j + "] of [" + noiseMap.getGridDim() + ", " +
+                    noiseMap.getGridDim()+ "]")
             noiseMap.generateReceivers(connection, i, j, receivers_table_name, triangleTable, pk)
             progressVisitorNM.endStep()
         }
