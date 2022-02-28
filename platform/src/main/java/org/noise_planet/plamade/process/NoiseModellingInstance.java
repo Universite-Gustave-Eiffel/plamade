@@ -97,6 +97,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         CANCELED,
         COMPLETED
     }
+     public static final int MAX_CONNECTION_RETRY = 10;
     public static final String RESULT_DIRECTORY_NAME = "results";
     public static final String POST_PROCESS_RESULT_DIRECTORY_NAME = "results_post";
 
@@ -123,10 +124,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     private static final int POLL_SLURM_STATUS_TIME = 40000;
 
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
+    private int oldFinishedJobs = 0;
+    private Set<String> finishedStates = new HashSet<>();
 
     public NoiseModellingInstance(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
         this.plamadeDataSource = plamadeDataSource;
+        // Loop check for job status
+        for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
+            if(s.finished) {
+                finishedStates.add(s.status);
+            }
+        }
     }
 
     public Configuration getConfiguration() {
@@ -303,14 +312,21 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 ArrayList<String> fileNames = entry.getValue();
                 // Copy the first table as a new table
                 if(!fileNames.isEmpty()) {
-                    String fileName = fileNames.remove(0);
-                    String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
-                    st.execute("DROP TABLE IF EXISTS " + tableName);
-                    st.execute("CALL GEOJSONREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
-                    st.execute("DROP TABLE IF EXISTS " + finalTableName);
-                    st.execute("CREATE TABLE " + finalTableName + " AS SELECT * FROM " + tableName);
-                    createdTables.add(finalTableName);
-                    st.execute("DROP TABLE IF EXISTS " + tableName);
+                    while (true) {
+                        String fileName = fileNames.remove(0);
+                        String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
+                        st.execute("DROP TABLE IF EXISTS " + tableName);
+                        st.execute("CALL GEOJSONREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
+                        List<String> columnNames = JDBCUtilities.getColumnNames(connection, tableName);
+                        if(!columnNames.isEmpty()) {
+                            // The file maybe empty, so ignore this file if there is no columns
+                            st.execute("DROP TABLE IF EXISTS " + finalTableName);
+                            st.execute("CREATE TABLE " + finalTableName + " AS SELECT * FROM " + tableName);
+                            createdTables.add(finalTableName);
+                            break;
+                        }
+                        st.execute("DROP TABLE IF EXISTS " + tableName);
+                    }
                 }
                 for(String fileName : fileNames) {
                     // Link to shp file into the database
@@ -318,7 +334,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                     st.execute("CALL GEOJSONREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
                     // insert into the existing table
-                    st.execute("INSERT INTO " + finalTableName + " SELECT * FROM " + tableName);
+                    List<String> columnNames = JDBCUtilities.getColumnNames(connection, tableName);
+                    if(!columnNames.isEmpty()) {
+                        st.execute("INSERT INTO " + finalTableName + " SELECT * FROM " + tableName);
+                    }
                     st.execute("DROP TABLE IF EXISTS " + tableName);
                 }
             }
@@ -687,11 +706,30 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
+    private boolean isSlurmJobsFinished(Session session, ProgressVisitor slurmJobProgress) throws JSchException, IOException {
+        List<String> output = runCommand(session, String.format("sacct --format JobID%%18,Jobname%%30,State,Elapsed,TotalCPU -j %d", configuration.slurmJobId));
+        List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, configuration.slurmJobId);
+        int finishedStatusCount = 0;
+        for(SlurmJobStatus s : jobStatusList) {
+            if(finishedStates.contains(s.status)) {
+                finishedStatusCount++;
+            }
+        }
+        // increase progress if needed
+        if(oldFinishedJobs != finishedStatusCount) {
+            for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
+                slurmJobProgress.endStep();
+            }
+            oldFinishedJobs = finishedStatusCount;
+        }
+        return finishedStatusCount == configuration.slurmConfig.maxJobs;
+    }
+
     public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException {
+        int connectionRetry = MAX_CONNECTION_RETRY;
         Session session = openSshSession(slurmConfig);
         try {
             Channel sftp;
-            int slurmJobId = 0;
             sftp = session.openChannel("sftp");
             try {
                 sftp.connect(SFTP_TIMEOUT);
@@ -722,57 +760,42 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             for(String line : output) {
                 line = line.trim();
                 if(line.startsWith("Submitted batch job")) {
-                    slurmJobId = Integer.parseInt(line.substring(line.lastIndexOf(" ")).trim());
+                    configuration.slurmJobId = Integer.parseInt(line.substring(line.lastIndexOf(" ")).trim());
                     break;
                 }
             }
-            if(slurmJobId == -1) {
+            if(configuration.slurmJobId == -1) {
                 logger.info("Cannot read the job identifier");
                 throw new IOException("Not expected output in ssh command");
             }
             try (Connection connection = plamadeDataSource.getConnection()) {
                 PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET SLURM_JOB_ID = ? WHERE PK_JOB = ?");
-                st.setInt(1, slurmJobId);
+                st.setInt(1, configuration.slurmJobId);
                 st.setInt(2, configuration.getTaskPrimaryKey());
                 st.execute();
             } catch (SQLException | SecurityException ex) {
                 logger.error(ex.getLocalizedMessage(), ex);
             }
-            // Loop check for job status
-            Set<String> finishedStates = new HashSet<>();
-            for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
-                if(s.finished) {
-                    finishedStates.add(s.status);
-                }
-            }
             ProgressVisitor slurmJobProgress = progressVisitor.subProcess(configuration.slurmConfig.maxJobs);
-            int oldFinishedJobs = 0;
             Map<String, Long> bytesReadInFiles = new HashMap<>();
             while(true) {
                 if(progressVisitor.isCanceled()) {
-                    runCommand(session, String.format("scancel %d", slurmJobId));
+                    runCommand(session, String.format("scancel %d", configuration.slurmJobId));
                     break;
                 }
                 long lastPullTime = System.currentTimeMillis();
                 logSlurmJobs(session, bytesReadInFiles);
                 // Check status of jobs on cluster side
-                output = runCommand(session, String.format("sacct --format JobID%%18,Jobname%%30,State,Elapsed,TotalCPU -j %d", slurmJobId));
-                List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, slurmJobId);
-                int finishedStatusCount = 0;
-                for(SlurmJobStatus s : jobStatusList) {
-                    if(finishedStates.contains(s.status)) {
-                        finishedStatusCount++;
+                try {
+                    if (isSlurmJobsFinished(session, slurmJobProgress)) {
+                        break;
                     }
-                }
-                // increase progress if needed
-                if(oldFinishedJobs != finishedStatusCount) {
-                    for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
-                        slurmJobProgress.endStep();
+                } catch (JSchException ex) {
+                    // retry open a connection
+                    session = openSshSession(slurmConfig);
+                    if(connectionRetry-- <= 0) {
+                        return;
                     }
-                    oldFinishedJobs = finishedStatusCount;
-                }
-                if(finishedStatusCount == configuration.slurmConfig.maxJobs) {
-                    break;
                 }
                 // Sleep up to POLL_SLURM_STATUS_TIME
                 Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)));
@@ -784,7 +807,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 sftp.connect(SFTP_TIMEOUT);
                 ChannelSftp c = (ChannelSftp) sftp;
                 String remoteHome = c.getHome();
-                resultDir = new File(remoteHome, String.format("results_%d", slurmJobId)).getAbsolutePath();
+                resultDir = new File(remoteHome, String.format("results_%d", configuration.slurmJobId)).getAbsolutePath();
                 pullFromSSH(c, progressVisitor,
                         resultDir,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath());
@@ -955,8 +978,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         private ProgressVisitor progressVisitor = new EmptyProgressVisitor();
         private SlurmConfig slurmConfig;
         private String remoteJobFolder;
+        private int slurmJobId = -1;
+        private int userPK;
 
-        public Configuration(String workingDirectory, int configurationId, String inseeDepartment, int taskPrimaryKey
+        public Configuration(int userPk, String workingDirectory, int configurationId, String inseeDepartment, int taskPrimaryKey
                 , DataBaseConfig dataBaseConfig, ProgressVisitor progressVisitor, String remoteJobFolder) {
             this.workingDirectory = workingDirectory;
             this.configurationId = configurationId;
@@ -965,6 +990,19 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             this.dataBaseConfig = dataBaseConfig;
             this.progressVisitor = progressVisitor;
             this.remoteJobFolder = remoteJobFolder;
+            this.userPK = userPk;
+        }
+
+        public int getSlurmJobId() {
+            return slurmJobId;
+        }
+
+        public void setSlurmJobId(int slurmJobId) {
+            this.slurmJobId = slurmJobId;
+        }
+
+        public int getUserPK() {
+            return userPK;
         }
 
         public SlurmConfig getSlurmConfig() {

@@ -60,7 +60,8 @@ public class PostManageJob implements Handler {
                                 try (Connection connection = plamadeDataSource.getConnection()) {
                                     for(String jobId : cancelJobsList) {
                                         for(NoiseModellingInstance instance : pool.getNoiseModellingInstance()) {
-                                            if(instance.getConfiguration().getTaskPrimaryKey() == Integer.parseInt(jobId)) {
+                                            if(instance.getConfiguration().getTaskPrimaryKey() == Integer.parseInt(jobId)
+                                            && instance.getConfiguration().getUserPK() == pkUser) {
                                                 instance.cancel(false);
                                                 break;
                                             }

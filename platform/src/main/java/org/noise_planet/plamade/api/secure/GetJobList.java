@@ -68,9 +68,9 @@ public class GetJobList implements Handler {
                         Blocking.get(() -> {
                             List<Map<String, Object>> table = new ArrayList<>();
                             try (Connection connection = ctx.get(DataSource.class).getConnection()) {
-                                PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS" + " " +
-                                        "WHERE PK_USER = ? ORDER BY BEGIN_DATE DESC");
-                                statement.setInt(1, pkUser);
+                                PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS " +
+                                        "ORDER BY BEGIN_DATE DESC");
+                                //statement.setInt(1, pkUser);
                                 DecimalFormat f = (DecimalFormat)(DecimalFormat.getInstance(Locale.ROOT));
                                 f.applyPattern("#.### '%'");
                                 try (ResultSet rs = statement.executeQuery()) {
@@ -83,6 +83,7 @@ public class GetJobList implements Handler {
                                                     DateFormat.MEDIUM);
                                             Integer pkJob = rs.getInt("pk_job");
                                             row.put("pk_job", pkJob);
+                                            row.put("canManage", rs.getInt("PK_USER") == pkUser);
                                             Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
                                             row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
                                             Timestamp eDate = rs.getTimestamp("END_DATE");

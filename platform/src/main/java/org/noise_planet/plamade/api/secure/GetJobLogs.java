@@ -101,8 +101,25 @@ public class GetJobLogs implements Handler {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
                         final String jobId = ctx.getAllPathTokens().get("jobid");
-                        List<String> rows = getLastLines(new File("application.log"), FETCH_NUMBER_OF_LINES,
-                                String.format("JOB_%s", jobId));
+                        List<File> logFiles = new ArrayList<>();
+                        logFiles.add(new File("application.log"));
+                        int logCounter = 1;
+                        while(true) {
+                            File oldLogFile = new File("application.log." + (logCounter++));
+                            if(oldLogFile.exists()) {
+                                logFiles.add(oldLogFile);
+                            } else {
+                                break;
+                            }
+                        }
+                        List<String> rows = new ArrayList<>(FETCH_NUMBER_OF_LINES);
+                        for(File logFile : logFiles) {
+                            rows.addAll(getLastLines(logFile, FETCH_NUMBER_OF_LINES - rows.size(),
+                                    String.format("JOB_%s", jobId)));
+                            if(rows.size() >= FETCH_NUMBER_OF_LINES) {
+                                break;
+                            }
+                        }
                         LOG.info(String.format("Got %d log rows", rows.size()));
                         model.put("rows", rows);
                         model.put("profile", profile);

@@ -3,6 +3,7 @@ package org.noise_planet.plamade;
 import org.apache.log4j.BasicConfigurator;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
+import org.h2gis.functions.io.geojson.GeoJsonWriteDriver;
 import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -11,6 +12,7 @@ import org.noise_planet.noisemodelling.pathfinder.LayerDelaunayError;
 import org.noise_planet.plamade.process.NoiseModellingInstance;
 
 import javax.sql.DataSource;
+import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -133,7 +135,7 @@ public class TestCluster {
         List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14947161);
         assertEquals(0, jobList.size());
     }
-//
+
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "",
@@ -151,7 +153,7 @@ public class TestCluster {
 //            // No receivers closer than road width distance
 //            double roadWidth = 2.0;
 //
-//            double maxArea = 2500;
+//            double maxArea = 0;
 //            noiseMap.setRoadWidth(roadWidth);
 //            // No triangles larger than provided area
 //            noiseMap.setMaximumArea(maxArea);
@@ -165,14 +167,18 @@ public class TestCluster {
 //            AtomicInteger pk = new AtomicInteger(0);
 //            noiseMap.setGridDim(25);
 //            String triangleTable = "TRIANGLES_DELAUNAY";
+//            String dumpPath = new File("").getAbsolutePath();
+//            System.out.println("Dump to " + dumpPath);
+//            noiseMap.setExceptionDumpFolder(dumpPath);
 //            int i = 7;
 //            int j = 15;
 //            noiseMap.generateReceivers(connection, i, j, "RECEIVERS", triangleTable, pk);
 //        }
 //    }
+//
 //    @Test
 //    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
-//        String workingDir = "/home/nicolas/data/plamade/dep56_4x";
+//        String workingDir = "/home/nicolas/data/plamade/dep02/results";
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "",
 //                "build", "h2gisdb", false);
 //        try(Connection sql = ds.getConnection()) {

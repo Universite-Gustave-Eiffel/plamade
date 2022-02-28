@@ -110,7 +110,7 @@ public class PostAddJob implements Handler {
                                     RootProgressVisitor rootProgressVisitor = new RootProgressVisitor(1, false, 5);
                                     rootProgressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(plamadeDataSource, pk));
                                     NoiseModellingInstance.Configuration configuration = new NoiseModellingInstance.Configuration(
-                                            new File("jobs_running/"+jobFolder).getAbsolutePath(),
+                                            pkUser,new File("jobs_running/"+jobFolder).getAbsolutePath(),
                                             Integer.parseInt(confId),
                                             inseeDepartment, pk, dataBaseConfig
                                             , rootProgressVisitor, remoteJobFolder);
