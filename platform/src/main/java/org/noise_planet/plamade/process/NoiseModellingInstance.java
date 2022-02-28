@@ -311,22 +311,20 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             try(Statement st = connection.createStatement()) {
                 ArrayList<String> fileNames = entry.getValue();
                 // Copy the first table as a new table
-                if(!fileNames.isEmpty()) {
-                    while (true) {
-                        String fileName = fileNames.remove(0);
-                        String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
-                        st.execute("DROP TABLE IF EXISTS " + tableName);
-                        st.execute("CALL GEOJSONREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
-                        List<String> columnNames = JDBCUtilities.getColumnNames(connection, tableName);
-                        if(!columnNames.isEmpty()) {
-                            // The file maybe empty, so ignore this file if there is no columns
-                            st.execute("DROP TABLE IF EXISTS " + finalTableName);
-                            st.execute("CREATE TABLE " + finalTableName + " AS SELECT * FROM " + tableName);
-                            createdTables.add(finalTableName);
-                            break;
-                        }
-                        st.execute("DROP TABLE IF EXISTS " + tableName);
+                while (!fileNames.isEmpty()) {
+                    String fileName = fileNames.remove(0);
+                    String tableName = fileName.substring(0, fileName.length() - extension.length()).toUpperCase(Locale.ROOT);
+                    st.execute("DROP TABLE IF EXISTS " + tableName);
+                    st.execute("CALL GEOJSONREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "','" + tableName + "');");
+                    List<String> columnNames = JDBCUtilities.getColumnNames(connection, tableName);
+                    if(!columnNames.isEmpty()) {
+                        // The file maybe empty, so ignore this file if there is no columns
+                        st.execute("DROP TABLE IF EXISTS " + finalTableName);
+                        st.execute("CREATE TABLE " + finalTableName + " AS SELECT * FROM " + tableName);
+                        createdTables.add(finalTableName);
+                        break;
                     }
+                    st.execute("DROP TABLE IF EXISTS " + tableName);
                 }
                 for(String fileName : fileNames) {
                     // Link to shp file into the database
