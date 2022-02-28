@@ -24,34 +24,19 @@
 
 package org.noise_planet.noisemodelling.wps.plamade
 
-import groovy.text.SimpleTemplateEngine
-import org.h2gis.api.EmptyProgressVisitor
-import org.h2gis.api.ProgressVisitor
 import groovy.sql.Sql
+import groovy.text.SimpleTemplateEngine
+import groovy.transform.CompileStatic
+import org.h2.util.ScriptReader
+import org.h2gis.api.ProgressVisitor
+import org.h2gis.utilities.JDBCUtilities
+import org.h2gis.utilities.TableLocation
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
 import java.sql.Statement
-import groovy.sql.Sql
-import groovy.time.TimeCategory
-import org.h2gis.functions.spatial.edit.ST_AddZ
-import org.h2gis.api.EmptyProgressVisitor
-import org.h2gis.api.ProgressVisitor
-import org.h2gis.utilities.JDBCUtilities
-import org.h2gis.utilities.TableLocation
-import org.h2gis.utilities.SpatialResultSet
-import org.h2gis.utilities.wrapper.ConnectionWrapper
-import org.locationtech.jts.geom.Geometry
-import org.locationtech.jts.geom.LineString
-import org.noise_planet.noisemodelling.emission.*
-import org.noise_planet.noisemodelling.pathfinder.*
-import org.noise_planet.noisemodelling.propagation.*
-import org.noise_planet.noisemodelling.jdbc.*
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
 
 title = 'Extract department'
 description = 'Connect to a distant PostGIS database and extract departments according to Plamade specification'
@@ -99,17 +84,21 @@ outputs = [
         ]
 ]
 
-def run(input) {
-
-    // Get name of the database
-    // by default an embedded h2gis database is created
-    // Advanced user can replace this database for a postGis or h2Gis server database.
-    String dbName = "h2gisdb"
-
-    // Open connection
-    openGeoserverDataStoreConnection(dbName).withCloseable {
-        Connection connection ->
-            return [result: exec(connection, input)]
+@CompileStatic
+static def parseScript(String sqlInstructions, Sql sql) {
+    Reader reader = null
+    ByteArrayInputStream s = new ByteArrayInputStream(sqlInstructions.getBytes())
+    InputStream is = s
+    try {
+        reader  = new InputStreamReader(is)
+        ScriptReader scriptReader = new ScriptReader(reader)
+        String statement = scriptReader.readStatement()
+        while (statement != null) {
+            sql.execute(statement)
+            statement = scriptReader.readStatement()
+        }
+    } finally {
+        reader.close()
     }
 }
 
@@ -160,7 +149,7 @@ def exec(Connection connection, input) {
         progressVisitor = new RootProgressVisitor(1, true, 1);
     }
 
-    ProgressVisitor progress = progressVisitor.subProcess(11)
+    ProgressVisitor progress = progressVisitor.subProcess(12)
     // print to command window
     logger.info('Start linking with PostGIS')
 
@@ -772,9 +761,8 @@ def exec(Connection connection, input) {
 
 
     """
-    def queries_dem = """
-     ----------------------------------
-    -- Import data and filtering within 1000m around infra
+
+    def download_dem = """
 
     ------------
     -- Import DEM from BD Alti
@@ -783,37 +771,29 @@ def exec(Connection connection, input) {
     CREATE LINKED TABLE bdalti_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
     '(SELECT distinct b.* FROM bd_alti.pt3d_alti_d$codeDepFormat b, noisemodelling.$table_infra i WHERE ST_EXPAND(B.THE_GEOM, $buffer) && i.THE_GEOM AND ST_DISTANCE(b.the_geom, i.the_geom) < $buffer)');
     CREATE TABLE dem AS SELECT *, 'DEM' as SOURCE FROM bdalti_link;
-
-
-    ------------
-    -- Import orography
-
+    DROP TABLE IF EXISTS bdalti_link;
+    CHECKPOINT SYNC;
+        
+        
     DROP TABLE IF EXISTS bdtopo_oro_link, bdtopo_oro;
     CREATE LINKED TABLE bdtopo_oro_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
             '(SELECT r.THE_GEOM FROM bd_topo.$table_bd_topo_oro r,
             (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > 0)');
 
-    -- Remove objects that are far from studied roads
     CREATE TABLE bdtopo_oro AS SELECT * FROM bdtopo_oro_link;
-    DELETE FROM bdtopo_oro B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
-    ALTER TABLE bdtopo_oro ADD pk_line INT AUTO_INCREMENT NOT NULL;
-    ALTER TABLE bdtopo_oro add primary key(pk_line);
-
-
-    ------------
-    -- Import hydrography
-
+    DROP TABLE IF EXISTS bdtopo_oro_link;
+    CHECKPOINT SYNC;
+        
     DROP TABLE IF EXISTS bdtopo_hydro_link, bdtopo_hydro;
     CREATE LINKED TABLE bdtopo_hydro_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
             '(SELECT r.THE_GEOM FROM bd_topo.$table_bd_topo_hydro r,
             (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where R.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, E.THE_GEOM) < 1000 AND st_zmin(R.THE_GEOM) > 0)');
 
     CREATE TABLE bdtopo_hydro AS SELECT * FROM bdtopo_hydro_link;
-    DELETE FROM bdtopo_hydro B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
-    ALTER TABLE bdtopo_hydro ADD pk_line INT AUTO_INCREMENT NOT NULL;
-    ALTER TABLE bdtopo_hydro add primary key(pk_line);
-
-
+    DROP TABLE IF EXISTS bdtopo_hydro_link;
+    CHECKPOINT SYNC;
+    
+    
     ------------
     -- Import roads (that are on the floor --> POS_SOL=0)
 
@@ -824,11 +804,9 @@ def exec(Connection connection, input) {
     
     -- Road width is precalculated into WIDTH column. When largeur < 3, then 3m
     CREATE TABLE bdtopo_route AS SELECT THE_GEOM, (CASE WHEN LARGEUR>3 THEN LARGEUR/2 ELSE 1.5 END) as WIDTH FROM bdtopo_route_link;
-    DELETE FROM bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
-    CREATE SPATIAL INDEX ON bdtopo_route(the_geom);
-    ALTER TABLE bdtopo_route ADD pk_line INT AUTO_INCREMENT NOT NULL;
-    ALTER TABLE bdtopo_route add primary key(pk_line);
-
+    
+    DROP TABLE IF EXISTS bdtopo_route_link;
+    CHECKPOINT SYNC;    
 
     ------------
     -- Import railways (that are on the floor --> POS_SOL=0)
@@ -839,6 +817,37 @@ def exec(Connection connection, input) {
             (select ST_BUFFER(the_geom, $buffer) the_geom from noisemodelling.$table_dept e WHERE e.insee_dep=''$codeDep'' LIMIT 1) e where r.THE_GEOM && e.THE_GEOM AND ST_DISTANCE(r.THE_GEOM, e.THE_GEOM) < 1000 AND st_zmin(r.THE_GEOM) > 0)');
     
     CREATE TABLE bdtopo_rail AS SELECT a.THE_GEOM, a.LARGEMPRIS, b.* FROM bdtopo_rail_link a, PLATEFORM b WHERE b.IDPLATFORM ='SNCF';
+
+    DROP TABLE IF EXISTS bdtopo_rail_link;
+    CHECKPOINT SYNC;
+    """
+
+
+    def queries_dem = """
+     ----------------------------------
+    -- Import data and filtering within 1000m around infra
+    ------------
+    -- Import orography
+
+    -- Remove objects that are far from studied roads
+    DELETE FROM bdtopo_oro B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    ALTER TABLE bdtopo_oro ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_oro add primary key(pk_line);
+
+
+    ------------
+    -- Import hydrography
+
+    DELETE FROM bdtopo_hydro B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    ALTER TABLE bdtopo_hydro ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_hydro add primary key(pk_line);
+
+
+    DELETE FROM bdtopo_route B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    CREATE SPATIAL INDEX ON bdtopo_route(the_geom);
+    ALTER TABLE bdtopo_route ADD pk_line INT AUTO_INCREMENT NOT NULL;
+    ALTER TABLE bdtopo_route add primary key(pk_line);
+
     DELETE FROM bdtopo_rail B WHERE NOT EXISTS (SELECT 1 FROM INFRA R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     CREATE SPATIAL INDEX ON bdtopo_rail(the_geom);
     ALTER TABLE bdtopo_rail ADD pk_line INT AUTO_INCREMENT NOT NULL;
@@ -973,68 +982,75 @@ def exec(Connection connection, input) {
 
 
     // print to command window
-    logger.info('Manage configuration tables (1/11)')
+    logger.info('Manage configuration tables (1/12)')
     def engine = new SimpleTemplateEngine()
     def template = engine.createTemplate(queries_conf).make(binding)
 
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage PFAV (2/11)')
+    logger.info('Manage PFAV (2/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_pfav).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage roads (3/11)')
+    logger.info('Manage roads (3/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_roads).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage rails (4/11)')
+    logger.info('Manage rails (4/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_rails).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage infrastructures (5/11)')
+    logger.info('Manage infrastructures (5/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_infra).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage buildings (6/11)')
+    logger.info('Manage buildings (6/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_buildings).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage screens (7/11)')
+    logger.info('Manage screens (7/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_screens).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage buildings screens (8/11)')
+    logger.info('Manage buildings screens (8/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_buildings_screens).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage landcover (9/11)')
+    logger.info('Manage landcover (9/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_landcover).make(binding)
     sql.execute(template.toString())
     progress.endStep()
 
-    logger.info('Manage dem (10/11)')
+    logger.info('Download dem (10/12)')
     engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_dem).make(binding)
+    template = engine.createTemplate(download_dem).make(binding)
     sql.execute(template.toString())
     progress.endStep()
+    
+    logger.info('Manage dem (11/12)')
+    engine = new SimpleTemplateEngine()
+    template = engine.createTemplate(queries_dem).make(binding)
+    // sql.execute(template.toString())
+    parseScript(template.toString(), sql)
+    progress.endStep()
 
-    logger.info('Manage statistics (11/11)')
+    logger.info('Manage statistics (12/12)')
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_stats).make(binding)
     sql.execute(template.toString())

@@ -48,15 +48,20 @@ import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -163,6 +168,84 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
         return dataSource;
 
+    }
+
+    public static List<String> getAllLines(String jobId, int numberOfLines) throws IOException {
+        List<File> logFiles = new ArrayList<>();
+        logFiles.add(new File("application.log"));
+        int logCounter = 1;
+        while(true) {
+            File oldLogFile = new File("application.log." + (logCounter++));
+            if(oldLogFile.exists()) {
+                logFiles.add(oldLogFile);
+            } else {
+                break;
+            }
+        }
+        List<String> rows = new ArrayList<>(numberOfLines == -1 ? 1000 : numberOfLines);
+        for(File logFile : logFiles) {
+            rows.addAll(NoiseModellingInstance.getLastLines(logFile,
+                    numberOfLines == -1 ? -1 : numberOfLines - rows.size(),
+                    String.format("JOB_%s", jobId)));
+            if(rows.size() >= numberOfLines) {
+                break;
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
+     * @param logFile
+     * @param numberOfLines
+     * @return
+     * @throws IOException
+     */
+    public static List<String> getLastLines(File logFile, int numberOfLines, String threadId) throws IOException {
+        boolean match = threadId.isEmpty();
+        StringBuilder sbMatch = new StringBuilder();
+        ArrayList<String> lastLines = new ArrayList<>(Math.max(20, numberOfLines));
+        final int buffer = 8192;
+        long fileSize = Files.size(logFile.toPath());
+        long read = 0;
+        long lastCursor = fileSize;
+        StringBuilder sb = new StringBuilder(buffer);
+        try(RandomAccessFile f = new RandomAccessFile(logFile.getAbsoluteFile(), "r")) {
+            while((numberOfLines == -1 || lastLines.size() < numberOfLines) && read < fileSize) {
+                long cursor = Math.max(0, fileSize - read - buffer);
+                read += buffer;
+                f.seek(cursor);
+                byte[] b = new byte[(int)(lastCursor - cursor)];
+                lastCursor = cursor;
+                f.readFully(b);
+                sb.insert(0, new String(b));
+                // Reverse search of end of line into the string buffer
+                int lastEndOfLine = sb.lastIndexOf("\n");
+                while (lastEndOfLine != -1 && (numberOfLines == -1 || lastLines.size() < numberOfLines)) {
+                    if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
+                        String line = sb.substring(lastEndOfLine + 1, sb.length()).trim();
+                        if(!threadId.isEmpty()) {
+                            int firstHook = line.indexOf("[");
+                            int lastHook = line.indexOf("]");
+                            if (firstHook == 0 && firstHook < lastHook) {
+                                String thread = line.substring(firstHook + 1, lastHook);
+                                match = thread.equals(threadId);
+                            }
+                        }
+                        if (match && sbMatch.length() > 0) {
+                            lastLines.add(0, sbMatch.toString());
+                            sbMatch = new StringBuilder();
+                        }
+                        if(match) {
+                            sbMatch.append(line);
+                        }
+                    }
+                    sb.delete(lastEndOfLine, sb.length());
+                    lastEndOfLine = sb.lastIndexOf("\n");
+                }
+            }
+        }
+        return lastLines;
     }
 
     public void importData(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
@@ -448,7 +531,41 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             dirProg.endStep();
         }
     }
-    public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory) throws IOException, SftpException {
+
+    private static class WalkFileVisitor implements FileVisitor<Path> {
+        Set<Path> ignoredPaths = new HashSet<>();
+
+        public WalkFileVisitor(Set<Path> ignoredPaths) {
+            this.ignoredPaths = ignoredPaths;
+        }
+
+        @Override
+        public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
+            if(ignoredPaths.contains(path)) {
+                return FileVisitResult.SKIP_SUBTREE;
+            } else {
+                return  FileVisitResult.CONTINUE;
+            }
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
+            return ignoredPaths.contains(path) ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path path, IOException e) throws IOException {
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path path, IOException e) throws IOException {
+            return FileVisitResult.CONTINUE;
+        }
+    }
+
+
+    public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory, Set<Path> ignorePaths) throws IOException, SftpException {
         // List All files
         File fromFile = new File(from);
         File parentFile = fromFile;
@@ -456,7 +573,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             parentFile = fromFile.getParentFile();
         }
         List<Path> collectedPaths = new ArrayList<>();
-        Files.walk(fromFile.toPath(), FileVisitOption.FOLLOW_LINKS).forEach(collectedPaths::add);
+        WalkFileVisitor walkFileVisitor = new WalkFileVisitor(ignorePaths);
+        Files.walkFileTree(fromFile.toPath(), walkFileVisitor).forEach(collectedPaths::add);
         ProgressVisitor subProg = progressVisitor.subProcess(collectedPaths.size());
         for(Path path : collectedPaths) {
             if(path.toFile().isDirectory()) {
@@ -737,9 +855,11 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
                 logger.debug("Computation core folder: " + computationCoreFolder);
                 String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
-                pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true);
+                pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true, new HashSet<>());
                 // copy data
-                pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder, false);
+                pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder,
+                        false, Collections.singleton(new File(configuration.workingDirectory,
+                                POST_PROCESS_RESULT_DIRECTORY_NAME).toPath()));
                 // copy slurm file
                 c.put(new File(computationCoreFolder, BATCH_FILE_NAME).toString(), new File(configuration.remoteJobFolder, BATCH_FILE_NAME).toString());
             } finally {
@@ -880,22 +1000,18 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             // Download data from external database
             ProgressVisitor progressVisitor = configuration.progressVisitor;
             ProgressVisitor subProg = progressVisitor.subProcess(8);
-            try (Connection nmConnection = nmDataSource.getConnection()) {
-                File outDir = new File(configuration.workingDirectory, POST_PROCESS_RESULT_DIRECTORY_NAME);
-                if(!outDir.exists()) {
-                    if(!outDir.mkdir()) {
-                        return;
-                    }
+            File outDir = new File(configuration.workingDirectory, POST_PROCESS_RESULT_DIRECTORY_NAME);
+            if (!outDir.exists()) {
+                if (!outDir.mkdir()) {
+                    return;
                 }
+            }
+            try (Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
-                exportTables(nmConnection, Arrays.asList("ROADS", "BUILDINGS_SCREENS", "LANDCOVER", "SCREENS",
-                        "RAIL_SECTIONS"), outDir.getAbsolutePath());
+                exportTables(nmConnection, Arrays.asList("ROADS", "BUILDINGS_SCREENS", "LANDCOVER", "SCREENS", "RAIL_SECTIONS"), outDir.getAbsolutePath());
                 // Export Dem as CSV file
-                new CSVDriverFunction().exportTable(nmConnection,
-                        "(SELECT ROUND(ST_X(THE_GEOM),2) X, ROUND(ST_Y(THE_GEOM), 2) Y," +
-                                "ROUND(ST_Z(THE_GEOM),2) Z FROM DEM)", new File(outDir, "dem.csv"),
-                        true, new EmptyProgressVisitor());
-                if(subProg.isCanceled()) {
+                new CSVDriverFunction().exportTable(nmConnection, "(SELECT ROUND(ST_X(THE_GEOM),2) X, ROUND(ST_Y(THE_GEOM), 2) Y," + "ROUND(ST_Z(THE_GEOM),2) Z FROM DEM)", new File(outDir, "dem.csv"), true, new EmptyProgressVisitor());
+                if (subProg.isCanceled()) {
                     setJobState(JOB_STATES.CANCELED);
                     return;
                 }
@@ -906,7 +1022,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 subProg.endStep();
                 generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
                 subProg.endStep();
-                slurmInitAndStart(configuration.slurmConfig, subProg);
+            }
+            // close the database before copying it
+            slurmInitAndStart(configuration.slurmConfig, subProg);
+            try (Connection nmConnection = nmDataSource.getConnection()) {
                 List<String> createdTables = mergeGeoJSON(nmConnection,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
                         "out_", "_");
@@ -938,6 +1057,17 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 logger.error(ex.getLocalizedMessage(), ex);
             }
             isRunning = false;
+            // Save logs
+            try {
+                List<String> rows = getAllLines(String.valueOf(configuration.taskPrimaryKey), -1);
+                try(FileWriter writer = new FileWriter(new File(configuration.workingDirectory, "job.log"))) {
+                    for(String row : rows) {
+                        writer.write(row + "\n");
+                    }
+                }
+            }catch (IOException ex) {
+                logger.error("Error while exporting logs");
+            }
         }
     }
 

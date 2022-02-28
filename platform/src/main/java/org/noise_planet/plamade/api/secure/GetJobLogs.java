@@ -17,6 +17,7 @@
 package org.noise_planet.plamade.api.secure;
 
 import com.google.common.collect.Maps;
+import org.noise_planet.plamade.process.NoiseModellingInstance;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,60 +39,6 @@ public class GetJobLogs implements Handler {
     private static final Logger LOG = LoggerFactory.getLogger(GetJobLogs.class);
     static final int FETCH_NUMBER_OF_LINES = 1000;
 
-    /**
-     * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
-     * @param logFile
-     * @param numberOfLines
-     * @return
-     * @throws IOException
-     */
-    public static List<String> getLastLines(File logFile, int numberOfLines, String threadId) throws IOException {
-        boolean match = threadId.isEmpty();
-        StringBuilder sbMatch = new StringBuilder();
-        ArrayList<String> lastLines = new ArrayList<>(Math.max(20, numberOfLines));
-        final int buffer = 8192;
-        long fileSize = Files.size(logFile.toPath());
-        long read = 0;
-        long lastCursor = fileSize;
-        StringBuilder sb = new StringBuilder(buffer);
-        try(RandomAccessFile f = new RandomAccessFile(logFile.getAbsoluteFile(), "r")) {
-            while(lastLines.size() < numberOfLines && read < fileSize) {
-                long cursor = Math.max(0, fileSize - read - buffer);
-                read += buffer;
-                f.seek(cursor);
-                byte[] b = new byte[(int)(lastCursor - cursor)];
-                lastCursor = cursor;
-                f.readFully(b);
-                sb.insert(0, new String(b));
-                // Reverse search of end of line into the string buffer
-                int lastEndOfLine = sb.lastIndexOf("\n");
-                while (lastEndOfLine != -1 && lastLines.size() < numberOfLines) {
-                    if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
-                        String line = sb.substring(lastEndOfLine + 1, sb.length()).trim();
-                        if(!threadId.isEmpty()) {
-                            int firstHook = line.indexOf("[");
-                            int lastHook = line.indexOf("]");
-                            if (firstHook == 0 && firstHook < lastHook) {
-                                String thread = line.substring(firstHook + 1, lastHook);
-                                match = thread.equals(threadId);
-                            }
-                        }
-                        if (match && sbMatch.length() > 0) {
-                            lastLines.add(0, sbMatch.toString());
-                            sbMatch = new StringBuilder();
-                        }
-                        if(match) {
-                            sbMatch.append(line);
-                        }
-                    }
-                    sb.delete(lastEndOfLine, sb.length());
-                    lastEndOfLine = sb.lastIndexOf("\n");
-                }
-            }
-        }
-        return lastLines;
-    }
-
     @Override
     public void handle(Context ctx) throws Exception {
         RatpackPac4j.userProfile(ctx).then(commonProfile -> {
@@ -101,25 +48,7 @@ public class GetJobLogs implements Handler {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
                         final String jobId = ctx.getAllPathTokens().get("jobid");
-                        List<File> logFiles = new ArrayList<>();
-                        logFiles.add(new File("application.log"));
-                        int logCounter = 1;
-                        while(true) {
-                            File oldLogFile = new File("application.log." + (logCounter++));
-                            if(oldLogFile.exists()) {
-                                logFiles.add(oldLogFile);
-                            } else {
-                                break;
-                            }
-                        }
-                        List<String> rows = new ArrayList<>(FETCH_NUMBER_OF_LINES);
-                        for(File logFile : logFiles) {
-                            rows.addAll(getLastLines(logFile, FETCH_NUMBER_OF_LINES - rows.size(),
-                                    String.format("JOB_%s", jobId)));
-                            if(rows.size() >= FETCH_NUMBER_OF_LINES) {
-                                break;
-                            }
-                        }
+                        List<String> rows = NoiseModellingInstance.getAllLines(jobId, FETCH_NUMBER_OF_LINES);
                         LOG.info(String.format("Got %d log rows", rows.size()));
                         model.put("rows", rows);
                         model.put("profile", profile);
