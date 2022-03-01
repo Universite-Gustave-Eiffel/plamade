@@ -35,6 +35,7 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static ratpack.jackson.Jackson.json;
@@ -78,16 +79,32 @@ public class GetJobList implements Handler {
                                     while (rs.next()) {
                                         Map<String, Object> row = new HashMap<>();
                                         for (int idField = 1; idField <= fields.size(); idField += 1) {
-                                            DateFormat mediumDateFormatEN = DateFormat.getDateTimeInstance(
-                                                    DateFormat.MEDIUM,
-                                                    DateFormat.MEDIUM);
+                                            DateFormat mediumDateFormatEN =
+                                                    new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
                                             Integer pkJob = rs.getInt("pk_job");
                                             row.put("pk_job", pkJob);
                                             row.put("canManage", rs.getInt("PK_USER") == pkUser);
                                             Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
                                             row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
                                             Timestamp eDate = rs.getTimestamp("END_DATE");
-                                            row.put("endDate", !rs.wasNull() ? mediumDateFormatEN.format(eDate) : "-");
+                                            String endDate = "-";
+                                            String duration = "-";
+                                            Calendar calendar = Calendar.getInstance();
+                                            calendar.clear();
+                                            if(!rs.wasNull()) {
+                                                endDate = mediumDateFormatEN.format(eDate);
+                                                calendar.set(Calendar.MILLISECOND,
+                                                        (int)(eDate.getTime() - bDate.getTime()));
+                                                duration = new SimpleDateFormat("HH:mm:ss")
+                                                        .format(calendar.getTime());
+                                            } else if(bDate != null){
+                                                calendar.set(Calendar.MILLISECOND,
+                                                        (int)(System.currentTimeMillis() - bDate.getTime()));
+                                                duration = new SimpleDateFormat("HH:mm:ss")
+                                                        .format(calendar.getTime());
+                                            }
+                                            row.put("endDate", endDate);
+                                            row.put("duration", duration);
                                             row.put("status", rs.getString("STATE"));
                                             row.put("progression", f.format(rs.getDouble("PROGRESSION")));
                                             row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
