@@ -182,11 +182,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 break;
             }
         }
-        // Collect rows from older to newer
-        Collections.reverse(logFiles);
         List<String> rows = new ArrayList<>(numberOfLines == -1 ? 1000 : numberOfLines);
         for(File logFile : logFiles) {
-            rows.addAll(NoiseModellingInstance.getLastLines(logFile,
+            rows.addAll(0, NoiseModellingInstance.getLastLines(logFile,
                     numberOfLines == -1 ? -1 : numberOfLines - rows.size(),
                     String.format("JOB_%s", jobId)));
             if(rows.size() >= numberOfLines) {
