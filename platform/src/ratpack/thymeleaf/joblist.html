@@ -41,7 +41,7 @@
                         <td th:text="${job.status}">Queued</td>
                         <td th:text="${job.inseeDepartment}">15</td>
                         <td th:text="${job.conf_id}">5</td>
-                        <td  th:utext="${job.result}">Result - Logs</td>
+                        <td  th:utext="${job.result}">Result Logs</td>
                         <td><input th:disabled="${!job.canManage}" th:value="${job.pk_job}" type="checkbox" value="-1" name="cancel"/></td>
                         <td><input th:disabled="${!job.canManage}" th:value="${job.pk_job}"  type="checkbox" value="-1" name="delete"/></td>
                     </tr>

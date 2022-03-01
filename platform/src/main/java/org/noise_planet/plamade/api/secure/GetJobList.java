@@ -111,7 +111,7 @@ public class GetJobList implements Handler {
                                             row.put("conf_id", rs.getInt("CONF_ID"));
                                             String jobFolder = rs.getString("REMOTE_JOB_FOLDER");
                                             String localJobFolder = rs.getString("LOCAL_JOB_FOLDER");
-                                            row.put("result", "<a href=\"/rjobs/"+localJobFolder+"\" target='_blank'>Result</a> - <a href=\"/manage/job/"+pkJob+"/logs\">Logs</a>");
+                                            row.put("result", "<a href=\"/rjobs/"+localJobFolder+"\" target='_blank'>Result</a> <a href=\"/manage/job/"+pkJob+"/logs\">Logs</a>");
                                             row.put("remote_job_folder", rs.getString("REMOTE_JOB_FOLDER"));
                                         }
                                         table.add(row);

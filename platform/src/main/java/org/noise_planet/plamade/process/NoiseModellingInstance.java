@@ -182,6 +182,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 break;
             }
         }
+        // Collect rows from older to newer
+        Collections.reverse(logFiles);
         List<String> rows = new ArrayList<>(numberOfLines == -1 ? 1000 : numberOfLines);
         for(File logFile : logFiles) {
             rows.addAll(NoiseModellingInstance.getLastLines(logFile,
@@ -534,9 +536,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     private static class WalkFileVisitor implements FileVisitor<Path> {
         Set<Path> ignoredPaths = new HashSet<>();
+        File parentFile;
+        ChannelSftp c;
+        String to;
 
-        public WalkFileVisitor(Set<Path> ignoredPaths) {
+        public WalkFileVisitor(Set<Path> ignoredPaths, File parentFile, ChannelSftp c, String to) {
             this.ignoredPaths = ignoredPaths;
+            this.parentFile = parentFile;
+            this.c = c;
+            this.to = to;
         }
 
         @Override
@@ -544,13 +552,50 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             if(ignoredPaths.contains(path)) {
                 return FileVisitResult.SKIP_SUBTREE;
             } else {
+                // do create directory
+                Path destFolder = parentFile.toPath().relativize(path);
+                File remoteFolder;
+                if(to.isEmpty()) {
+                    remoteFolder = new File(destFolder.toString());
+                } else {
+                    remoteFolder = new File(to, destFolder.toString());
+                }
+                if(!remoteFolder.toString().isEmpty()) {
+                    logger.debug("mkdir " + remoteFolder);
+                    if (c != null) {
+                        try {
+                            c.mkdir(remoteFolder.toString());
+                        } catch (SftpException ex) {
+                            // dir exist / ignore
+                            logger.debug(ex.getLocalizedMessage());
+                        }
+                    }
+                }
                 return  FileVisitResult.CONTINUE;
             }
         }
 
         @Override
         public FileVisitResult visitFile(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
-            return ignoredPaths.contains(path) ? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
+            if(!ignoredPaths.contains(path)) {
+                // transfer file
+                Path dest = parentFile.toPath().relativize(path);
+                File remoteFile;
+                if (to.isEmpty()) {
+                    remoteFile = new File(dest.toString());
+                } else {
+                    remoteFile = new File(to, dest.toString());
+                }
+                if (c != null) {
+                    logger.debug("put " + path.toFile() + " " + remoteFile);
+                    try {
+                        c.put(path.toFile().toString(), remoteFile.toString());
+                    } catch (SftpException ex) {
+                        throw new IOException(ex);
+                    }
+                }
+            }
+            return FileVisitResult.CONTINUE;
         }
 
         @Override
@@ -572,47 +617,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         if(createSubDirectory) {
             parentFile = fromFile.getParentFile();
         }
-        List<Path> collectedPaths = new ArrayList<>();
-        WalkFileVisitor walkFileVisitor = new WalkFileVisitor(ignorePaths);
-        Files.walkFileTree(fromFile.toPath(), walkFileVisitor).forEach(collectedPaths::add);
-        ProgressVisitor subProg = progressVisitor.subProcess(collectedPaths.size());
-        for(Path path : collectedPaths) {
-            if(path.toFile().isDirectory()) {
-                // do create directory
-                Path destFolder = parentFile.toPath().relativize(path);
-                File remoteFolder;
-                if(to.isEmpty()) {
-                    remoteFolder = new File(destFolder.toString());
-                } else {
-                    remoteFolder = new File(to, destFolder.toString());
-                }
-                if(!remoteFolder.toString().isEmpty()) {
-                    logger.debug("mkdir " + remoteFolder);
-                    if (c != null) {
-                        try {
-                            c.mkdir(remoteFolder.toString());
-                        } catch (SftpException ex) {
-                            // dir exist / ignore
-                            logger.debug(ex.getLocalizedMessage());
-                        }
-                    }
-                }
-            } else {
-                // transfer file
-                Path dest = parentFile.toPath().relativize(path);
-                File remoteFile;
-                if(to.isEmpty()) {
-                    remoteFile = new File(dest.toString());
-                } else {
-                    remoteFile = new File(to, dest.toString());
-                }
-                if(c != null) {
-                    logger.debug("put " + path.toFile() + " " + remoteFile);
-                    c.put(path.toFile().toString(), remoteFile.toString());
-                }
-            }
-            subProg.endStep();
-        }
+        WalkFileVisitor walkFileVisitor = new WalkFileVisitor(ignorePaths, parentFile, c, to);
+        Files.walkFileTree(fromFile.toPath(), walkFileVisitor);
     }
 
     private static final String[] names = {
