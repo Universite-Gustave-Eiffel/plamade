@@ -36,7 +36,10 @@ import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.functions.io.csv.CSVDriverFunction;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
+import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
+import org.h2gis.utilities.TableLocation;
+import org.h2gis.utilities.dbtypes.DBTypes;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
@@ -358,6 +361,42 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     }
 
     /**
+     * Merge UUEID in CBS over a regular grid
+     * @param connection
+     * @return
+     */
+    public static List<String> mergeCBS(Connection connection, int gridSize) throws SQLException {
+        List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
+                new String[]{"TABLE"});
+        for(String tableName : allTables) {
+            TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
+            if(tableLocation.getTable().startsWith("CBS_A_R_LD_")) {
+                try(Statement st = connection.createStatement()) {
+                    st.execute("DROP TABLE IF EXISTS CBS_GRID, CBS_SPLITED, CBS_MERGED;");
+                    st.execute("CREATE TABLE CBS_GRID as SELECT *, ST_AREA(THE_GEOM) CELL_AREA FROM " +
+                            "ST_MakeGrid((SELECT ST_EXTENT(THE_GEOM) FROM "+tableName+"), "+gridSize+", "+
+                            gridSize+");");
+                    st.execute("create table CBS_SPLITED AS SELECT * FROM ST_EXPLODE(" +
+                            "'(SELECT ST_TESSELLATE(THE_GEOM) THE_GEOM,  (CASE WHEN NOISELEVEL = ''Lden5559''" +
+                            " THEN 57 WHEN NOISELEVEL = ''Lden6064'' THEN 62 WHEN NOISELEVEL = ''Lden6569''" +
+                            " THEN 67 WHEN NOISELEVEL = ''Lden7074'' THEN 72 WHEN NOISELEVEL = ''LdenGreaterThan75''" +
+                            " THEN 75 END) LVL FROM "+tableName+")') ;");
+                    st.execute("CREATE SPATIAL INDEX ON CBS_SPLITED(THE_GEOM);");
+                    st.execute("CREATE TABLE CBS_MERGED AS SELECT G.ID, G.THE_GEOM, " +
+                            "ROUND(10 * LOG10(SUM(POWER(10, LVL / 10) * " +
+                            "(ST_AREA(ST_INTERSECTION(G.THE_GEOM, L.THE_GEOM)) / CELL_AREA))), 2) NOISELEVEL " +
+                            "FROM CBS_GRID G, CBS_SPLITED L WHERE G.THE_GEOM && L.THE_GEOM AND " +
+                            "ST_INTERSECTS(G.THE_GEOM, L.THE_GEOM)  GROUP BY G.ID;");
+                    String outputTable = tableName + "_MERGED";
+                    st.execute("DROP TABLE IF EXISTS " + outputTable);
+                    st.execute("CREATE TABLE " + outputTable + " AS SELECT THE_GEOM,  FROM CBS_MERGED");
+                    st.execute("DROP TABLE IF EXISTS CBS_GRID, CBS_SPLITED, CBS_MERGED;");
+                }
+            }
+        }
+    }
+
+    /**
      * Merge geojson files with the same file name
      * prefix[NUMJOB]suffix[TABLENAME].geojson
      * @param connection database connection
@@ -610,6 +649,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
 
     public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory, Set<Path> ignorePaths) throws IOException, SftpException {
         // List All files
+        logger.info("Push files from " + from + " to " + to + " through SSH");
         File fromFile = new File(from);
         File parentFile = fromFile;
         if(createSubDirectory) {
@@ -965,11 +1005,27 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
      * @throws SQLException
      * @throws IOException
      */
-    public static void exportTables(Connection connection, List<String> tablesToExport, String folder) throws SQLException, IOException {
+    public static void exportTables(Connection connection, List<String> tablesToExport, String folder, int srid) throws SQLException, IOException {
         for(String tableName : tablesToExport) {
             if(JDBCUtilities.tableExists(connection, tableName)) {
+                String geometryColumnName = GeometryTableUtilities.getGeometryColumnNames(connection, tableName).get(0);
+                List<String> columnNames = JDBCUtilities.getColumnNames(connection, tableName);
+                columnNames.remove(geometryColumnName);
+                StringBuilder sb = new StringBuilder("(SELECT ST_TRANSFORM(");
+                sb.append(geometryColumnName);
+                sb.append(", ");
+                sb.append(srid);
+                sb.append(") ");
+                sb.append(geometryColumnName);
+                for(String columnName : columnNames) {
+                    sb.append(", ");
+                    sb.append(columnName);
+                }
+                sb.append(" FROM ");
+                sb.append(tableName);
+                sb.append(")");
                 GeoJsonWrite.exportTable(connection, new File(folder, tableName + ".geojson").getAbsolutePath(),
-                        tableName, true);
+                        sb.toString(), true);
             }
         }
     }
@@ -980,6 +1036,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
         isRunning = true;
         setJobState(JOB_STATES.RUNNING);
+        try (Connection connection = plamadeDataSource.getConnection()) {
+            PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET BEGIN_DATE = ? WHERE PK_JOB = ?");
+            Timestamp t = new Timestamp(System.currentTimeMillis());
+            st.setObject(1, t);
+            st.setInt(2, configuration.getTaskPrimaryKey());
+            st.execute();
+        } catch (SQLException | SecurityException ex) {
+            logger.error(ex.getLocalizedMessage(), ex);
+        }
         try {
             // create folder
             File workingDir = new File(configuration.workingDirectory);
@@ -1012,9 +1077,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             }
             try (Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
-                exportTables(nmConnection, Arrays.asList("ROADS", "BUILDINGS_SCREENS", "LANDCOVER", "SCREENS", "RAIL_SECTIONS"), outDir.getAbsolutePath());
-                // Export Dem as CSV file
-                new CSVDriverFunction().exportTable(nmConnection, "(SELECT ROUND(ST_X(THE_GEOM),2) X, ROUND(ST_Y(THE_GEOM), 2) Y," + "ROUND(ST_Z(THE_GEOM),2) Z FROM DEM)", new File(outDir, "dem.csv"), true, new EmptyProgressVisitor());
+                exportTables(nmConnection,
+                        Arrays.asList("ROADS", "BUILDINGS_SCREENS", "LANDCOVER", "SCREENS", "RAIL_SECTIONS"),
+                        outDir.getAbsolutePath(), 4326);
+
                 if (subProg.isCanceled()) {
                     setJobState(JOB_STATES.CANCELED);
                     return;
@@ -1022,7 +1088,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 makeGrid(nmConnection, configuration.getConfigurationId());
                 subProg.endStep();
                 makeEmission(nmConnection);
-                exportTables(nmConnection, Arrays.asList("LW_ROADS", "LW_RAILWAY"), outDir.getAbsolutePath());
+                exportTables(nmConnection, Arrays.asList("LW_ROADS", "LW_RAILWAY"), outDir.getAbsolutePath(), 4326);
                 subProg.endStep();
                 generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
                 subProg.endStep();
@@ -1033,9 +1099,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                 List<String> createdTables = mergeGeoJSON(nmConnection,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
                         "out_", "_");
+                createdTables.addAll(mergeCBS(nmConnection));
                 subProg.endStep();
                 // Save merged final tables
-                exportTables(nmConnection, createdTables, outDir.getAbsolutePath());
+                exportTables(nmConnection, createdTables, outDir.getAbsolutePath(), 4326);
                 subProg.endStep();
                 logger.info(Export(nmConnection, subProg).toString());
                 subProg.endStep();

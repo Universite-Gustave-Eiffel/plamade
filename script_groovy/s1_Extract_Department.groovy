@@ -756,7 +756,7 @@ def exec(Connection connection, input) {
     -- Merge geometries that have the same G
     CREATE TABLE LANDCOVER_MERGE AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, g FROM LANDCOVER_UNION GROUP BY g;
     CREATE TABLE LANDCOVER AS SELECT ST_SETSRID(the_geom,$srid) as the_geom, g FROM ST_Explode('LANDCOVER_MERGE ');
-
+    CREATE SPATIAL INDEX ON LANDCOVER(THE_GEOM);
     DROP TABLE IF EXISTS rail_buff_d1, rail_buff_d3, rail_buff_d4, rail_diff_d3_d1, rail_diff_d4_d3, rail_buff_d1_expl, rail_buff_d3_expl, rail_buff_d4_expl, LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1, LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4, LANDCOVER_0_EXPL, LANDCOVER_03_EXPL, LANDCOVER_07_EXPL, LANDCOVER_1_EXPL, LANDCOVER_UNION, LANDCOVER_MERGE, landcover_source;
 
 
@@ -884,7 +884,6 @@ def exec(Connection connection, input) {
 
     DROP TABLE DEM_WITHOUT_PTLINE IF EXISTS;
     CREATE TABLE DEM_WITHOUT_PTLINE(the_geom geometry(POINTZ, $srid), source varchar) AS SELECT st_setsrid(THE_GEOM, $srid), SOURCE FROM DEM;
-    CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM);   
     -- Remove DEM points that are less than "WIDTH" far from roads
     DELETE FROM DEM_WITHOUT_PTLINE WHERE EXISTS (SELECT 1 FROM bdtopo_route b WHERE ST_EXPAND(DEM_WITHOUT_PTLINE.THE_GEOM, 20) && b.the_geom AND ST_DISTANCE(DEM_WITHOUT_PTLINE.THE_GEOM, b.the_geom)< b.WIDTH+5 LIMIT 1) ;
     
@@ -893,9 +892,7 @@ def exec(Connection connection, input) {
     -- The buffer size correspond to the greatest value between "largeur" and 3m. If "largeur" is null or lower than 3m, then 3m is returned
     CREATE TABLE BUFFERED_PTLINE AS SELECT ST_ToMultiPoint(ST_Densify(ST_Buffer(ST_Simplify(st_force2D(the_geom), 2), WIDTH, 'endcap=flat join=mitre'), 5)) the_geom, pk_line from bdtopo_route  where st_length(st_simplify(the_geom, 2)) > 0 ;
     INSERT INTO DEM_WITHOUT_PTLINE(THE_GEOM, SOURCE) SELECT st_setsrid(ST_MakePoint(ST_X(P.THE_GEOM), ST_Y(P.THE_GEOM), ST_Z(ST_ProjectPoint(P.THE_GEOM,L.THE_GEOM))), $srid) THE_GEOM, 'ROU' FROM ST_EXPLODE('BUFFERED_PTLINE') P, bdtopo_route L WHERE P.PK_LINE = L.PK_LINE;
-    
-    CREATE SPATIAL INDEX ON DEM_WITHOUT_PTLINE (THE_GEOM); 
-    
+   
     ------------
     -- Insert rail platform into DEM
 

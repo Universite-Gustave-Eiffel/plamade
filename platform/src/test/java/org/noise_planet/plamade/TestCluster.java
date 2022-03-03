@@ -3,6 +3,7 @@ package org.noise_planet.plamade;
 import org.apache.log4j.BasicConfigurator;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
+import org.h2gis.functions.io.csv.CSVDriverFunction;
 import org.h2gis.functions.io.geojson.GeoJsonWriteDriver;
 import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.junit.BeforeClass;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -135,6 +137,15 @@ public class TestCluster {
         List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14947161);
         assertEquals(0, jobList.size());
     }
+
+//    @Test
+//    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
+//        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);
+//        try (Connection sql = ds.getConnection()) {
+//            Connection connection = new ConnectionWrapper(sql);
+//            NoiseModellingInstance.exportTables(connection, Arrays.asList("BUILDINGS_SCREENS"), "target/", 4326);
+//        }
+//    }
 
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
