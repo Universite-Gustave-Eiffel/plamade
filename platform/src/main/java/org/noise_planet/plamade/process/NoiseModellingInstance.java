@@ -37,11 +37,18 @@ import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.functions.io.csv.CSVDriverFunction;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.functions.spatial.create.GridRowSet;
+import org.h2gis.functions.spatial.mesh.DelaunayData;
+import org.h2gis.functions.spatial.mesh.ST_Tessellate;
 import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.MultiPolygon;
+import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.index.strtree.STRtree;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
+import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
 import org.osgi.service.jdbc.DataSourceFactory;
@@ -362,14 +369,30 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
     }
 
+    private static class CbsSplitedEntry {
+        double noiseLevel;
+        Geometry geometry;
+
+        public CbsSplitedEntry(double noiseLevel, Geometry geometry) {
+            this.noiseLevel = noiseLevel;
+            this.geometry = geometry;
+        }
+    }
     /**
      * Merge UUEID in CBS over a regular grid
      * @param connection
      * @return
      */
     public static List<String> mergeCBS(Connection connection, int gridSize) throws SQLException {
+        int numberOfInsertedEntries = 0;
         List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
                 new String[]{"TABLE"});
+        Map<String, Double> isoLabelToLevel = new HashMap<>();
+        isoLabelToLevel.put("Lden5559", 57.0);
+        isoLabelToLevel.put("Lden6064", 62.0);
+        isoLabelToLevel.put("Lden6569", 67.0);
+        isoLabelToLevel.put("Lden7074", 72.0);
+        isoLabelToLevel.put("LdenGreaterThan75", 75.0);
         ArrayList<String> outputTables = new ArrayList<>();
         for(String tableName : allTables) {
             TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
@@ -380,31 +403,94 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     continue;
                 }
                 try(Statement st = connection.createStatement()) {
-                    st.execute("DROP TABLE IF EXISTS CBS_SPLITED, CBS_MERGED;");
-                    st.execute("create table CBS_SPLITED AS SELECT * FROM ST_EXPLODE(" +
-                            "'(SELECT ST_TESSELLATE(THE_GEOM) THE_GEOM,  (CASE WHEN NOISELEVEL = ''Lden5559''" +
-                            " THEN 57 WHEN NOISELEVEL = ''Lden6064'' THEN 62 WHEN NOISELEVEL = ''Lden6569''" +
-                            " THEN 67 WHEN NOISELEVEL = ''Lden7074'' THEN 72 WHEN NOISELEVEL = ''LdenGreaterThan75''" +
-                            " THEN 75 END) LVL FROM "+tableName+")') ;");
-                    st.execute("CREATE SPATIAL INDEX ON CBS_SPLITED(THE_GEOM);");
-                    st.execute("CREATE TABLE CBS_MERGED AS SELECT G.ID, G.THE_GEOM, " +
-                            "ROUND(10 * LOG10(SUM(POWER(10, LVL / 10) * " +
-                            "(ST_AREA(ST_INTERSECTION(G.THE_GEOM, L.THE_GEOM)) / ST_AREA(G.THE_GEOM)))), 2) LVL " +
-                            "FROM ST_MakeGrid('"+tableName+"', "+gridSize+", "+
-                            gridSize+") G, CBS_SPLITED L WHERE G.THE_GEOM && L.THE_GEOM AND " +
-                            "ST_INTERSECTS(G.THE_GEOM, L.THE_GEOM)  GROUP BY G.ID;");
+                    STRtree tesselatedIsos = new STRtree();
+                    try(ResultSet rs = st.executeQuery("SELECT THE_GEOM, NOISELEVEL FROM " + tableName)) {
+                        while (rs.next()) {
+                            Geometry geom = (Geometry)rs.getObject(1);
+                            Double noiseLevel = isoLabelToLevel.get(rs.getString(2));
+                            MultiPolygon multiPolygon = ST_Tessellate.tessellate(geom);
+                            for(int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
+                                Geometry triangle = multiPolygon.getGeometryN(idPoly);
+                                CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, triangle);
+                                tesselatedIsos.insert(cbsSplitedEntry.geometry.getEnvelopeInternal(), cbsSplitedEntry);
+                            }
+                        }
+                    }
+                    tesselatedIsos.build();
+                    // Iterate over grid
+                    GridRowSet gridRowSet = new GridRowSet(connection, gridSize, gridSize, tableName);
+                    gridRowSet.setCenterCell(false); // polygon
+                    Object[] row = gridRowSet.readRow();
+                    int srid = GeometryTableUtilities.getSRID(connection, tableName);
                     String outputTable = tableLocation.getTable() + "_MERGED";
                     st.execute("DROP TABLE IF EXISTS " + outputTable);
-                    if(tableName.contains("_LD_")) {
-                        st.execute("CREATE TABLE " + outputTable + " AS SELECT ID, THE_GEOM, (CASE WHEN LVL < 60 THEN 'Lden5559' WHEN LVL < 65 THEN 'Lden6064' WHEN LVL < 70 THEN 'Lden6569' WHEN LVL < 75 THEN 'Lden7074' ELSE 'LdenGreaterThan75' END) NOISELEVEL, LVL FROM CBS_MERGED");
-                    } else if(tableName.contains("_LN_")) {
-                        st.execute("CREATE TABLE " + outputTable + " AS SELECT ID, THE_GEOM, (CASE WHEN LVL < 55 THEN 'Lnight5054' WHEN LVL < 60 THEN 'Lnight5559' WHEN LVL < 65 THEN 'Lnight6064' WHEN LVL < 70 THEN 'Lnight6569' ELSE 'LnightGreaterThan70' END) NOISELEVEL, LVL FROM CBS_MERGED");
+                    st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(POLYGON, "+srid+"), NOISELEVEL VARCHAR)");
+                    PreparedStatement insertStatement = connection.prepareStatement("INSERT INTO "+outputTable+" VALUES (?, ?, ?)");
+                    boolean isDay = tableName.contains("_LD_");
+                    while (row != null) {
+                        Polygon gridCell = (Polygon) row[0];
+                        int cellId = (Integer) row[1];
+                        double area = gridCell.getArea();
+                        // Fetch all polygons that intersects this
+                        List<CbsSplitedEntry> results = (List<CbsSplitedEntry>)tesselatedIsos.query(gridCell.getEnvelopeInternal());
+                        double sumPower = 0;
+                        for(CbsSplitedEntry result : results) {
+                            if(result.geometry.intersects(gridCell)) {
+                                Geometry geom = gridCell.intersection(result.geometry);
+                                if(!geom.isEmpty()) {
+                                    double intersectionArea = geom.getArea();
+                                    sumPower += PowerUtils.dbaToW(result.noiseLevel) * (intersectionArea / area);
+                                }
+                            }
+                        }
+                        if(sumPower > 0) {
+                            // insert entry
+                            double summedNoiseLevel = PowerUtils.wToDba(sumPower);
+                            String noiseLevel = "";
+                            if(isDay) {
+                                if (summedNoiseLevel < 60) {
+                                    noiseLevel = "Lden5559";
+                                } else if(summedNoiseLevel < 65) {
+                                    noiseLevel = "Lden6064";
+
+                                } else if(summedNoiseLevel < 70) {
+                                    noiseLevel = "Lden6569";
+
+                                } else if(summedNoiseLevel < 75) {
+                                    noiseLevel = "Lden7074";
+
+                                } else {
+                                    noiseLevel = "LdenGreaterThan75";
+                                }
+                            } else {
+                                if (summedNoiseLevel < 55) {
+                                    noiseLevel = "Lnight5054";
+                                } else if(summedNoiseLevel < 60) {
+                                    noiseLevel = "Lnight5559";
+
+                                } else if(summedNoiseLevel < 65) {
+                                    noiseLevel = "Lnight6064";
+
+                                } else if(summedNoiseLevel < 70) {
+                                    noiseLevel = "Lnight6569";
+                                } else {
+                                    noiseLevel = "LnightGreaterThan70";
+                                }
+                            }
+                            insertStatement.setInt(1, cellId);
+                            insertStatement.setObject(2, gridCell);
+                            insertStatement.setString(3, noiseLevel);
+                            insertStatement.addBatch();
+                            numberOfInsertedEntries++;
+                        }
+                        row = gridRowSet.readRow();
                     }
-                    st.execute("DROP TABLE IF EXISTS CBS_GRID, CBS_SPLITED, CBS_MERGED;");
+                    insertStatement.executeBatch();
                     outputTables.add(outputTable);
                 }
             }
         }
+        logger.info("NoiseMap grid cell inserted " + numberOfInsertedEntries);
         return outputTables;
     }
 
