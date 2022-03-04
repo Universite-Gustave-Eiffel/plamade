@@ -187,19 +187,32 @@ public class TestCluster {
 //        }
 //    }
 //
-//    @Test
-//    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
-//        String workingDir = "/home/nicolas/data/plamade/dep02/results";
-//        DataSource ds = NoiseModellingInstance.createDataSource("", "",
-//                "build", "h2gisdb", false);
-//        try(Connection sql = ds.getConnection()) {
-//            List<String> outputTables = NoiseModellingInstance.mergeGeoJSON(sql, workingDir, "out_", "_");
-//            for(String outputTable : outputTables) {
-//                new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
-//                        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
-//            }
-//        }
-//    }
+    @Test
+    public void mergeCBSTest() throws SQLException, IOException {
+        String workingDir = "/home/nicolas/data/plamade/dep44/results_14966557";
+        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+                "build", "h2gisdb", false);
+        try(Connection sql = ds.getConnection()) {
+            List<String> outputTables = NoiseModellingInstance.mergeCBS(sql, NoiseModellingInstance.CBS_GRID_SIZE);
+            for(String outputTable : outputTables) {
+                new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
+                        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
+            }
+        }
+    }
+    @Test
+    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
+        String workingDir = "/home/nicolas/data/plamade/dep44/results_14966557";
+        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+                "build", "h2gisdb", false);
+        try(Connection sql = ds.getConnection()) {
+            List<String> outputTables = NoiseModellingInstance.mergeGeoJSON(sql, workingDir, "out_", "_");
+            for(String outputTable : outputTables) {
+                new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
+                        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
+            }
+        }
+    }
 
 //
 //    @Test
