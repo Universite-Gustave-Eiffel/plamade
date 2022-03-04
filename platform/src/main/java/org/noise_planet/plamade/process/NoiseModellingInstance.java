@@ -114,7 +114,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         COMPLETED
     }
      public static final int MAX_CONNECTION_RETRY = 170;
-    public static final int CBS_GRID_SIZE = 20;
+    public static final int CBS_GRID_SIZE = 10;
     public static final String RESULT_DIRECTORY_NAME = "results";
     public static final String POST_PROCESS_RESULT_DIRECTORY_NAME = "results_post";
 
@@ -429,6 +429,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     boolean isDay = tableName.contains("_LD_");
                     while (row != null) {
                         Polygon gridCell = (Polygon) row[0];
+                        gridCell.setSRID(srid);
                         int cellId = (Integer) row[1];
                         double area = gridCell.getArea();
                         // Fetch all polygons that intersects this
