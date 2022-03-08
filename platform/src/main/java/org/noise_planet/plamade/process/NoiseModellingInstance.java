@@ -34,17 +34,13 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
-import org.h2gis.functions.io.csv.CSVDriverFunction;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
-import org.h2gis.functions.spatial.create.GridRowSet;
-import org.h2gis.functions.spatial.mesh.DelaunayData;
 import org.h2gis.functions.spatial.mesh.ST_Tessellate;
 import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.CoordinateXY;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -71,7 +67,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
@@ -87,6 +82,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -95,7 +91,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.TreeSet;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
@@ -109,6 +107,7 @@ import java.util.stream.Collectors;
  * @author Nicolas Fortin, Université Gustave Eiffel
  */
 public class NoiseModellingInstance implements RunnableFuture<String> {
+    private static final int BATCH_MAX_SIZE = 100;
     public static final String H2GIS_DATABASE_NAME = "h2gisdb";
     public enum JOB_STATES {
         QUEUED,
@@ -382,13 +381,24 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             this.geometry = geometry;
         }
     }
+
+    private static class IsoEntry {
+        int index;
+        Polygon cell;
+        String isoLvl;
+
+        public IsoEntry(int index, Polygon cell, String isoLvl) {
+            this.index = index;
+            this.cell = cell;
+            this.isoLvl = isoLvl;
+        }
+    }
     /**
      * Merge UUEID in CBS over a regular grid
      * @param connection
      * @return
      */
     public static List<String> mergeCBS(Connection connection, int gridSize) throws SQLException {
-        int numberOfInsertedEntries = 0;
         List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
                 new String[]{"TABLE"});
         GeometryFactory geometyFactory = new GeometryFactory();
@@ -401,6 +411,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         ArrayList<String> outputTables = new ArrayList<>();
         for(String tableName : allTables) {
             TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
+            String outputTable = tableLocation.getTable() + "_MERGED";
             if(tableLocation.getTable().startsWith("CBS_A_R_LD_")) {
                 List<String> fields = JDBCUtilities.getColumnNames(connection, tableLocation);
                 if(!(fields.contains("UUEID") && fields.contains("PERIOD") &&
@@ -415,7 +426,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     double cellWidth = tableExtent.getWidth();
                     double cellHeight = tableExtent.getHeight();
                     int maxJ = (int)Math.ceil(cellHeight / gridSize);
-                    Set<PointNoiseMap.CellIndex> cellIndices = new HashSet<>();
+                    Set<PointNoiseMap.CellIndex> cellIndices = new TreeSet<>();
                     try(ResultSet rs = st.executeQuery("SELECT THE_GEOM, NOISELEVEL FROM " + tableName)) {
                         while (rs.next()) {
                             Geometry geom = (Geometry)rs.getObject(1);
@@ -440,17 +451,15 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     }
                     tesselatedIsos.build();
                     // Iterate over grid
-                    //GridRowSet gridRowSet = new GridRowSet(connection, gridSize, gridSize, tableName);
-                    //gridRowSet.setCenterCell(false); // polygon
-                    //Object[] row = gridRowSet.readRow();
                     int srid = GeometryTableUtilities.getSRID(connection, tableName);
-                    String outputTable = tableLocation.getTable() + "_MERGED";
                     st.execute("DROP TABLE IF EXISTS " + outputTable);
-                    st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(POLYGON, "+srid+"), NOISELEVEL VARCHAR)");
-                    PreparedStatement insertStatement = connection.prepareStatement("INSERT INTO "+outputTable+" VALUES (?, ?, ?)");
+                    st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(POLYGON, "+srid+"), NOISELEVEL VARCHAR(20))");
+
                     boolean isDay = tableName.contains("_LD_");
-                    logger.info("Will generate " + cellIndices.size() + " iso-cells");
-                    for(PointNoiseMap.CellIndex cellIndex : cellIndices) {
+                    logger.info("Will generate " + cellIndices.size() + " iso-cells. Compute intersection of iso-cells..");
+
+                    Deque<IsoEntry> deque = new ConcurrentLinkedDeque<>();
+                    cellIndices.parallelStream().forEach(cellIndex -> {
                         double x1 = minX + (double)cellIndex.getLongitudeIndex() * gridSize;
                         double y1 = minY + (double)cellIndex.getLatitudeIndex() * gridSize;
                         double x2 = minX + (double)(cellIndex.getLongitudeIndex() + 1) * gridSize;
@@ -469,12 +478,10 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                         List<CbsSplitedEntry> results = (List<CbsSplitedEntry>)tesselatedIsos.query(gridCell.getEnvelopeInternal());
                         double sumPower = 0;
                         for(CbsSplitedEntry result : results) {
-                            if(result.geometry.intersects(gridCell)) {
-                                Geometry geom = gridCell.intersection(result.geometry);
-                                if(!geom.isEmpty()) {
-                                    double intersectionArea = geom.getArea();
-                                    sumPower += PowerUtils.dbaToW(result.noiseLevel) * (intersectionArea / area);
-                                }
+                            Geometry geom = gridCell.intersection(result.geometry);
+                            if(!geom.isEmpty()) {
+                                double intersectionArea = geom.getArea();
+                                sumPower += PowerUtils.dbaToW(result.noiseLevel) * (intersectionArea / area);
                             }
                         }
                         if(sumPower > 0) {
@@ -511,19 +518,31 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                                     noiseLevel = "LnightGreaterThan70";
                                 }
                             }
-//                            insertStatement.setInt(1, cellId);
-//                            insertStatement.setObject(2, gridCell);
-//                            insertStatement.setString(3, noiseLevel);
-//                            insertStatement.addBatch();
-                            numberOfInsertedEntries++;
+                            deque.add(new IsoEntry(cellId, gridCell, noiseLevel));
+                        }
+                    });
+                    logger.info("Begin insertion of iso-cells..");
+                    PreparedStatement insertStatement = connection.prepareStatement("INSERT INTO "+outputTable+" VALUES (?, ?, ?)");
+                    int batchSize = 0;
+                    for(IsoEntry isoEntry : deque) {
+                        insertStatement.setInt(1, isoEntry.index);
+                        insertStatement.setObject(2, isoEntry.cell);
+                        insertStatement.setString(3, isoEntry.isoLvl);
+                        insertStatement.addBatch();
+                        batchSize++;
+                        if (batchSize >= BATCH_MAX_SIZE) {
+                            insertStatement.executeBatch();
+                            batchSize = 0;
                         }
                     }
-                    insertStatement.executeBatch();
+                    if (batchSize > 0) {
+                        insertStatement.executeBatch();
+                    }
                     outputTables.add(outputTable);
                 }
             }
+            logger.info("NoiseMap grid cell inserted into" + outputTable);
         }
-        logger.info("NoiseMap grid cell inserted " + numberOfInsertedEntries);
         return outputTables;
     }
 
