@@ -189,7 +189,16 @@ public class TestCluster {
 //            noiseMap.generateReceivers(connection, i, j, "RECEIVERS", triangleTable, pk);
 //        }
 //    }
-//
+//    @Test
+//    public void exportTest() throws SQLException, IOException {
+//        String workingDir = "/home/nicolas/data/plamade/dep85/";
+//        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+//                workingDir, "h2gisdb", false);
+//        try(Connection connection = ds.getConnection()) {
+//            List<String> outputTables = Arrays.asList("ROADS", "BUILDINGS_SCREENS", "LANDCOVER", "SCREENS", "RAIL_SECTIONS");
+//            NoiseModellingInstance.exportTables(connection, outputTables, workingDir, 4326);
+//        }
+//    }
 //    @Test
 //    public void mergeCBSTest() throws SQLException, IOException {
 //        String workingDir = "/home/nicolas/data/plamade/dep44/results_14966557";

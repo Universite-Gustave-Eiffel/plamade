@@ -47,6 +47,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
+import org.locationtech.jts.operation.overlay.OverlayOp;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.plamade.config.DataBaseConfig;
@@ -419,14 +420,14 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     continue;
                 }
                 try(Statement st = connection.createStatement()) {
-                    STRtree tesselatedIsos = new STRtree();
+                    final STRtree tesselatedIsos = new STRtree();
                     Envelope tableExtent = GeometryTableUtilities.getEstimatedExtent(connection, tableLocation).getEnvelopeInternal();
                     double minX = tableExtent.getMinX();
                     double minY = tableExtent.getMinY();
-                    double cellWidth = tableExtent.getWidth();
                     double cellHeight = tableExtent.getHeight();
                     int maxJ = (int)Math.ceil(cellHeight / gridSize);
                     Set<PointNoiseMap.CellIndex> cellIndices = new TreeSet<>();
+                    long startMerge = System.currentTimeMillis();
                     try(ResultSet rs = st.executeQuery("SELECT THE_GEOM, NOISELEVEL FROM " + tableName)) {
                         while (rs.next()) {
                             Geometry geom = (Geometry)rs.getObject(1);
@@ -456,8 +457,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(POLYGON, "+srid+"), NOISELEVEL VARCHAR(20))");
 
                     boolean isDay = tableName.contains("_LD_");
-                    logger.info("Will generate " + cellIndices.size() + " iso-cells. Compute intersection of iso-cells..");
-
+                    long endCells = System.currentTimeMillis();
+                    logger.info(String.format(Locale.ROOT, "Collect cells in %d ms Will generate %d iso-cells." +
+                            " Compute intersection of iso-cells..",(int)(endCells - startMerge) ,cellIndices.size()));
                     Deque<IsoEntry> deque = new ConcurrentLinkedDeque<>();
                     cellIndices.parallelStream().forEach(cellIndex -> {
                         double x1 = minX + (double)cellIndex.getLongitudeIndex() * gridSize;
@@ -478,7 +480,8 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                         List<CbsSplitedEntry> results = (List<CbsSplitedEntry>)tesselatedIsos.query(gridCell.getEnvelopeInternal());
                         double sumPower = 0;
                         for(CbsSplitedEntry result : results) {
-                            Geometry geom = gridCell.intersection(result.geometry);
+                            OverlayOp overlayOp = new OverlayOp(gridCell, result.geometry);
+                            Geometry geom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
                             if(!geom.isEmpty()) {
                                 double intersectionArea = geom.getArea();
                                 sumPower += PowerUtils.dbaToW(result.noiseLevel) * (intersectionArea / area);
@@ -521,7 +524,9 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                             deque.add(new IsoEntry(cellId, gridCell, noiseLevel));
                         }
                     });
-                    logger.info("Begin insertion of iso-cells..");
+                    long endOfIntersects = System.currentTimeMillis();
+                    logger.info(String.format(Locale.ROOT, "Intersection of iso-cells in %d ms." +
+                            " Begin insertion in database..", (int)(endOfIntersects - endCells)));
                     PreparedStatement insertStatement = connection.prepareStatement("INSERT INTO "+outputTable+" VALUES (?, ?, ?)");
                     int batchSize = 0;
                     for(IsoEntry isoEntry : deque) {
@@ -538,10 +543,13 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     if (batchSize > 0) {
                         insertStatement.executeBatch();
                     }
+                    long endOfInsertion = System.currentTimeMillis();
                     outputTables.add(outputTable);
+                    logger.info(String.format(Locale.ROOT,
+                            "NoiseMap grid cell inserted into %s. Total operation time in %d ms" ,
+                            outputTable,(int)(endOfInsertion - startMerge)));
                 }
             }
-            logger.info("NoiseMap grid cell inserted into" + outputTable);
         }
         return outputTables;
     }
@@ -1168,24 +1176,37 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     public static void exportTables(Connection connection, List<String> tablesToExport, String folder, int srid) throws SQLException, IOException {
         for(String tableName : tablesToExport) {
             if(JDBCUtilities.tableExists(connection, tableName)) {
-                String geometryColumnName = GeometryTableUtilities.getGeometryColumnNames(connection, tableName).get(0);
-                List<String> columnNames = JDBCUtilities.getColumnNames(connection, tableName);
-                columnNames.remove(geometryColumnName);
-                StringBuilder sb = new StringBuilder("(SELECT ST_TRANSFORM(");
-                sb.append(geometryColumnName);
-                sb.append(", ");
-                sb.append(srid);
-                sb.append(") ");
-                sb.append(geometryColumnName);
-                for(String columnName : columnNames) {
+                if(srid != 0) {
+                    String geometryColumnName = GeometryTableUtilities.getGeometryColumnNames(connection, tableName).get(0);
+                    List<String> columnNames = JDBCUtilities.getColumnNames(connection, tableName);
+                    columnNames.remove(geometryColumnName);
+                    try(ResultSet resultSet = connection.createStatement().executeQuery(
+                            "SELECT COUNT(*) FROM " + tableName + " WHERE " + geometryColumnName + " IS NOT NULL")) {
+                        resultSet.next();
+                        int rowCount = resultSet.getInt(1);
+                        if(rowCount < 1) {
+                            continue;
+                        }
+                    }
+                    StringBuilder sb = new StringBuilder("(SELECT ST_TRANSFORM(");
+                    sb.append(geometryColumnName);
                     sb.append(", ");
-                    sb.append(columnName);
+                    sb.append(srid);
+                    sb.append(") ");
+                    sb.append(geometryColumnName);
+                    for (String columnName : columnNames) {
+                        sb.append(", ");
+                        sb.append(columnName);
+                    }
+                    sb.append(" FROM ");
+                    sb.append(tableName);
+                    sb.append(" WHERE ");
+                    sb.append(geometryColumnName);
+                    sb.append(" IS NOT NULL)");
+                    GeoJsonWrite.exportTable(connection, new File(folder, tableName + ".geojson").getAbsolutePath(), sb.toString(), true);
+                } else {
+                    GeoJsonWrite.exportTable(connection, new File(folder, tableName + ".geojson").getAbsolutePath(), tableName, true);
                 }
-                sb.append(" FROM ");
-                sb.append(tableName);
-                sb.append(")");
-                GeoJsonWrite.exportTable(connection, new File(folder, tableName + ".geojson").getAbsolutePath(),
-                        sb.toString(), true);
             }
         }
     }
