@@ -49,6 +49,7 @@ import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
+import org.noise_planet.noisemodelling.pathfinder.LayerDelaunayError;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
@@ -413,7 +414,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         for(String tableName : allTables) {
             TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
             String outputTable = tableLocation.getTable() + "_MERGED";
-            if(tableLocation.getTable().startsWith("CBS_A_R_LD_")) {
+            if(tableLocation.getTable().startsWith("CBS_A_R_")) {
                 List<String> fields = JDBCUtilities.getColumnNames(connection, tableLocation);
                 if(!(fields.contains("UUEID") && fields.contains("PERIOD") &&
                         fields.contains("NOISELEVEL"))) {
@@ -430,23 +431,38 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
                     long startMerge = System.currentTimeMillis();
                     try(ResultSet rs = st.executeQuery("SELECT THE_GEOM, NOISELEVEL FROM " + tableName)) {
                         while (rs.next()) {
-                            Geometry geom = (Geometry)rs.getObject(1);
+                            Geometry inputGeometry = (Geometry) rs.getObject(1);
                             Double noiseLevel = isoLabelToLevel.get(rs.getString(2));
-                            MultiPolygon multiPolygon = ST_Tessellate.tessellate(geom);
-                            for(int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
-                                Geometry triangle = multiPolygon.getGeometryN(idPoly);
-                                Envelope triEnv = triangle.getEnvelopeInternal();
-                                int startI = (int)((triEnv.getMinX() - minX) / gridSize);
-                                int startJ = (int)((triEnv.getMinY() - minY) / gridSize);
-                                int endI = (int)Math.ceil((triEnv.getMaxX() - minX) / gridSize);
-                                int endJ = (int)Math.ceil((triEnv.getMaxY() - minY) / gridSize);
-                                for(int i = startI; i < endI; i++) {
-                                    for(int j = startJ; j < endJ; j++) {
-                                        cellIndices.add(new PointNoiseMap.CellIndex(i, j));
+                            for (int idGeometry = 0; idGeometry < inputGeometry.getNumGeometries(); idGeometry++) {
+                                Geometry geom = inputGeometry.getGeometryN(idGeometry);
+                                Geometry multiPolygon;
+                                Envelope geomEnvelope = geom.getEnvelopeInternal();
+                                if (geomEnvelope.getWidth() > gridSize || geomEnvelope.getHeight() > gridSize) {
+                                    // tessellate the geometry if it is larger than the cell of the grid
+                                    try {
+                                        multiPolygon = ST_Tessellate.tessellate(geom);
+                                    } catch (RuntimeException ex) {
+                                        logger.warn("Error while tessellating the polygon", ex);
+                                        multiPolygon = geom;
                                     }
+                                } else {
+                                    multiPolygon = geom;
                                 }
-                                CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, triangle);
-                                tesselatedIsos.insert(triEnv, cbsSplitedEntry);
+                                for (int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
+                                    Geometry triangle = multiPolygon.getGeometryN(idPoly);
+                                    Envelope triEnv = triangle.getEnvelopeInternal();
+                                    int startI = (int) ((triEnv.getMinX() - minX) / gridSize);
+                                    int startJ = (int) ((triEnv.getMinY() - minY) / gridSize);
+                                    int endI = (int) Math.ceil((triEnv.getMaxX() - minX) / gridSize);
+                                    int endJ = (int) Math.ceil((triEnv.getMaxY() - minY) / gridSize);
+                                    for (int i = startI; i < endI; i++) {
+                                        for (int j = startJ; j < endJ; j++) {
+                                            cellIndices.add(new PointNoiseMap.CellIndex(i, j));
+                                        }
+                                    }
+                                    CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, triangle);
+                                    tesselatedIsos.insert(triEnv, cbsSplitedEntry);
+                                }
                             }
                         }
                     }

@@ -26,8 +26,8 @@ import java.util.concurrent.*;
  */
 public class ExecutorServiceModule extends AbstractModule implements Provider<JobExecutorService> {
 
-    public static final int CORE_POOL_SIZE = 1;
-    public static final int MAXIMUM_POOL_SIZE = 1;
+    public static final int CORE_POOL_SIZE = 5;
+    public static final int MAXIMUM_POOL_SIZE = 5;
     public static final long KEEP_ALIVE_TIME = 0L;
     JobExecutorServiceImpl executor = null;
 
@@ -40,7 +40,7 @@ public class ExecutorServiceModule extends AbstractModule implements Provider<Jo
     public JobExecutorService get() {
         if(executor == null) {
             executor = new JobExecutorServiceImpl(CORE_POOL_SIZE, MAXIMUM_POOL_SIZE,
-                    KEEP_ALIVE_TIME, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+                    KEEP_ALIVE_TIME, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
         }
         return executor;
     }

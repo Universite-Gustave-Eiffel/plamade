@@ -277,7 +277,12 @@ def exec(Connection connection, input) {
 //      logger.info(String.format("PARAM : The temperature is set to %s ", confTemperature));
 //      logger.info(String.format("PARAM : The pfav values are %s ", confFavorableOccurrences));
 //
+//    // -----------------------------------------------------------------------------
+//    // Define and set the parameters coming from the PLATEFORM table
 //
+//    def row_plateform = sql.firstRow("SELECT * FROM PLATEFORM WHERE IDPLATFORM='SNCF'")
+//    // h2 is normally set to 0.18m
+//    double plateformeH2 = row_plateform.h2.toDouble()
 //      // -------------------------
 //      // Initialize some variables
 //      // -------------------------
@@ -417,7 +422,7 @@ def exec(Connection connection, input) {
 //                        Geometry trackGeometry = (Geometry) geometries.get(nTrack)
 //                        Geometry sourceGeometry = trackGeometry.copy()
 //                        // offset geometry z
-//                        sourceGeometry.apply(new ST_UpdateZ.UpdateZCoordinateSequenceFilter(heightSource, 1))
+//                        sourceGeometry.apply(new ST_UpdateZ.UpdateZCoordinateSequenceFilter(heightSource + plateformeH2, 1))
 //                        def batchData = [ railWayLWGeom.getIdSection() as String,railWayLWGeom.getUueid() as String, sourceGeometry as Geometry, directivityId as int,gs as double]
 //                        batchData.addAll(LWDay)
 //                        batchData.addAll(LWEvening)
