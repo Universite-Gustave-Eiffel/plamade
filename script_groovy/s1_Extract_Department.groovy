@@ -331,6 +331,7 @@ def exec(Connection connection, input) {
     DROP TABLE plateform_link;
 
     """
+
     def queries_pfav = """       
     ----------------------------------
     -- Manage pfav and meteo tables
@@ -357,6 +358,7 @@ def exec(Connection connection, input) {
     DROP TABLE IF EXISTS dept_pfav,dept_meteo;
 
     """
+
     def queries_roads = """
 	----------------------------------
     -- Manage roads
@@ -431,6 +433,7 @@ def exec(Connection connection, input) {
     CREATE INDEX ON ROADS(UUEID);
 
     """
+
     def queries_rails = """
     ----------------------------------
     -- Manage rail_sections
@@ -524,6 +527,7 @@ def exec(Connection connection, input) {
     DROP TABLE rail_sections_link, rail_sections_geom, rail_tunnel_link, rail_tunnel, rail_traffic_link;
 
     """
+
     def queries_infra = """
     ----------------------------------
     -- Generate infrastructure table (merge of roads and rails)
@@ -533,6 +537,7 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX infra_geom_idx ON infra (the_geom);
 
     """
+
     def queries_buildings = """
 	----------------------------------
     -- Manage buildings
@@ -588,6 +593,7 @@ def exec(Connection connection, input) {
 	DROP TABLE buildings_geom, buildings_erps, allbuildings_link, allbuildings_erps_link, allbuildings_erps, allbuildings_erps_natur_link, allbuildings_erps_natur;
 
     """
+
     def queries_screens = """
     ----------------------------------
     -- Manage acoustic screens
@@ -658,6 +664,7 @@ def exec(Connection connection, input) {
     DROP TABLE road_screens_link, road_screens, rail_screens_link, rail_screens;
 
     """
+
     def queries_buildings_screens = """
     ----------------------------------
     -- Merge buildings and screenss
@@ -692,15 +699,14 @@ def exec(Connection connection, input) {
     CREATE SPATIAL INDEX ON buildings_screens(the_geom);
 
     DROP TABLE IF EXISTS tmp_relation_screen_building, tmp_screen_truncated, tmp_screens, tmp_buffered_screens, buffered_screens;
-    
-    """
 
+    """
 
     def queries_landcover = """
 	----------------------------------
 	-- Manage Landcover
     
-	DROP TABLE IF EXISTS alllandcover_link, landcover_source;
+	DROP TABLE IF EXISTS alllandcover_link, LANDCOVER;
     CREATE LINKED TABLE alllandcover_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', '(SELECT 
      a.the_geom, 
      a."IDNATSOL" as pk, 
@@ -714,11 +720,14 @@ def exec(Connection connection, input) {
      ST_INTERSECTS(a.the_geom, c.the_geom) and 
      a."NATSOL_CNO" > 0)');
     
-    CREATE TABLE landcover_source as select * from alllandcover_link;
-    CREATE SPATIAL INDEX ON landcover_source(the_geom);
-    DELETE FROM landcover_source B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
+    CREATE TABLE LANDCOVER as select * from alllandcover_link;
+    CREATE SPATIAL INDEX ON LANDCOVER(the_geom);
+    DELETE FROM LANDCOVER B WHERE NOT EXISTS (SELECT 1 FROM infra R WHERE ST_EXPAND(B.THE_GEOM, $buffer) && R.THE_GEOM AND ST_DISTANCE(b.the_geom, r.the_geom) < $buffer LIMIT 1);
     DROP TABLE alllandcover_link;
 
+    """
+
+    def queries_landcover_rail = """
 
     -- Integrates RAIL_SECTIONS into the Landcover
     ------------------------------------------------------------------
@@ -738,10 +747,10 @@ def exec(Connection connection, input) {
     CREATE TABLE rail_buff_d4_expl AS SELECT a.the_geom, b.g1 as g FROM ST_Explode('RAIL_DIFF_D4_D3 ') a, PLATEFORM  b WHERE b.IDPLATFORM ='SNCF';
 
     DROP TABLE IF EXISTS LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1;
-    CREATE TABLE LANDCOVER_G_0 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=0;
-    CREATE TABLE LANDCOVER_G_03 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=0.3;
-    CREATE TABLE LANDCOVER_G_07 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=0.7;
-    CREATE TABLE LANDCOVER_G_1 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER_SOURCE WHERE g=1;
+    CREATE TABLE LANDCOVER_G_0 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER WHERE g=0;
+    CREATE TABLE LANDCOVER_G_03 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER WHERE g=0.3;
+    CREATE TABLE LANDCOVER_G_07 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER WHERE g=0.7;
+    CREATE TABLE LANDCOVER_G_1 AS SELECT ST_Union(ST_Accum(the_geom)) as the_geom FROM LANDCOVER WHERE g=1;
 
     DROP TABLE IF EXISTS LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4;
     CREATE TABLE LANDCOVER_0_DIFF_D4 AS SELECT ST_Difference(b.the_geom, a.the_geom) as the_geom from rail_buff_d4 a, LANDCOVER_G_0 b where a.the_geom && b.the_geom and st_intersects(a.the_geom, b.the_geom);
@@ -762,12 +771,13 @@ def exec(Connection connection, input) {
 
     -- Merge geometries that have the same G
     CREATE TABLE LANDCOVER_MERGE AS SELECT ST_UNION(ST_ACCUM(the_geom)) as the_geom, g FROM LANDCOVER_UNION GROUP BY g;
-    CREATE TABLE LANDCOVER AS SELECT ST_SETSRID(the_geom,$srid) as the_geom, g FROM ST_Explode('LANDCOVER_MERGE ');
+    DROP TABLE IF EXISTS LANDCOVER;
+    CREATE TABLE LANDCOVER AS SELECT ST_SETSRID(the_geom,$srid) as the_geom, g FROM ST_Explode('LANDCOVER_MERGE');
 
-    DROP TABLE IF EXISTS rail_buff_d1, rail_buff_d3, rail_buff_d4, rail_diff_d3_d1, rail_diff_d4_d3, rail_buff_d1_expl, rail_buff_d3_expl, rail_buff_d4_expl, LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1, LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4, LANDCOVER_0_EXPL, LANDCOVER_03_EXPL, LANDCOVER_07_EXPL, LANDCOVER_1_EXPL, LANDCOVER_UNION, LANDCOVER_MERGE, landcover_source;
-
+    DROP TABLE IF EXISTS rail_buff_d1, rail_buff_d3, rail_buff_d4, rail_diff_d3_d1, rail_diff_d4_d3, rail_buff_d1_expl, rail_buff_d3_expl, rail_buff_d4_expl, LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1, LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4, LANDCOVER_0_EXPL, LANDCOVER_03_EXPL, LANDCOVER_07_EXPL, LANDCOVER_1_EXPL, LANDCOVER_UNION, LANDCOVER_MERGE, LANDCOVER;
 
     """
+
     def queries_dem = """
      ----------------------------------
     -- Import data and filtering within 1000m around infra
@@ -918,7 +928,6 @@ def exec(Connection connection, input) {
 
     """
 
-
     def queries_stats = """
     ----------------------------------
     -- Manage statitics
@@ -965,6 +974,7 @@ def exec(Connection connection, input) {
 
     -- Update metadata table with end time
     UPDATE metadata SET import_end = NOW();
+
     """
 
     def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep, "table_bd_topo_route" : table_bd_topo_route]
@@ -1024,6 +1034,14 @@ def exec(Connection connection, input) {
     engine = new SimpleTemplateEngine()
     template = engine.createTemplate(queries_landcover).make(binding)
     sql.execute(template.toString())
+    progress.endStep()
+
+    if(JDBCUtilities.getRowCount(connection, "RAIL_SECTIONS") > 0) {
+        logger.info('Manage landcover - There is railways, so insert them into landcover')
+        engine = new SimpleTemplateEngine()
+        template = engine.createTemplate(queries_landcover_rail).make(binding)
+        sql.execute(template.toString())
+    }
     progress.endStep()
 
     logger.info('Manage dem (10/11)')
