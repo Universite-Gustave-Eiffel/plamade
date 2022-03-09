@@ -1,11 +1,39 @@
 package org.noise_planet.plamade;
 
+import groovy.sql.GroovyRowResult;
+import groovy.sql.Sql;
 import org.apache.log4j.BasicConfigurator;
+import org.cts.CRSFactory;
+import org.cts.IllegalCoordinateException;
+import org.cts.crs.CRSException;
+import org.cts.crs.CoordinateReferenceSystem;
+import org.cts.crs.GeodeticCRS;
+import org.cts.op.CoordinateOperation;
+import org.cts.op.CoordinateOperationException;
+import org.cts.op.CoordinateOperationFactory;
 import org.h2.value.ValueBoolean;
+import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.shp.SHPWrite;
+import org.h2gis.functions.spatial.crs.ST_Transform;
+import org.h2gis.functions.spatial.crs.SpatialRefRegistry;
+import org.h2gis.utilities.GeometryTableUtilities;
+import org.h2gis.utilities.TableLocation;
+import org.h2gis.utilities.dbtypes.DBTypes;
+import org.h2gis.utilities.dbtypes.DBUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.noise_planet.noisemodelling.jdbc.LDENConfig;
+import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
+import org.noise_planet.noisemodelling.pathfinder.CnossosPropagationData;
+import org.noise_planet.noisemodelling.pathfinder.ComputeCnossosRays;
+import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
+import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation;
+import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData;
+import org.noise_planet.plamade.process.NoiseModellingProfileReport;
 import org.noise_planet.plamade.process.NoiseModellingRunner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -13,8 +41,13 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.TestCase.assertEquals;
 
@@ -131,6 +164,11 @@ public class TestCluster {
         assertEquals(0, jobList.size());
     }
 
+    @Test
+    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
+        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
+        noiseModellingProfileReport.testDebugNoiseProfile();
+    }
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);
@@ -189,21 +227,21 @@ public class TestCluster {
 //            NoiseModellingInstance.exportTables(connection, outputTables, workingDir, 4326);
 //        }
 //    }
-    @Test
-    public void mergeCBSTest() throws SQLException, IOException {
-        String workingDir = "/home/nicolas/data/plamade/dep85_1646746743628";
-        DataSource ds = NoiseModellingRunner.createDataSource("", "",
-                workingDir, "h2gisdb", false);
-        try(Connection sql = ds.getConnection()) {
-            List<String> outputTables = NoiseModellingRunner.mergeCBS(sql, NoiseModellingRunner.CBS_GRID_SIZE);
-            for(String outputTable : outputTables) {
-                //new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
-                //        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
-                SHPWrite.exportTable(sql, new File(workingDir, outputTable + ".shp").getAbsolutePath(), outputTable,
-                         ValueBoolean.TRUE);
-            }
-        }
-    }
+//    @Test
+//    public void mergeCBSTest() throws SQLException, IOException {
+//        String workingDir = "/home/nicolas/data/plamade/dep85_1646746743628";
+//        DataSource ds = NoiseModellingRunner.createDataSource("", "",
+//                workingDir, "h2gisdb", false);
+//        try(Connection sql = ds.getConnection()) {
+//            List<String> outputTables = NoiseModellingRunner.mergeCBS(sql, NoiseModellingRunner.CBS_GRID_SIZE);
+//            for(String outputTable : outputTables) {
+//                //new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
+//                //        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
+//                SHPWrite.exportTable(sql, new File(workingDir, outputTable + ".shp").getAbsolutePath(), outputTable,
+//                         ValueBoolean.TRUE);
+//            }
+//        }
+//    }
 //    @Test
 //    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
 //        String workingDir = "/home/nicolas/data/plamade/dep44/results_14966557";
