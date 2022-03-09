@@ -287,15 +287,15 @@ def exec(Connection connection, input) {
 
     DROP TABLE IF EXISTS nuts_link, metadata;
     CREATE LINKED TABLE nuts_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','noisemodelling', 
-        '(SELECT code_2021 as nuts FROM noisemodelling.nuts WHERE code_dept=''$codeDepFormat'')');
+        '(SELECT code_2021 as nuts, ratio_pop_log FROM noisemodelling.nuts WHERE code_dept=''$codeDepFormat'')');
 
-    CREATE TABLE metadata (code_dept varchar, nuts varchar, srid integer, import_start timestamp, import_end timestamp, 
+    CREATE TABLE metadata (code_dept varchar, nuts varchar, ratio_pop_log double, srid integer, import_start timestamp, import_end timestamp, 
         grid_conf integer, grid_start timestamp, grid_end timestamp, 
         emi_conf integer, emi_start timestamp, emi_end timestamp, 
         road_conf integer, road_start timestamp, road_end timestamp, 
         rail_conf integer, rail_start timestamp, rail_end timestamp);
 
-    INSERT INTO metadata (code_dept, nuts, srid, import_start) VALUES ('$codeDep', (SELECT nuts from nuts_link), $srid, NOW());
+    INSERT INTO metadata (code_dept, nuts, ratio_pop_log, srid, import_start) VALUES ('$codeDep', (SELECT nuts from nuts_link), (SELECT ratio_pop_log from nuts_link), $srid, NOW());
     
     DROP TABLE nuts_link;
 
