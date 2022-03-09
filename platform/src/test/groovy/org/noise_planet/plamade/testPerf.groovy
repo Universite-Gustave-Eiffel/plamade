@@ -4,7 +4,7 @@ package org.noise_planet.plamade
 import groovy.sql.GroovyResultSet
 import groovy.sql.Sql
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
-import org.noise_planet.plamade.process.NoiseModellingInstance
+import org.noise_planet.plamade.process.NoiseModellingRunner
 
 import javax.sql.DataSource
 import java.sql.Connection
@@ -33,7 +33,7 @@ class testPerf {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
 
-        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+        DataSource ds = NoiseModellingRunner.createDataSource("", "",
                 workingFolder, "h2gisdb", false)
         ds.getConnection().withCloseable { Connection connection ->
             GroovyShell shell = new GroovyShell()
@@ -59,11 +59,11 @@ class testPerf {
         long heapMaxSize = Runtime.getRuntime().maxMemory();
         System.out.println("Max memory: " + humanReadableByteCountSI(heapMaxSize))
         String workingDir = "/home/nicolas/data/plamade/dep44/"
-        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+        DataSource ds = NoiseModellingRunner.createDataSource("", "",
                 workingDir, "h2gisdb", false)
         ds.getConnection().withCloseable {
             Connection connection ->
-                NoiseModellingInstance.generateClusterConfig(connection, new RootProgressVisitor(1,
+                NoiseModellingRunner.generateClusterConfig(connection, new RootProgressVisitor(1,
                         true, 1), 24, workingDir);
         }
     }

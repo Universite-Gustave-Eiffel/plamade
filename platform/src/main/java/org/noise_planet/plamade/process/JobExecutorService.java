@@ -7,5 +7,5 @@ public interface JobExecutorService extends ExecutorService {
     /**
      * @return Return the instances of all queued and running noisemodelling instances
      */
-    List<NoiseModellingInstance> getNoiseModellingInstance();
+    List<NoiseModellingRunner> getNoiseModellingInstance();
 }

@@ -23,7 +23,7 @@ import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfigRoot;
 import org.noise_planet.plamade.process.JobExecutorService;
-import org.noise_planet.plamade.process.NoiseModellingInstance;
+import org.noise_planet.plamade.process.NoiseModellingRunner;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +44,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.util.Map;
 
 /**
@@ -98,7 +97,7 @@ public class PostAddJob implements Handler {
                                 statement.setInt(3, Integer.parseInt(confId));
                                 statement.setString(4, inseeDepartment);
                                 statement.setInt(5, pkUser);
-                                statement.setString(6, NoiseModellingInstance.JOB_STATES.QUEUED.toString());
+                                statement.setString(6, NoiseModellingRunner.JOB_STATES.QUEUED.toString());
                                 statement.executeUpdate();
                                 // retrieve primary key
                                 ResultSet rs = statement.getGeneratedKeys();
@@ -107,13 +106,13 @@ public class PostAddJob implements Handler {
                                     JobExecutorService pool = ctx.get(JobExecutorService.class);
                                     RootProgressVisitor rootProgressVisitor = new RootProgressVisitor(1, false, 5);
                                     rootProgressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(plamadeDataSource, pk));
-                                    NoiseModellingInstance.Configuration configuration = new NoiseModellingInstance.Configuration(
+                                    NoiseModellingRunner.Configuration configuration = new NoiseModellingRunner.Configuration(
                                             pkUser,new File("jobs_running/"+jobFolder).getAbsolutePath(),
                                             Integer.parseInt(confId),
                                             inseeDepartment, pk, dataBaseConfig
                                             , rootProgressVisitor, remoteJobFolder);
                                     configuration.setSlurmConfig(slurmConfigList.slurm);
-                                    pool.execute(new NoiseModellingInstance(
+                                    pool.execute(new NoiseModellingRunner(
                                             configuration, plamadeDataSource));
                                 } else {
                                     LOG.error("Could not insert new job without exceptions");

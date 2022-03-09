@@ -16,9 +16,8 @@
  */
 package org.noise_planet.plamade.api.secure;
 
-import com.google.common.collect.Maps;
 import org.noise_planet.plamade.process.JobExecutorService;
-import org.noise_planet.plamade.process.NoiseModellingInstance;
+import org.noise_planet.plamade.process.NoiseModellingRunner;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +34,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Stop And/Or Delete jobs
@@ -59,7 +57,7 @@ public class PostManageJob implements Handler {
                                 JobExecutorService pool = ctx.get(JobExecutorService.class);
                                 try (Connection connection = plamadeDataSource.getConnection()) {
                                     for(String jobId : cancelJobsList) {
-                                        for(NoiseModellingInstance instance : pool.getNoiseModellingInstance()) {
+                                        for(NoiseModellingRunner instance : pool.getNoiseModellingInstance()) {
                                             if(instance.getConfiguration().getTaskPrimaryKey() == Integer.parseInt(jobId)
                                             && instance.getConfiguration().getUserPK() == pkUser) {
                                                 instance.cancel(false);
@@ -77,7 +75,7 @@ public class PostManageJob implements Handler {
                                             if(rs.next()) {
                                                 String workingDir = rs.getString("LOCAL_JOB_FOLDER");
                                                 File dataBaseFile = new File("jobs_running/"+workingDir,
-                                                        NoiseModellingInstance.H2GIS_DATABASE_NAME + ".mv.db");
+                                                        NoiseModellingRunner.H2GIS_DATABASE_NAME + ".mv.db");
                                                 if(dataBaseFile.exists()) {
                                                     if(dataBaseFile.delete()) {
                                                         LOG.info("File " + dataBaseFile.getAbsolutePath() + "deleted");

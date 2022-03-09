@@ -17,7 +17,7 @@
 package org.noise_planet.plamade.api.secure;
 
 import com.google.common.collect.Maps;
-import org.noise_planet.plamade.process.NoiseModellingInstance;
+import org.noise_planet.plamade.process.NoiseModellingRunner;
 import org.pac4j.core.profile.CommonProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,12 +26,6 @@ import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
 import ratpack.thymeleaf.Template;
 
-import java.io.File;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -48,7 +42,7 @@ public class GetJobLogs implements Handler {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
                         final String jobId = ctx.getAllPathTokens().get("jobid");
-                        List<String> rows = NoiseModellingInstance.getAllLines(jobId, FETCH_NUMBER_OF_LINES);
+                        List<String> rows = NoiseModellingRunner.getAllLines(jobId, FETCH_NUMBER_OF_LINES);
                         LOG.info(String.format("Got %d log rows", rows.size()));
                         model.put("rows", rows);
                         model.put("profile", profile);

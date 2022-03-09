@@ -44,12 +44,10 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
-import org.noise_planet.noisemodelling.pathfinder.LayerDelaunayError;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
@@ -108,7 +106,7 @@ import java.util.stream.Collectors;
  * This process hold one instance of NoiseModelling
  * @author Nicolas Fortin, Université Gustave Eiffel
  */
-public class NoiseModellingInstance implements RunnableFuture<String> {
+public class NoiseModellingRunner implements RunnableFuture<String> {
     private static final int BATCH_MAX_SIZE = 100;
     public static final String H2GIS_DATABASE_NAME = "h2gisdb";
     public enum JOB_STATES {
@@ -137,7 +135,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
             new SlurmJobKnownStatus("TIMEOUT", true) // Job timeout (will not be restarted)
     };
 
-    private static final Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
+    private static final Logger logger = LoggerFactory.getLogger(NoiseModellingRunner.class);
     Configuration configuration;
     DataSource nmDataSource;
     DataSource plamadeDataSource;
@@ -149,7 +147,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
     private int oldFinishedJobs = 0;
     private Set<String> finishedStates = new HashSet<>();
 
-    public NoiseModellingInstance(Configuration configuration, DataSource plamadeDataSource) {
+    public NoiseModellingRunner(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
         this.plamadeDataSource = plamadeDataSource;
         // Loop check for job status
@@ -201,7 +199,7 @@ public class NoiseModellingInstance implements RunnableFuture<String> {
         }
         List<String> rows = new ArrayList<>(numberOfLines == -1 ? 1000 : numberOfLines);
         for(File logFile : logFiles) {
-            rows.addAll(0, NoiseModellingInstance.getLastLines(logFile,
+            rows.addAll(0, NoiseModellingRunner.getLastLines(logFile,
                     numberOfLines == -1 ? -1 : numberOfLines - rows.size(),
                     String.format("JOB_%s", jobId)));
             if(rows.size() >= numberOfLines) {

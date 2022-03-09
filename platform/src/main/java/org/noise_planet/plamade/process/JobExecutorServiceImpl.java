@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.concurrent.*;
 
 public class JobExecutorServiceImpl extends ThreadPoolExecutor implements JobExecutorService {
-    ArrayList<NoiseModellingInstance> instances = new ArrayList<>();
+    ArrayList<NoiseModellingRunner> instances = new ArrayList<>();
 
     public JobExecutorServiceImpl(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
                                   BlockingQueue<Runnable> workQueue) {
@@ -28,15 +28,15 @@ public class JobExecutorServiceImpl extends ThreadPoolExecutor implements JobExe
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
     }
 
-    public List<NoiseModellingInstance> getNoiseModellingInstance() {
+    public List<NoiseModellingRunner> getNoiseModellingInstance() {
         return Collections.unmodifiableList(new ArrayList<>(instances));
     }
 
     @Override
     public void execute(Runnable command) {
         // add runnable in list
-        if(command instanceof NoiseModellingInstance) {
-            instances.add((NoiseModellingInstance) command);
+        if(command instanceof NoiseModellingRunner) {
+            instances.add((NoiseModellingRunner) command);
         }
         super.execute(command);
     }

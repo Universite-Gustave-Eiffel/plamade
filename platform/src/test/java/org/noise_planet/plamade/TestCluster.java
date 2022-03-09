@@ -2,18 +2,10 @@ package org.noise_planet.plamade;
 
 import org.apache.log4j.BasicConfigurator;
 import org.h2.value.ValueBoolean;
-import org.h2gis.api.EmptyProgressVisitor;
-import org.h2gis.api.ProgressVisitor;
-import org.h2gis.functions.io.csv.CSVDriverFunction;
-import org.h2gis.functions.io.geojson.GeoJsonWriteDriver;
 import org.h2gis.functions.io.shp.SHPWrite;
-import org.h2gis.functions.io.shp.internal.ShapefileWriter;
-import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.noise_planet.noisemodelling.jdbc.TriangleNoiseMap;
-import org.noise_planet.noisemodelling.pathfinder.LayerDelaunayError;
-import org.noise_planet.plamade.process.NoiseModellingInstance;
+import org.noise_planet.plamade.process.NoiseModellingRunner;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -21,10 +13,8 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.StringTokenizer;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.TestCase.assertEquals;
 
@@ -82,7 +72,7 @@ public class TestCluster {
                 "2416,slurm-14927317_8.out\n" +
                 "10503,slurm-14927317_9.out";
         List<String> commandLines = splitCommand(command);
-        List<NoiseModellingInstance.FileAttributes> files = NoiseModellingInstance.parseLSCommand(commandLines);
+        List<NoiseModellingRunner.FileAttributes> files = NoiseModellingRunner.parseLSCommand(commandLines);
         assertEquals(32, files.size());
         assertEquals("slurm-14927317_0.out", files.get(0).fileName);
         assertEquals(7468, files.get(0).fileSize);
@@ -120,7 +110,7 @@ public class TestCluster {
                 "  14945373_8.batch                          batch  COMPLETED \n";
 
         List<String> commandLines = splitCommand(command);
-        List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14945373);
+        List<NoiseModellingRunner.SlurmJobStatus> jobList = NoiseModellingRunner.parseSlurmStatus(commandLines, 14945373);
         assertEquals(10, jobList.size());
         assertEquals("COMPLETED", jobList.get(0).status);
         assertEquals(31, jobList.get(0).taskId);
@@ -137,7 +127,7 @@ public class TestCluster {
                 "14947161_[0-31] noisemodelling_batch.sh PENDING 00:00:00 00:00:00\n";
 
         List<String> commandLines = splitCommand(command);
-        List<NoiseModellingInstance.SlurmJobStatus> jobList = NoiseModellingInstance.parseSlurmStatus(commandLines, 14947161);
+        List<NoiseModellingRunner.SlurmJobStatus> jobList = NoiseModellingRunner.parseSlurmStatus(commandLines, 14947161);
         assertEquals(0, jobList.size());
     }
 
@@ -202,10 +192,10 @@ public class TestCluster {
     @Test
     public void mergeCBSTest() throws SQLException, IOException {
         String workingDir = "/home/nicolas/data/plamade/dep85_1646746743628";
-        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+        DataSource ds = NoiseModellingRunner.createDataSource("", "",
                 workingDir, "h2gisdb", false);
         try(Connection sql = ds.getConnection()) {
-            List<String> outputTables = NoiseModellingInstance.mergeCBS(sql, NoiseModellingInstance.CBS_GRID_SIZE);
+            List<String> outputTables = NoiseModellingRunner.mergeCBS(sql, NoiseModellingRunner.CBS_GRID_SIZE);
             for(String outputTable : outputTables) {
                 //new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
                 //        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
