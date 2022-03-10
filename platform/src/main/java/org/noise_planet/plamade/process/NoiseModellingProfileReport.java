@@ -22,6 +22,8 @@ import org.locationtech.jts.geom.CoordinateXY;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.math.Vector2D;
+import org.noise_planet.noisemodelling.jdbc.LDENConfig;
+import org.noise_planet.noisemodelling.jdbc.LDENPointNoiseMapFactory;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.CnossosPropagationData;
 import org.noise_planet.noisemodelling.pathfinder.ComputeCnossosRays;
@@ -39,8 +41,11 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -169,6 +174,10 @@ public class NoiseModellingProfileReport {
 
             pointNoiseMap.setPropagationProcessPathData(environmentalData);
 
+            LDENConfig ldenConfig = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
+
+            pointNoiseMap.setPropagationProcessDataFactory(new LDENPointNoiseMapFactory(connection, ldenConfig));
+
             // Building height field name
             pointNoiseMap.setHeightField("HEIGHT");
             // Import table with Snow, Forest, Grass, Pasture field polygons. Attribute G is associated with each polygon
@@ -202,11 +211,6 @@ public class NoiseModellingProfileReport {
 
             CnossosPropagationData propagationData = pointNoiseMap.prepareCell(connection, 0, 0, new EmptyProgressVisitor(), receivers);
 
-            propagationData.sourceGeometries.clear();
-            propagationData.sourcesPk.clear();
-            propagationData.sourcesIndex = new QueryRTree();
-            propagationData.addSource(factory.createPoint(new Coordinate(srcPoint.x, srcPoint.y, sourceHeight)));
-
             ComputeCnossosRays computeRays = new ComputeCnossosRays(propagationData);
             computeRays.setThreadCount(1);
 
@@ -220,9 +224,14 @@ public class NoiseModellingProfileReport {
             //Run computation
             computeRays.run(propDataOut);
 
+            Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
             for(PropagationPath propagationPath : propDataOut.propagationPaths) {
-               ;
-                logger.info("id: "+  propagationPath.getIdReceiver() + " " + Arrays.toString(propagationPath.absorptionData.aGlobal));
+                ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
+                        propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
+                ar.add(propagationPath);
+                Coordinate receiver = propagationPath.getSRSegment().r;
+                Coordinate source = propagationPath.getSRSegment().s;
+                logger.info("(Src:"+ propagationPath.getIdSource() + " R:"+propagationPath.getIdReceiver()+") Distance "+   receiver.distance(source) + " m " + Arrays.toString(propagationPath.absorptionData.aGlobal));
             }
         }
     }
