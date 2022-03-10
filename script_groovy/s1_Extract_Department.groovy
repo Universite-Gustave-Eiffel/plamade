@@ -450,7 +450,7 @@ def exec(Connection connection, input) {
         a."VMAXINFRA" as trackspd, 
         (CASE   WHEN a."BASEVOIE" = ''C'' THEN 5::integer 
                 WHEN a."BASEVOIE" = ''W'' THEN 7::integer 
-                WHEN a."BASEVOIE" = ''N'' THEN 7::integer
+                WHEN a."BASEVOIE" = ''N'' THEN 8::integer
         END) as transfer,
         (CASE   WHEN a."RUGOSITE" = ''C'' THEN 1::integer 
                 WHEN a."RUGOSITE" = ''H'' THEN 2::integer 
@@ -462,9 +462,6 @@ def exec(Connection connection, input) {
         END) as impact,  
         (CASE  WHEN a."COURBURE" = ''N'' THEN 0::integer
         END) as curvature,
-        (CASE  WHEN a."BASEVOIE" = ''N'' THEN 1::integer 
-               ELSE 0::integer
-        END) as bridge,
         a."LARGEMPRIS" - 5.5 as d2,
         a."LARGEMPRIS" - 4 as d3,
         a."LARGEMPRIS" as d4,
@@ -491,7 +488,7 @@ def exec(Connection connection, input) {
 
     CREATE TABLE rail_sections_geom AS SELECT * FROM rail_sections_link;
 
-    ALTER TABLE rail_sections_geom ADD COLUMN bridgeopt integer DEFAULT 0;
+    ALTER TABLE rail_sections_geom ADD COLUMN bridge integer DEFAULT 0;
 
     CREATE LINKED TABLE rail_tunnel_link ('org.h2gis.postgis_jts.Driver','$databaseUrl','$user','$pwd','echeance4', 
     '(SELECT
@@ -502,7 +499,7 @@ def exec(Connection connection, input) {
 
     CREATE TABLE rail_tunnel AS SELECT * FROM rail_tunnel_link;
 
-    CREATE TABLE rail_sections AS SELECT ST_SETSRID(a.THE_GEOM,$srid) as THE_GEOM, a.idsection, a.ntrack, a.idline, a.numline, a.trackspd, a.transfer, a.roughness, a.impact, a.curvature, a.bridge, a.d2, a.d3, a.d4, a.comspd, a.linetype, a.trackspc, a.uueid, a.idplatform, a.d1, a.g1, a.g2, a.g3, a.h1, a.h2, a.bridgeopt, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
+    CREATE TABLE rail_sections AS SELECT ST_SETSRID(a.THE_GEOM,$srid) as THE_GEOM, a.idsection, a.ntrack, a.idline, a.numline, a.trackspd, a.transfer, a.roughness, a.impact, a.curvature, a.bridge, a.d2, a.d3, a.d4, a.comspd, a.linetype, a.trackspc, a.uueid, a.idplatform, a.d1, a.g1, a.g2, a.g3, a.h1, a.h2, b.idtunnel FROM rail_sections_geom a LEFT JOIN rail_tunnel b ON a.idsection = b.idsection;
     ALTER TABLE rail_sections ADD COLUMN pk serial PRIMARY KEY;
     CREATE SPATIAL INDEX rail_sections_geom_idx ON rail_sections (the_geom);
     CREATE INDEX ON rail_sections (idsection);
