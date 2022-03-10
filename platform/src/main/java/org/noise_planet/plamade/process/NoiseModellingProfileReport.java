@@ -16,10 +16,18 @@ import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.h2gis.utilities.dbtypes.DBUtils;
+import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXY;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.math.Vector2D;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.CnossosPropagationData;
 import org.noise_planet.noisemodelling.pathfinder.ComputeCnossosRays;
+import org.noise_planet.noisemodelling.pathfinder.ProfileBuilder;
+import org.noise_planet.noisemodelling.pathfinder.PropagationPath;
+import org.noise_planet.noisemodelling.pathfinder.QueryRTree;
 import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation;
 import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData;
 import org.slf4j.Logger;
@@ -28,7 +36,10 @@ import org.slf4j.LoggerFactory;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.StringTokenizer;
@@ -72,7 +83,7 @@ public class NoiseModellingProfileReport {
         String workingDir = "/home/nicolas/data/plamade/dep05_1646821826645";
         DataSource ds = NoiseModellingRunner.createDataSource("", "",
                 workingDir, "h2gisdb", false);
-        try(Connection connection = ds.getConnection()) {
+        try(Connection connection = new ConnectionWrapper(ds.getConnection())) {
             crsf.getRegistryManager().addRegistry(srr);
             srr.setConnection(connection);
 
@@ -85,8 +96,34 @@ public class NoiseModellingProfileReport {
 
 
             Coordinate srcPoint = reproject(new Coordinate(5.985848, 44.546319), 4326, sridBuildings);
-
             Coordinate axeReceiver = reproject(new Coordinate(5.985795, 44.545802), 4326, sridBuildings);
+            int distance = 50;
+            int step = 5;
+            double receiverHeight = 4.0;
+            double sourceHeight = 0.5;
+
+            Statement st = connection.createStatement();
+
+            st.execute("DROP TABLE IF EXISTS RECEIVERS_TEST");
+            st.execute("CREATE TABLE RECEIVERS_TEST(PK serial primary key, the_geom geometry(POINTZ, " + sridBuildings + "))");
+
+            Vector2D vector2D = new Vector2D(srcPoint, axeReceiver).normalize();
+
+            PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO " +
+                    "RECEIVERS_TEST(THE_GEOM) VALUES (?)");
+            GeometryFactory factory = new GeometryFactory();
+            for(int i = -distance ; i < distance; i += step) {
+                if(i != 0) {
+                    Coordinate receiverCoordinate = new Coordinate(srcPoint.x +
+                            vector2D.multiply(i).getX(), srcPoint.y +
+                            vector2D.multiply(i).getY(), receiverHeight);
+                    Point geom = factory.createPoint(receiverCoordinate);
+                    geom.setSRID(sridBuildings);
+                    preparedStatement.setObject(1, geom);
+                    preparedStatement.addBatch();
+                    preparedStatement.executeBatch();
+                }
+            }
 
             PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
                     sourceTable, receiversTable);
@@ -132,8 +169,6 @@ public class NoiseModellingProfileReport {
 
             pointNoiseMap.setPropagationProcessPathData(environmentalData);
 
-            pointNoiseMap.setThreadCount(nThread);
-            logger.info(String.format("PARAM : Number of thread used %d ", nThread));
             // Building height field name
             pointNoiseMap.setHeightField("HEIGHT");
             // Import table with Snow, Forest, Grass, Pasture field polygons. Attribute G is associated with each polygon
@@ -163,19 +198,32 @@ public class NoiseModellingProfileReport {
 
             pointNoiseMap.initialize(connection, new EmptyProgressVisitor());
 
+            pointNoiseMap.setGridDim(1);
+
             CnossosPropagationData propagationData = pointNoiseMap.prepareCell(connection, 0, 0, new EmptyProgressVisitor(), receivers);
+
+            propagationData.sourceGeometries.clear();
+            propagationData.sourcesPk.clear();
+            propagationData.sourcesIndex = new QueryRTree();
+            propagationData.addSource(factory.createPoint(new Coordinate(srcPoint.x, srcPoint.y, sourceHeight)));
 
             ComputeCnossosRays computeRays = new ComputeCnossosRays(propagationData);
             computeRays.setThreadCount(1);
 
-            ComputeRaysOutAttenuation propDataOut = new ComputeRaysOutAttenuation(true,
-                    pointNoiseMap.getPropagationProcessPathData() , propagationData);
+            computeRays.makeReceiverRelativeZToAbsolute();
+
+            computeRays.makeSourceRelativeZToAbsolute();
+
+            ComputeRaysOutAttenuation propDataOut = new ComputeRaysOutAttenuation(true, true,
+                    pointNoiseMap.getPropagationProcessPathData());
 
             //Run computation
             computeRays.run(propDataOut);
 
-
-
+            for(PropagationPath propagationPath : propDataOut.propagationPaths) {
+               ;
+                logger.info("id: "+  propagationPath.getIdReceiver() + " " + Arrays.toString(propagationPath.absorptionData.aGlobal));
+            }
         }
     }
 }
