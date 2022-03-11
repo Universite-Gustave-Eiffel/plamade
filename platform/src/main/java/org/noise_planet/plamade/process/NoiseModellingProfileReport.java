@@ -22,11 +22,14 @@ import org.locationtech.jts.geom.CoordinateXY;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.math.Vector2D;
+import org.noise_planet.noisemodelling.jdbc.LDENComputeRaysOut;
 import org.noise_planet.noisemodelling.jdbc.LDENConfig;
 import org.noise_planet.noisemodelling.jdbc.LDENPointNoiseMapFactory;
+import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.CnossosPropagationData;
 import org.noise_planet.noisemodelling.pathfinder.ComputeCnossosRays;
+import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
 import org.noise_planet.noisemodelling.pathfinder.ProfileBuilder;
 import org.noise_planet.noisemodelling.pathfinder.PropagationPath;
 import org.noise_planet.noisemodelling.pathfinder.QueryRTree;
@@ -83,7 +86,7 @@ public class NoiseModellingProfileReport {
     }
 
     public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
-
+        // TODO generate JSON for https://github.com/renhongl/json-viewer-js
         Logger logger = LoggerFactory.getLogger("debug");
         String workingDir = "/home/nicolas/data/plamade/dep05_1646821826645";
         DataSource ds = NoiseModellingRunner.createDataSource("", "",
@@ -176,7 +179,12 @@ public class NoiseModellingProfileReport {
 
             LDENConfig ldenConfig = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
 
-            pointNoiseMap.setPropagationProcessDataFactory(new LDENPointNoiseMapFactory(connection, ldenConfig));
+            ldenConfig.setComputeLDay(true);
+            ldenConfig.setComputeLEvening(true);
+            ldenConfig.setComputeLNight(true);
+
+            LDENPointNoiseMapFactory ldenPointNoiseMapFactory = new LDENPointNoiseMapFactory(connection, ldenConfig);
+            pointNoiseMap.setPropagationProcessDataFactory(ldenPointNoiseMapFactory);
 
             // Building height field name
             pointNoiseMap.setHeightField("HEIGHT");
@@ -218,14 +226,18 @@ public class NoiseModellingProfileReport {
 
             computeRays.makeSourceRelativeZToAbsolute();
 
-            ComputeRaysOutAttenuation propDataOut = new ComputeRaysOutAttenuation(true, true,
+            //Run computation
+
+            LDENComputeRaysOut ldenPropagationProcessData = (LDENComputeRaysOut) ldenPointNoiseMapFactory.create(propagationData,
                     pointNoiseMap.getPropagationProcessPathData());
 
-            //Run computation
-            computeRays.run(propDataOut);
+            ldenPropagationProcessData.keepRays = true;
+            ldenPropagationProcessData.keepAbsorption = true;
+
+            computeRays.run(ldenPropagationProcessData);
 
             Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
-            for(PropagationPath propagationPath : propDataOut.propagationPaths) {
+            for(PropagationPath propagationPath : ldenPointNoiseMapFactory.ldenData.rays) {
                 ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
                         propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
                 ar.add(propagationPath);
