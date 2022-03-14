@@ -432,8 +432,8 @@ public class NoiseModellingInstance {
         Runtime runtime = Runtime.getRuntime();
         int nThread = Math.max(1, runtime.availableProcessors() - 1);
 
-        boolean compute_vertical_diffraction = (Boolean)rs.get("confdiffvertical");
-        boolean compute_horizontal_diffraction = (Boolean)rs.get("confdiffhorizontal");
+        boolean compute_vertical_edge_diffraction = (Boolean)rs.get("confdiffvertical");
+        boolean compute_horizontal_edge_diffraction = (Boolean)rs.get("confdiffhorizontal");
         ldenConfig_propa.setComputeLDay(!(Boolean)rs.get("confskiplday"));
         ldenConfig_propa.setComputeLEvening(!(Boolean)rs.get("confskiplevening"));
         ldenConfig_propa.setComputeLNight(!(Boolean)rs.get("confskiplnight"));
@@ -447,9 +447,9 @@ public class NoiseModellingInstance {
 
         LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa);
 
-
-        pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction);
-        pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction);
+        // setComputeVerticalDiffraction its vertical diffraction (over horizontal edges)
+        pointNoiseMap.setComputeVerticalDiffraction(compute_horizontal_edge_diffraction);
+        pointNoiseMap.setComputeHorizontalDiffraction(compute_vertical_edge_diffraction);
         pointNoiseMap.setSoundReflectionOrder(reflectionOrder);
 
         // Set environmental parameters

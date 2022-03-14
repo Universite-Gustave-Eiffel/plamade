@@ -1,5 +1,8 @@
 package org.noise_planet.plamade.process;
 
+import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import groovy.sql.GroovyRowResult;
 import groovy.sql.Sql;
 import org.cts.CRSFactory;
@@ -10,6 +13,8 @@ import org.cts.crs.GeodeticCRS;
 import org.cts.op.CoordinateOperation;
 import org.cts.op.CoordinateOperationException;
 import org.cts.op.CoordinateOperationFactory;
+import org.cts.registry.EPSGRegistry;
+import org.cts.registry.RegistryManager;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.spatial.crs.SpatialRefRegistry;
 import org.h2gis.utilities.GeometryTableUtilities;
@@ -33,12 +38,15 @@ import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
 import org.noise_planet.noisemodelling.pathfinder.ProfileBuilder;
 import org.noise_planet.noisemodelling.pathfinder.PropagationPath;
 import org.noise_planet.noisemodelling.pathfinder.QueryRTree;
+import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation;
 import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -56,6 +64,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class NoiseModellingProfileReport {
     CRSFactory crsf = new CRSFactory();
     SpatialRefRegistry srr = new SpatialRefRegistry();
+    private CoordinateOperation transform = null;
+
+    public void setInputCRS(String crs) throws CRSException, CoordinateOperationException {
+        // Create a new CRSFactory, a necessary element to create a CRS without defining one by one all its components
+        CRSFactory cRSFactory = new CRSFactory();
+
+        // Add the appropriate registry to the CRSFactory's registry manager. Here the EPSG registry is used.
+        RegistryManager registryManager = cRSFactory.getRegistryManager();
+        registryManager.addRegistry(new EPSGRegistry());
+
+        // CTS will read the EPSG registry seeking the 4326 code, when it finds it,
+        // it will create a CoordinateReferenceSystem using the parameters found in the registry.
+        CoordinateReferenceSystem crsGeoJSON = cRSFactory.getCRS("EPSG:4326");
+        CoordinateReferenceSystem crsSource = cRSFactory.getCRS(crs);
+        if(crsGeoJSON instanceof GeodeticCRS && crsSource instanceof GeodeticCRS) {
+            transform = CoordinateOperationFactory.createCoordinateOperations((GeodeticCRS) crsSource, (GeodeticCRS) crsGeoJSON).iterator().next();
+        }
+    }
 
     public static Double asDouble(Object v) {
         if(v instanceof Number) {
@@ -102,9 +128,10 @@ public class NoiseModellingProfileReport {
             DBTypes dbTypes = DBUtils.getDBType(connection);
             int sridBuildings = GeometryTableUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS", dbTypes));
 
+            setInputCRS("EPSG:"+ sridBuildings);
 
-            Coordinate srcPoint = reproject(new Coordinate(5.985848, 44.546319), 4326, sridBuildings);
-            Coordinate axeReceiver = reproject(new Coordinate(5.985795, 44.545802), 4326, sridBuildings);
+            Coordinate srcPoint = reproject(new Coordinate(5.985845625400543, 44.54630572590374), 4326, sridBuildings);
+            Coordinate axeReceiver = reproject(new Coordinate(5.985944867134094, 44.54642041979754), 4326, sridBuildings);
             int distance = 50;
             int step = 5;
             double receiverHeight = 4.0;
@@ -147,11 +174,11 @@ public class NoiseModellingProfileReport {
             Runtime runtime = Runtime.getRuntime();
             int nThread = Math.max(1, runtime.availableProcessors() - 1);
 
-            boolean compute_vertical_diffraction = (Boolean)rs.get("confdiffvertical");
-            boolean compute_horizontal_diffraction = (Boolean)rs.get("confdiffhorizontal");
+            boolean compute_vertical_edge_diffraction = (Boolean)rs.get("confdiffvertical");
+            boolean compute_horizontal_edge_diffraction = (Boolean)rs.get("confdiffhorizontal");
 
-            pointNoiseMap.setComputeHorizontalDiffraction(compute_horizontal_diffraction);
-            pointNoiseMap.setComputeVerticalDiffraction(compute_vertical_diffraction);
+            pointNoiseMap.setComputeVerticalDiffraction(compute_horizontal_edge_diffraction);
+            pointNoiseMap.setComputeHorizontalDiffraction(compute_vertical_edge_diffraction);
             pointNoiseMap.setSoundReflectionOrder(reflectionOrder);
 
 
@@ -237,7 +264,8 @@ public class NoiseModellingProfileReport {
             computeRays.run(ldenPropagationProcessData);
 
             Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
-            for(PropagationPath propagationPath : ldenPointNoiseMapFactory.ldenData.rays) {
+
+            for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
                 ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
                         propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
                 ar.add(propagationPath);
@@ -245,6 +273,79 @@ public class NoiseModellingProfileReport {
                 Coordinate source = propagationPath.getSRSegment().s;
                 logger.info("(Src:"+ propagationPath.getIdSource() + " R:"+propagationPath.getIdReceiver()+") Distance "+   receiver.distance(source) + " m " + Arrays.toString(propagationPath.absorptionData.aGlobal));
             }
+
+
+            try(FileOutputStream fos = new FileOutputStream("out/debug.geojson")){
+                JsonFactory jsonFactory = new JsonFactory();
+                JsonEncoding jsonEncoding = JsonEncoding.UTF8;
+                JsonGenerator jsonGenerator = jsonFactory.createGenerator(new BufferedOutputStream(fos), jsonEncoding);
+                // header of the GeoJSON file
+                jsonGenerator.writeStartObject();
+                jsonGenerator.writeStringField("type", "FeatureCollection");
+                jsonGenerator.writeArrayFieldStart("features");
+                for (ComputeRaysOutAttenuation.VerticeSL v : ldenPointNoiseMapFactory.getLdenData().lDayLevels) {
+                    double globalDba = PowerUtils.wToDba(PowerUtils.sumArray(PowerUtils.dbaToW(v.value)));
+                    if(!Double.isNaN(globalDba) && Double.isFinite(globalDba)) {
+                        globalDba = Math.round(globalDba * 100.0) / 100.0;
+                    }
+                    jsonGenerator.writeStartObject();
+                    jsonGenerator.writeStringField("type", "Feature");
+                    int localReceiverIndex = ldenPropagationProcessData.inputData.receiversPk.indexOf(v.receiverId);
+                    Coordinate receiverCoordinate = ldenPropagationProcessData.inputData.receivers.get(localReceiverIndex);
+                    writePoint(receiverCoordinate, jsonGenerator, transform);
+                    jsonGenerator.writeObjectFieldStart("properties");
+                    jsonGenerator.writeFieldName("level");
+                    jsonGenerator.writeNumber(globalDba);
+                    jsonGenerator.writeFieldName("pk");
+                    jsonGenerator.writeNumber(v.receiverId);
+                    jsonGenerator.writeArrayFieldStart("rays");
+                    jsonGenerator.writeEndArray();
+                    jsonGenerator.writeArrayFieldStart("profile");
+                    ProfileBuilder.CutProfile profile = ldenPropagationProcessData.inputData.profileBuilder.getProfile(srcPoint, receiverCoordinate, 0);
+                    for(ProfileBuilder.CutPoint cutPoint : profile.getCutPoints()) {
+                        if(cutPoint.getType() == ProfileBuilder.IntersectionType.TOPOGRAPHY) {
+                            double zGround = cutPoint.getCoordinate().z;
+                            jsonGenerator.writeNumber(Math.round(zGround * 100) / 100.0);
+                        }
+                    }
+                    jsonGenerator.writeEndArray();
+                    jsonGenerator.writeEndObject();
+                    // feature footer
+                    jsonGenerator.writeEndObject();
+                }
+                // footer
+                jsonGenerator.writeEndArray();
+                jsonGenerator.writeEndObject();
+                jsonGenerator.flush();
+                jsonGenerator.close();
+            }
         }
+    }
+
+
+    public static void writePoint(Coordinate coordinate, JsonGenerator gen, CoordinateOperation coordinateOperation) throws IOException {
+        gen.writeObjectFieldStart("geometry");
+        gen.writeStringField("type", "Point");
+        gen.writeFieldName("coordinates");
+        writeCoordinate(coordinate, gen, coordinateOperation);
+        gen.writeEndObject();
+    }
+
+    public static void writeCoordinate(Coordinate coordinate, JsonGenerator gen, CoordinateOperation coordinateOperation) throws IOException {
+        gen.writeStartArray();
+        if(coordinateOperation != null) {
+            try {
+                double[] xyz = coordinateOperation.transform(new double[]{coordinate.x, coordinate.y, coordinate.z});
+                coordinate = new Coordinate(xyz[0], xyz[1], coordinate.z);
+            } catch (CoordinateOperationException | IllegalCoordinateException ex) {
+                throw new IOException("Error wile re-project", ex);
+            }
+        }
+        gen.writeNumber(coordinate.x);
+        gen.writeNumber(coordinate.y);
+        if (!Double.isNaN(coordinate.getZ())) {
+            gen.writeNumber(coordinate.getZ());
+        }
+        gen.writeEndArray();
     }
 }
