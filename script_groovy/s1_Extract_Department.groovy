@@ -24,20 +24,21 @@
 
 package org.noise_planet.noisemodelling.wps.plamade
 
+import groovy.sql.Sql
 import groovy.text.SimpleTemplateEngine
 import groovy.transform.CompileStatic
+import org.apache.commons.io.input.CountingInputStream
 import org.h2.util.ScriptReader
-import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.locationtech.jts.geom.Point
+import org.h2gis.utilities.JDBCUtilities
+import org.h2gis.utilities.TableLocation
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import groovy.sql.Sql
+
 import java.sql.Connection
+import java.sql.SQLException
 import java.sql.Statement
-import org.h2gis.utilities.JDBCUtilities
-import org.h2gis.utilities.TableLocation
 
 title = 'Extract department'
 description = 'Connect to a distant PostGIS database and extract departments according to Plamade specification'
@@ -86,17 +87,31 @@ outputs = [
 ]
 
 @CompileStatic
-static def parseScript(String sqlInstructions, Sql sql) {
+static def parseScript(String sqlInstructions, Sql sql, ProgressVisitor progressVisitor, Logger logger) {
     Reader reader = null
-    ByteArrayInputStream s = new ByteArrayInputStream(sqlInstructions.getBytes())
-    InputStream is = s
+    byte[] bytes = sqlInstructions.getBytes()
+    int bytesPerStep = (int)(bytes.length / 100)
+    ProgressVisitor evalProgress = progressVisitor.subProcess(bytesPerStep)
+    ByteArrayInputStream s = new ByteArrayInputStream(bytes)
+    CountingInputStream countingInputStream = new CountingInputStream(s);
+    InputStream is = countingInputStream
+    int lastStep = 0;
     try {
         reader  = new InputStreamReader(is)
         ScriptReader scriptReader = new ScriptReader(reader)
         String statement = scriptReader.readStatement()
         while (statement != null) {
+            logger.info(String.format(Locale.ROOT, "%d/%d %s", lastStep, 100, statement.trim()))
             sql.execute(statement)
             statement = scriptReader.readStatement()
+            int totalStep = (int)(countingInputStream.getByteCount() / bytesPerStep)
+            for(int i = lastStep; i < totalStep; i++) {
+                evalProgress.endStep()
+            }
+            if(evalProgress.isCanceled()) {
+                throw new SQLException("Canceled by user")
+            }
+            lastStep = totalStep
         }
     } finally {
         reader.close()
@@ -150,7 +165,7 @@ def exec(Connection connection, input) {
         progressVisitor = new RootProgressVisitor(1, true, 1);
     }
 
-    ProgressVisitor progress = progressVisitor.subProcess(11)
+    ProgressVisitor progress = progressVisitor.subProcess(2)
     // print to command window
     logger.info('Start linking with PostGIS')
 
@@ -765,7 +780,7 @@ def exec(Connection connection, input) {
     DROP TABLE IF EXISTS LANDCOVER;
     CREATE TABLE LANDCOVER AS SELECT ST_SETSRID(the_geom,$srid) as the_geom, g FROM ST_Explode('LANDCOVER_MERGE');
 
-    DROP TABLE IF EXISTS rail_buff_d1, rail_buff_d3, rail_buff_d4, rail_diff_d3_d1, rail_diff_d4_d3, rail_buff_d1_expl, rail_buff_d3_expl, rail_buff_d4_expl, LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1, LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4, LANDCOVER_0_EXPL, LANDCOVER_03_EXPL, LANDCOVER_07_EXPL, LANDCOVER_1_EXPL, LANDCOVER_UNION, LANDCOVER_MERGE, LANDCOVER;
+    DROP TABLE IF EXISTS rail_buff_d1, rail_buff_d3, rail_buff_d4, rail_diff_d3_d1, rail_diff_d4_d3, rail_buff_d1_expl, rail_buff_d3_expl, rail_buff_d4_expl, LANDCOVER_G_0, LANDCOVER_G_03, LANDCOVER_G_07, LANDCOVER_G_1, LANDCOVER_0_DIFF_D4, LANDCOVER_03_DIFF_D4, LANDCOVER_07_DIFF_D4, LANDCOVER_1_DIFF_D4, LANDCOVER_0_EXPL, LANDCOVER_03_EXPL, LANDCOVER_07_EXPL, LANDCOVER_1_EXPL, LANDCOVER_UNION, LANDCOVER_MERGE;
 
     """
 
@@ -968,81 +983,31 @@ def exec(Connection connection, input) {
     def binding = ["buffer": buffer, "databaseUrl": databaseUrl, "user": user, "pwd": pwd, "codeDep": codeDep, "table_bd_topo_route" : table_bd_topo_route]
 
 
+    StringBuilder stringBuilder = new StringBuilder()
     // print to command window
-    logger.info('Manage configuration tables (1/11)')
     def engine = new SimpleTemplateEngine()
-    def template = engine.createTemplate(queries_conf).make(binding)
+    stringBuilder.append(queries_conf)
+    stringBuilder.append(queries_pfav)
+    stringBuilder.append(queries_roads)
+    stringBuilder.append(queries_rails)
+    stringBuilder.append(queries_infra)
+    stringBuilder.append(queries_buildings)
+    stringBuilder.append(queries_screens)
+    stringBuilder.append(queries_buildings_screens)
+    stringBuilder.append(queries_landcover)
+    def template = engine.createTemplate(stringBuilder.toString()).make(binding)
+    parseScript(template.toString(), sql, progress, logger)
 
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage PFAV (2/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_pfav).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage roads (3/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_roads).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage rails (4/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_rails).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage infrastructures (5/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_infra).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage buildings (6/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_buildings).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage screens (7/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_screens).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage buildings screens (8/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_buildings_screens).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage landcover (9/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_landcover).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
+    stringBuilder = new StringBuilder()
     if(JDBCUtilities.getRowCount(connection, "RAIL_SECTIONS") > 0) {
         logger.info('Manage landcover - There is railways, so insert them into landcover')
-        engine = new SimpleTemplateEngine()
-        template = engine.createTemplate(queries_landcover_rail).make(binding)
-        parseScript(template.toString(), sql)
+        stringBuilder.append(queries_landcover_rail)
     }
-    progress.endStep()
+    stringBuilder.append(queries_dem)
+    stringBuilder.append(queries_stats)
+    template = engine.createTemplate(stringBuilder.toString()).make(binding)
+    parseScript(template.toString(), sql, progress, logger)
 
-    logger.info('Manage dem (10/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_dem).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
-
-    logger.info('Manage statistics (11/11)')
-    engine = new SimpleTemplateEngine()
-    template = engine.createTemplate(queries_stats).make(binding)
-    parseScript(template.toString(), sql)
-    progress.endStep()
 
 
     // ------------------------------------------------------------
