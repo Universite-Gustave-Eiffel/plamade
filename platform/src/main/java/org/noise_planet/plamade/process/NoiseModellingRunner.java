@@ -47,6 +47,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
+import org.locationtech.jts.operation.union.CascadedPolygonUnion;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.plamade.config.DataBaseConfig;
@@ -88,12 +89,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
@@ -384,10 +388,10 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
     private static class IsoEntry {
         int index;
-        Polygon cell;
+        Geometry cell;
         String isoLvl;
 
-        public IsoEntry(int index, Polygon cell, String isoLvl) {
+        public IsoEntry(int index, Geometry cell, String isoLvl) {
             this.index = index;
             this.cell = cell;
             this.isoLvl = isoLvl;
@@ -398,7 +402,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
      * @param connection
      * @return
      */
-    public static List<String> mergeCBS(Connection connection, int gridSize) throws SQLException {
+    public static List<String> mergeCBS(Connection connection, int gridSize, ProgressVisitor progressVisitor) throws SQLException {
+        int mainGridSize = 1200;
         List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
                 new String[]{"TABLE"});
         GeometryFactory geometyFactory = new GeometryFactory();
@@ -408,113 +413,129 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         isoLabelToLevel.put("Lden6569", 67.0);
         isoLabelToLevel.put("Lden7074", 72.0);
         isoLabelToLevel.put("LdenGreaterThan75", 75.0);
+        isoLabelToLevel.put("Lnight5054", 52.0);
+        isoLabelToLevel.put("Lnight5559", 57.0);
+        isoLabelToLevel.put("Lnight6064", 62.0);
+        isoLabelToLevel.put("Lnight6569", 67.0);
+        isoLabelToLevel.put("LnightGreaterThan70", 70.0);
         ArrayList<String> outputTables = new ArrayList<>();
+        ArrayList<TableLocation> cbsTables = new ArrayList<>();
         for(String tableName : allTables) {
             TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
-            String outputTable = tableLocation.getTable() + "_MERGED";
-            if(tableLocation.getTable().startsWith("CBS_A_R_")) {
+            if (tableLocation.getTable().startsWith("CBS_A_R_")) {
                 List<String> fields = JDBCUtilities.getColumnNames(connection, tableLocation);
-                if(!(fields.contains("UUEID") && fields.contains("PERIOD") &&
-                        fields.contains("NOISELEVEL"))) {
+                if (!(fields.contains("UUEID") && fields.contains("PERIOD") && fields.contains("NOISELEVEL"))) {
                     continue;
                 }
-                try(Statement st = connection.createStatement()) {
-                    final STRtree tesselatedIsos = new STRtree();
-                    Envelope tableExtent = GeometryTableUtilities.getEstimatedExtent(connection, tableLocation).getEnvelopeInternal();
-                    double minX = tableExtent.getMinX();
-                    double minY = tableExtent.getMinY();
-                    double cellHeight = tableExtent.getHeight();
-                    int maxJ = (int)Math.ceil(cellHeight / gridSize);
-                    Set<PointNoiseMap.CellIndex> cellIndices = new TreeSet<>();
-                    long startMerge = System.currentTimeMillis();
-                    try(ResultSet rs = st.executeQuery("SELECT THE_GEOM, NOISELEVEL FROM " + tableName)) {
-                        while (rs.next()) {
-                            Geometry inputGeometry = (Geometry) rs.getObject(1);
-                            Double noiseLevel = isoLabelToLevel.get(rs.getString(2));
-                            for (int idGeometry = 0; idGeometry < inputGeometry.getNumGeometries(); idGeometry++) {
-                                Geometry geom = inputGeometry.getGeometryN(idGeometry);
-                                Geometry multiPolygon;
-                                Envelope geomEnvelope = geom.getEnvelopeInternal();
-                                if (geomEnvelope.getWidth() > gridSize || geomEnvelope.getHeight() > gridSize) {
-                                    // tessellate the geometry if it is larger than the cell of the grid
-                                    try {
-                                        multiPolygon = ST_Tessellate.tessellate(geom);
-                                    } catch (RuntimeException ex) {
-                                        logger.warn("Error while tessellating the polygon", ex);
-                                        multiPolygon = geom;
-                                    }
-                                } else {
+                cbsTables.add(tableLocation);
+            }
+        }
+        ProgressVisitor tableProgress = progressVisitor.subProcess(cbsTables.size());
+        for(TableLocation tableLocation : cbsTables) {
+            String outputTable = tableLocation.getTable() + "_MERGED";
+            try(Statement st = connection.createStatement()) {
+                final STRtree tesselatedIsos = new STRtree();
+                Envelope tableExtent = GeometryTableUtilities.getEstimatedExtent(connection, tableLocation).getEnvelopeInternal();
+                double minX = tableExtent.getMinX();
+                double minY = tableExtent.getMinY();
+                double cellHeight = tableExtent.getHeight();
+                int maxJ = (int)Math.ceil(cellHeight / gridSize);
+                Map<PointNoiseMap.CellIndex, ArrayList<PointNoiseMap.CellIndex>> cellIndices = new HashMap<>();
+                long startMerge = System.currentTimeMillis();
+                final int indexFactor = mainGridSize / gridSize;
+                try(ResultSet rs = st.executeQuery("SELECT THE_GEOM, NOISELEVEL FROM " + tableLocation)) {
+                    while (rs.next()) {
+                        Geometry inputGeometry = (Geometry) rs.getObject(1);
+                        Double noiseLevel = isoLabelToLevel.get(rs.getString(2));
+                        for (int idGeometry = 0; idGeometry < inputGeometry.getNumGeometries(); idGeometry++) {
+                            Geometry geom = inputGeometry.getGeometryN(idGeometry);
+                            Geometry multiPolygon;
+                            Envelope geomEnvelope = geom.getEnvelopeInternal();
+                            if (geomEnvelope.getWidth() > gridSize || geomEnvelope.getHeight() > gridSize) {
+                                // tessellate the geometry if it is larger than the cell of the grid
+                                try {
+                                    multiPolygon = ST_Tessellate.tessellate(geom);
+                                } catch (RuntimeException ex) {
+                                    logger.warn("Error while tessellating the polygon", ex);
                                     multiPolygon = geom;
                                 }
-                                for (int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
-                                    Geometry triangle = multiPolygon.getGeometryN(idPoly);
-                                    Envelope triEnv = triangle.getEnvelopeInternal();
-                                    int startI = (int) ((triEnv.getMinX() - minX) / gridSize);
-                                    int startJ = (int) ((triEnv.getMinY() - minY) / gridSize);
-                                    int endI = (int) Math.ceil((triEnv.getMaxX() - minX) / gridSize);
-                                    int endJ = (int) Math.ceil((triEnv.getMaxY() - minY) / gridSize);
-                                    for (int i = startI; i < endI; i++) {
-                                        for (int j = startJ; j < endJ; j++) {
-                                            cellIndices.add(new PointNoiseMap.CellIndex(i, j));
-                                        }
+                            } else {
+                                multiPolygon = geom;
+                            }
+                            for (int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
+                                Geometry triangle = multiPolygon.getGeometryN(idPoly);
+                                Envelope triEnv = triangle.getEnvelopeInternal();
+                                int startI = (int) ((triEnv.getMinX() - minX) / gridSize);
+                                int startJ = (int) ((triEnv.getMinY() - minY) / gridSize);
+                                int endI = (int) Math.ceil((triEnv.getMaxX() - minX) / gridSize);
+                                int endJ = (int) Math.ceil((triEnv.getMaxY() - minY) / gridSize);
+                                for (int i = startI; i < endI; i++) {
+                                    for (int j = startJ; j < endJ; j++) {
+                                        int mainI = i / indexFactor;
+                                        int mainJ = j / indexFactor;
+                                        PointNoiseMap.CellIndex cell = new PointNoiseMap.CellIndex(i, j);
+                                        PointNoiseMap.CellIndex key = new PointNoiseMap.CellIndex(mainI, mainJ);
+                                        ArrayList<PointNoiseMap.CellIndex> ar = cellIndices.computeIfAbsent(key,
+                                                k -> new ArrayList<>());
+                                        ar.add(cell);
                                     }
-                                    CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, triangle);
-                                    tesselatedIsos.insert(triEnv, cbsSplitedEntry);
                                 }
+                                CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, triangle);
+                                tesselatedIsos.insert(triEnv, cbsSplitedEntry);
                             }
                         }
                     }
-                    tesselatedIsos.build();
-                    // Iterate over grid
-                    int srid = GeometryTableUtilities.getSRID(connection, tableName);
-                    st.execute("DROP TABLE IF EXISTS " + outputTable);
-                    st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(POLYGON, "+srid+"), NOISELEVEL VARCHAR(20))");
+                }
+                tesselatedIsos.build();
+                // Iterate over grid
+                int srid = GeometryTableUtilities.getSRID(connection, tableLocation);
+                st.execute("DROP TABLE IF EXISTS " + outputTable);
+                st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(MULTIPOLYGON,"+srid+"), NOISELEVEL VARCHAR(20))");
 
-                    boolean isDay = tableName.contains("_LD_");
-                    long endCells = System.currentTimeMillis();
-                    logger.info(String.format(Locale.ROOT, "Collect cells in %d ms Will generate %d iso-cells." +
-                            " Compute intersection of iso-cells..",(int)(endCells - startMerge) ,cellIndices.size()));
-                    Deque<IsoEntry> deque = new ConcurrentLinkedDeque<>();
-                    cellIndices.parallelStream().forEach(cellIndex -> {
-                        double x1 = minX + (double)cellIndex.getLongitudeIndex() * gridSize;
-                        double y1 = minY + (double)cellIndex.getLatitudeIndex() * gridSize;
-                        double x2 = minX + (double)(cellIndex.getLongitudeIndex() + 1) * gridSize;
-                        double y2 = minY + (double)(cellIndex.getLatitudeIndex() + 1) * gridSize;
-                        Polygon gridCell = geometyFactory.createPolygon(new Coordinate[]{
-                                new Coordinate(x1, y1),
-                                new Coordinate(x2, y1),
-                                new Coordinate(x2, y2),
-                                new Coordinate(x1, y2),
-                                new Coordinate(x1, y1)
-                        });
+                boolean isDay = tableLocation.getTable().contains("_LD_");
+                long endCells = System.currentTimeMillis();
+                logger.info(String.format(Locale.ROOT, "Collect cells in %d ms may generate up to" +
+                                " %d iso-cells. Compute intersection of iso-cells..",(int)(endCells - startMerge) ,
+                        cellIndices.values().stream().mapToInt(ArrayList::size).sum()));
+
+                Deque<IsoEntry> deque = new ConcurrentLinkedDeque<>();
+                ProgressVisitor mainGridProgress = tableProgress.subProcess(cellIndices.size());
+                cellIndices.keySet().parallelStream().forEach(mainCellIndex -> {
+                    Map<String, ArrayList<IsoEntry>> mainCellsPolys = new HashMap<>();
+                    cellIndices.get(mainCellIndex).forEach(cellIndex -> {
+                        double x1 = minX + (double) cellIndex.getLongitudeIndex() * gridSize;
+                        double y1 = minY + (double) cellIndex.getLatitudeIndex() * gridSize;
+                        double x2 = minX + (double) (cellIndex.getLongitudeIndex() + 1) * gridSize;
+                        double y2 = minY + (double) (cellIndex.getLatitudeIndex() + 1) * gridSize;
+                        Polygon gridCell = geometyFactory.createPolygon(new Coordinate[]{new Coordinate(x1, y1), new Coordinate(x2, y1), new Coordinate(x2, y2), new Coordinate(x1, y2), new Coordinate(x1, y1)});
                         gridCell.setSRID(srid);
                         int cellId = cellIndex.getLongitudeIndex() * maxJ + cellIndex.getLatitudeIndex();
                         double area = gridCell.getArea();
                         // Fetch all polygons that intersects this
-                        List<CbsSplitedEntry> results = (List<CbsSplitedEntry>)tesselatedIsos.query(gridCell.getEnvelopeInternal());
+                        List<CbsSplitedEntry> results = (List<CbsSplitedEntry>) tesselatedIsos.query(gridCell.getEnvelopeInternal());
                         double sumPower = 0;
-                        for(CbsSplitedEntry result : results) {
+                        for (CbsSplitedEntry result : results) {
                             OverlayOp overlayOp = new OverlayOp(gridCell, result.geometry);
                             Geometry geom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
-                            if(!geom.isEmpty()) {
+                            if (!geom.isEmpty()) {
                                 double intersectionArea = geom.getArea();
                                 sumPower += PowerUtils.dbaToW(result.noiseLevel) * (intersectionArea / area);
                             }
                         }
-                        if(sumPower > 0) {
+                        if (sumPower > 0) {
                             // insert entry
                             double summedNoiseLevel = PowerUtils.wToDba(sumPower);
                             String noiseLevel = "";
-                            if(isDay) {
+                            if (isDay) {
                                 if (summedNoiseLevel < 60) {
                                     noiseLevel = "Lden5559";
-                                } else if(summedNoiseLevel < 65) {
+                                } else if (summedNoiseLevel < 65) {
                                     noiseLevel = "Lden6064";
 
-                                } else if(summedNoiseLevel < 70) {
+                                } else if (summedNoiseLevel < 70) {
                                     noiseLevel = "Lden6569";
 
-                                } else if(summedNoiseLevel < 75) {
+                                } else if (summedNoiseLevel < 75) {
                                     noiseLevel = "Lden7074";
 
                                 } else {
@@ -523,47 +544,70 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                             } else {
                                 if (summedNoiseLevel < 55) {
                                     noiseLevel = "Lnight5054";
-                                } else if(summedNoiseLevel < 60) {
+                                } else if (summedNoiseLevel < 60) {
                                     noiseLevel = "Lnight5559";
 
-                                } else if(summedNoiseLevel < 65) {
+                                } else if (summedNoiseLevel < 65) {
                                     noiseLevel = "Lnight6064";
 
-                                } else if(summedNoiseLevel < 70) {
+                                } else if (summedNoiseLevel < 70) {
                                     noiseLevel = "Lnight6569";
                                 } else {
                                     noiseLevel = "LnightGreaterThan70";
                                 }
                             }
-                            deque.add(new IsoEntry(cellId, gridCell, noiseLevel));
+                            IsoEntry isoEntry = new IsoEntry(cellId, gridCell, noiseLevel);
+                            ArrayList<IsoEntry> isoList = mainCellsPolys.putIfAbsent(noiseLevel,
+                                    new ArrayList<>(Collections.singleton(isoEntry)));
+                            if (isoList != null) {
+                                isoList.add(isoEntry);
+                            }
                         }
                     });
-                    long endOfIntersects = System.currentTimeMillis();
-                    logger.info(String.format(Locale.ROOT, "Intersection of iso-cells in %d ms." +
-                            " Begin insertion in database..", (int)(endOfIntersects - endCells)));
-                    PreparedStatement insertStatement = connection.prepareStatement("INSERT INTO "+outputTable+" VALUES (?, ?, ?)");
-                    int batchSize = 0;
-                    for(IsoEntry isoEntry : deque) {
-                        insertStatement.setInt(1, isoEntry.index);
-                        insertStatement.setObject(2, isoEntry.cell);
-                        insertStatement.setString(3, isoEntry.isoLvl);
-                        insertStatement.addBatch();
-                        batchSize++;
-                        if (batchSize >= BATCH_MAX_SIZE) {
-                            insertStatement.executeBatch();
-                            batchSize = 0;
+                    mainCellsPolys.forEach((isoLevel, isoEntries) -> {
+                        List<Geometry> geoms = new ArrayList<>(isoEntries.size());
+                        for(IsoEntry isoEntry : isoEntries) {
+                            geoms.add(isoEntry.cell);
                         }
+                        CascadedPolygonUnion cascadedPolygonUnion = new CascadedPolygonUnion(geoms);
+                        int mainIndex = (maxJ / indexFactor) * mainCellIndex.getLongitudeIndex()
+                                + mainCellIndex.getLatitudeIndex();
+                        deque.add(new IsoEntry(mainIndex, cascadedPolygonUnion.union(), isoLevel));
+                    });
+                    mainGridProgress.endStep();
+                });
+                // merge sub cells geometries into main cells
+                long endOfIntersects = System.currentTimeMillis();
+                logger.info(String.format(Locale.ROOT, "Intersection of iso-cells in %d ms." +
+                        " Begin insertion in database..", (int)(endOfIntersects - endCells)));
+                PreparedStatement insertStatement = connection.prepareStatement("INSERT INTO "+outputTable+" VALUES (?, ?, ?)");
+                int batchSize = 0;
+                for(IsoEntry isoEntry : deque) {
+                    Geometry geom = isoEntry.cell;
+                    if(geom instanceof Polygon) {
+                        geom = geometyFactory.createMultiPolygon(new Polygon[]{(Polygon) geom});
                     }
-                    if (batchSize > 0) {
+                    geom.setSRID(srid);
+                    insertStatement.setInt(1, isoEntry.index);
+                    insertStatement.setObject(2, geom);
+                    insertStatement.setString(3, isoEntry.isoLvl);
+                    insertStatement.addBatch();
+                    batchSize++;
+                    if (batchSize >= BATCH_MAX_SIZE) {
                         insertStatement.executeBatch();
+                        batchSize = 0;
                     }
-                    long endOfInsertion = System.currentTimeMillis();
-                    outputTables.add(outputTable);
-                    logger.info(String.format(Locale.ROOT,
-                            "NoiseMap grid cell inserted into %s. Total operation time in %d ms" ,
-                            outputTable,(int)(endOfInsertion - startMerge)));
                 }
+                if (batchSize > 0) {
+                    insertStatement.executeBatch();
+                }
+                long endOfInsertion = System.currentTimeMillis();
+                outputTables.add(outputTable);
+                logger.info(String.format(Locale.ROOT,
+                        "NoiseMap grid cell inserted into %s. Total operation time in %d ms" ,
+                        outputTable,(int)(endOfInsertion - startMerge)));
             }
+
         }
         return outputTables;
     }
@@ -1294,7 +1338,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 List<String> createdTables = mergeGeoJSON(nmConnection,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
                         "out_", "_");
-                createdTables.addAll(mergeCBS(nmConnection, CBS_GRID_SIZE));
+                createdTables.addAll(mergeCBS(nmConnection, CBS_GRID_SIZE, new EmptyProgressVisitor()));
                 subProg.endStep();
                 // Save merged final tables
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath(), 4326);
@@ -1326,7 +1370,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             // Save logs
             try {
                 List<String> rows = getAllLines(String.valueOf(configuration.taskPrimaryKey), -1);
-                try(FileWriter writer = new FileWriter(new File(configuration.workingDirectory, "job.log"))) {
+                try(FileWriter writer = new FileWriter(new File(configuration.workingDirectory, "joblog.txt"))) {
                     for(String row : rows) {
                         writer.write(row + "\n");
                     }
