@@ -27,7 +27,6 @@ package org.noise_planet.noisemodelling.wps.plamade
 import groovy.sql.Sql
 import groovy.text.SimpleTemplateEngine
 import groovy.transform.CompileStatic
-import org.apache.commons.io.input.CountingInputStream
 import org.h2.util.ScriptReader
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
@@ -89,32 +88,31 @@ outputs = [
 @CompileStatic
 static def parseScript(String sqlInstructions, Sql sql, ProgressVisitor progressVisitor, Logger logger) {
     Reader reader = null
-    byte[] bytes = sqlInstructions.getBytes()
-    int bytesPerStep = (int)(bytes.length / 100)
-    ProgressVisitor evalProgress = progressVisitor.subProcess(bytesPerStep)
-    ByteArrayInputStream s = new ByteArrayInputStream(bytes)
-    CountingInputStream countingInputStream = new CountingInputStream(s);
-    InputStream is = countingInputStream
-    int lastStep = 0;
+    ByteArrayInputStream s = new ByteArrayInputStream(sqlInstructions.getBytes())
+    InputStream is = s
+    List<String> statementList = new LinkedList<>()
     try {
         reader  = new InputStreamReader(is)
         ScriptReader scriptReader = new ScriptReader(reader)
+        scriptReader.setSkipRemarks(true)
         String statement = scriptReader.readStatement()
         while (statement != null) {
-            logger.info(String.format(Locale.ROOT, "%d/%d %s", lastStep, 100, statement.trim()))
-            sql.execute(statement)
+            statementList.add(statement)
             statement = scriptReader.readStatement()
-            int totalStep = (int)(countingInputStream.getByteCount() / bytesPerStep)
-            for(int i = lastStep; i < totalStep; i++) {
-                evalProgress.endStep()
-            }
-            if(evalProgress.isCanceled()) {
-                throw new SQLException("Canceled by user")
-            }
-            lastStep = totalStep
         }
     } finally {
         reader.close()
+    }
+    int idStatement = 0
+    int nbStatements = statementList.size()
+    ProgressVisitor evalProgress = progressVisitor.subProcess(nbStatements)
+    for(String statement : statementList) {
+        logger.info(String.format(Locale.ROOT, "%d/%d %s", idStatement, nbStatements, statement.trim()))
+        sql.execute(statement)
+        evalProgress.endStep()
+        if(evalProgress.isCanceled()) {
+            throw new SQLException("Canceled by user")
+        }
     }
 }
 
