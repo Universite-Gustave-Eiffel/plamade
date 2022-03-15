@@ -165,12 +165,12 @@ public class TestCluster {
         List<NoiseModellingRunner.SlurmJobStatus> jobList = NoiseModellingRunner.parseSlurmStatus(commandLines, 14947161);
         assertEquals(0, jobList.size());
     }
-
-    @Test
-    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
-        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
-        noiseModellingProfileReport.testDebugNoiseProfile();
-    }
+//
+//    @Test
+//    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
+//        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
+//        noiseModellingProfileReport.testDebugNoiseProfile();
+//    }
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);
@@ -229,22 +229,23 @@ public class TestCluster {
 //            NoiseModellingInstance.exportTables(connection, outputTables, workingDir, 4326);
 //        }
 //    }
-    @Test
-    public void mergeCBSTest() throws SQLException, IOException {
-        String workingDir = "/home/nicolas/data/plamade/dep05_1646821826645";
-        DataSource ds = NoiseModellingRunner.createDataSource("", "",
-                workingDir, "h2gisdb", false);
-        try(Connection sql = ds.getConnection()) {
-            List<String> outputTables = NoiseModellingRunner.mergeCBS(sql, NoiseModellingRunner.CBS_GRID_SIZE,
-                    new RootProgressVisitor(1, true, 2));
-            for(String outputTable : outputTables) {
-                new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
-                        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
-                //SHPWrite.exportTable(sql, new File(workingDir, outputTable + ".shp").getAbsolutePath(), outputTable,
-                //         ValueBoolean.TRUE);
-            }
-        }
-    }
+//    @Test
+//    public void mergeCBSTest() throws SQLException, IOException {
+//        String workingDir = "/home/nicolas/data/plamade/dep05_1646821826645";
+//        DataSource ds = NoiseModellingRunner.createDataSource("", "",
+//                workingDir, "h2gisdb", false);
+//        try(Connection sql = ds.getConnection()) {
+//            List<String> outputTables = NoiseModellingRunner.mergeCBS(sql, NoiseModellingRunner.CBS_GRID_SIZE,
+//                    NoiseModellingRunner.CBS_MAIN_GRID_SIZE,
+//                    new RootProgressVisitor(1, true, 2));
+//            for(String outputTable : outputTables) {
+//                new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
+//                        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
+//                //SHPWrite.exportTable(sql, new File(workingDir, outputTable + ".shp").getAbsolutePath(), outputTable,
+//                //         ValueBoolean.TRUE);
+//            }
+//        }
+//    }
 //    @Test
 //    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
 //        String workingDir = "/home/nicolas/data/plamade/dep44/results_14966557";

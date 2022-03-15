@@ -47,7 +47,6 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
-import org.locationtech.jts.operation.union.CascadedPolygonUnion;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.plamade.config.DataBaseConfig;
@@ -93,11 +92,10 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.Vector;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
@@ -122,6 +120,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     }
      public static final int MAX_CONNECTION_RETRY = 170;
     public static final int CBS_GRID_SIZE = 10;
+    public static final int CBS_MAIN_GRID_SIZE = 800;
     public static final String RESULT_DIRECTORY_NAME = "results";
     public static final String POST_PROCESS_RESULT_DIRECTORY_NAME = "results_post";
 
@@ -402,12 +401,11 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
      * @param connection
      * @return
      */
-    public static List<String> mergeCBS(Connection connection, int gridSize, ProgressVisitor progressVisitor) throws SQLException {
-        int mainGridSize = 1200;
+    public static List<String> mergeCBS(Connection connection, int gridSize, int mainGridSize, ProgressVisitor progressVisitor) throws SQLException {
         List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
                 new String[]{"TABLE"});
         GeometryFactory geometyFactory = new GeometryFactory();
-        Map<String, Double> isoLabelToLevel = new HashMap<>();
+        Map<String, Double> isoLabelToLevel = new TreeMap<>();
         isoLabelToLevel.put("Lden5559", 57.0);
         isoLabelToLevel.put("Lden6064", 62.0);
         isoLabelToLevel.put("Lden6569", 67.0);
@@ -500,9 +498,9 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
                 Deque<IsoEntry> deque = new ConcurrentLinkedDeque<>();
                 ProgressVisitor mainGridProgress = tableProgress.subProcess(cellIndices.size());
-                cellIndices.keySet().parallelStream().forEach(mainCellIndex -> {
+                cellIndices.entrySet().parallelStream().forEach(mainGridEntry -> {
                     Map<String, ArrayList<IsoEntry>> mainCellsPolys = new HashMap<>();
-                    cellIndices.get(mainCellIndex).forEach(cellIndex -> {
+                    mainGridEntry.getValue().forEach(cellIndex -> {
                         double x1 = minX + (double) cellIndex.getLongitudeIndex() * gridSize;
                         double y1 = minY + (double) cellIndex.getLatitudeIndex() * gridSize;
                         double x2 = minX + (double) (cellIndex.getLongitudeIndex() + 1) * gridSize;
@@ -565,14 +563,23 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         }
                     });
                     mainCellsPolys.forEach((isoLevel, isoEntries) -> {
-                        List<Geometry> geoms = new ArrayList<>(isoEntries.size());
+                        List<Polygon> multiPoly = new ArrayList<>(isoEntries.size());
                         for(IsoEntry isoEntry : isoEntries) {
-                            geoms.add(isoEntry.cell);
+                            Geometry cell = isoEntry.cell;
+                            for(int idGeom = 0; idGeom < cell.getNumGeometries(); idGeom++) {
+                                Geometry subGeom = cell.getGeometryN(idGeom);
+                                if(subGeom instanceof Polygon) {
+                                    multiPoly.add((Polygon) subGeom);
+                                }
+                            }
                         }
-                        CascadedPolygonUnion cascadedPolygonUnion = new CascadedPolygonUnion(geoms);
-                        int mainIndex = (maxJ / indexFactor) * mainCellIndex.getLongitudeIndex()
-                                + mainCellIndex.getLatitudeIndex();
-                        deque.add(new IsoEntry(mainIndex, cascadedPolygonUnion.union(), isoLevel));
+                        // The best situation for using buffer(0) is the trivial case where there is no overlap between the input geometries.
+                        // this is the case here
+                        Geometry unionGeom = geometyFactory.createMultiPolygon(multiPoly.toArray(new Polygon[0])).buffer(0);
+                        int mainIndex = (maxJ / indexFactor) * mainGridEntry.getKey().getLongitudeIndex() +
+                                mainGridEntry.getKey().getLatitudeIndex();
+                        deque.add(new IsoEntry(mainIndex, unionGeom, isoLevel));
+
                     });
                     mainGridProgress.endStep();
                 });
@@ -1338,8 +1345,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 List<String> createdTables = mergeGeoJSON(nmConnection,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
                         "out_", "_");
-                createdTables.addAll(mergeCBS(nmConnection, CBS_GRID_SIZE, new EmptyProgressVisitor()));
-                subProg.endStep();
+                createdTables.addAll(mergeCBS(nmConnection, CBS_GRID_SIZE, CBS_MAIN_GRID_SIZE,
+                        subProg));
                 // Save merged final tables
                 exportTables(nmConnection, createdTables, outDir.getAbsolutePath(), 4326);
                 subProg.endStep();
