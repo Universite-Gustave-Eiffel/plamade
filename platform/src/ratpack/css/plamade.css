@@ -164,3 +164,14 @@ div.hidden {
 .pure-table {
     width:100%;
 }
+
+@font-face {
+  /* http://underpop.online.fr/l/linux-console-fonts-for-windows-in-ttf-and-fon/ */
+  /* GNU GPL Version 2 license.  */
+  font-family: "Multi-size, regular Misc-Fixed";
+  src: url("/fonts/misc-fixed.ttf") format("truetype");
+}
+
+.console-text {
+    font-family: "Multi-size, regular Misc-Fixed", serif;
+}

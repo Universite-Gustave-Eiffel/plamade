@@ -1,8 +1,11 @@
 package org.noise_planet.plamade.process;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import groovy.sql.GroovyRowResult;
 import groovy.sql.Sql;
 import org.cts.CRSFactory;
@@ -46,6 +49,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Connection;
@@ -56,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
@@ -111,10 +116,9 @@ public class NoiseModellingProfileReport {
         return new Coordinate(srcPointLocalDoubles[0], srcPointLocalDoubles[1]);
     }
 
-    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
+    public void testDebugNoiseProfile(String workingDir) throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
         // TODO generate JSON for https://github.com/renhongl/json-viewer-js
         Logger logger = LoggerFactory.getLogger("debug");
-        String workingDir = "/home/nicolas/data/plamade/dep05_1646821826645";
         DataSource ds = NoiseModellingRunner.createDataSource("", "",
                 workingDir, "h2gisdb", false);
         try(Connection connection = new ConnectionWrapper(ds.getConnection())) {
@@ -271,14 +275,23 @@ public class NoiseModellingProfileReport {
                 ar.add(propagationPath);
                 Coordinate receiver = propagationPath.getSRSegment().r;
                 Coordinate source = propagationPath.getSRSegment().s;
-                logger.info("(Src:"+ propagationPath.getIdSource() + " R:"+propagationPath.getIdReceiver()+") Distance "+   receiver.distance(source) + " m " + Arrays.toString(propagationPath.absorptionData.aGlobal));
+               // logger.info("(Src:"+ propagationPath.getIdSource() + " R:"+propagationPath.getIdReceiver()+") Distance "+   receiver.distance(source) + " m " + Arrays.toString(propagationPath.absorptionData.aGlobal));
             }
 
 
-            try(FileOutputStream fos = new FileOutputStream("out/debug.geojson")){
+            try(FileOutputStream fos = new FileOutputStream(new File(workingDir, "debug.geojson").getAbsoluteFile())){
                 JsonFactory jsonFactory = new JsonFactory();
                 JsonEncoding jsonEncoding = JsonEncoding.UTF8;
                 JsonGenerator jsonGenerator = jsonFactory.createGenerator(new BufferedOutputStream(fos), jsonEncoding);
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.enable(SerializationFeature.INDENT_OUTPUT);
+                mapper.setVisibility(mapper.getSerializationConfig().getDefaultVisibilityChecker()
+                        .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
+                        .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
+                        .withIsGetterVisibility(JsonAutoDetect.Visibility.NONE)
+                        .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
+                        .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
+                jsonGenerator.setCodec(mapper);
                 // header of the GeoJSON file
                 jsonGenerator.writeStartObject();
                 jsonGenerator.writeStringField("type", "FeatureCollection");
@@ -299,6 +312,10 @@ public class NoiseModellingProfileReport {
                     jsonGenerator.writeFieldName("pk");
                     jsonGenerator.writeNumber(v.receiverId);
                     jsonGenerator.writeArrayFieldStart("rays");
+                    List<PropagationPath> rays =  propagationPathPerReceiver.get((int)v.receiverId);
+                    for(PropagationPath propagationPath : rays.subList(0, Math.min(10, rays.size()))) {
+                        mapper.writeValue(jsonGenerator, propagationPath);
+                    }
                     jsonGenerator.writeEndArray();
                     jsonGenerator.writeArrayFieldStart("profile");
                     ProfileBuilder.CutProfile profile = ldenPropagationProcessData.inputData.profileBuilder.getProfile(srcPoint, receiverCoordinate, 0);

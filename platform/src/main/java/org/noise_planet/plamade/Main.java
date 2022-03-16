@@ -90,6 +90,7 @@ public class Main {
                         .files(files -> files.files("css")) // share all static files from css folder
                         .files(files -> files.files("js"))  //  share all static files from js folder
                         .files(files -> files.files("img"))  //  share all static files from img folder
+                        .files(files -> files.files("fonts"))  //  share all static files from fonts folder
                         .all(RatpackPac4j.authenticator(chain.getRegistry().get(GoogleOidcClient.class))).insert(ApiEndpoints.class)));
     }
 

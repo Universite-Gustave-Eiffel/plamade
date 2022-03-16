@@ -166,11 +166,11 @@ public class TestCluster {
         assertEquals(0, jobList.size());
     }
 //
-//    @Test
-//    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
-//        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
-//        noiseModellingProfileReport.testDebugNoiseProfile();
-//    }
+    @Test
+    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
+        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
+        noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep05_15mars");
+    }
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);
