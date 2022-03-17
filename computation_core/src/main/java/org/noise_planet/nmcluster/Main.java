@@ -50,6 +50,7 @@ public class Main {
             String[] columns = new String[] {"name", "last-modified", "version", "commit"};
             Enumeration<URL> resources = Main.class.getClassLoader().getResources("META-INF/MANIFEST.MF");
             StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append( "Loaded libraries:\n");
             stringBuilder.append(String.format(Locale.ROOT, columnFormat,
                     (Object[]) columns));
             stringBuilder.append( "\n");
@@ -81,7 +82,7 @@ public class Main {
                         rows.get(columns[3]).add(gitCommitId != null ? gitCommitId : " - ");
                     }
                 } catch (IOException ex) {
-                    // handle
+                    logger.error(ex.getLocalizedMessage(), ex);
                 }
             }
             for(int idRow = 0; idRow < nbRows; idRow++) {
