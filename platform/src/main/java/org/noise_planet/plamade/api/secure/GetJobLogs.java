@@ -26,6 +26,14 @@ import ratpack.handling.Handler;
 import ratpack.pac4j.RatpackPac4j;
 import ratpack.thymeleaf.Template;
 
+import javax.sql.DataSource;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -42,8 +50,28 @@ public class GetJobLogs implements Handler {
                     if (pkUser != -1) {
                         final Map<String, Object> model = Maps.newHashMap();
                         final String jobId = ctx.getAllPathTokens().get("jobid");
-                        List<String> rows = NoiseModellingRunner.getAllLines(jobId, FETCH_NUMBER_OF_LINES);
-                        LOG.info(String.format("Got %d log rows", rows.size()));
+                        List<String> rows;
+                        DataSource plamadeDataSource = ctx.get(DataSource.class);
+                        String workingDir = "";
+                        try (Connection connection = plamadeDataSource.getConnection()) {
+                            PreparedStatement st = connection.prepareStatement("SELECT * FROM JOBS WHERE pk_job = ? AND pk_user = ?");
+                            st.setInt(1, Integer.parseInt(jobId));
+                            st.setInt(2, pkUser);
+                            try (ResultSet rs = st.executeQuery()) {
+                                if (rs.next()) {
+                                    workingDir = rs.getString("LOCAL_JOB_FOLDER");
+                                }
+                            }
+                        }
+                        File logFilePath = new File("jobs_running/" + workingDir, NoiseModellingRunner.JOB_LOG_FILENAME);
+                        if(workingDir.isEmpty() || !logFilePath.exists()) {
+                            // If log file is not written use the main application log file
+                            rows = NoiseModellingRunner.getAllLines(jobId, FETCH_NUMBER_OF_LINES);
+                            LOG.info(String.format("Got %d log rows", rows.size()));
+                        } else {
+                            rows = NoiseModellingRunner.getLastLines(logFilePath, FETCH_NUMBER_OF_LINES, "");
+                            LOG.info(String.format("Got %d log rows from %s", rows.size(), logFilePath.getPath()));
+                        }
                         model.put("rows", rows);
                         model.put("profile", profile);
                         ctx.render(Template.thymeleafTemplate(model, "joblogs"));

@@ -24,22 +24,88 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
+import java.io.IOException;
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 
 
 public class Main {
     public static final int SECONDS_BETWEEN_PROGRESSION_PRINT = 5;
+
+    public static void printBuildIdentifiers(Logger logger) {
+        try {
+            String columnFormat = "%-35.35s %-35.35s %-20.20s %-30.30s";
+            String[] columns = new String[] {"name", "last-modified", "version", "commit"};
+            Enumeration<URL> resources = Main.class.getClassLoader().getResources("META-INF/MANIFEST.MF");
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append(String.format(Locale.ROOT, columnFormat,
+                    (Object[]) columns));
+            stringBuilder.append( "\n");
+            Map<String, ArrayList<String>> rows = new HashMap<>();
+            for (String column : columns) {
+                rows.put(column, new ArrayList<>());
+            }
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat(
+                    "EEE, d MMM yyyy HH:mm:ss Z", Locale.getDefault());
+            int nbRows = 0;
+            while (resources.hasMoreElements()) {
+                try {
+                    Manifest manifest = new Manifest(resources.nextElement().openStream());
+                    Attributes attributes = manifest.getMainAttributes();
+                    String bundleName = attributes.getValue("Bundle-Name");
+                    String bundleVersion = attributes.getValue("Bundle-Version");
+                    String gitCommitId = attributes.getValue("Implementation-Build");
+                    String lastModifier = attributes.getValue("Bnd-LastModified");
+                    if(bundleName != null) {
+                        nbRows++;
+                        rows.get(columns[0]).add(bundleName);
+                        if(lastModifier != null) {
+                            long lastModifiedLong = Long.parseLong(lastModifier);
+                            rows.get(columns[1]).add(simpleDateFormat.format(new Date(lastModifiedLong)));
+                        } else {
+                            rows.get(columns[1]).add(" - ");
+                        }
+                        rows.get(columns[2]).add(bundleVersion != null ? bundleVersion : " - ");
+                        rows.get(columns[3]).add(gitCommitId != null ? gitCommitId : " - ");
+                    }
+                } catch (IOException ex) {
+                    // handle
+                }
+            }
+            for(int idRow = 0; idRow < nbRows; idRow++) {
+                String[] rowValues = new String[columns.length];
+                for (int idColumn = 0; idColumn < columns.length; idColumn++) {
+                    String column = columns[idColumn];
+                    rowValues[idColumn] = rows.get(column).get(idRow);
+                }
+                stringBuilder.append(String.format(Locale.ROOT, columnFormat,
+                        (Object[]) rowValues));
+                stringBuilder.append("\n");
+            }
+            logger.info(stringBuilder.toString());
+        } catch (IOException ex) {
+            logger.error("Error while accessing resources", ex);
+        }
+    }
 
     public static void main(String... args) throws Exception {
         PropertyConfigurator.configure(Main.class.getResource("log4j.properties"));
 
         Logger logger = LoggerFactory.getLogger("org.noise_planet");
 
-
+        printBuildIdentifiers(logger);
         try {
             // Read node id parameter
             int nodeId = -1;

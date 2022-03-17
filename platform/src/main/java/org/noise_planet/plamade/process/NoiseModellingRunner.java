@@ -49,6 +49,7 @@ import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
+import org.noise_planet.plamade.api.secure.GetJobLogs;
 import org.noise_planet.plamade.config.DataBaseConfig;
 import org.noise_planet.plamade.config.SlurmConfig;
 import org.osgi.service.jdbc.DataSourceFactory;
@@ -109,6 +110,7 @@ import java.util.stream.Collectors;
  * @author Nicolas Fortin, Université Gustave Eiffel
  */
 public class NoiseModellingRunner implements RunnableFuture<String> {
+    public static final String JOB_LOG_FILENAME = "joblog.txt";
     private static final int BATCH_MAX_SIZE = 100;
     public static final String H2GIS_DATABASE_NAME = "h2gisdb";
     public enum JOB_STATES {
@@ -1377,7 +1379,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             // Save logs
             try {
                 List<String> rows = getAllLines(String.valueOf(configuration.taskPrimaryKey), -1);
-                try(FileWriter writer = new FileWriter(new File(configuration.workingDirectory, "joblog.txt"))) {
+                try(FileWriter writer = new FileWriter(new File(configuration.workingDirectory, JOB_LOG_FILENAME))) {
                     for(String row : rows) {
                         writer.write(row + "\n");
                     }
