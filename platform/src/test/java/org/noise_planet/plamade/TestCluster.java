@@ -165,12 +165,12 @@ public class TestCluster {
         List<NoiseModellingRunner.SlurmJobStatus> jobList = NoiseModellingRunner.parseSlurmStatus(commandLines, 14947161);
         assertEquals(0, jobList.size());
     }
-//
+
     @Test
     public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
         NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
-        noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep05_15mars");
-    }
+        noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep44",
+                new Coordinate(-1.63176, 47.16458, 4.0), new Coordinate(-1.63258, 47.16370, 0.05), "FR_A_rd444061");    }
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);
@@ -259,7 +259,16 @@ public class TestCluster {
 //            }
 //        }
 //    }
-
+//
+//    @Test
+//    public void emissionTrainTest() throws SQLException, IOException {
+//        String workingDir = "/home/nicolas/data/plamade/dep69_17mars";
+//        DataSource ds = NoiseModellingRunner.createDataSource("", "",
+//                workingDir, "h2gisdb", false);
+//        try(Connection connection = ds.getConnection()) {
+//
+//        }
+//    }
 //
 //    @Test
 //    public void testCopy() throws IOException, SftpException {

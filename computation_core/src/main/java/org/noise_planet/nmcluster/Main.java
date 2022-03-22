@@ -172,9 +172,11 @@ public class Main {
                     logger.error(ex.getLocalizedMessage(), ex);
                     ex = ex.getNextException();
                 }
+                System.exit(1);
             }
         } catch (Exception ex) {
             logger.error(ex.getLocalizedMessage(), ex);
+            System.exit(1);
         }
     }
 }

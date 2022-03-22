@@ -47,6 +47,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
+import org.noise_planet.nmcluster.NoiseModellingInstance;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
 import org.noise_planet.plamade.api.secure.GetJobLogs;
@@ -110,6 +111,8 @@ import java.util.stream.Collectors;
  * @author Nicolas Fortin, Université Gustave Eiffel
  */
 public class NoiseModellingRunner implements RunnableFuture<String> {
+
+    public static final String MAIN_JOBS_FOLDER = "jobs_running";
     public static final String JOB_LOG_FILENAME = "joblog.txt";
     private static final int BATCH_MAX_SIZE = 100;
     public static final String H2GIS_DATABASE_NAME = "h2gisdb";
@@ -207,7 +210,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             rows.addAll(0, NoiseModellingRunner.getLastLines(logFile,
                     numberOfLines == -1 ? -1 : numberOfLines - rows.size(),
                     String.format("JOB_%s", jobId)));
-            if(rows.size() >= numberOfLines) {
+            if(numberOfLines != -1 && rows.size() >= numberOfLines) {
                 break;
             }
         }
@@ -306,18 +309,6 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         inputs.put("confId", configuration.getConfigurationId());
 
         Object result = receiversGrid.invokeMethod("exec", new Object[] {nmConnection, inputs});
-    }
-
-
-    public Object RoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
-        GroovyShell shell = new GroovyShell();
-        Script process= shell.parse(new File("../script_groovy", "s4_Road_Noise_level.groovy"));
-        Map<String, Object> inputs = new HashMap<>();
-        inputs.put("confId", configuration.getConfigurationId());
-        inputs.put("workingDirectory", configuration.getWorkingDirectory());
-        inputs.put("progressVisitor", progressVisitor);
-        inputs.put("outputToSql", false);
-        return process.invokeMethod("exec", new Object[] {nmConnection, inputs});
     }
 
     public static JsonNode convertToJson(List<ArrayList<PointNoiseMap.CellIndex>> cells) {
@@ -691,10 +682,17 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     }
 
 
-
-
-
-    public static void generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
+    /**
+     * @param nmConnection
+     * @param progressVisitor
+     * @param numberOfJobs
+     * @param workingDirectory
+     * @return List of UUEID
+     * @throws SQLException
+     * @throws IOException
+     */
+    public static List<String> generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
+        List<String> uueids = new ArrayList<>();
         // Sum UUEID roads length
         // because the length of the roads should be proportional with the work load
         // Can't have more jobs than UUEID
@@ -708,7 +706,9 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
         try(ResultSet rs = nmConnection.createStatement().executeQuery("SELECT UUEID , SUM(st_length(the_geom)) weight  FROM ROADS r GROUP BY uueid ORDER BY WEIGHT DESC;")) {
             while(rs.next()) {
-                jobElementList.get(jobElementList.size() - 1).UUEID.add(rs.getString("UUEID"));
+                String uueid = rs.getString("UUEID");
+                uueids.add(uueid);
+                jobElementList.get(jobElementList.size() - 1).UUEID.add(uueid);
                 jobElementList.get(jobElementList.size() - 1).totalRoadLength+=rs.getDouble("WEIGHT");
                 // Sort by road length
                 Collections.sort(jobElementList);
@@ -730,6 +730,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             }
         }
         mapper.writerWithDefaultPrettyPrinter().writeValue(new File(workingDirectory, "cluster_config.json"), rootDoc);
+        return uueids;
     }
 
 
@@ -1278,6 +1279,15 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
     }
 
+    public void startNoiseModelling(ProgressVisitor progressVisitor, List<String> uueidList) throws SQLException, IOException {
+        try (Connection nmConnection = nmDataSource.getConnection()) {
+            NoiseModellingInstance noiseModellingInstance = new NoiseModellingInstance(nmConnection, configuration.workingDirectory);
+            noiseModellingInstance.setConfigurationId(configuration.configurationId);
+            noiseModellingInstance.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", 0));
+            noiseModellingInstance.setOutputFolder(new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath());
+            noiseModellingInstance.uueidsLoop(progressVisitor, uueidList, 2);
+        }
+    }
 
     @Override
     public void run() {
@@ -1323,6 +1333,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                     return;
                 }
             }
+            List<String> uueidList;
             try (Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
                 exportTables(nmConnection,
@@ -1338,11 +1349,18 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 makeEmission(nmConnection);
                 exportTables(nmConnection, Arrays.asList("LW_ROADS", "LW_RAILWAY"), outDir.getAbsolutePath(), 4326);
                 subProg.endStep();
-                generateClusterConfig(nmConnection, subProg, configuration.slurmConfig.maxJobs, configuration.workingDirectory);
+                int maxJobs = 1;
+                if(configuration.computeOnCluster) {
+                    maxJobs = configuration.slurmConfig.maxJobs;
+                }
+                uueidList = generateClusterConfig(nmConnection, subProg, maxJobs, configuration.workingDirectory);
                 subProg.endStep();
             }
-            // close the database before copying it
-            slurmInitAndStart(configuration.slurmConfig, subProg);
+            if(configuration.computeOnCluster) {
+                slurmInitAndStart(configuration.slurmConfig, subProg);
+            } else {
+                startNoiseModelling(subProg, uueidList);
+            }
             try (Connection nmConnection = nmDataSource.getConnection()) {
                 List<String> createdTables = mergeGeoJSON(nmConnection,
                         new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
@@ -1427,6 +1445,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         private String remoteJobFolder;
         private int slurmJobId = -1;
         private int userPK;
+        private boolean computeOnCluster = true;
 
         public Configuration(int userPk, String workingDirectory, int configurationId, String inseeDepartment, int taskPrimaryKey
                 , DataBaseConfig dataBaseConfig, ProgressVisitor progressVisitor, String remoteJobFolder) {
@@ -1438,6 +1457,11 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             this.progressVisitor = progressVisitor;
             this.remoteJobFolder = remoteJobFolder;
             this.userPK = userPk;
+        }
+
+        public Configuration setComputeOnCluster(boolean computeOnCluster) {
+            this.computeOnCluster = computeOnCluster;
+            return this;
         }
 
         public int getSlurmJobId() {

@@ -61,6 +61,8 @@ public class PostAddJob implements Handler {
                 final Map<String, Object> model = Maps.newHashMap();
                 final String inseeDepartment = f.get("INSEE_DEPARTMENT");
                 final String confId = f.get("CONF_ID");
+                final Boolean computeOnCluster = Boolean.parseBoolean(f.getOrDefault(
+                        "CLUSTER_COMPUTE", "1"));
                 if(inseeDepartment == null || inseeDepartment.equals("")) {
                     model.put("message", "Missing required field inseeDepartment");
                     ctx.render(Template.thymeleafTemplate(model, "add_job"));
@@ -88,7 +90,13 @@ public class PostAddJob implements Handler {
                                 dataBaseConfig.password = cfg.findValue("database").findValue("password").asText();
                                 long timeJob = System.currentTimeMillis();
                                 String jobFolder = "dep" + inseeDepartment + "_" + timeJob;
-                                String remoteJobFolder = slurmConfigList.slurm.serverTempFolder+"/"+jobFolder;
+                                String remoteJobFolder;
+                                if(computeOnCluster) {
+                                    remoteJobFolder = slurmConfigList.slurm.serverTempFolder + "/" + jobFolder;
+                                } else {
+                                    remoteJobFolder = NoiseModellingRunner.MAIN_JOBS_FOLDER + jobFolder +
+                                            File.separator + NoiseModellingRunner.RESULT_DIRECTORY_NAME;
+                                }
                                 PreparedStatement statement = connection.prepareStatement(
                                         "INSERT INTO JOBS(REMOTE_JOB_FOLDER, LOCAL_JOB_FOLDER, CONF_ID, INSEE_DEPARTMENT, PK_USER, STATE)" +
                                                 " VALUES (?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
@@ -107,11 +115,13 @@ public class PostAddJob implements Handler {
                                     RootProgressVisitor rootProgressVisitor = new RootProgressVisitor(1, false, 5);
                                     rootProgressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(plamadeDataSource, pk));
                                     NoiseModellingRunner.Configuration configuration = new NoiseModellingRunner.Configuration(
-                                            pkUser,new File("jobs_running/"+jobFolder).getAbsolutePath(),
-                                            Integer.parseInt(confId),
-                                            inseeDepartment, pk, dataBaseConfig
-                                            , rootProgressVisitor, remoteJobFolder);
-                                    configuration.setSlurmConfig(slurmConfigList.slurm);
+                                            pkUser,new File(NoiseModellingRunner.MAIN_JOBS_FOLDER+
+                                            File.separatorChar+jobFolder).getAbsolutePath(), Integer.parseInt(confId),
+                                            inseeDepartment, pk, dataBaseConfig , rootProgressVisitor, remoteJobFolder);
+                                    configuration.setComputeOnCluster(computeOnCluster);
+                                    if(computeOnCluster) {
+                                        configuration.setSlurmConfig(slurmConfigList.slurm);
+                                    }
                                     pool.execute(new NoiseModellingRunner(
                                             configuration, plamadeDataSource));
                                 } else {

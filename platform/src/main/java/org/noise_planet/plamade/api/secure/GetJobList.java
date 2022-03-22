@@ -36,6 +36,7 @@ import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.*;
 
 import static ratpack.jackson.Jackson.json;
@@ -89,19 +90,21 @@ public class GetJobList implements Handler {
                                             Timestamp eDate = rs.getTimestamp("END_DATE");
                                             String endDate = "-";
                                             String duration = "-";
-                                            Calendar calendar = Calendar.getInstance();
-                                            calendar.clear();
+                                            Duration computationTime = null;
                                             if(!rs.wasNull()) {
                                                 endDate = mediumDateFormatEN.format(eDate);
-                                                calendar.set(Calendar.MILLISECOND,
-                                                        (int)(eDate.getTime() - bDate.getTime()));
-                                                duration = new SimpleDateFormat("HH:mm:ss")
-                                                        .format(calendar.getTime());
+                                                computationTime = Duration.ofMillis(
+                                                        eDate.getTime()  - bDate.getTime());
                                             } else if(bDate != null){
-                                                calendar.set(Calendar.MILLISECOND,
-                                                        (int)(System.currentTimeMillis() - bDate.getTime()));
-                                                duration = new SimpleDateFormat("HH:mm:ss")
-                                                        .format(calendar.getTime());
+                                                computationTime = Duration.ofMillis(
+                                                        System.currentTimeMillis() - bDate.getTime());
+                                            }
+                                            if(computationTime != null) {
+                                                if (computationTime.toDays() > 0) {
+                                                    duration = String.format(Locale.ROOT, "%d-%d:%d:%d", computationTime.toDays(), computationTime.toHours(), computationTime.toMinutes(), computationTime.toSeconds());
+                                                } else {
+                                                    duration = String.format(Locale.ROOT, "%d:%d:%d", computationTime.toHours(), computationTime.toMinutes(), computationTime.toSeconds());
+                                                }
                                             }
                                             row.put("endDate", endDate);
                                             row.put("duration", duration);

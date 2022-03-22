@@ -15,11 +15,11 @@ apply plugin: 'maven'
 
 group = 'org.noise_planet'
 version = '0.1.0'
-sourceCompatibility = 1.8
+sourceCompatibility = 11
 
 compileJava {
-    sourceCompatibility = '1.8'
-    targetCompatibility = '1.8'
+    sourceCompatibility = '11'
+    targetCompatibility = '11'
 }
 
 // Decomment to try compile external groovy script
@@ -61,6 +61,7 @@ dependencies {
     implementation ratpack.dependency('hikari')
     implementation ratpack.dependency('thymeleaf')
 
+    implementation project(":computation_core")
     implementation 'org.pac4j:ratpack-pac4j:2.0.0'
     implementation 'org.pac4j:pac4j-oidc:2.2.1'
     implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'

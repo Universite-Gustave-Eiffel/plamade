@@ -64,6 +64,7 @@ public class NoiseModellingInstance {
     int configurationId = 0;
     String outputPrefix = "";
     boolean isExportDomain = false;
+    String outputFolder;
 
     // LDEN classes for A maps : 55-59, 60-64, 65-69, 70-74 et >75 dB
     final List<Double> isoLevelsLDEN = Arrays.asList(55.0d,60.0d,65.0d,70.0d,75.0d,200.0d);
@@ -95,6 +96,15 @@ public class NoiseModellingInstance {
     public NoiseModellingInstance(Connection connection, String workingDirectory) {
         this.connection = connection;
         this.workingDirectory = workingDirectory;
+        this.outputFolder = workingDirectory;
+    }
+
+    public String getOutputFolder() {
+        return outputFolder;
+    }
+
+    public void setOutputFolder(String outputFolder) {
+        this.outputFolder = outputFolder;
     }
 
     public int getConfigurationId() {
@@ -150,6 +160,12 @@ public class NoiseModellingInstance {
     }
 
     public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList, int railRoad) throws SQLException, IOException {
+        File outputDir = new File(outputFolder);
+        if(!outputDir.exists()) {
+            if(!outputDir.mkdir()) {
+                logger.error("Cannot create " + outputDir.getAbsolutePath());
+            }
+        }
         Sql sql = new Sql(connection);
 
         List<String> outputTable = recreateCBS(railRoad);
@@ -159,10 +175,17 @@ public class NoiseModellingInstance {
 
         for(String uueid : uueidList) {
             // Keep only receivers near selected UUEID
-            logger.info("Fetch receivers near roads with uueid " + uueid);
+            String conditionReceiver = "";
+            // keep only receiver from contouring noise map
+            conditionReceiver = " AND RCV_TYPE = 2 ";
+            sql.execute("DROP TABLE IF EXISTS SOURCES_BUFFER;");
+            sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
+            sql.execute("CREATE SPATIAL INDEX ON SOURCES_BUFFER(THE_GEOM)");
+            sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID_PK;");
+            sql.execute("CREATE TABLE RECEIVERS_UUEID_PK AS SELECT DISTINCT R.PK FROM RECEIVERS R, SOURCES_BUFFER R2 WHERE R.THE_GEOM && R2.THE_GEOM AND ST_INTERSECTS(R.THE_GEOM, R2.THE_GEOM)" + conditionReceiver);
             sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
             sql.execute("CREATE TABLE RECEIVERS_UUEID (THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer);");
-            sql.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, (SELECT st_accum(roads.the_geom) the_geom FROM ROADS WHERE UUEID = '"+uueid+"' GROUP BY UUEID) R2 WHERE R.THE_GEOM && ST_EXPAND(R2.the_geom," + (double) maxSrcDist + ", " + (double) maxSrcDist + ") AND ST_DISTANCE(R2.THE_GEOM, R.THE_GEOM) < " + (double) maxSrcDist);
+            sql.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, RECEIVERS_UUEID_PK R2 WHERE R.PK = R2.PK;");
             sql.execute("ALTER TABLE RECEIVERS_UUEID ADD PRIMARY KEY(PK)");
             sql.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
             sql.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
@@ -193,10 +216,10 @@ public class NoiseModellingInstance {
         logger.info("Write output tables");
         for(String tableName : outputTable) {
             // Export result tables as GeoJSON
-            sql.execute("CALL GEOJSONWRITE('" + new File(workingDirectory,  outputPrefix + tableName + ".geojson").getAbsolutePath()+"', '" + tableName + "');");
+            sql.execute("CALL GEOJSONWRITE('" + new File(outputFolder,  outputPrefix + tableName + ".geojson").getAbsolutePath()+"', '" + tableName + "');");
         }
         // export metadata
-        sql.execute("CALL CSVWRITE('" + new File(workingDirectory,  outputPrefix + "METADATA.csv").getAbsolutePath()+"', 'SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA');");
+        sql.execute("CALL CSVWRITE('" + new File(outputFolder,  outputPrefix + "METADATA.csv").getAbsolutePath()+"', 'SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA');");
     }
 
     public static Double asDouble(Object v) {
@@ -489,7 +512,7 @@ public class NoiseModellingInstance {
         pointNoiseMap.setWallAbsorption(wallAlpha);
 
 
-        ProfilerThread profilerThread = new ProfilerThread(new File(workingDirectory, "profile_"+uueid+".csv"));
+        ProfilerThread profilerThread = new ProfilerThread(new File(outputFolder, "profile_"+uueid+".csv"));
         profilerThread.addMetric(ldenProcessing);
         profilerThread.addMetric(new ProgressMetric(progressLogger));
         profilerThread.addMetric(new JVMMemoryMetric());
@@ -520,11 +543,14 @@ public class NoiseModellingInstance {
                 logger.info(String.format("Compute... %d cells remaining (%d receivers in this cell)", cells.size() - k.getAndIncrement(), cells.get(cellIndex)));
                 IComputeRaysOut ro = pointNoiseMap.evaluateCell(connection, cellIndex.getLatitudeIndex(), cellIndex.getLongitudeIndex(), progressVisitor, receivers);
                 if(isExportDomain && ro instanceof LDENComputeRaysOut && ((LDENComputeRaysOut)ro).inputData instanceof LDENPropagationProcessData) {
-                    String path = new File(workingDirectory,
+                    String path = new File(outputFolder,
                             String.format("domain_%s_part_%d_%d.kml",uueid, cellIndex.getLatitudeIndex(),
                                     cellIndex.getLongitudeIndex())).getAbsolutePath();
                     exportDomain((LDENPropagationProcessData)(((LDENComputeRaysOut)ro).inputData), path,
                             sridBuildings);
+                }
+                if(progressVisitor.isCanceled()) {
+                    throw new IllegalStateException("Calculation has been canceled, an error may have been raised");
                 }
             }
         } finally {

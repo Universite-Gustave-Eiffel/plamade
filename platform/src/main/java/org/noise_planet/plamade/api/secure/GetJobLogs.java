@@ -63,7 +63,7 @@ public class GetJobLogs implements Handler {
                                 }
                             }
                         }
-                        File logFilePath = new File("jobs_running/" + workingDir, NoiseModellingRunner.JOB_LOG_FILENAME);
+                        File logFilePath = new File(NoiseModellingRunner.MAIN_JOBS_FOLDER + File.separator + workingDir, NoiseModellingRunner.JOB_LOG_FILENAME);
                         if(workingDir.isEmpty() || !logFilePath.exists()) {
                             // If log file is not written use the main application log file
                             rows = NoiseModellingRunner.getAllLines(jobId, FETCH_NUMBER_OF_LINES);

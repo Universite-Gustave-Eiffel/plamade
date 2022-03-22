@@ -19,6 +19,7 @@ import org.cts.op.CoordinateOperationFactory;
 import org.cts.registry.EPSGRegistry;
 import org.cts.registry.RegistryManager;
 import org.h2gis.api.EmptyProgressVisitor;
+import org.h2gis.functions.io.shp.SHPWrite;
 import org.h2gis.functions.spatial.crs.SpatialRefRegistry;
 import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.TableLocation;
@@ -116,7 +117,7 @@ public class NoiseModellingProfileReport {
         return new Coordinate(srcPointLocalDoubles[0], srcPointLocalDoubles[1]);
     }
 
-    public void testDebugNoiseProfile(String workingDir) throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
+    public void testDebugNoiseProfile(String workingDir, Coordinate receiverCoordinate, Coordinate sourceCoordinate, String uueid) throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
         // TODO generate JSON for https://github.com/renhongl/json-viewer-js
         Logger logger = LoggerFactory.getLogger("debug");
         DataSource ds = NoiseModellingRunner.createDataSource("", "",
@@ -128,44 +129,6 @@ public class NoiseModellingProfileReport {
             String sourceTable = "LW_ROADS";
             String receiversTable = "RECEIVERS_TEST";
             int configurationId = 4;
-
-            DBTypes dbTypes = DBUtils.getDBType(connection);
-            int sridBuildings = GeometryTableUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS", dbTypes));
-
-            setInputCRS("EPSG:"+ sridBuildings);
-
-            Coordinate srcPoint = reproject(new Coordinate(5.985845625400543, 44.54630572590374), 4326, sridBuildings);
-            Coordinate axeReceiver = reproject(new Coordinate(5.985944867134094, 44.54642041979754), 4326, sridBuildings);
-            int distance = 50;
-            int step = 5;
-            double receiverHeight = 4.0;
-            double sourceHeight = 0.5;
-
-            Statement st = connection.createStatement();
-
-            st.execute("DROP TABLE IF EXISTS RECEIVERS_TEST");
-            st.execute("CREATE TABLE RECEIVERS_TEST(PK serial primary key, the_geom geometry(POINTZ, " + sridBuildings + "))");
-
-            Vector2D vector2D = new Vector2D(srcPoint, axeReceiver).normalize();
-
-            PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO " +
-                    "RECEIVERS_TEST(THE_GEOM) VALUES (?)");
-            GeometryFactory factory = new GeometryFactory();
-            for(int i = -distance ; i < distance; i += step) {
-                if(i != 0) {
-                    Coordinate receiverCoordinate = new Coordinate(srcPoint.x +
-                            vector2D.multiply(i).getX(), srcPoint.y +
-                            vector2D.multiply(i).getY(), receiverHeight);
-                    Point geom = factory.createPoint(receiverCoordinate);
-                    geom.setSRID(sridBuildings);
-                    preparedStatement.setObject(1, geom);
-                    preparedStatement.addBatch();
-                    preparedStatement.executeBatch();
-                }
-            }
-
-            PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
-                    sourceTable, receiversTable);
 
             Sql sql = new Sql(connection);
 
@@ -180,6 +143,78 @@ public class NoiseModellingProfileReport {
 
             boolean compute_vertical_edge_diffraction = (Boolean)rs.get("confdiffvertical");
             boolean compute_horizontal_edge_diffraction = (Boolean)rs.get("confdiffhorizontal");
+
+            if(!uueid.isEmpty()) {
+                logger.info("Fetch receivers near roads with uueid " + uueid);
+                try(Statement st = connection.createStatement()) {
+                    String conditionReceiver = "";
+                    // keep only receiver from contouring noise map
+                    conditionReceiver = " AND RCV_TYPE = 2 ";
+                    st.execute("DROP TABLE IF EXISTS SOURCES_BUFFER;");
+                    st.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
+                    st.execute("CREATE SPATIAL INDEX ON SOURCES_BUFFER(THE_GEOM)");
+                    st.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID_PK;");
+                    st.execute("CREATE TABLE RECEIVERS_UUEID_PK AS SELECT DISTINCT R.PK FROM RECEIVERS R, SOURCES_BUFFER R2 WHERE R.THE_GEOM && R2.THE_GEOM AND ST_INTERSECTS(R.THE_GEOM, R2.THE_GEOM)" + conditionReceiver);
+                    st.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
+                    st.execute("CREATE TABLE RECEIVERS_UUEID (THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer);");
+                    st.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, RECEIVERS_UUEID_PK R2 WHERE R.PK = R2.PK;");
+                    st.execute("ALTER TABLE RECEIVERS_UUEID ADD PRIMARY KEY(PK)");
+                    st.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
+                    st.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
+                    logger.info("Fetch sound sources that match with uueid " + uueid);
+                    st.execute("DROP TABLE IF EXISTS LW_ROADS_UUEID");
+                    st.execute("CREATE TABLE LW_ROADS_UUEID AS SELECT LW.* FROM LW_ROADS LW, ROADS R WHERE LW.PK = R.PK AND R.UUEID = '" + uueid + "'");
+                    st.execute("ALTER TABLE LW_ROADS_UUEID ALTER COLUMN PK INTEGER NOT NULL");
+                    st.execute("ALTER TABLE LW_ROADS_UUEID ADD PRIMARY KEY(PK)");
+                    st.execute("CREATE SPATIAL INDEX ON LW_ROADS_UUEID(THE_GEOM)");
+                    sourceTable = "LW_ROADS_UUEID";
+                    SHPWrite.exportTable(connection, new File(workingDir, "LW_ROADS_UUEID.shp").getAbsolutePath(), "LW_ROADS_UUEID");
+                }
+            }
+
+            DBTypes dbTypes = DBUtils.getDBType(connection);
+            int sridBuildings = GeometryTableUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS", dbTypes));
+
+            setInputCRS("EPSG:"+ sridBuildings);
+
+            Coordinate srcPoint = reproject(sourceCoordinate, 4326, sridBuildings);
+            Coordinate axeReceiver = reproject(receiverCoordinate, 4326, sridBuildings);
+            int distance = 50;
+            //int step = 5;
+            //double receiverHeight = 4.0;
+            double sourceHeight = 0.5;
+
+            Statement st = connection.createStatement();
+
+            st.execute("DROP TABLE IF EXISTS RECEIVERS_TEST");
+            st.execute("CREATE TABLE RECEIVERS_TEST(PK serial primary key, the_geom geometry(POINTZ, " + sridBuildings + "))");
+
+            Vector2D vector2D = new Vector2D(srcPoint, axeReceiver).normalize();
+
+            PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO " +
+                    "RECEIVERS_TEST(THE_GEOM) VALUES (?)");
+            GeometryFactory factory = new GeometryFactory();
+            Point geom = factory.createPoint(new Coordinate(axeReceiver.x, axeReceiver.y, receiverCoordinate.z));
+            geom.setSRID(sridBuildings);
+            preparedStatement.setObject(1, geom);
+            preparedStatement.addBatch();
+            preparedStatement.executeBatch();
+//            for(int i = -distance ; i < distance; i += step) {
+//                if(i != 0) {
+//                    Coordinate receiverCoordinate = new Coordinate(srcPoint.x +
+//                            vector2D.multiply(i).getX(), srcPoint.y +
+//                            vector2D.multiply(i).getY(), receiverHeight);
+//                    Point geom = factory.createPoint(receiverCoordinate);
+//                    geom.setSRID(sridBuildings);
+//                    preparedStatement.setObject(1, geom);
+//                    preparedStatement.addBatch();
+//                    preparedStatement.executeBatch();
+//                }
+//            }
+
+            PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
+                    sourceTable, receiversTable);
+
 
             pointNoiseMap.setComputeVerticalDiffraction(compute_horizontal_edge_diffraction);
             pointNoiseMap.setComputeHorizontalDiffraction(compute_vertical_edge_diffraction);
@@ -304,8 +339,8 @@ public class NoiseModellingProfileReport {
                     jsonGenerator.writeStartObject();
                     jsonGenerator.writeStringField("type", "Feature");
                     int localReceiverIndex = ldenPropagationProcessData.inputData.receiversPk.indexOf(v.receiverId);
-                    Coordinate receiverCoordinate = ldenPropagationProcessData.inputData.receivers.get(localReceiverIndex);
-                    writePoint(receiverCoordinate, jsonGenerator, transform);
+                    Coordinate realReceiverCoordinate = ldenPropagationProcessData.inputData.receivers.get(localReceiverIndex);
+                    writePoint(realReceiverCoordinate, jsonGenerator, transform);
                     jsonGenerator.writeObjectFieldStart("properties");
                     jsonGenerator.writeFieldName("level");
                     jsonGenerator.writeNumber(globalDba);

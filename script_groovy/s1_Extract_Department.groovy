@@ -96,7 +96,7 @@ static def parseScript(String sqlInstructions, Sql sql, ProgressVisitor progress
         ScriptReader scriptReader = new ScriptReader(reader)
         scriptReader.setSkipRemarks(true)
         String statement = scriptReader.readStatement()
-        while (statement != null) {
+        while (statement != null && !statement.trim().isEmpty()) {
             statementList.add(statement)
             statement = scriptReader.readStatement()
         }
@@ -104,10 +104,10 @@ static def parseScript(String sqlInstructions, Sql sql, ProgressVisitor progress
         reader.close()
     }
     int idStatement = 0
-    int nbStatements = statementList.size()
+    final int nbStatements = statementList.size()
     ProgressVisitor evalProgress = progressVisitor.subProcess(nbStatements)
     for(String statement : statementList) {
-        logger.info(String.format(Locale.ROOT, "%d/%d %s", idStatement, nbStatements, statement.trim()))
+        logger.info(String.format(Locale.ROOT, "%d/%d %s", (idStatement++) + 1, nbStatements, statement.trim()))
         sql.execute(statement)
         evalProgress.endStep()
         if(evalProgress.isCanceled()) {
