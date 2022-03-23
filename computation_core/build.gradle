@@ -27,7 +27,7 @@ task copyDependencies(type: Copy) {
 }
 
 dependencies {
-    implementation localGroovy()
+    implementation group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.4.11'
     implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
     implementation group: 'net.postgis', name: 'postgis-jdbc-jtsparser', version: '2.3.0'
     implementation (group: 'org.orbisgis', name: 'h2gis', version: '2.1.0-SNAPSHOT')

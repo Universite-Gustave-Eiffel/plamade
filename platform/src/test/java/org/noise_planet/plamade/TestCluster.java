@@ -21,6 +21,7 @@ import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.h2gis.utilities.dbtypes.DBUtils;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -68,6 +69,7 @@ public class TestCluster {
     public static void initLogger() {
         BasicConfigurator.configure();
     }
+
     /**
      * Parse command output of
      * find ./*.out -type f -printf "%s,%f\n"
@@ -166,11 +168,12 @@ public class TestCluster {
         assertEquals(0, jobList.size());
     }
 
-    @Test
-    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
-        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
-        noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep44",
-                new Coordinate(-1.63176, 47.16458, 4.0), new Coordinate(-1.63258, 47.16370, 0.05), "FR_A_rd444061");    }
+//    @Test
+//    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
+//        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
+//        noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep44",
+//                new Coordinate(-1.63176, 47.16458, 4.0), new Coordinate(-1.63258, 47.16370, 0.05), "FR_A_rd444061");
+//    }
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);

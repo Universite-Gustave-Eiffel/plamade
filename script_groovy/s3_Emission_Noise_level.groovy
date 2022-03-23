@@ -188,6 +188,10 @@ def exec(Connection connection, input) {
     // do it case-insensitive
     rail_traffic = rail_traffic.toUpperCase()
 
+    //Get the geometry field of the source table
+    TableLocation sourceTableIdentifier = TableLocation.parse(rail_sections)
+    int nrows = JDBCUtilities.getRowCount(connection, rail_sections)
+
     if (nrows!=0) {
 
         // Check if srid are in metric projection.

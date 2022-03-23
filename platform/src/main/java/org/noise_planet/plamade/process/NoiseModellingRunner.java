@@ -40,6 +40,7 @@ import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
+import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -47,6 +48,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
+import org.noise_planet.nmcluster.Main;
 import org.noise_planet.nmcluster.NoiseModellingInstance;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils;
@@ -1280,7 +1282,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     }
 
     public void startNoiseModelling(ProgressVisitor progressVisitor, List<String> uueidList) throws SQLException, IOException {
-        try (Connection nmConnection = nmDataSource.getConnection()) {
+        Main.printBuildIdentifiers(logger);
+        try (Connection nmConnection = new ConnectionWrapper(nmDataSource.getConnection())) {
             NoiseModellingInstance noiseModellingInstance = new NoiseModellingInstance(nmConnection, configuration.workingDirectory);
             noiseModellingInstance.setConfigurationId(configuration.configurationId);
             noiseModellingInstance.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", 0));

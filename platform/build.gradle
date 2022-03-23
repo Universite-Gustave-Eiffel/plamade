@@ -61,7 +61,10 @@ dependencies {
     implementation ratpack.dependency('hikari')
     implementation ratpack.dependency('thymeleaf')
 
-    implementation project(":computation_core")
+    compile(implementation(project(":computation_core"))) {
+        exclude group: 'org.codehaus.groovy'
+    }
+
     implementation 'org.pac4j:ratpack-pac4j:2.0.0'
     implementation 'org.pac4j:pac4j-oidc:2.2.1'
     implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
