@@ -30,6 +30,7 @@
 
 package org.noise_planet.noisemodelling.wps.plamade
 
+import org.h2gis.functions.spatial.convert.ST_Force3D
 import org.h2gis.functions.spatial.edit.ST_UpdateZ
 import groovy.sql.Sql
 import org.h2gis.utilities.GeometryTableUtilities
@@ -45,6 +46,8 @@ import org.noise_planet.noisemodelling.emission.RailWayLW
 import org.noise_planet.noisemodelling.jdbc.LDENConfig
 import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData
 import org.noise_planet.noisemodelling.jdbc.RailWayLWIterator
+import org.noise_planet.noisemodelling.jdbc.utils.MakeLWTable
+import org.noise_planet.noisemodelling.pathfinder.CnossosPropagationData
 import org.noise_planet.noisemodelling.pathfinder.utils.PowerUtils
 import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData
 import org.slf4j.Logger
@@ -195,13 +198,13 @@ def exec(Connection connection, input) {
     if (nrows!=0) {
 
         // Check if srid are in metric projection.
-        int sridSources = SFSUtilities.getSRID(connection, TableLocation.parse(rail_sections))
+        int sridSources = GeometryTableUtilities.getSRID(connection, TableLocation.parse(rail_sections))
         if (sridSources == 3785 || sridSources == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+rail_sections+".")
         if (sridSources == 0) throw new IllegalArgumentException("Error : The table "+rail_sections+" does not have an associated SRID.")
 
 
         //Get the primary key field of the source table
-        int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, rail_sections)
+        int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(rail_sections, dbTypes))
         if (pkIndex < 1) {
             sql.execute("ALTER TABLE " + rail_sections + " ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
             // throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
@@ -209,7 +212,7 @@ def exec(Connection connection, input) {
 
 
         //Get the primary key field of the source table
-        pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, rail_traffic)
+        pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection,  TableLocation.parse(rail_traffic, dbTypes))
         if (pkIndex < 1) {
             sql.execute("ALTER TABLE " + rail_traffic + " ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
             //throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
@@ -221,19 +224,19 @@ def exec(Connection connection, input) {
         receivers_table_name = receivers_table_name.toUpperCase()
         //Get the geometry field of the receiver table
         TableLocation receiverTableIdentifier = TableLocation.parse(receivers_table_name)
-        List<String> geomFieldsRcv = SFSUtilities.getGeometryFields(connection, receiverTableIdentifier)
+        List<String> geomFieldsRcv = GeometryTableUtilities.getGeometryColumnNames(connection, receiverTableIdentifier)
         if (geomFieldsRcv.isEmpty()) {
             throw new SQLException(String.format("The table %s does not exists or does not contain a geometry field", receiverTableIdentifier))
         }
         // Check if srid are in metric projection and are all the same.
-        int sridReceivers = SFSUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
+        int sridReceivers = GeometryTableUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
         if (sridReceivers == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+receivers_table_name+".")
         if (sridReceivers == 0) throw new IllegalArgumentException("Error : The table "+receivers_table_name+" does not have an associated SRID.")
         if (sridReceivers != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+rail_sections+" and "+receivers_table_name+" are not the same.")
 
 
         // Get the primary key field of the receiver table
-        int pkIndexRecv = JDBCUtilities.getIntegerPrimaryKey(connection, receivers_table_name)
+        int pkIndexRecv = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(receivers_table_name, dbTypes))
         if (pkIndexRecv < 1) {
             throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", receiverTableIdentifier))
         }
@@ -307,147 +310,17 @@ def exec(Connection connection, input) {
         // ----------------------------------------------------------------------------
         // Prepare LW table
 
-        // drop table LW_RAILWAY if exists and the create and prepare the table
-        sql.execute("DROP TABLE IF EXISTS LW_RAILWAY;")
+        MakeLWTable.makeTrainLWTable(connection, rail_sections, rail_traffic, "LW_RAILWAY")
 
-        // Build and execute queries
-        StringBuilder createTableQuery = new StringBuilder("CREATE TABLE LW_RAILWAY (ID_SECTION varchar, UUEID varchar, the_geom geometry, DIR_ID int, GS double")
-        StringBuilder insertIntoQuery = new StringBuilder("INSERT INTO LW_RAILWAY(ID_SECTION, UUEID, the_geom, DIR_ID, GS")
-        StringBuilder insertIntoValuesQuery = new StringBuilder("?,?,?,?,?")
-        for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-            createTableQuery.append(", LWD")
-            createTableQuery.append(thirdOctave)
-            createTableQuery.append(" double precision")
-            insertIntoQuery.append(", LWD")
-            insertIntoQuery.append(thirdOctave)
-            insertIntoValuesQuery.append(", ?")
-        }
-        for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-            createTableQuery.append(", LWE")
-            createTableQuery.append(thirdOctave)
-            createTableQuery.append(" double precision")
-            insertIntoQuery.append(", LWE")
-            insertIntoQuery.append(thirdOctave)
-            insertIntoValuesQuery.append(", ?")
-        }
-        for(int thirdOctave : PropagationProcessPathData.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-            createTableQuery.append(", LWN")
-            createTableQuery.append(thirdOctave)
-            createTableQuery.append(" double precision")
-            insertIntoQuery.append(", LWN")
-            insertIntoQuery.append(thirdOctave)
-            insertIntoValuesQuery.append(", ?")
-        }
-        createTableQuery.append(")")
-        insertIntoQuery.append(") VALUES (")
-        insertIntoQuery.append(insertIntoValuesQuery)
-        insertIntoQuery.append(")")
-        sql.execute(createTableQuery.toString())
-
-
-
-        LDENConfig ldenConfig = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_RAILWAY_FLOW)
-        ldenConfig.setPropagationProcessPathData(new PropagationProcessPathData())
-        ldenConfig.setCoefficientVersion(2)
-
-        // Get size of the table (number of rail segments)
-        PreparedStatement st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + rail_sections)
-        SpatialResultSet rs1 = st.executeQuery().unwrap(SpatialResultSet.class)
-
-        while (rs1.next()) {
-            nSection = rs1.getInt("total")
-            System.println('The table Rail Geom has ' + nSection + ' rail segments.')
-        }
-
-        RailWayLWIterator railWayLWIterator = new RailWayLWIterator(connection, rail_sections, rail_traffic, ldenConfig)
-        RailWayLWIterator.RailWayLWGeom railWayLWGeom;
-
-
-        while ((railWayLWGeom = railWayLWIterator.next()) != null) {
-
-
-            RailWayLW railWayLWDay = railWayLWGeom.getRailWayLWDay()
-            RailWayLW railWayLWEvening = railWayLWGeom.getRailWayLWEvening()
-            RailWayLW railWayLWNight = railWayLWGeom.getRailWayLWNight()
-            List<LineString> geometries = railWayLWGeom.getRailWayLWGeometry()
-            int pk = railWayLWGeom.getPK()
-            double[] LWDay
-            double[] LWEvening
-            double[] LWNight
-            double heightSource
-            int directivityId
-            double speedUse = railWayLWGeom.getSpeedUse()
-            int bridgeUse = railWayLWGeom.getBridgeUse()
-            double gs = railWayLWGeom.getGs()
-
-            for (int iSource = 0; iSource < 6; iSource++) {
-                switch (iSource) {
-                    case 0:
-                        LWDay = railWayLWDay.getLWRolling()
-                        LWEvening = railWayLWEvening.getLWRolling()
-                        LWNight = railWayLWNight.getLWRolling()
-                        heightSource = 0.5
-                        directivityId = 1
-                        break
-                    case 1:
-                        LWDay = railWayLWDay.getLWTractionA()
-                        LWEvening = railWayLWEvening.getLWTractionA()
-                        LWNight = railWayLWNight.getLWTractionA()
-                        heightSource = 0.5
-                        directivityId = 2
-                        break
-                    case 2:
-                        LWDay = railWayLWDay.getLWTractionB()
-                        LWEvening = railWayLWEvening.getLWTractionB()
-                        LWNight = railWayLWNight.getLWTractionB()
-                        heightSource = 4
-                        directivityId = 3
-                        break
-                    case 3:
-                        LWDay = railWayLWDay.getLWAerodynamicA()
-                        LWEvening = railWayLWEvening.getLWAerodynamicA()
-                        LWNight = railWayLWNight.getLWAerodynamicA()
-                        heightSource = 0.5
-                        directivityId = 4
-                        break
-                    case 4:
-                        LWDay = railWayLWDay.getLWAerodynamicB()
-                        LWEvening = railWayLWEvening.getLWAerodynamicB()
-                        LWNight = railWayLWNight.getLWAerodynamicB()
-                        heightSource = 4
-                        directivityId = 5
-                        break
-                    case 5:
-                        LWDay = railWayLWDay.getLWBridge()
-                        LWEvening = railWayLWEvening.getLWBridge()
-                        LWNight = railWayLWNight.getLWBridge()
-                        heightSource = 0.5
-                        directivityId = 6
-                        break
-                }
-                if((iSource==3&&speedUse<200)||(iSource==4&&speedUse<200)||(iSource==5&&bridgeUse==0)){}else{
-                    for (int nTrack = 0; nTrack < geometries.size(); nTrack++) {
-                        sql.withBatch(100, insertIntoQuery.toString()) { ps ->
-                            Geometry trackGeometry = (Geometry) geometries.get(nTrack)
-                            Geometry sourceGeometry = trackGeometry.copy()
-                            // offset geometry z
-                            ST_UpdateZ.force(sourceGeometry, heightSource + plateformeH2)
-                            def batchData = [ railWayLWGeom.getIdSection() as String,railWayLWGeom.getUueid() as String, sourceGeometry as Geometry, directivityId as int,gs as double]
-                            batchData.addAll(LWDay)
-                            batchData.addAll(LWEvening)
-                            batchData.addAll(LWNight)
-                            ps.addBatch(batchData)
-                        }
-                    }
-                }
-            }
-        }
+        // Add plamade fields
+        sql.execute("ALTER TABLE LW_RAILWAY ADD COLUMN ID_SECTION VARCHAR USING (SELECT IDSECTION FROM " +
+                rail_sections + " RS WHERE RS.PK = LW_RAILWAY.PK_SECTION)")
+        sql.execute("ALTER TABLE LW_RAILWAY ADD COLUMN UUEID VARCHAR USING (SELECT UUEID FROM " +
+                rail_sections + " RS WHERE RS.PK = LW_RAILWAY.PK_SECTION)")
 
         //DELETE sections where LW are lower than 0
         //sql.execute("DELETE FROM LW_RAILWAY WHERE LEAST (LWD50, LWD63, LWD80, LWD100, LWD125, LWD160, LWD200, LWD250, LWD315, LWD400, LWD500, LWD630, LWD800, LWD1000, LWD1250, LWD1600, LWD2000, LWD2500, LWD3150, LWD4000, LWD5000, LWD6300, LWD8000, LWD10000, LWE50, LWE63, LWE80, LWE100, LWE125, LWE160, LWE200, LWE250, LWE315, LWE400, LWE500, LWE630, LWE800, LWE1000, LWE1250, LWE1600, LWE2000, LWE2500, LWE3150, LWE4000, LWE5000, LWE6300, LWE8000, LWE10000, LWN50, LWN63, LWN80, LWN100, LWN125, LWN160, LWN200, LWN250, LWN315, LWN400, LWN500, LWN630, LWN800, LWN1000, LWN1250, LWN1600, LWN2000, LWN2500, LWN3150, LWN4000, LWN5000, LWN6300, LWN8000, LWN10000)<0;")
 
-        // Add primary key to the LW table
-        sql.execute("ALTER TABLE LW_RAILWAY ADD PK INT AUTO_INCREMENT PRIMARY KEY;")
         sql.execute("UPDATE LW_RAILWAY SET THE_GEOM = ST_SETSRID(THE_GEOM, "+sridSources+")")
         sql.execute("CREATE SPATIAL INDEX ON LW_RAILWAY(THE_GEOM);")
 

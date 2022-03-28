@@ -8,8 +8,6 @@ import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
-import org.h2gis.functions.io.geojson.GeoJsonWrite;
-import org.h2gis.functions.io.shp.SHPWrite;
 import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
@@ -58,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Gwendall Petit, Lab-STICC CNRS UMR 6285
  */
 public class NoiseModellingInstance {
+    public enum SOURCE_TYPE { SOURCE_TYPE_RAIL, SOURCE_TYPE_ROAD}
     Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Connection connection;
     String workingDirectory;
@@ -159,16 +158,27 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList, int railRoad) throws SQLException, IOException {
+    /**
+     *
+     * @param progressLogger Progression instance
+     * @param uueidList List of UUEID
+     * @param sourceType source type
+     * @throws SQLException
+     * @throws IOException
+     */
+    public void uueidsLoop(ProgressVisitor progressLogger, List<String> uueidList, SOURCE_TYPE sourceType) throws SQLException, IOException {
         File outputDir = new File(outputFolder);
         if(!outputDir.exists()) {
             if(!outputDir.mkdir()) {
                 logger.error("Cannot create " + outputDir.getAbsolutePath());
             }
         }
+        if(uueidList.isEmpty()) {
+            return;
+        }
         Sql sql = new Sql(connection);
 
-        List<String> outputTable = recreateCBS(railRoad);
+        List<String> outputTable = recreateCBS(sourceType);
 
         GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
         int maxSrcDist = (Integer)rs.get("confmaxsrcdist");
@@ -179,7 +189,12 @@ public class NoiseModellingInstance {
             // keep only receiver from contouring noise map
             conditionReceiver = " AND RCV_TYPE = 2 ";
             sql.execute("DROP TABLE IF EXISTS SOURCES_BUFFER;");
-            sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
+            if(sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL) {
+                sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM RAIL_SECTIONS WHERE UUEID = ''"+uueid+"'')');");
+            } else {
+                sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
+            }
+            logger.info("Fetch receivers near uueid " + uueid);
             sql.execute("CREATE SPATIAL INDEX ON SOURCES_BUFFER(THE_GEOM)");
             sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID_PK;");
             sql.execute("CREATE TABLE RECEIVERS_UUEID_PK AS SELECT DISTINCT R.PK FROM RECEIVERS R, SOURCES_BUFFER R2 WHERE R.THE_GEOM && R2.THE_GEOM AND ST_INTERSECTS(R.THE_GEOM, R2.THE_GEOM)" + conditionReceiver);
@@ -191,12 +206,16 @@ public class NoiseModellingInstance {
             sql.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
             // Filter only sound source that match the UUEID
             logger.info("Fetch sound sources that match with uueid " + uueid);
-            sql.execute("DROP TABLE IF EXISTS LW_ROADS_UUEID");
-            sql.execute("CREATE TABLE LW_ROADS_UUEID AS SELECT LW.* FROM LW_ROADS LW, ROADS R WHERE LW.PK = R.PK AND R.UUEID = '" + uueid + "'");
-            sql.execute("ALTER TABLE LW_ROADS_UUEID ALTER COLUMN PK INTEGER NOT NULL");
-            sql.execute("ALTER TABLE LW_ROADS_UUEID ADD PRIMARY KEY(PK)");
-            sql.execute("CREATE SPATIAL INDEX ON LW_ROADS_UUEID(THE_GEOM)");
-            int nbSources = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM LW_ROADS_UUEID").get("CPT"));
+            sql.execute("DROP TABLE IF EXISTS LW_UUEID");
+            if(sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL) {
+                sql.execute("CREATE TABLE LW_UUEID AS SELECT LW.* FROM LW_RAILWAY LW WHERE UUEID = '" + uueid + "'");
+            } else {
+                sql.execute("CREATE TABLE LW_UUEID AS SELECT LW.* FROM LW_ROADS LW, ROADS R WHERE LW.PK = R.PK AND R.UUEID = '" + uueid + "'");
+            }
+            sql.execute("ALTER TABLE LW_UUEID ALTER COLUMN PK INTEGER NOT NULL");
+            sql.execute("ALTER TABLE LW_UUEID ADD PRIMARY KEY(PK)");
+            sql.execute("CREATE SPATIAL INDEX ON LW_UUEID(THE_GEOM)");
+            int nbSources = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM LW_UUEID").get("CPT"));
             logger.info(String.format(Locale.ROOT, "There is %d sound sources with this UUEID", nbSources));
             int nbReceivers = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM RECEIVERS_UUEID").get("CPT"));
             logger.info(String.format(Locale.ROOT, "There is %d receivers with this UUEID", nbReceivers));
@@ -204,12 +223,8 @@ public class NoiseModellingInstance {
 
             if(nbSources > 0) {
                 ProgressVisitor uueidVisitor = progressLogger.subProcess(uueidList.size());
-                if(railRoad == 2) {
-                    roadNoiseLevel(uueidVisitor, uueid);
-                } else {
-                    // TODO rail
-                }
-                isoSurface(uueid, railRoad);
+                doPropagation(uueidVisitor, uueid, sourceType);
+                isoSurface(uueid, sourceType);
             }
         }
 
@@ -218,8 +233,6 @@ public class NoiseModellingInstance {
             // Export result tables as GeoJSON
             sql.execute("CALL GEOJSONWRITE('" + new File(outputFolder,  outputPrefix + tableName + ".geojson").getAbsolutePath()+"', '" + tableName + "');");
         }
-        // export metadata
-        sql.execute("CALL CSVWRITE('" + new File(outputFolder,  outputPrefix + "METADATA.csv").getAbsolutePath()+"', 'SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA');");
     }
 
     public static Double asDouble(Object v) {
@@ -238,7 +251,13 @@ public class NoiseModellingInstance {
         }
     }
 
-    public List<String> recreateCBS(int railRoad) throws SQLException {
+    /**
+     *
+     * @param sourceType Road = 0 Rail=1
+     * @return CBS Tables
+     * @throws SQLException
+     */
+    public List<String> recreateCBS(SOURCE_TYPE sourceType) throws SQLException {
 
         List<String> outputTables = new ArrayList<>();
 
@@ -268,7 +287,7 @@ public class NoiseModellingInstance {
 
 
         // Tables are created according to the input parameter "rail" or "road"
-        if (railRoad==1){
+        if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
             outputTables.add(cbsAFerLden);
             outputTables.add(cbsAFerLnight);
             outputTables.add(cbsCFerLGVLden);
@@ -315,7 +334,8 @@ public class NoiseModellingInstance {
         return outputTables;
     }
 
-    void generateIsoSurfaces(String inputTable, List<Double> isoClasses, Connection connection, String uueid, String cbsType, String period, int railRoad) throws SQLException {
+    void generateIsoSurfaces(String inputTable, List<Double> isoClasses, Connection connection, String uueid,
+                             String cbsType, String period, SOURCE_TYPE sourceType) throws SQLException {
 
         if(!JDBCUtilities.tableExists(connection, inputTable)) {
             logger.info("La table "+inputTable+" n'est pas présente");
@@ -362,7 +382,7 @@ public class NoiseModellingInstance {
         sql.execute("UPDATE ISO_AREA SET THE_GEOM = ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))");
 
         // Insert iso areas into common table, according to rail or road input parameter
-        if (railRoad==1){
+        if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
             sql.execute("INSERT INTO "+cbsAFerLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LD'");
             sql.execute("INSERT INTO "+cbsAFerLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LN'");
             sql.execute("INSERT INTO "+cbsCFerLGVLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD' AND NOISELEVEL = 'LdenGreaterThan68'");
@@ -380,11 +400,11 @@ public class NoiseModellingInstance {
         logger.info("End : Compute Isosurfaces");
     }
 
-    public void isoSurface(String uueid, int railRoad) throws SQLException {
+    public void isoSurface(String uueid, SOURCE_TYPE sourceType) throws SQLException {
         Sql sql = new Sql(connection);
 
         String tableDEN, tableNIGHT;
-        if (railRoad==1){
+        if (sourceType== SOURCE_TYPE.SOURCE_TYPE_RAIL){
             tableDEN = "LDEN_RAILWAY";
             tableNIGHT = "LNIGHT_RAILWAY";
         } else{
@@ -413,27 +433,27 @@ public class NoiseModellingInstance {
 
         // For A maps
         // Produce isocontours for LNIGHT (LN)
-        generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, connection, uueid, "A", "LN", railRoad);
+        generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, connection, uueid, "A", "LN", sourceType);
         // Produce isocontours for LDEN (LD)
-        generateIsoSurfaces(ldenInput, isoLevelsLDEN, connection, uueid, "A", "LD", railRoad);
+        generateIsoSurfaces(ldenInput, isoLevelsLDEN, connection, uueid, "A", "LD", sourceType);
 
         // For C maps
         // Produce isocontours for LNIGHT (LN)
-        generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, connection, uueid, "C", "LN", railRoad);
+        generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, connection, uueid, "C", "LN", sourceType);
         // Produce isocontours for LDEN (LD)
-        generateIsoSurfaces(ldenInput, isoCLevelsLDEN, connection, uueid, "C", "LD", railRoad);
+        generateIsoSurfaces(ldenInput, isoCLevelsLDEN, connection, uueid, "C", "LD", sourceType);
 
-        if (railRoad==1){
-            generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, connection, uueid, "C", "LN", railRoad);
-            generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, connection, uueid, "C", "LD", railRoad);
+        if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
+            generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, connection, uueid, "C", "LN", sourceType);
+            generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, connection, uueid, "C", "LD", sourceType);
         }
 
         sql.execute("DROP TABLE IF EXISTS "+ldenInput + ", " + lnightInput);
     }
 
-    public void roadNoiseLevel(ProgressVisitor progressLogger, String uueid) throws SQLException, IOException {
+    public void doPropagation(ProgressVisitor progressLogger, String uueid, SOURCE_TYPE sourceType) throws SQLException, IOException {
 
-        String sourceTable = "LW_ROADS_UUEID";
+        String sourceTable = "LW_UUEID";
         String receiversTable = "RECEIVERS_UUEID";
 
         DBTypes dbTypes = DBUtils.getDBType(connection);
@@ -462,13 +482,21 @@ public class NoiseModellingInstance {
         ldenConfig_propa.setComputeLNight(!(Boolean)rs.get("confskiplnight"));
         ldenConfig_propa.setComputeLDEN(!(Boolean)rs.get("confskiplden"));
         ldenConfig_propa.setMergeSources(true);
-        ldenConfig_propa.setlDayTable("LDAY_ROADS");
-        ldenConfig_propa.setlEveningTable("LEVENING_ROADS");
-        ldenConfig_propa.setlNightTable("LNIGHT_ROADS");
-        ldenConfig_propa.setlDenTable("LDEN_ROADS");
+        if(sourceType == SOURCE_TYPE.SOURCE_TYPE_ROAD) {
+            ldenConfig_propa.setlDayTable("LDAY_ROADS");
+            ldenConfig_propa.setlEveningTable("LEVENING_ROADS");
+            ldenConfig_propa.setlNightTable("LNIGHT_ROADS");
+            ldenConfig_propa.setlDenTable("LDEN_ROADS");
+        } else {
+            ldenConfig_propa.setlDayTable("LDAY_RAILWAY");
+            ldenConfig_propa.setlEveningTable("LEVENING_RAILWAY");
+            ldenConfig_propa.setlNightTable("LNIGHT_RAILWAY");
+            ldenConfig_propa.setlDenTable("LDEN_RAILWAY");
+        }
         ldenConfig_propa.setComputeLAEQOnly(true);
 
         LDENPointNoiseMapFactory ldenProcessing = new LDENPointNoiseMapFactory(connection, ldenConfig_propa);
+        ldenProcessing.insertTrainDirectivity();
 
         // setComputeVerticalDiffraction its vertical diffraction (over horizontal edges)
         pointNoiseMap.setComputeVerticalDiffraction(compute_horizontal_edge_diffraction);
