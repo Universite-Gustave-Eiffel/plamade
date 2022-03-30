@@ -180,9 +180,9 @@ def exec(Connection connection, input) {
 
     def databaseUrl
     if(input["inputServer"].equals('cerema')) {
-        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslmode=prefer"
+        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslmode=disable"
     } else if(input["inputServer"].equals('cloud')) {
-        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslmode=prefer"
+        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslmode=disable"
     } else{
         return "Vous n'avez pas spécifié le bon nom de serveur"
     }

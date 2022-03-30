@@ -183,24 +183,23 @@ public class NoiseModellingInstance {
         GroovyRowResult rs = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", new Object[]{configurationId});
         int maxSrcDist = (Integer)rs.get("confmaxsrcdist");
 
+        ProgressVisitor uueidVisitor = progressLogger.subProcess(uueidList.size());
         for(String uueid : uueidList) {
             // Keep only receivers near selected UUEID
             String conditionReceiver = "";
             // keep only receiver from contouring noise map
-            conditionReceiver = " AND RCV_TYPE = 2 ";
+            conditionReceiver = " RCV_TYPE = 2 AND ";
             sql.execute("DROP TABLE IF EXISTS SOURCES_BUFFER;");
             if(sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL) {
-                sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM RAIL_SECTIONS WHERE UUEID = ''"+uueid+"'')');");
+                sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM RAIL_SECTIONS WHERE UUEID = ''"+uueid+"'' AND NOT ST_ISEMPTY(THE_GEOM)');");
             } else {
-                sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
+                sql.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'' AND NOT ST_ISEMPTY(THE_GEOM))');");
             }
             logger.info("Fetch receivers near uueid " + uueid);
             sql.execute("CREATE SPATIAL INDEX ON SOURCES_BUFFER(THE_GEOM)");
-            sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID_PK;");
-            sql.execute("CREATE TABLE RECEIVERS_UUEID_PK AS SELECT DISTINCT R.PK FROM RECEIVERS R, SOURCES_BUFFER R2 WHERE R.THE_GEOM && R2.THE_GEOM AND ST_INTERSECTS(R.THE_GEOM, R2.THE_GEOM)" + conditionReceiver);
             sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
-            sql.execute("CREATE TABLE RECEIVERS_UUEID (THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer);");
-            sql.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, RECEIVERS_UUEID_PK R2 WHERE R.PK = R2.PK;");
+            sql.execute("CREATE TABLE RECEIVERS_UUEID(THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer) AS SELECT R.* FROM RECEIVERS R WHERE "+conditionReceiver+" EXISTS (SELECT 1 FROM SOURCES_BUFFER R2 WHERE R.THE_GEOM && R2.THE_GEOM AND ST_INTERSECTS(R.THE_GEOM, R2.THE_GEOM) LIMIT 1)");
+            logger.info("Create primary key and index on filtered receivers");
             sql.execute("ALTER TABLE RECEIVERS_UUEID ADD PRIMARY KEY(PK)");
             sql.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
             sql.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
@@ -222,7 +221,6 @@ public class NoiseModellingInstance {
 
 
             if(nbSources > 0) {
-                ProgressVisitor uueidVisitor = progressLogger.subProcess(uueidList.size());
                 doPropagation(uueidVisitor, uueid, sourceType);
                 isoSurface(uueid, sourceType);
             }

@@ -6,9 +6,11 @@ plugins {
 }
 
 
+sourceCompatibility = 11
+
 compileJava {
-    sourceCompatibility = '1.8'
-    targetCompatibility = '1.8'
+    sourceCompatibility = '11'
+    targetCompatibility = '11'
 }
 
 compileJava.options.encoding = "UTF-8"
@@ -21,15 +23,9 @@ repositories {
     mavenLocal()
 }
 
-task copyDependencies(type: Copy) {
-    from configurations.default
-    into 'build/libs'
-}
-
 dependencies {
     implementation group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.4.11'
     implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
-    implementation group: 'net.postgis', name: 'postgis-jdbc-jtsparser', version: '2.3.0'
     implementation (group: 'org.orbisgis', name: 'h2gis', version: '2.1.0-SNAPSHOT')
     implementation (group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '4.0.0-SNAPSHOT')
     implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'

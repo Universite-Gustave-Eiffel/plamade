@@ -61,8 +61,9 @@ dependencies {
     implementation ratpack.dependency('hikari')
     implementation ratpack.dependency('thymeleaf')
 
-    compile(implementation(project(":computation_core"))) {
+    implementation(project(':computation_core')) {
         exclude group: 'org.codehaus.groovy'
+        exclude group: 'org.slf4j'
     }
 
     implementation 'org.pac4j:ratpack-pac4j:2.0.0'

@@ -115,9 +115,9 @@ public class GetJobList implements Handler {
                                             if(computationTime != null) {
                                                 int[] durationArray = splitDuration(computationTime);
                                                 if (durationArray[DURATION_DAYS] > 0) {
-                                                    duration = String.format(Locale.ROOT, "%d-%d:%d:%d", durationArray[DURATION_DAYS], durationArray[DURATION_HOURS], durationArray[DURATION_MINUTES], durationArray[DURATION_SECONDS]);
+                                                    duration = String.format(Locale.ROOT, "%dd %dh %dm %ds", durationArray[DURATION_DAYS], durationArray[DURATION_HOURS], durationArray[DURATION_MINUTES], durationArray[DURATION_SECONDS]);
                                                 } else {
-                                                    duration = String.format(Locale.ROOT, "%d:%d:%d", durationArray[DURATION_HOURS], durationArray[DURATION_MINUTES], durationArray[DURATION_SECONDS]);
+                                                    duration = String.format(Locale.ROOT, "%dh %dm %ds", durationArray[DURATION_HOURS], durationArray[DURATION_MINUTES], durationArray[DURATION_SECONDS]);
                                                 }
                                             }
                                             row.put("endDate", endDate);

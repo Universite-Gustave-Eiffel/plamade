@@ -328,8 +328,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     }
 
     private static class JobElement implements Comparable<JobElement> {
-        public List<String> ROADS_UUEID = new ArrayList<>();
-        public List<String> RAILS_UUEID = new ArrayList<>();
+        public List<String> roadsUueid = new ArrayList<>();
+        public List<String> railsUueid = new ArrayList<>();
         public double totalSourceLineLength = 0;
 
 
@@ -708,10 +708,10 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             while(rs.next()) {
                 String uueid = rs.getString("UUEID");
                 if(rs.getInt("src_type") == 0) {
-                    jobElementList.get(jobElementList.size() - 1).ROADS_UUEID.add(uueid);
+                    jobElementList.get(jobElementList.size() - 1).roadsUueid.add(uueid);
                     clusterConfiguration.roads_uueids.add(uueid);
                 } else {
-                    jobElementList.get(jobElementList.size() - 1).RAILS_UUEID.add(uueid);
+                    jobElementList.get(jobElementList.size() - 1).railsUueid.add(uueid);
                     clusterConfiguration.rails_uueids.add(uueid);
                 }
                 jobElementList.get(jobElementList.size() - 1).totalSourceLineLength +=rs.getDouble("WEIGHT");
@@ -730,12 +730,12 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             nodeDoc.put("node_sum_length", jobElement.totalSourceLineLength);
             ArrayNode nodeUUEIDs = mapper.createArrayNode();
             nodeDoc.set("roads_uueids", nodeUUEIDs);
-            for(String uueid : jobElement.ROADS_UUEID) {
+            for(String uueid : jobElement.roadsUueid) {
                 nodeUUEIDs.add(uueid);
             }
             nodeUUEIDs = mapper.createArrayNode();
             nodeDoc.set("rails_uueids", nodeUUEIDs);
-            for(String uueid : jobElement.RAILS_UUEID) {
+            for(String uueid : jobElement.railsUueid) {
                 nodeUUEIDs.add(uueid);
             }
         }
@@ -1134,7 +1134,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 // copy computation core
                 File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
                 logger.debug("Computation core folder: " + computationCoreFolder);
-                String libFolder = new File(computationCoreFolder, "build" + File.separator + "libs").toString();
+                String libFolder = new File(computationCoreFolder, "build" + File.separator + "install" + File.separator + "lib").toString();
                 pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true, new HashSet<>());
                 // copy data
                 pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder,
