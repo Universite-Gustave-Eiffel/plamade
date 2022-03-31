@@ -413,7 +413,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         ArrayList<TableLocation> cbsTables = new ArrayList<>();
         for(String tableName : allTables) {
             TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
-            if (tableLocation.getTable().startsWith("CBS_A_R_")) {
+            if (tableLocation.getTable().startsWith("CBS_A_R_") || tableLocation.getTable().startsWith("CBS_A_F_")) {
                 List<String> fields = JDBCUtilities.getColumnNames(connection, tableLocation);
                 if (!(fields.contains("UUEID") && fields.contains("PERIOD") && fields.contains("NOISELEVEL"))) {
                     continue;
