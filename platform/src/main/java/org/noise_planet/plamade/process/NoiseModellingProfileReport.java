@@ -220,28 +220,27 @@ public class NoiseModellingProfileReport {
             pointNoiseMap.setComputeHorizontalDiffraction(compute_vertical_edge_diffraction);
             pointNoiseMap.setSoundReflectionOrder(reflectionOrder);
 
-
             // Set environmental parameters
-            PropagationProcessPathData environmentalData = new PropagationProcessPathData(false);
-
-
             GroovyRowResult row_zone = sql.firstRow("SELECT * FROM ZONE");
+            String[] fieldTemperature = new String[] {"TEMP_D" ,"TEMP_E" ,"TEMP_N"};
+            String[] fieldHumidity = new String[] {"HYGRO_D", "HYGRO_E", "HYGRO_N"};
+            String[] fieldPFav = new String[] {"PFAV_06_18", "PFAV_18_22", "PFAV_22_06"};
 
-            double confHumidity = asDouble(row_zone.get("hygro_d"));
-            double confTemperature = asDouble(row_zone.get("temp_d"));
-            String confFavorableOccurrences = (String)row_zone.get("pfav_06_18");
-
-            environmentalData.setHumidity(confHumidity);
-            environmentalData.setTemperature(confTemperature);
-
-            StringTokenizer tk = new StringTokenizer(confFavorableOccurrences, ",");
-            double[] favOccurrences = new double[PropagationProcessPathData.DEFAULT_WIND_ROSE.length];
-            for (int i = 0; i < favOccurrences.length; i++) {
-                favOccurrences[i] = Math.max(0, Math.min(1, Double.parseDouble(tk.nextToken().trim())));
+            for(int idTime = 0; idTime < LDENConfig.TIME_PERIOD.values().length; idTime++) {
+                PropagationProcessPathData environmentalData = new PropagationProcessPathData(false);
+                double confHumidity = asDouble(row_zone.get(fieldHumidity[idTime]));
+                double confTemperature = asDouble(row_zone.get(fieldTemperature[idTime]));
+                String confFavorableOccurrences = (String) row_zone.get(fieldPFav[idTime]);
+                environmentalData.setHumidity(confHumidity);
+                environmentalData.setTemperature(confTemperature);
+                StringTokenizer tk = new StringTokenizer(confFavorableOccurrences, ",");
+                double[] favOccurrences = new double[PropagationProcessPathData.DEFAULT_WIND_ROSE.length];
+                for (int i = 0; i < favOccurrences.length; i++) {
+                    favOccurrences[i] = Math.max(0, Math.min(1, Double.parseDouble(tk.nextToken().trim())));
+                }
+                environmentalData.setWindRose(favOccurrences);
+                pointNoiseMap.setPropagationProcessPathData(LDENConfig.TIME_PERIOD.values()[idTime], environmentalData);
             }
-            environmentalData.setWindRose(favOccurrences);
-
-            pointNoiseMap.setPropagationProcessPathData(environmentalData);
 
             LDENConfig ldenConfig = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_LW_DEN);
 
@@ -295,7 +294,9 @@ public class NoiseModellingProfileReport {
             //Run computation
 
             LDENComputeRaysOut ldenPropagationProcessData = (LDENComputeRaysOut) ldenPointNoiseMapFactory.create(propagationData,
-                    pointNoiseMap.getPropagationProcessPathData());
+                    pointNoiseMap.getPropagationProcessPathDataDay(),
+                    pointNoiseMap.getPropagationProcessPathDataEvening(),
+                    pointNoiseMap.getPropagationProcessPathDataNight());
 
             ldenPropagationProcessData.keepRays = true;
             ldenPropagationProcessData.keepAbsorption = true;
