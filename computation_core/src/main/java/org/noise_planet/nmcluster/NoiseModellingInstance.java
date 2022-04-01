@@ -67,6 +67,10 @@ public class NoiseModellingInstance {
 
     // LDEN classes for A maps : 55-59, 60-64, 65-69, 70-74 et >75 dB
     final List<Double> isoLevelsLDEN = Arrays.asList(55.0d,60.0d,65.0d,70.0d,75.0d,200.0d);
+    // LDEN classes for A maps : >55 dB
+    final List<Double> isoLevelsLDEN55 = Arrays.asList(55.0d,200.0d);
+    // LDEN classes for A maps : >65 dB
+    final List<Double> isoLevelsLDEN65 = Arrays.asList(65.0d,200.0d);
     // LNIGHT classes for A maps : 50-54, 55-59, 60-64, 65-69 et >70 dB
     final List<Double>  isoLevelsLNIGHT = Arrays.asList(50.0d,55.0d,60.0d,65.0d,70.0d,200.0d);
 
@@ -361,7 +365,7 @@ public class NoiseModellingInstance {
 
         // For A maps
         // Update noise classes for LDEN
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN 'Lden5559' WHEN NOISELEVEL = '60-65' THEN 'Lden6064' WHEN NOISELEVEL = '65-70' THEN 'Lden6569' WHEN NOISELEVEL = '70-75' THEN 'Lden7074' WHEN NOISELEVEL = '> 75' THEN 'LdenGreaterThan75' END) WHERE CBSTYPE = 'A' AND PERIOD='LD';");
+        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN 'Lden5559' WHEN NOISELEVEL = '60-65' THEN 'Lden6064' WHEN NOISELEVEL = '65-70' THEN 'Lden6569' WHEN NOISELEVEL = '70-75' THEN 'Lden7074' WHEN NOISELEVEL = '> 55' THEN 'LdenGreaterThan55' WHEN NOISELEVEL = '> 65' THEN 'LdenGreaterThan65' WHEN NOISELEVEL = '> 75' THEN 'LdenGreaterThan75' END) WHERE CBSTYPE = 'A' AND PERIOD='LD';");
         // Update noise classes for LNIGHT
         sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '50-55' THEN 'Lnight5054' WHEN NOISELEVEL = '55-60' THEN 'Lnight5559' WHEN NOISELEVEL = '60-65' THEN 'Lnight6064' WHEN NOISELEVEL = '65-70' THEN 'Lnight6569' WHEN NOISELEVEL = '> 70' THEN 'LnightGreaterThan70' END) WHERE CBSTYPE = 'A' AND PERIOD='LN';");
 
@@ -434,6 +438,10 @@ public class NoiseModellingInstance {
         generateIsoSurfaces(lnightInput, isoLevelsLNIGHT, connection, uueid, "A", "LN", sourceType);
         // Produce isocontours for LDEN (LD)
         generateIsoSurfaces(ldenInput, isoLevelsLDEN, connection, uueid, "A", "LD", sourceType);
+        // Produce isocontours for LDEN (LD)
+        generateIsoSurfaces(ldenInput, isoLevelsLDEN55, connection, uueid, "A", "LD", sourceType);
+        // Produce isocontours for LDEN (LD)
+        generateIsoSurfaces(ldenInput, isoLevelsLDEN65, connection, uueid, "A", "LD", sourceType);
 
         // For C maps
         // Produce isocontours for LNIGHT (LN)
