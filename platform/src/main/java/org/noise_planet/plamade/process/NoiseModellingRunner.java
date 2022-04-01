@@ -704,17 +704,24 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         for(int i=0; i < numberOfJobs; i++) {
             jobElementList.add(new JobElement());
         }
-        try(ResultSet rs = nmConnection.createStatement().executeQuery("SELECT * FROM (SELECT UUEID , SUM(st_length(the_geom)) weight, 0 src_type  FROM ROADS r GROUP BY uueid UNION ALL SELECT UUEID , SUM(st_length(the_geom)) weight, 1 src_type  FROM LW_RAILWAY r GROUP BY uueid) SRC_UUEID ORDER BY WEIGHT DESC")) {
-            while(rs.next()) {
+        sql.execute("DROP TABLE IF EXISTS SRC_UUEIDS");
+        sql.execute("CREATE TABLE SRC_UUEIDS(UUEID varchar, weight double, src_type int)");
+        sql.execute("INSERT INTO SRC_UUEIDS SELECT UUEID , SUM(st_length(the_geom)) weight, 0 src_type  FROM ROADS r GROUP BY uueid");
+
+        if(JDBCUtilities.tableExists(nmConnection, "LW_RAILWAY")) {
+            sql.execute("INSERT INTO SRC_UUEIDS SELECT UUEID , SUM(st_length(the_geom)) weight, 1 src_type  FROM LW_RAILWAY r GROUP BY uueid");
+        }
+        try (ResultSet rs = nmConnection.createStatement().executeQuery("SELECT * FROM SRC_UUEIDS ORDER BY WEIGHT DESC")) {
+            while (rs.next()) {
                 String uueid = rs.getString("UUEID");
-                if(rs.getInt("src_type") == 0) {
+                if (rs.getInt("src_type") == 0) {
                     jobElementList.get(jobElementList.size() - 1).roadsUueid.add(uueid);
                     clusterConfiguration.roads_uueids.add(uueid);
                 } else {
                     jobElementList.get(jobElementList.size() - 1).railsUueid.add(uueid);
                     clusterConfiguration.rails_uueids.add(uueid);
                 }
-                jobElementList.get(jobElementList.size() - 1).totalSourceLineLength +=rs.getDouble("WEIGHT");
+                jobElementList.get(jobElementList.size() - 1).totalSourceLineLength += rs.getDouble("WEIGHT");
                 // Sort by source line length
                 Collections.sort(jobElementList);
             }
@@ -1134,7 +1141,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 // copy computation core
                 File computationCoreFolder = new File(new File("").getAbsoluteFile().getParentFile(), "computation_core");
                 logger.debug("Computation core folder: " + computationCoreFolder);
-                String libFolder = new File(computationCoreFolder, "build" + File.separator + "install" + File.separator + "lib").toString();
+                String libFolder = new File(computationCoreFolder, "build" + File.separator + "install"+ File.separator + "computation_core" + File.separator + "lib").toString();
                 pushToSSH(c, progressVisitor, libFolder, configuration.remoteJobFolder, true, new HashSet<>());
                 // copy data
                 pushToSSH(c, progressVisitor, configuration.workingDirectory, configuration.remoteJobFolder,

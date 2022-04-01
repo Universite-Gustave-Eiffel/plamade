@@ -2,9 +2,11 @@ package org.noise_planet.nmcluster;
 
 import groovy.sql.GroovyRowResult;
 import groovy.sql.Sql;
+import org.apache.commons.text.StringSubstitutor;
 import org.cts.crs.CRSException;
 import org.cts.op.CoordinateOperationException;
 import org.h2.util.OsgiDataSourceFactory;
+import org.h2.util.ScriptReader;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.functions.factory.H2GISFunctions;
@@ -32,14 +34,22 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import javax.xml.stream.XMLStreamException;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -246,6 +256,44 @@ public class NoiseModellingInstance {
             return ((Number)v).intValue();
         } else {
             return null;
+        }
+    }
+    static void parseScript(Connection connection, String sqlInstructions, ProgressVisitor progressVisitor, Logger logger) throws SQLException, IOException {
+        List<String> statementList = new LinkedList<>();
+        ByteArrayInputStream s = new ByteArrayInputStream(sqlInstructions.getBytes());
+        try(InputStreamReader reader  = new InputStreamReader(s)) {
+            ScriptReader scriptReader = new ScriptReader(reader);
+            scriptReader.setSkipRemarks(true);
+            String statement = scriptReader.readStatement();
+            while (statement != null && !statement.trim().isEmpty()) {
+                statementList.add(statement);
+                statement = scriptReader.readStatement();
+            }
+        }
+        int idStatement = 0;
+        final int nbStatements = statementList.size();
+        ProgressVisitor evalProgress = progressVisitor.subProcess(nbStatements);
+        Statement st = connection.createStatement();
+        for(String statement : statementList) {
+            logger.info(String.format(Locale.ROOT, "%d/%d %s", (idStatement++) + 1, nbStatements, statement.trim()));
+            st.execute(statement);
+            evalProgress.endStep();
+            if(evalProgress.isCanceled()) {
+                throw new SQLException("Canceled by user");
+            }
+        }
+    }
+
+    public void generateStats(ProgressVisitor progressVisitor) throws SQLException, IOException {
+        Map<String, String> valuesMap = new HashMap<>();
+        StringSubstitutor stringSubstitutor = new StringSubstitutor(valuesMap);
+
+        try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("output_indicators.sql")) {
+            if(s != null) {
+                String queries = new String(s.readAllBytes(), Charset.defaultCharset());
+                queries = stringSubstitutor.replace(queries);
+                parseScript(connection, queries, progressVisitor, logger);
+            }
         }
     }
 

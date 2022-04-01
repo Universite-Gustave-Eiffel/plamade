@@ -168,7 +168,7 @@ def exec(Connection connection, input) {
     }
 
     logger.info('Create line of receivers')
-    sql.execute("CREATE TABLE tmp_receivers_lines(pk integer not null PRIMARY KEY, the_geom geometry) AS SELECT " + buildingPk + " as pk, st_simplifypreservetopology(ST_ToMultiLine(ST_Buffer(the_geom, 2, 'join=bevel')), 0.05) the_geom FROM " + building_table_name + filter_geom_query)
+    sql.execute("CREATE TABLE tmp_receivers_lines(pk integer not null PRIMARY KEY, the_geom geometry) AS SELECT " + buildingPk + " as pk, st_simplifypreservetopology(ST_ToMultiLine(ST_Buffer(the_geom, 2, 'join=bevel')), 0.1) the_geom FROM " + building_table_name + filter_geom_query)
     sql.execute("CREATE SPATIAL INDEX ON tmp_receivers_lines(the_geom)")
 
     logger.info('List buildings that will remove receivers (if height is superior than receiver height)')
