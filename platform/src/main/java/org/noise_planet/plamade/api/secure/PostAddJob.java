@@ -61,8 +61,8 @@ public class PostAddJob implements Handler {
                 final Map<String, Object> model = Maps.newHashMap();
                 final String inseeDepartment = f.get("INSEE_DEPARTMENT");
                 final String confId = f.get("CONF_ID");
-                final Boolean computeOnCluster = Boolean.parseBoolean(f.getOrDefault(
-                        "CLUSTER_COMPUTE", "1"));
+                final boolean computeOnCluster = Boolean.parseBoolean(f.getOrDefault(
+                        "CLUSTER_COMPUTE", Boolean.FALSE.toString()));
                 if(inseeDepartment == null || inseeDepartment.equals("")) {
                     model.put("message", "Missing required field inseeDepartment");
                     ctx.render(Template.thymeleafTemplate(model, "add_job"));

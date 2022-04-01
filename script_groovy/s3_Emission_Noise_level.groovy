@@ -352,7 +352,11 @@ def exec(Connection connection, input) {
     // Get Class to compute LW
     LDENConfig ldenConfig2 = new LDENConfig(LDENConfig.INPUT_MODE.INPUT_MODE_TRAFFIC_FLOW)
     ldenConfig2.setCoefficientVersion(1)
-    ldenConfig2.setPropagationProcessPathData(new PropagationProcessPathData(false));
+    ldenConfig2.setComputeLDay(true)
+    ldenConfig2.setComputeLEvening(true)
+    ldenConfig2.setComputeLNight(true)
+    ldenConfig2.setPropagationProcessPathData(LDENConfig.TIME_PERIOD.TIME_PERIOD_DAY,
+            new PropagationProcessPathData(false));
 
     LDENPropagationProcessData ldenData = new LDENPropagationProcessData(null, ldenConfig2)
 
