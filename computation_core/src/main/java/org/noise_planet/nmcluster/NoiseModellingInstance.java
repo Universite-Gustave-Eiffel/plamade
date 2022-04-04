@@ -201,7 +201,7 @@ public class NoiseModellingInstance {
             conditionReceiver = " RCV_TYPE = 2 AND ";
             sql.execute("DROP TABLE IF EXISTS SOURCES_SPLITED;");
             if(sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL) {
-                sql.execute("CREATE TABLE SOURCES_SPLITED AS SELECT * from ST_EXPLODE('(SELECT ST_ToMultiSegments(THE_GEOM) FROM RAIL_SECTIONS WHERE UUEID = ''"+uueid+"'')');");
+                sql.execute("CREATE TABLE SOURCES_SPLITED AS SELECT * from ST_EXPLODE('(SELECT ST_ToMultiSegments(THE_GEOM) THE_GEOM FROM RAIL_SECTIONS WHERE UUEID = ''"+uueid+"'')');");
             } else {
                 sql.execute("CREATE TABLE SOURCES_SPLITED AS SELECT * from ST_EXPLODE('(SELECT ST_ToMultiSegments(THE_GEOM) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
             }

@@ -96,6 +96,7 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeMap;
 import java.util.Vector;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RunnableFuture;
@@ -1109,13 +1110,18 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
     }
 
-    private boolean isSlurmJobsFinished(Session session, ProgressVisitor slurmJobProgress) throws JSchException, IOException {
+    private boolean isSlurmJobsFinished(Session session, ProgressVisitor slurmJobProgress) throws JSchException, IOException, CancellationException {
         List<String> output = runCommand(session, String.format("sacct --format JobID%%18,Jobname%%30,State,Elapsed,TotalCPU -j %d", configuration.slurmJobId));
         List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, configuration.slurmJobId);
         int finishedStatusCount = 0;
         for(SlurmJobStatus s : jobStatusList) {
             if(finishedStates.contains(s.status)) {
                 finishedStatusCount++;
+            }
+            if(s.status.equalsIgnoreCase(JOB_STATES.FAILED.toString())) {
+                // If one of the process fail, cancel the computation and set the computation as failed
+                runCommand(session, String.format("scancel %d", configuration.slurmJobId));
+                throw new CancellationException("Slurm job has failed");
             }
         }
         // increase progress if needed
