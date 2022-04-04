@@ -198,7 +198,7 @@ public class NoiseModellingInstance {
             // Keep only receivers near selected UUEID
             String conditionReceiver = "";
             // keep only receiver from contouring noise map
-            conditionReceiver = " RCV_TYPE = 2 AND ";
+            // conditionReceiver = " RCV_TYPE = 2 AND ";
             sql.execute("DROP TABLE IF EXISTS SOURCES_SPLITED;");
             if(sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL) {
                 sql.execute("CREATE TABLE SOURCES_SPLITED AS SELECT * from ST_EXPLODE('(SELECT ST_ToMultiSegments(THE_GEOM) THE_GEOM FROM RAIL_SECTIONS WHERE UUEID = ''"+uueid+"'')');");
@@ -233,6 +233,7 @@ public class NoiseModellingInstance {
             if(nbSources > 0) {
                 doPropagation(uueidVisitor, uueid, sourceType);
                 isoSurface(uueid, sourceType);
+                generateStats(new EmptyProgressVisitor(), uueid, sourceType);
             }
         }
 
@@ -284,11 +285,12 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void generateStats(ProgressVisitor progressVisitor) throws SQLException, IOException {
+    public void generateStats(ProgressVisitor progressVisitor, String uueid, SOURCE_TYPE sourceType) throws SQLException, IOException {
         Map<String, String> valuesMap = new HashMap<>();
+        valuesMap.put("UUEID", uueid);
         StringSubstitutor stringSubstitutor = new StringSubstitutor(valuesMap);
 
-        try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("output_indicators.sql")) {
+        try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("output_indicators_roads.sql")) {
             if(s != null) {
                 String queries = new String(s.readAllBytes(), Charset.defaultCharset());
                 queries = stringSubstitutor.replace(queries);

@@ -25,6 +25,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.locationtech.jts.geom.Coordinate;
+import org.noise_planet.nmcluster.Main;
 import org.noise_planet.nmcluster.NoiseModellingInstance;
 import org.noise_planet.noisemodelling.jdbc.LDENConfig;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
@@ -274,9 +275,12 @@ public class TestCluster {
                     1, workingDir, 4, "05", 1,
                     null, new RootProgressVisitor(1), "");
             NoiseModellingRunner noiseModellingRunner = new NoiseModellingRunner(configuration, null);
-            NoiseModellingRunner.makeGrid(connection, 4);
-            noiseModellingRunner.makeEmission(connection);
-            NoiseModellingRunner.generateClusterConfig(connection, new EmptyProgressVisitor(), 16, workingDir);
+//            NoiseModellingRunner.makeGrid(connection, 4);
+//            noiseModellingRunner.makeEmission(connection);
+//            NoiseModellingRunner.generateClusterConfig(connection, new EmptyProgressVisitor(), 16, workingDir);
+            NoiseModellingInstance noiseModellingInstance = new NoiseModellingInstance(connection, workingDir);
+            Main.ClusterConfiguration clusterConfiguration = Main.loadClusterConfiguration(workingDir, 0);
+
         }
     }
 //
