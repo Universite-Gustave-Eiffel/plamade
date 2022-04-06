@@ -233,7 +233,7 @@ public class NoiseModellingInstance {
             if(nbSources > 0) {
                 doPropagation(uueidVisitor, uueid, sourceType);
                 isoSurface(uueid, sourceType);
-                generateStats(new EmptyProgressVisitor(), uueid, sourceType);
+                // generateStats(new EmptyProgressVisitor(), uueid, sourceType);
             }
         }
 
@@ -259,43 +259,55 @@ public class NoiseModellingInstance {
             return null;
         }
     }
-    static void parseScript(Connection connection, String sqlInstructions, ProgressVisitor progressVisitor, Logger logger) throws SQLException, IOException {
-        List<String> statementList = new LinkedList<>();
-        ByteArrayInputStream s = new ByteArrayInputStream(sqlInstructions.getBytes());
-        try(InputStreamReader reader  = new InputStreamReader(s)) {
-            ScriptReader scriptReader = new ScriptReader(reader);
-            scriptReader.setSkipRemarks(true);
-            String statement = scriptReader.readStatement();
-            while (statement != null && !statement.trim().isEmpty()) {
-                statementList.add(statement);
-                statement = scriptReader.readStatement();
+
+    /**
+     * Evalute SQL scripts passed in parameters, and replace {$keyName} into the script by the provided map entries
+     * @param script
+     * @param valuesMap
+     * @param progressVisitor
+     * @throws IOException
+     * @throws SQLException
+     */
+    public void executeScript(InputStream script, Map<String, String> valuesMap, ProgressVisitor progressVisitor) throws IOException, SQLException {
+        StringSubstitutor stringSubstitutor = new StringSubstitutor(valuesMap);
+        if(script != null) {
+            List<String> statementList = new LinkedList<>();
+            try(InputStreamReader reader  = new InputStreamReader(script)) {
+                ScriptReader scriptReader = new ScriptReader(reader);
+                scriptReader.setSkipRemarks(true);
+                String statement = scriptReader.readStatement();
+                while (statement != null && !statement.trim().isEmpty()) {
+                    statementList.add(stringSubstitutor.replace(statement));
+                    statement = scriptReader.readStatement();
+                }
             }
-        }
-        int idStatement = 0;
-        final int nbStatements = statementList.size();
-        ProgressVisitor evalProgress = progressVisitor.subProcess(nbStatements);
-        Statement st = connection.createStatement();
-        for(String statement : statementList) {
-            logger.info(String.format(Locale.ROOT, "%d/%d %s", (idStatement++) + 1, nbStatements, statement.trim()));
-            st.execute(statement);
-            evalProgress.endStep();
-            if(evalProgress.isCanceled()) {
-                throw new SQLException("Canceled by user");
+            int idStatement = 0;
+            final int nbStatements = statementList.size();
+            ProgressVisitor evalProgress = progressVisitor.subProcess(nbStatements);
+            Statement st = connection.createStatement();
+            for(String statement : statementList) {
+                logger.info(String.format(Locale.ROOT, "%d/%d %s", (idStatement++) + 1, nbStatements, statement.trim()));
+                st.execute(statement);
+                evalProgress.endStep();
+                if(evalProgress.isCanceled()) {
+                    throw new SQLException("Canceled by user");
+                }
             }
         }
     }
 
-    public void generateStats(ProgressVisitor progressVisitor, String uueid, SOURCE_TYPE sourceType) throws SQLException, IOException {
+    public void createExpositionTables(ProgressVisitor progressVisitor, String uueid) throws SQLException, IOException {
+        Map<String, String> valuesMap = new HashMap<>();
+        try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("create_indicators.sql")) {
+            executeScript(s, valuesMap, progressVisitor);
+        }
+    }
+
+    public void insertExpositionRoadsTable(ProgressVisitor progressVisitor, String uueid) throws SQLException, IOException {
         Map<String, String> valuesMap = new HashMap<>();
         valuesMap.put("UUEID", uueid);
-        StringSubstitutor stringSubstitutor = new StringSubstitutor(valuesMap);
-
         try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("output_indicators_roads.sql")) {
-            if(s != null) {
-                String queries = new String(s.readAllBytes(), Charset.defaultCharset());
-                queries = stringSubstitutor.replace(queries);
-                parseScript(connection, queries, progressVisitor, logger);
-            }
+            executeScript(s, valuesMap, progressVisitor);
         }
     }
 
