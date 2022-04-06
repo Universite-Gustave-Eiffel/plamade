@@ -215,12 +215,14 @@ public class NoiseModellingInstance {
                                                              String workingDir, int nodeId) throws SQLException, IOException {
         Sql sql = new Sql(connection);
         // Fetch configuration ID
-        int confId = (Integer)sql.firstRow("SELECT grid_conf from metadata").get("GRID_CONF");
+        Map groovyRowResult = sql.firstRow("SELECT * from metadata");
+        int confId = (Integer)groovyRowResult.get("GRID_CONF");
+        String nuts = (String)groovyRowResult.get("NUTS");
         NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
         nm.setConfigurationId(confId);
         nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
 
-        nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roads_uueids, clusterConfiguration.rails_uueids);
+        nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roads_uueids, clusterConfiguration.rails_uueids, nuts);
 
         ProgressVisitor uueidVisitor = progressVisitor.subProcess(2);
         nm.uueidsLoop(uueidVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
@@ -374,15 +376,15 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID) throws SQLException, IOException {
+    public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID, String nuts) throws SQLException, IOException {
         // push uueids
         String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75"};
 
-        String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden6569", "Lden7074",
+        String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75", "LdenGreaterThan68", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
                 "LnightGreaterThan70", "LnightGreaterThan62"};
 
-        String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden6569", "Lden7074",
+        String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75","LdenGreaterThan73", "LdenGreaterThan68", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
                 "LnightGreaterThan70", "LnightGreaterThan62", "LnightGreaterThan65"};
 
@@ -428,6 +430,7 @@ public class NoiseModellingInstance {
         }
 
         Map<String, String> valuesMap = new HashMap<>();
+        valuesMap.put("ESTATUnitCode", nuts);
         try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("create_indicators.sql")) {
             executeScript(s, valuesMap, progressVisitor);
         }
