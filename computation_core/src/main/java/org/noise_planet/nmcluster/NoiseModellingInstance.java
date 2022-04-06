@@ -378,15 +378,15 @@ public class NoiseModellingInstance {
 
     public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID, String nuts) throws SQLException, IOException {
         // push uueids
-        String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75"};
+        String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75", "LdenGreaterThan68", "LnightGreaterThan62"};
 
         String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
-                "LdenGreaterThan75", "LdenGreaterThan68", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
-                "LnightGreaterThan70", "LnightGreaterThan62"};
+                "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan70"};
 
         String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
-                "LdenGreaterThan75","LdenGreaterThan73", "LdenGreaterThan68", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
-                "LnightGreaterThan70", "LnightGreaterThan62", "LnightGreaterThan65"};
+                "LdenGreaterThan75","LdenGreaterThan73", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan70", "LnightGreaterThan65"};
 
         Statement st = connection.createStatement();
         st.execute("DROP TABLE IF EXISTS UUEIDS_LEVELS");
