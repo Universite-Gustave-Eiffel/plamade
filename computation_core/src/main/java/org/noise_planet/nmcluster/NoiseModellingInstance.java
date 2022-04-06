@@ -63,6 +63,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Processing of noise maps
@@ -72,6 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class NoiseModellingInstance {
     public enum SOURCE_TYPE { SOURCE_TYPE_RAIL, SOURCE_TYPE_ROAD}
+    public static final String[] EXPOSITION_TABLES = new String[] {"BUILDINGS_MAX", "BUILDINGS_MAX_ERPS"};
     Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Connection connection;
     String workingDirectory;
@@ -217,10 +220,11 @@ public class NoiseModellingInstance {
         nm.setConfigurationId(confId);
         nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
 
-        nm.createExpositionTables(new EmptyProgressVisitor());
+        nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roads_uueids, clusterConfiguration.rails_uueids);
 
-        nm.uueidsLoop(progressVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
-        nm.uueidsLoop(progressVisitor, clusterConfiguration.rails_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+        ProgressVisitor uueidVisitor = progressVisitor.subProcess(2);
+        nm.uueidsLoop(uueidVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
+        nm.uueidsLoop(uueidVisitor, clusterConfiguration.rails_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
 
         // export metadata
         PreparedStatement ps = connection.prepareStatement("CALL CSVWRITE(?, ?)");
@@ -228,6 +232,13 @@ public class NoiseModellingInstance {
                 nm.outputPrefix + "METADATA.csv").getAbsolutePath() );
         ps.setString(2, "SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA");
         ps.execute();
+
+        // Export exposition tables
+        for(String tableName : EXPOSITION_TABLES) {
+            ps.setString(1, new File(nm.outputFolder, nm.outputPrefix + tableName + ".csv").getAbsolutePath());
+            ps.setString(2, "SELECT * FROM " + tableName);
+            ps.execute();
+        }
         return nm;
     }
 
@@ -307,7 +318,7 @@ public class NoiseModellingInstance {
         logger.info("Write output tables");
         for(String tableName : outputTable) {
             // Export result tables as GeoJSON
-            sql.execute("CALL GEOJSONWRITE('" + new File(outputFolder,  outputPrefix + tableName + ".geojson").getAbsolutePath()+"', '" + tableName + "');");
+            sql.execute("CALL GEOJSONWRITE('" + new File(outputFolder,  outputPrefix + tableName + ".geojson").getAbsolutePath()+"', '" + tableName + "', TRUE);");
         }
     }
 
@@ -363,7 +374,59 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void createExpositionTables(ProgressVisitor progressVisitor) throws SQLException, IOException {
+    public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID) throws SQLException, IOException {
+        // push uueids
+        String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75"};
+
+        String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden6569", "Lden7074",
+                "LdenGreaterThan75", "LdenGreaterThan68", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan70", "LnightGreaterThan62"};
+
+        String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden6569", "Lden7074",
+                "LdenGreaterThan75","LdenGreaterThan73", "LdenGreaterThan68", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan70", "LnightGreaterThan62", "LnightGreaterThan65"};
+
+        Statement st = connection.createStatement();
+        st.execute("DROP TABLE IF EXISTS UUEIDS_LEVELS");
+        st.execute("CREATE TABLE UUEIDS_LEVELS(UUEID VARCHAR, NOISELEVEL VARCHAR, exposureType VARCHAR)");
+        PreparedStatement ps = connection.prepareStatement("INSERT INTO UUEIDS_LEVELS VALUES (?, ?, ?)");
+        String exposureType = "mostExposedFacade";
+        for(String roadUUEID : roadsUUEID) {
+            for(String level : levelsRoads) {
+                ps.setString(1, roadUUEID);
+                ps.setString(2, level);
+                ps.setString(3, exposureType);
+                ps.execute();
+            }
+        }
+        for(String railUUEID : railsUUEID) {
+            for(String level : levelsRails) {
+                ps.setString(1, railUUEID);
+                ps.setString(2, level);
+                ps.setString(3, exposureType);
+                ps.execute();
+            }
+        }
+        exposureType = "mostExposedFacadeIncludingAgglomeration";
+        for(String roadUUEID : roadsUUEID) {
+            for(String level : Stream.concat(Arrays.stream(levelsRoads),
+                    Arrays.stream(additionalForAgglo)).collect(Collectors.toList())) {
+                ps.setString(1, roadUUEID);
+                ps.setString(2, level);
+                ps.setString(3, exposureType);
+                ps.execute();
+            }
+        }
+        for(String railUUEID : railsUUEID) {
+            for(String level : Stream.concat(Arrays.stream(levelsRails),
+                    Arrays.stream(additionalForAgglo)).collect(Collectors.toList())) {
+                ps.setString(1, railUUEID);
+                ps.setString(2, level);
+                ps.setString(3, exposureType);
+                ps.execute();
+            }
+        }
+
         Map<String, String> valuesMap = new HashMap<>();
         try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("create_indicators.sql")) {
             executeScript(s, valuesMap, progressVisitor);
