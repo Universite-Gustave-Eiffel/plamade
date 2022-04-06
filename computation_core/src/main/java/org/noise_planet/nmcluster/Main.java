@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import groovy.sql.Sql;
 import org.apache.log4j.PropertyConfigurator;
+import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
@@ -43,6 +44,8 @@ import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.noise_planet.nmcluster.NoiseModellingInstance.loadClusterConfiguration;
 
 
 public class Main {
@@ -105,39 +108,6 @@ public class Main {
         }
     }
 
-    public static class ClusterConfiguration {
-        public List<String> roads_uueids = new ArrayList<>();
-        public List<String> rails_uueids = new ArrayList<>();
-    }
-
-    public static ClusterConfiguration loadClusterConfiguration(String workingDirectory, int nodeId) throws IOException {
-        // Load Json cluster configuration file
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode node = mapper.readTree(new File(workingDirectory, "cluster_config.json"));
-        JsonNode v;
-        ClusterConfiguration configuration = new ClusterConfiguration();
-        if (node instanceof ArrayNode) {
-            ArrayNode aNode = (ArrayNode) node;
-            for (JsonNode cellNode : aNode) {
-                JsonNode nodeIdProp = cellNode.get("nodeId");
-                if(nodeIdProp != null && nodeIdProp.canConvertToInt() && nodeIdProp.intValue() == nodeId) {
-                    if(cellNode.get("roads_uueids") instanceof ArrayNode) {
-                        for (JsonNode uueidNode : cellNode.get("roads_uueids")) {
-                            configuration.roads_uueids.add(uueidNode.asText());
-                        }
-                    }
-                    if(cellNode.get("rails_uueids") instanceof ArrayNode) {
-                        for (JsonNode uueidNode : cellNode.get("rails_uueids")) {
-                            configuration.rails_uueids.add(uueidNode.asText());
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-        return configuration;
-    }
-
     public static void main(String... args) throws Exception {
         PropertyConfigurator.configure(Main.class.getResource("log4j.properties"));
 
@@ -170,32 +140,19 @@ public class Main {
                 }
                 throw new IllegalArgumentException("Missing node identifier. -n[nodeId]");
             }
-            ClusterConfiguration clusterConfiguration = loadClusterConfiguration(workingDir, nodeId);
+            NoiseModellingInstance.ClusterConfiguration clusterConfiguration = loadClusterConfiguration(workingDir, nodeId);
             logger.info(String.format(Locale.ROOT, "For job %d, will compute the following UUEID (%s)",
                     nodeId, Stream.concat(clusterConfiguration.roads_uueids.stream(),
                             clusterConfiguration.rails_uueids.stream()).collect(Collectors.joining(","))));
             // Open database
             DataSource ds = NoiseModellingInstance.createDataSource("", "", new File(workingDir).getAbsolutePath(), "h2gisdb", false);
 
-            try (Connection connection = new ConnectionWrapper(ds.getConnection())) {
-                //RoadNoiselevel(connection, new RootProgressVisitor(1, true, 1.0), cellIndexList);
-                // Fetch configuration ID
-                Sql sql = new Sql(connection);
-                int confId = (Integer)sql.firstRow("SELECT grid_conf from metadata").get("GRID_CONF");
-                NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
-                nm.setConfigurationId(confId);
-                nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
-                RootProgressVisitor progressVisitor = new RootProgressVisitor(2, true,
-                        SECONDS_BETWEEN_PROGRESSION_PRINT);
-                nm.uueidsLoop(progressVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
-                nm.uueidsLoop(progressVisitor, clusterConfiguration.rails_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+            RootProgressVisitor progressVisitor = new RootProgressVisitor(2, true,
+                    SECONDS_BETWEEN_PROGRESSION_PRINT);
 
-                // export metadata
-                PreparedStatement ps = connection.prepareStatement("CALL CSVWRITE(?, ?)");
-                ps.setString(1,new File(nm.outputFolder,
-                        nm.outputPrefix + "METADATA.csv").getAbsolutePath() );
-                ps.setString(2, "SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA");
-                ps.execute();
+            try (Connection connection = new ConnectionWrapper(ds.getConnection())) {
+                NoiseModellingInstance.startNoiseModelling(connection, progressVisitor, clusterConfiguration,
+                        workingDir, nodeId);
             } catch (SQLException ex) {
                 while (ex != null) {
                     logger.error(ex.getLocalizedMessage(), ex);

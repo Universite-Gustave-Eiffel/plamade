@@ -1,5 +1,8 @@
 package org.noise_planet.nmcluster;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import groovy.sql.GroovyRowResult;
 import groovy.sql.Sql;
 import org.apache.commons.text.StringSubstitutor;
@@ -22,6 +25,7 @@ import org.noise_planet.noisemodelling.jdbc.LDENPointNoiseMapFactory;
 import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
+import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric;
 import org.noise_planet.noisemodelling.pathfinder.utils.KMLDocument;
 import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread;
@@ -43,6 +47,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -168,6 +173,64 @@ public class NoiseModellingInstance {
         }
     }
 
+
+    public static class ClusterConfiguration {
+        public List<String> roads_uueids = new ArrayList<>();
+        public List<String> rails_uueids = new ArrayList<>();
+    }
+
+    public static ClusterConfiguration loadClusterConfiguration(String workingDirectory, int nodeId) throws IOException {
+        // Load Json cluster configuration file
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(new File(workingDirectory, "cluster_config.json"));
+        JsonNode v;
+        ClusterConfiguration configuration = new ClusterConfiguration();
+        if (node instanceof ArrayNode) {
+            ArrayNode aNode = (ArrayNode) node;
+            for (JsonNode cellNode : aNode) {
+                JsonNode nodeIdProp = cellNode.get("nodeId");
+                if(nodeIdProp != null && nodeIdProp.canConvertToInt() && nodeIdProp.intValue() == nodeId) {
+                    if(cellNode.get("roads_uueids") instanceof ArrayNode) {
+                        for (JsonNode uueidNode : cellNode.get("roads_uueids")) {
+                            configuration.roads_uueids.add(uueidNode.asText());
+                        }
+                    }
+                    if(cellNode.get("rails_uueids") instanceof ArrayNode) {
+                        for (JsonNode uueidNode : cellNode.get("rails_uueids")) {
+                            configuration.rails_uueids.add(uueidNode.asText());
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        return configuration;
+    }
+
+    public static NoiseModellingInstance startNoiseModelling(Connection connection, ProgressVisitor progressVisitor,
+                                                             ClusterConfiguration clusterConfiguration,
+                                                             String workingDir, int nodeId) throws SQLException, IOException {
+        Sql sql = new Sql(connection);
+        // Fetch configuration ID
+        int confId = (Integer)sql.firstRow("SELECT grid_conf from metadata").get("GRID_CONF");
+        NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
+        nm.setConfigurationId(confId);
+        nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
+
+        nm.createExpositionTables(new EmptyProgressVisitor());
+
+        nm.uueidsLoop(progressVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
+        nm.uueidsLoop(progressVisitor, clusterConfiguration.rails_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+
+        // export metadata
+        PreparedStatement ps = connection.prepareStatement("CALL CSVWRITE(?, ?)");
+        ps.setString(1,new File(nm.outputFolder,
+                nm.outputPrefix + "METADATA.csv").getAbsolutePath() );
+        ps.setString(2, "SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA");
+        ps.execute();
+        return nm;
+    }
+
     /**
      *
      * @param progressLogger Progression instance
@@ -233,7 +296,11 @@ public class NoiseModellingInstance {
             if(nbSources > 0) {
                 doPropagation(uueidVisitor, uueid, sourceType);
                 isoSurface(uueid, sourceType);
-                // generateStats(new EmptyProgressVisitor(), uueid, sourceType);
+                if(sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL) {
+                    insertExpositionRailwayTable(progressLogger, uueid);
+                } else {
+                    insertExpositionRoadsTable(progressLogger, uueid);
+                }
             }
         }
 
@@ -296,7 +363,7 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void createExpositionTables(ProgressVisitor progressVisitor, String uueid) throws SQLException, IOException {
+    public void createExpositionTables(ProgressVisitor progressVisitor) throws SQLException, IOException {
         Map<String, String> valuesMap = new HashMap<>();
         try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("create_indicators.sql")) {
             executeScript(s, valuesMap, progressVisitor);
@@ -311,6 +378,14 @@ public class NoiseModellingInstance {
         }
     }
 
+
+    public void insertExpositionRailwayTable(ProgressVisitor progressVisitor, String uueid) throws SQLException, IOException {
+        Map<String, String> valuesMap = new HashMap<>();
+        valuesMap.put("UUEID", uueid);
+        try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("output_indicators_rails.sql")) {
+            executeScript(s, valuesMap, progressVisitor);
+        }
+    }
     /**
      *
      * @param sourceType Road = 0 Rail=1

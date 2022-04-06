@@ -692,8 +692,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
      * @throws SQLException
      * @throws IOException
      */
-    public static Main.ClusterConfiguration generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
-        Main.ClusterConfiguration clusterConfiguration = new Main.ClusterConfiguration();
+    public static NoiseModellingInstance.ClusterConfiguration generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
+        NoiseModellingInstance.ClusterConfiguration clusterConfiguration = new NoiseModellingInstance.ClusterConfiguration();
         // Sum UUEID roads length
         // because the length of the roads should be proportional with the work load
         // Can't have more jobs than UUEID
@@ -750,7 +750,6 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         mapper.writerWithDefaultPrettyPrinter().writeValue(new File(workingDirectory, "cluster_config.json"), rootDoc);
         return clusterConfiguration;
     }
-
 
     public Object LoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
@@ -1302,18 +1301,11 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
     }
 
-    public void startNoiseModelling(ProgressVisitor progressVisitor, Main.ClusterConfiguration clusterConfiguration) throws SQLException, IOException {
+    public void startNoiseModelling(ProgressVisitor progressVisitor, NoiseModellingInstance.ClusterConfiguration clusterConfiguration) throws SQLException, IOException {
         Main.printBuildIdentifiers(logger);
-        ProgressVisitor subProgress = progressVisitor.subProcess(2);
+        String workingDir = new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath();
         try (Connection nmConnection = new ConnectionWrapper(nmDataSource.getConnection())) {
-            NoiseModellingInstance noiseModellingInstance = new NoiseModellingInstance(nmConnection, configuration.workingDirectory);
-            noiseModellingInstance.setConfigurationId(configuration.configurationId);
-            noiseModellingInstance.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", 0));
-            noiseModellingInstance.setOutputFolder(new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath());
-            noiseModellingInstance.uueidsLoop(subProgress, clusterConfiguration.roads_uueids,
-                    NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
-            noiseModellingInstance.uueidsLoop(subProgress, clusterConfiguration.rails_uueids,
-                    NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+            NoiseModellingInstance.startNoiseModelling(nmConnection, progressVisitor, clusterConfiguration, workingDir, 0);
         }
     }
 
@@ -1361,7 +1353,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                     return;
                 }
             }
-            Main.ClusterConfiguration clusterConfiguration;
+            NoiseModellingInstance.ClusterConfiguration clusterConfiguration;
             try (Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
                 exportTables(nmConnection,
