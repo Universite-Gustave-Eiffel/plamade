@@ -17,7 +17,7 @@ ALTER TABLE receiver_expo ADD COLUMN AGGLO BOOLEAN USING (SELECT AGGLO FROM BUIL
 CREATE INDEX receiver_expo_noiselevel on receiver_expo(noiselevel);
 -- update exposure table
 UPDATE POPULATION_EXPOSURE SET
-POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.NOISELEVEL = POPULATION_EXPOSURE.NOISELEVEL AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE);
+POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.NOISELEVEL = POPULATION_EXPOSURE.NOISELEVEL AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID;
 
 -----------------------------------------------------------------------------
 -- Population Receiver Exposition for LN values
@@ -35,7 +35,7 @@ ALTER TABLE receiver_expo ADD COLUMN AGGLO BOOLEAN USING (SELECT AGGLO FROM BUIL
 CREATE INDEX receiver_expo_noiselevel on receiver_expo(noiselevel);
 -- update exposure table
 UPDATE POPULATION_EXPOSURE SET
-POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.NOISELEVEL = POPULATION_EXPOSURE.NOISELEVEL AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE);
+POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.NOISELEVEL = POPULATION_EXPOSURE.NOISELEVEL AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID;
 
 ----------------------------------------------------------------
 -- Autocomplete missing values
