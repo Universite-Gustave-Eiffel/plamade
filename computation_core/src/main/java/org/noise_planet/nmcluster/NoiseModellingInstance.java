@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -383,6 +384,17 @@ public class NoiseModellingInstance {
         String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
                 "LnightGreaterThan70"};
+        Map<String, Double> levelRoadsInterval = new TreeMap<>();
+        levelRoadsInterval.put("Lden5559", 57.5);
+        levelRoadsInterval.put("Lden6064", 62.5);
+        levelRoadsInterval.put("Lden6569", 67.5);
+        levelRoadsInterval.put("Lden7074", 72.5);
+        levelRoadsInterval.put("LdenGreaterThan75", 77.5);
+        levelRoadsInterval.put("Lnight5054", 52.5);
+        levelRoadsInterval.put("Lnight5559", 57.5);
+        levelRoadsInterval.put("Lnight6064", 62.5);
+        levelRoadsInterval.put("Lnight6569", 67.5);
+        levelRoadsInterval.put("LnightGreaterThan70", 72.5);
 
         String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75","LdenGreaterThan73", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
@@ -390,14 +402,15 @@ public class NoiseModellingInstance {
 
         Statement st = connection.createStatement();
         st.execute("DROP TABLE IF EXISTS UUEIDS_LEVELS");
-        st.execute("CREATE TABLE UUEIDS_LEVELS(UUEID VARCHAR, NOISELEVEL VARCHAR, exposureType VARCHAR)");
-        PreparedStatement ps = connection.prepareStatement("INSERT INTO UUEIDS_LEVELS VALUES (?, ?, ?)");
+        st.execute("CREATE TABLE UUEIDS_LEVELS(UUEID VARCHAR, NOISELEVEL VARCHAR, exposureType VARCHAR, INTERVAL_LAEQ DOUBLE)");
+        PreparedStatement ps = connection.prepareStatement("INSERT INTO UUEIDS_LEVELS VALUES (?, ?, ?, ?)");
         String exposureType = "mostExposedFacade";
         for(String roadUUEID : roadsUUEID) {
             for(String level : levelsRoads) {
                 ps.setString(1, roadUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
+                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
                 ps.execute();
             }
         }
@@ -406,6 +419,7 @@ public class NoiseModellingInstance {
                 ps.setString(1, railUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
+                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
                 ps.execute();
             }
         }
@@ -416,6 +430,7 @@ public class NoiseModellingInstance {
                 ps.setString(1, roadUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
+                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
                 ps.execute();
             }
         }
@@ -425,6 +440,7 @@ public class NoiseModellingInstance {
                 ps.setString(1, railUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
+                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
                 ps.execute();
             }
         }
