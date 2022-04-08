@@ -519,9 +519,9 @@ def exec(Connection connection, input) {
         "IDTRONCON" as idsection,
         "VMAX" as trainspd,
         "ENGMOTEUR" as traintype,
-        "TDIURNE" as tday,
-        "TSOIR" as tevening,
-        "TNUIT" as tnight 
+        "TDIURNE" as tday/12,
+        "TSOIR" as tevening/4,
+        "TNUIT" as tnight/8 
     FROM 
         echeance4."N_FERROVIAIRE_TRAFIC")');
 
