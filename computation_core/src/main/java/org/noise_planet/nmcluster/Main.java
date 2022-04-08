@@ -147,7 +147,7 @@ public class Main {
             // Open database
             DataSource ds = NoiseModellingInstance.createDataSource("", "", new File(workingDir).getAbsolutePath(), "h2gisdb", false);
 
-            RootProgressVisitor progressVisitor = new RootProgressVisitor(2, true,
+            RootProgressVisitor progressVisitor = new RootProgressVisitor(1, true,
                     SECONDS_BETWEEN_PROGRESSION_PRINT);
 
             try (Connection connection = new ConnectionWrapper(ds.getConnection())) {

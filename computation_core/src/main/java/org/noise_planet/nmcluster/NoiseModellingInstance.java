@@ -75,7 +75,7 @@ import java.util.stream.Stream;
  */
 public class NoiseModellingInstance {
     public enum SOURCE_TYPE { SOURCE_TYPE_RAIL, SOURCE_TYPE_ROAD}
-    public static final String[] EXPOSITION_TABLES = new String[] {"BUILDINGS_MAX", "BUILDINGS_MAX_ERPS"};
+    public static final String[] EXPOSITION_TABLES = new String[] {"POPULATION_EXPOSURE"};
     Logger logger = LoggerFactory.getLogger(NoiseModellingInstance.class);
     Connection connection;
     String workingDirectory;
@@ -310,9 +310,9 @@ public class NoiseModellingInstance {
                 doPropagation(uueidVisitor, uueid, sourceType);
                 isoSurface(uueid, sourceType);
                 if(sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL) {
-                    insertExpositionRailwayTable(progressLogger, uueid);
+                    insertExpositionRailwayTable(new EmptyProgressVisitor(), uueid);
                 } else {
-                    insertExpositionRoadsTable(progressLogger, uueid);
+                    insertExpositionRoadsTable(new EmptyProgressVisitor(), uueid);
                 }
             }
         }
