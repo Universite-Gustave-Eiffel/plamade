@@ -218,12 +218,11 @@ public class NoiseModellingInstance {
         // Fetch configuration ID
         Map groovyRowResult = sql.firstRow("SELECT * from metadata");
         int confId = (Integer)groovyRowResult.get("GRID_CONF");
-        String nuts = (String)groovyRowResult.get("NUTS");
         NoiseModellingInstance nm = new NoiseModellingInstance(connection, workingDir);
         nm.setConfigurationId(confId);
         nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
 
-        nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roads_uueids, clusterConfiguration.rails_uueids, nuts);
+        nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roads_uueids, clusterConfiguration.rails_uueids);
 
         ProgressVisitor uueidVisitor = progressVisitor.subProcess(2);
         nm.uueidsLoop(uueidVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
@@ -377,7 +376,7 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID, String nuts) throws SQLException, IOException {
+    public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID) throws SQLException, IOException {
         // push uueids
         String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75", "LdenGreaterThan68", "LnightGreaterThan62"};
 
@@ -446,7 +445,6 @@ public class NoiseModellingInstance {
         }
 
         Map<String, String> valuesMap = new HashMap<>();
-        valuesMap.put("ESTATUnitCode", nuts);
         try(InputStream s = NoiseModellingInstance.class.getResourceAsStream("create_indicators.sql")) {
             executeScript(s, valuesMap, progressVisitor);
         }
@@ -607,7 +605,7 @@ public class NoiseModellingInstance {
 
         // Insert iso areas into common table, according to rail or road input parameter
         if(cbsType.equalsIgnoreCase("A")) {
-            sql.execute("UPDATE POPULATION_EXPOSURE SET EXPOSEDAREA = COALESCE((SELECT SUM(ST_AREA(THE_GEOM)) / 1e6 TOTAREA_SQKM FROM ISO_AREA I WHERE I.noiselevel = POPULATION_EXPOSURE.noiselevel), EXPOSEDAREA)  WHERE UUEID = '" + uueid + "'");
+            sql.execute("UPDATE POPULATION_EXPOSURE SET EXPOSEDAREA = COALESCE((SELECT ROUND(SUM(ST_AREA(THE_GEOM)) / 1e6, 1) TOTAREA_SQKM FROM ISO_AREA I WHERE I.noiselevel = POPULATION_EXPOSURE.noiselevel), EXPOSEDAREA)  WHERE UUEID = '" + uueid + "'");
         }
         if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
             if(cbsType.equalsIgnoreCase("A")) {
@@ -619,7 +617,7 @@ public class NoiseModellingInstance {
             } else {
                 if(period.equalsIgnoreCase("LD")) {
                     sql.execute("INSERT INTO " + cbsCFerLGVLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE NOISELEVEL = 'LdenGreaterThan68'");
-                    sql.execute("INSERT INTO " + cbsCFerCONVLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE AND NOISELEVEL = 'LdenGreaterThan73'");
+                    sql.execute("INSERT INTO " + cbsCFerCONVLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE NOISELEVEL = 'LdenGreaterThan73'");
                 } else {
                     sql.execute("INSERT INTO " + cbsCFerLGVLnight + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE NOISELEVEL = 'LnightGreaterThan62'");
                     sql.execute("INSERT INTO " + cbsCFerCONVLnight + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE NOISELEVEL = 'LnightGreaterThan65'");
