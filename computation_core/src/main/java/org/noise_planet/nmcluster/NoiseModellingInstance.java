@@ -579,17 +579,24 @@ public class NoiseModellingInstance {
         sql.execute("CREATE TABLE ISO_AREA (the_geom geometry, pk varchar, UUEID varchar, CBSTYPE varchar, PERIOD varchar, noiselevel varchar, AREA float) AS SELECT ST_ACCUM(the_geom) the_geom, null, '"+uueid+"', '"+cbsType+"', '"+period+"', ISOLABEL, SUM(ST_AREA(the_geom)) AREA FROM CONTOURING_NOISE_MAP GROUP BY ISOLABEL");
 
         // For A maps
-        // Update noise classes for LDEN
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN 'Lden5559' WHEN NOISELEVEL = '60-65' THEN 'Lden6064' WHEN NOISELEVEL = '65-70' THEN 'Lden6569' WHEN NOISELEVEL = '70-75' THEN 'Lden7074' WHEN NOISELEVEL = '> 75' THEN 'LdenGreaterThan75' END) WHERE CBSTYPE = 'A' AND PERIOD='LD';");
-        // Update noise classes for LNIGHT
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '50-55' THEN 'Lnight5054' WHEN NOISELEVEL = '55-60' THEN 'Lnight5559' WHEN NOISELEVEL = '60-65' THEN 'Lnight6064' WHEN NOISELEVEL = '65-70' THEN 'Lnight6569' WHEN NOISELEVEL = '> 70' THEN 'LnightGreaterThan70' END) WHERE CBSTYPE = 'A' AND PERIOD='LN';");
-
-        // For C maps
-        // Update noise classes for LDEN
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 68' THEN 'LdenGreaterThan68' WHEN NOISELEVEL = '> 73' THEN 'LdenGreaterThan73' END) WHERE CBSTYPE = 'C' AND PERIOD='LD';");
-        // Update noise classes for LNIGHT
-        sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 62' THEN 'LnightGreaterThan62' WHEN NOISELEVEL = '> 65' THEN 'LnightGreaterThan65' END) WHERE CBSTYPE = 'C' AND PERIOD='LN';");
-
+        if(cbsType.equalsIgnoreCase("A")) {
+            if(period.equalsIgnoreCase("LD")) {
+                // Update noise classes for LDEN
+                sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '55-60' THEN 'Lden5559' WHEN NOISELEVEL = '60-65' THEN 'Lden6064' WHEN NOISELEVEL = '65-70' THEN 'Lden6569' WHEN NOISELEVEL = '70-75' THEN 'Lden7074' WHEN NOISELEVEL = '> 75' THEN 'LdenGreaterThan75' END);");
+            } else {
+                // Update noise classes for LNIGHT
+                sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '50-55' THEN 'Lnight5054' WHEN NOISELEVEL = '55-60' THEN 'Lnight5559' WHEN NOISELEVEL = '60-65' THEN 'Lnight6064' WHEN NOISELEVEL = '65-70' THEN 'Lnight6569' WHEN NOISELEVEL = '> 70' THEN 'LnightGreaterThan70' END);");
+            }
+        } else {
+            // For C maps
+            // Update noise classes for LDEN
+            if(period.equalsIgnoreCase("LD")) {
+                sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 68' THEN 'LdenGreaterThan68' WHEN NOISELEVEL = '> 73' THEN 'LdenGreaterThan73' END);");
+            } else {
+                // Update noise classes for LNIGHT
+                sql.execute("UPDATE ISO_AREA SET NOISELEVEL = (CASE WHEN NOISELEVEL = '> 62' THEN 'LnightGreaterThan62' WHEN NOISELEVEL = '> 65' THEN 'LnightGreaterThan65' END);");
+            }
+        }
 
         sql.execute("DELETE FROM ISO_AREA WHERE NOISELEVEL IS NULL");
 
@@ -599,21 +606,42 @@ public class NoiseModellingInstance {
         sql.execute("UPDATE ISO_AREA SET THE_GEOM = ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))");
 
         // Insert iso areas into common table, according to rail or road input parameter
+        if(cbsType.equalsIgnoreCase("A")) {
+            sql.execute("UPDATE POPULATION_EXPOSURE SET EXPOSEDAREA = COALESCE((SELECT SUM(ST_AREA(THE_GEOM)) / 1e6 TOTAREA_SQKM FROM ISO_AREA I WHERE I.noiselevel = POPULATION_EXPOSURE.noiselevel), EXPOSEDAREA)  WHERE UUEID = '" + uueid + "'");
+        }
         if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
-            sql.execute("INSERT INTO "+cbsAFerLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LD'");
-            sql.execute("INSERT INTO "+cbsAFerLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LN'");
-            sql.execute("INSERT INTO "+cbsCFerLGVLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD' AND NOISELEVEL = 'LdenGreaterThan68'");
-            sql.execute("INSERT INTO "+cbsCFerLGVLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN' AND NOISELEVEL = 'LnightGreaterThan62'");
-            sql.execute("INSERT INTO "+cbsCFerCONVLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD' AND NOISELEVEL = 'LdenGreaterThan73'");
-            sql.execute("INSERT INTO "+cbsCFerCONVLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN' AND NOISELEVEL = 'LnightGreaterThan65'");
+            if(cbsType.equalsIgnoreCase("A")) {
+                if(period.equalsIgnoreCase("LD")) {
+                    sql.execute("INSERT INTO " + cbsAFerLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA");
+                } else {
+                    sql.execute("INSERT INTO " + cbsAFerLnight + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA");
+                }
+            } else {
+                if(period.equalsIgnoreCase("LD")) {
+                    sql.execute("INSERT INTO " + cbsCFerLGVLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE NOISELEVEL = 'LdenGreaterThan68'");
+                    sql.execute("INSERT INTO " + cbsCFerCONVLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE AND NOISELEVEL = 'LdenGreaterThan73'");
+                } else {
+                    sql.execute("INSERT INTO " + cbsCFerLGVLnight + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE NOISELEVEL = 'LnightGreaterThan62'");
+                    sql.execute("INSERT INTO " + cbsCFerCONVLnight + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE NOISELEVEL = 'LnightGreaterThan65'");
+                }
+            }
         } else {
-            sql.execute("INSERT INTO "+cbsARoadLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LD'");
-            sql.execute("INSERT INTO "+cbsARoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'A' AND PERIOD='LN'");
-            sql.execute("INSERT INTO "+cbsCRoadLden+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LD'");
-            sql.execute("INSERT INTO "+cbsCRoadLnight+" SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA WHERE CBSTYPE = 'C' AND PERIOD='LN'");
+            if(cbsType.equalsIgnoreCase("A")) {
+                if(period.equalsIgnoreCase("LD")) {
+                    sql.execute("INSERT INTO " + cbsARoadLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA");
+                } else {
+                    sql.execute("INSERT INTO " + cbsARoadLnight + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA");
+                }
+            } else {
+                if(period.equalsIgnoreCase("LD")) {
+                    sql.execute("INSERT INTO " + cbsCRoadLden + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA");
+                } else {
+                    sql.execute("INSERT INTO " + cbsCRoadLnight + " SELECT the_geom, pk, uueid, period, noiselevel, area FROM ISO_AREA");
+                }
+            }
         }
 
-        sql.execute("DROP TABLE IF EXISTS CONTOURING_NOISE_MAP");
+        sql.execute("DROP TABLE IF EXISTS CONTOURING_NOISE_MAP, ISO_AREA");
         logger.info("End : Compute Isosurfaces");
     }
 

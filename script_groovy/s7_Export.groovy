@@ -214,18 +214,6 @@ def exec(Connection connection, input) {
         }
     }
 
-    // generation des statistiques d'aires
-    sqlH2gis.execute("DROP TABLE IF EXISTS ALL_UUEID")
-    sqlH2gis.execute("create table ALL_UUEID(UUEID varchar) AS SELECT DISTINCT UUEID FROM ROADS UNION ALL SELECT DISTINCT UUEID FROM RAIL_SECTIONS")
-    sqlH2gis.execute("DROP TABLE IF EXISTS EXPOSURE_AREA")
-    sqlH2gis.execute("create table EXPOSURE_AREA (noiseLevel varchar, uueid varchar, areaSquareKilometer double)")
-    sqlH2gis.execute("drop table if exists noise_level_class")
-    sqlH2gis.execute("create table noise_level_class(exposureNoiseLevel varchar, noiseLevel varchar)")
-    sqlH2gis.execute("insert into noise_level_class values ('Lden55', 'Lden5559'), ('Lden55', 'Lden6064'), ('Lden55', 'Lden6569'), ('Lden55', 'Lden7074'),  ('Lden55', 'LdenGreaterThan75'),\n" + " ('Lden65', 'Lden6569'), ('Lden65', 'Lden7074'),  ('Lden65', 'LdenGreaterThan75') ,\n" + "('Lden75', 'LdenGreaterThan75'), ('Lden5559',  'Lden5559'), ('Lden6064',  'Lden6064'), ('Lden6569', 'Lden6569'), ('Lden7074', 'Lden7074'),  ('LdenGreaterThan75', 'LdenGreaterThan75'),\n" + "('Lnight5054','Lnight5054'), ('Lnight5559','Lnight5559'), ('Lnight6064','Lnight6064'), ('Lnight6569','Lnight6569'), ('LnightGreaterThan70','LnightGreaterThan70')")
-    sqlH2gis.execute("insert into EXPOSURE_AREA select distinct exposureNoiseLevel, UUEID, 0 FROM noise_level_class, ALL_UUEID")
-    sqlH2gis.execute("UPDATE EXPOSURE_AREA SET areaSquareKilometer = COALESCE((SELECT SUM(ST_AREA(THE_GEOM) / 1e-6) FROM CBS_A_R_LD_"+codeNuts+" C, noise_level_class N WHERE EXPOSURE_AREA.NOISELEVEL = N.exposureNoiseLevel AND N.noiseLevel = C.NOISELEVEL AND C.UUEID = EXPOSURE_AREA.UUEID GROUP BY exposureNoiseLevel), areaSquareKilometer)")
-    sqlH2gis.execute("UPDATE EXPOSURE_AREA SET areaSquareKilometer = COALESCE((SELECT SUM(ST_AREA(THE_GEOM) / 1e-6) FROM CBS_A_R_LN_"+codeNuts+" C, noise_level_class N WHERE EXPOSURE_AREA.NOISELEVEL = N.exposureNoiseLevel AND N.noiseLevel = C.NOISELEVEL AND C.UUEID = EXPOSURE_AREA.UUEID GROUP BY exposureNoiseLevel), areaSquareKilometer)")
-
     // On insère les nouvelles données dans la table des CBS
     logger.info("Export des CBS")
 
