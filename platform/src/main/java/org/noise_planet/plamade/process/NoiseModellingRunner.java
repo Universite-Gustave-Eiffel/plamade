@@ -30,6 +30,7 @@ import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import groovy.sql.Sql;
 import org.apache.commons.compress.utils.CountingInputStream;
+import org.h2.jdbc.JdbcSQLNonTransientConnectionException;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
@@ -1395,6 +1396,12 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 subProg.endStep();
             }
             if(configuration.computeOnCluster) {
+                // Compact database
+                try (Connection nmConnection = nmDataSource.getConnection()) {
+                    nmConnection.createStatement().execute("SHUTDOWN COMPACT");
+                } catch (JdbcSQLNonTransientConnectionException ex) {
+                    // ignore
+                }
                 slurmInitAndStart(configuration.slurmConfig, subProg);
             } else {
                 startNoiseModelling(subProg, clusterConfiguration);
