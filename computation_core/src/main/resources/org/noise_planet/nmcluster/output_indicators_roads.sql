@@ -4,38 +4,36 @@ SET @UUEID='${UUEID}';
 -----------------------------------------------------------------------------
 -- Receiver Exposition for LDEN values
 drop table if exists receiver_expo;
-create table receiver_expo as SELECT PK_1, LAEQ, (CASE WHEN LAEQ < 55 THEN NULL WHEN LAEQ < 60 THEN 'Lden5559' WHEN LAEQ < 65 THEN 'Lden6064' WHEN LAEQ < 70 THEN 'Lden6569' WHEN LAEQ < 75 THEN 'Lden7074' ELSE 'LdenGreaterThan75' END) NOISELEVEL, BUILD_PK, PERCENT_RANK() OVER (PARTITION BY BUILD_PK ORDER BY LAEQ DESC, PK_1) RECEIVER_RANK  FROM LDEN_ROADS L, RECEIVERS_UUEID RU, RECEIVERS_BUILDING RB WHERE RCV_TYPE = 1 AND L.IDRECEIVER = RU.PK AND PK_1 = RB.PK order by BUILD_PK, LAEQ DESC;
+create table receiver_expo as SELECT PK_1, LAEQ, BUILD_PK, PERCENT_RANK() OVER (PARTITION BY BUILD_PK ORDER BY LAEQ DESC, PK_1) RECEIVER_RANK  FROM LDEN_ROADS L, RECEIVERS_UUEID RU, RECEIVERS_BUILDING RB WHERE RCV_TYPE = 1 AND L.IDRECEIVER = RU.PK AND PK_1 = RB.PK order by BUILD_PK, LAEQ DESC;
 -- remove receivers with noise level inferior than median noise level for the same building
 DELETE FROM receiver_expo WHERE RECEIVER_RANK > 0.5;
 create index receiver_expo_BUILD_PK on receiver_expo(BUILD_PK);
 -- divide the building population number by the number of retained receivers for each buildings
 ALTER TABLE receiver_expo ADD COLUMN POP double USING (SELECT B.POP / (SELECT COUNT(*) FROM receiver_expo re WHERE re.BUILD_PK = receiver_expo.BUILD_PK) FROM BUILDINGS_SCREENS B WHERE B.PK = BUILD_PK);
--- remove out of bounds LAEQ
-DELETE FROM receiver_expo WHERE NOISELEVEL IS NULL;
 -- fetch AGGLO info
 ALTER TABLE receiver_expo ADD COLUMN AGGLO BOOLEAN USING (SELECT AGGLO FROM BUILDINGS_SCREENS B WHERE B.PK = BUILD_PK);
-CREATE INDEX receiver_expo_noiselevel on receiver_expo(noiselevel);
+CREATE INDEX receiver_expo_laeq on receiver_expo(LAEQ);
 -- update exposure table
 UPDATE POPULATION_EXPOSURE SET
-POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.NOISELEVEL = POPULATION_EXPOSURE.NOISELEVEL AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID;
+POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.LAEQ > POPULATION_EXPOSURE.MIN_LAEQ
+                                                                            AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ  AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID AND POPULATION_EXPOSURE.NOISELEVEL LIKE 'Lden%';
 
 -----------------------------------------------------------------------------
 -- Population Receiver Exposition for LN values
 drop table if exists receiver_expo;
-create table receiver_expo as SELECT PK_1, LAEQ, (CASE WHEN LAEQ < 50 THEN NULL WHEN LAEQ < '55' THEN 'Lnight5054' WHEN LAEQ < 60 THEN 'Lnight5559' WHEN LAEQ < 65 THEN 'Lnight6064' WHEN LAEQ < 70 THEN 'Lnight6569' ELSE 'LnightGreaterThan70' END) NOISELEVEL, BUILD_PK, PERCENT_RANK() OVER (PARTITION BY BUILD_PK ORDER BY LAEQ DESC, PK_1) RECEIVER_RANK  FROM LNIGHT_ROADS L, RECEIVERS_UUEID RU, RECEIVERS_BUILDING RB WHERE RCV_TYPE = 1 AND L.IDRECEIVER = RU.PK AND PK_1 = RB.PK order by BUILD_PK, LAEQ DESC;
+create table receiver_expo as SELECT PK_1, LAEQ, BUILD_PK, PERCENT_RANK() OVER (PARTITION BY BUILD_PK ORDER BY LAEQ DESC, PK_1) RECEIVER_RANK  FROM LNIGHT_ROADS L, RECEIVERS_UUEID RU, RECEIVERS_BUILDING RB WHERE RCV_TYPE = 1 AND L.IDRECEIVER = RU.PK AND PK_1 = RB.PK order by BUILD_PK, LAEQ DESC;
 -- remove receivers with noise level inferior than median noise level for the same building
 DELETE FROM receiver_expo WHERE RECEIVER_RANK > 0.5;
 create index receiver_expo_BUILD_PK on receiver_expo(BUILD_PK);
 -- divide the building population number by the number of retained receivers for each buildings
 ALTER TABLE receiver_expo ADD COLUMN POP double USING (SELECT B.POP / (SELECT COUNT(*) FROM receiver_expo re WHERE re.BUILD_PK = receiver_expo.BUILD_PK) FROM BUILDINGS_SCREENS B WHERE B.PK = BUILD_PK);
--- remove out of bounds LAEQ
-DELETE FROM receiver_expo WHERE NOISELEVEL IS NULL;
 -- fetch AGGLO info
 ALTER TABLE receiver_expo ADD COLUMN AGGLO BOOLEAN USING (SELECT AGGLO FROM BUILDINGS_SCREENS B WHERE B.PK = BUILD_PK);
-CREATE INDEX receiver_expo_noiselevel on receiver_expo(noiselevel);
+CREATE INDEX receiver_expo_laeq on receiver_expo(LAEQ);
 -- update exposure table
 UPDATE POPULATION_EXPOSURE SET
-POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.NOISELEVEL = POPULATION_EXPOSURE.NOISELEVEL AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID;
+POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.LAEQ > POPULATION_EXPOSURE.MIN_LAEQ
+                                                                            AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ AND r.AGGLO = (exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID AND POPULATION_EXPOSURE.NOISELEVEL LIKE 'Lnight%';
 
 ----------------------------------------------------------------
 -- Autocomplete missing values
@@ -43,7 +41,7 @@ POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.NOI
 UPDATE POPULATION_EXPOSURE SET HSD = COALESCE(ROUND(POP_ACCURATE*(19.4312-0.9336*INTERVAL_LAEQ+0.0126*INTERVAL_LAEQ*INTERVAL_LAEQ)/100.0, 1), HSD)
    WHERE UUEID = @UUEID AND NOISELEVEL LIKE CONCAT('Lnight', '%') AND POP_ACCURATE > 0;
 UPDATE POPULATION_EXPOSURE B SET CPI = COALESCE(ROUND((POP_ACCURATE*((EXP((LN(1.08)/10)*(INTERVAL_LAEQ-53)))-1)/(b.POP_ACCURATE*((EXP((LN(1.08)/10)*(INTERVAL_LAEQ-53)))-1)+1))*0.00138*(SELECT SUM(a.POP_ACCURATE) from  POPULATION_EXPOSURE a WHERE a.UUEID = b.UUEID AND a.NOISELEVEL LIKE CONCAT('Lden', '%') AND A.POP_ACCURATE > 0)), CPI) WHERE UUEID = @UUEID AND NOISELEVEL LIKE CONCAT('Lden', '%') AND POP_ACCURATE > 0;
-UPDATE POPULATION_EXPOSURE B SET HA = COALESCE(ROUND(POP_ACCURATE*(78.9270-3.1162*INTERVAL_LAEQ+0.0342*INTERVAL_LAEQ*INTERVAL_LAEQ)/100), HA) WHERE UUEID = @UUEID AND NOISELEVEL LIKE CONCAT('Lden', '%') AND POP_ACCURATE > 0;
+UPDATE POPULATION_EXPOSURE B SET HA = COALESCE(ROUND(POP_ACCURATE*(78.9270-3.1162*INTERVAL_LAEQ+0.0342*INTERVAL_LAEQ*INTERVAL_LAEQ)/100), HA) WHERE UUEID = @UUEID AND NOISELEVEL LIKE 'Lden%' AND POP_ACCURATE > 0;
 UPDATE POPULATION_EXPOSURE B SET EXPOSEDPEOPLE = ROUND(POP_ACCURATE) WHERE UUEID = @UUEID;
 UPDATE POPULATION_EXPOSURE B SET EXPOSEDDWELLINGS = COALESCE(ROUND(POP_ACCURATE / (SELECT RatIO_POP_LOG  FROM METADATA)), EXPOSEDDWELLINGS) WHERE UUEID = @UUEID;
 

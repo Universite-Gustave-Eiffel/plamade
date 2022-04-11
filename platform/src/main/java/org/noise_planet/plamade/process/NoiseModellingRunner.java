@@ -124,6 +124,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         COMPLETED
     }
      public static final int MAX_CONNECTION_RETRY = 170;
+    public static final int MAX_SSH_SEND_RETRY = 4;
     public static final int CBS_GRID_SIZE = 10;
     public static final int CBS_MAIN_GRID_SIZE = 800;
     public static final String RESULT_DIRECTORY_NAME = "results";
@@ -890,16 +891,33 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     }
 
 
-    public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory, Set<Path> ignorePaths) throws IOException, SftpException {
+    public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory, Set<Path> ignorePaths) throws IOException, SftpException, InterruptedException {
         // List All files
         logger.info("Push files from " + from + " to " + to + " through SSH");
         File fromFile = new File(from);
         File parentFile = fromFile;
-        if(createSubDirectory) {
+        if (createSubDirectory) {
             parentFile = fromFile.getParentFile();
         }
-        WalkFileVisitor walkFileVisitor = new WalkFileVisitor(ignorePaths, parentFile, c, to);
-        Files.walkFileTree(fromFile.toPath(), walkFileVisitor);
+        int retries = 0;
+        while (true) {
+            try {
+                WalkFileVisitor walkFileVisitor = new WalkFileVisitor(ignorePaths, parentFile, c, to);
+                Files.walkFileTree(fromFile.toPath(), walkFileVisitor);
+                break;
+            } catch (IOException ex) {
+                retries++;
+                logger.warn("Could not send files, will retry again " + (MAX_SSH_SEND_RETRY - retries) + " times");
+                if(progressVisitor.isCanceled()) {
+                    throw ex;
+                }
+                Thread.sleep(POLL_SLURM_STATUS_TIME);
+                if (retries > MAX_SSH_SEND_RETRY) {
+                    throw ex;
+                }
+
+            }
+        }
     }
 
     private static final String[] names = {
