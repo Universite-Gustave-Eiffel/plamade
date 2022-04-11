@@ -224,7 +224,14 @@ public class NoiseModellingInstance {
 
         nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roads_uueids, clusterConfiguration.rails_uueids);
 
-        ProgressVisitor uueidVisitor = progressVisitor.subProcess(2);
+        int subProcessCount = 0;
+        if(!clusterConfiguration.roads_uueids.isEmpty()) {
+            subProcessCount++;
+        }
+        if(!clusterConfiguration.rails_uueids.isEmpty()) {
+            subProcessCount++;
+        }
+        ProgressVisitor uueidVisitor = progressVisitor.subProcess(subProcessCount);
         nm.uueidsLoop(uueidVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
         nm.uueidsLoop(uueidVisitor, clusterConfiguration.rails_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
 
@@ -234,6 +241,8 @@ public class NoiseModellingInstance {
                 nm.outputPrefix + "METADATA.csv").getAbsolutePath() );
         ps.setString(2, "SELECT *, (EXTRACT(EPOCH FROM ROAD_END) - EXTRACT(EPOCH FROM ROAD_START)) ROAD_TOTAL,(EXTRACT(EPOCH FROM GRID_END) - EXTRACT(EPOCH FROM GRID_START)) GRID_TOTAL  FROM METADATA");
         ps.execute();
+
+        sql.execute("ALTER TABLE POPULATION_EXPOSURE DROP COLUMN POP_ACCURATE, MIN_LAEQ, INTERVAL_LAEQ, MAX_LAEQ");
 
         // Export exposition tables
         for(String tableName : EXPOSITION_TABLES) {
@@ -383,17 +392,21 @@ public class NoiseModellingInstance {
         String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
                 "LnightGreaterThan70"};
-        Map<String, Double> levelRoadsInterval = new TreeMap<>();
-        levelRoadsInterval.put("Lden5559", 57.5);
-        levelRoadsInterval.put("Lden6064", 62.5);
-        levelRoadsInterval.put("Lden6569", 67.5);
-        levelRoadsInterval.put("Lden7074", 72.5);
-        levelRoadsInterval.put("LdenGreaterThan75", 77.5);
-        levelRoadsInterval.put("Lnight5054", 52.5);
-        levelRoadsInterval.put("Lnight5559", 57.5);
-        levelRoadsInterval.put("Lnight6064", 62.5);
-        levelRoadsInterval.put("Lnight6569", 67.5);
-        levelRoadsInterval.put("LnightGreaterThan70", 72.5);
+        Map<String, Double[]> levelRoadsInterval = new TreeMap<>();
+        levelRoadsInterval.put("Lden5559", new Double[]{55.0, 57.5, 60.0});
+        levelRoadsInterval.put("Lden6064",  new Double[]{60.0, 62.5, 65.0});
+        levelRoadsInterval.put("Lden6569",  new Double[]{65.0, 67.5, 70.0});
+        levelRoadsInterval.put("Lden7074",  new Double[]{70.0, 72.5, 75.0});
+        levelRoadsInterval.put("LdenGreaterThan75",  new Double[]{75.0, 77.5, 200.0});
+        levelRoadsInterval.put("Lnight5054",  new Double[]{50.0, 52.5, 55.0});
+        levelRoadsInterval.put("Lnight5559", new Double[]{55.0, 57.5, 60.0});
+        levelRoadsInterval.put("Lnight6064", new Double[]{60.0, 62.5, 65.0});
+        levelRoadsInterval.put("Lnight6569",  new Double[]{65.0, 67.5, 70.0});
+        levelRoadsInterval.put("LnightGreaterThan70", new Double[]{70.0, 72.5, 200.0});
+        levelRoadsInterval.put("LnightGreaterThan62", new Double[]{62.0, 64.5, 200.0});
+        levelRoadsInterval.put("LdenGreaterThan68", new Double[]{68.0, 70.5, 200.0});
+        levelRoadsInterval.put("LdenGreaterThan73", new Double[]{73.0, 75.5, 200.0});
+        levelRoadsInterval.put("LnightGreaterThan65", new Double[]{65.0, 78.5, 200.0});
 
         String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75","LdenGreaterThan73", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
@@ -401,24 +414,31 @@ public class NoiseModellingInstance {
 
         Statement st = connection.createStatement();
         st.execute("DROP TABLE IF EXISTS UUEIDS_LEVELS");
-        st.execute("CREATE TABLE UUEIDS_LEVELS(UUEID VARCHAR, NOISELEVEL VARCHAR, exposureType VARCHAR, INTERVAL_LAEQ DOUBLE)");
-        PreparedStatement ps = connection.prepareStatement("INSERT INTO UUEIDS_LEVELS VALUES (?, ?, ?, ?)");
+        st.execute("CREATE TABLE UUEIDS_LEVELS(UUEID VARCHAR, NOISELEVEL VARCHAR, exposureType VARCHAR," +
+                " MIN_LAEQ DOUBLE DEFAULT(0), INTERVAL_LAEQ DOUBLE DEFAULT(0), MAX_LAEQ DOUBLE DEFAULT(0))");
+        PreparedStatement ps = connection.prepareStatement("INSERT INTO UUEIDS_LEVELS VALUES (?, ?, ?, ?, ?, ?)");
         String exposureType = "mostExposedFacade";
         for(String roadUUEID : roadsUUEID) {
             for(String level : levelsRoads) {
+                Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, roadUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
-                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
+                ps.setDouble(4, levelIntervals == null ? Double.NaN : levelIntervals[0]);
+                ps.setDouble(5, levelIntervals == null ? Double.NaN : levelIntervals[1]);
+                ps.setDouble(6, levelIntervals == null ? Double.NaN : levelIntervals[2]);
                 ps.execute();
             }
         }
         for(String railUUEID : railsUUEID) {
             for(String level : levelsRails) {
+                Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, railUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
-                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
+                ps.setDouble(4, levelIntervals == null ? Double.NaN : levelIntervals[0]);
+                ps.setDouble(5, levelIntervals == null ? Double.NaN : levelIntervals[1]);
+                ps.setDouble(6, levelIntervals == null ? Double.NaN : levelIntervals[2]);
                 ps.execute();
             }
         }
@@ -426,20 +446,26 @@ public class NoiseModellingInstance {
         for(String roadUUEID : roadsUUEID) {
             for(String level : Stream.concat(Arrays.stream(levelsRoads),
                     Arrays.stream(additionalForAgglo)).collect(Collectors.toList())) {
+                Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, roadUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
-                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
+                ps.setDouble(4, levelIntervals == null ? Double.NaN : levelIntervals[0]);
+                ps.setDouble(5, levelIntervals == null ? Double.NaN : levelIntervals[1]);
+                ps.setDouble(6, levelIntervals == null ? Double.NaN : levelIntervals[2]);
                 ps.execute();
             }
         }
         for(String railUUEID : railsUUEID) {
             for(String level : Stream.concat(Arrays.stream(levelsRails),
                     Arrays.stream(additionalForAgglo)).collect(Collectors.toList())) {
+                Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, railUUEID);
                 ps.setString(2, level);
                 ps.setString(3, exposureType);
-                ps.setDouble(4, levelRoadsInterval.getOrDefault(level, Double.NaN));
+                ps.setDouble(4, levelIntervals == null ? Double.NaN : levelIntervals[0]);
+                ps.setDouble(5, levelIntervals == null ? Double.NaN : levelIntervals[1]);
+                ps.setDouble(6, levelIntervals == null ? Double.NaN : levelIntervals[2]);
                 ps.execute();
             }
         }
@@ -604,9 +630,8 @@ public class NoiseModellingInstance {
         sql.execute("UPDATE ISO_AREA SET THE_GEOM = ST_SetSRID(THE_GEOM, (SELECT SRID FROM METADATA))");
 
         // Insert iso areas into common table, according to rail or road input parameter
-        if(cbsType.equalsIgnoreCase("A")) {
-            sql.execute("UPDATE POPULATION_EXPOSURE SET EXPOSEDAREA = COALESCE((SELECT ROUND(SUM(ST_AREA(THE_GEOM)) / 1e6, 1) TOTAREA_SQKM FROM ISO_AREA I WHERE I.noiselevel = POPULATION_EXPOSURE.noiselevel), EXPOSEDAREA)  WHERE UUEID = '" + uueid + "'");
-        }
+        // The noiselevel field will filtering for A or D
+        sql.execute("UPDATE POPULATION_EXPOSURE SET EXPOSEDAREA = COALESCE((SELECT ROUND(SUM(ST_AREA(THE_GEOM)) / 1e6, 1) TOTAREA_SQKM FROM ISO_AREA I WHERE I.noiselevel = POPULATION_EXPOSURE.noiselevel), EXPOSEDAREA)  WHERE UUEID = '" + uueid + "'");
         if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
             if(cbsType.equalsIgnoreCase("A")) {
                 if(period.equalsIgnoreCase("LD")) {
