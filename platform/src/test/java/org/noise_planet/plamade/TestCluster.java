@@ -265,24 +265,24 @@ public class TestCluster {
 //        }
 //    }
 //
-    @Test
-    public void emissionTrainTest() throws SQLException, IOException {
-        String workingDir = "/home/nicolas/data/plamade/dep05";
-        DataSource ds = NoiseModellingRunner.createDataSource("", "",
-                workingDir, "h2gisdb", false);
-        try(Connection connection = ds.getConnection()) {
-            NoiseModellingRunner.Configuration configuration = new NoiseModellingRunner.Configuration(
-                    1, workingDir, 4, "05", 1,
-                    null, new RootProgressVisitor(1), "");
-            NoiseModellingRunner noiseModellingRunner = new NoiseModellingRunner(configuration, null);
-//            NoiseModellingRunner.makeGrid(connection, 4);
-//            noiseModellingRunner.makeEmission(connection);
-//            NoiseModellingRunner.generateClusterConfig(connection, new EmptyProgressVisitor(), 16, workingDir);
-            NoiseModellingInstance noiseModellingInstance = new NoiseModellingInstance(connection, workingDir);
-            Main.ClusterConfiguration clusterConfiguration = Main.loadClusterConfiguration(workingDir, 0);
-
-        }
-    }
+//    @Test
+//    public void emissionTrainTest() throws SQLException, IOException {
+//        String workingDir = "/home/nicolas/data/plamade/dep05";
+//        DataSource ds = NoiseModellingRunner.createDataSource("", "",
+//                workingDir, "h2gisdb", false);
+//        try(Connection connection = ds.getConnection()) {
+//            NoiseModellingRunner.Configuration configuration = new NoiseModellingRunner.Configuration(
+//                    1, workingDir, 4, "05", 1,
+//                    null, new RootProgressVisitor(1), "");
+//            NoiseModellingRunner noiseModellingRunner = new NoiseModellingRunner(configuration, null);
+////            NoiseModellingRunner.makeGrid(connection, 4);
+////            noiseModellingRunner.makeEmission(connection);
+////            NoiseModellingRunner.generateClusterConfig(connection, new EmptyProgressVisitor(), 16, workingDir);
+//            NoiseModellingInstance noiseModellingInstance = new NoiseModellingInstance(connection, workingDir);
+//            Main.ClusterConfiguration clusterConfiguration = Main.loadClusterConfiguration(workingDir, 0);
+//
+//        }
+//    }
 //
 //    @Test
 //    public void testCopy() throws IOException, SftpException {

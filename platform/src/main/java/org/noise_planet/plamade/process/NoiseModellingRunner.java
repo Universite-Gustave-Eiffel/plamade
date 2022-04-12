@@ -350,6 +350,26 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
     }
 
+    public static class CSVFileFilter implements FilenameFilter {
+        String prefix;
+        String suffix;
+
+        public CSVFileFilter(String prefix, String suffix) {
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        @Override
+        public boolean accept(File dir, String name) {
+            if(!name.toLowerCase(Locale.ROOT).endsWith("csv")) {
+                return false;
+            }
+            if(!name.startsWith(prefix)) {
+                return false;
+            }
+            return suffix.isEmpty() || name.indexOf(suffix, prefix.length()) != -1;
+        }
+    }
     public static class GEOJSONFileFilter implements FilenameFilter {
         String prefix;
         String suffix;
@@ -613,6 +633,61 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
         }
         return outputTables;
+    }
+
+    /**
+     * Merge geojson files with the same file name
+     * prefix[NUMJOB]suffix[TABLENAME].csv
+     * @param connection database connection
+     * @param folder folder that contains geojson files
+     * @param prefix common prefix before the number
+     * @param suffix common suffix after the number
+     * @return Tables created
+     */
+    public static List<String> mergeCSV(Connection connection,String folder, String prefix, String suffix, Set<String> tableFilter) throws SQLException {
+        String extension = ".csv";
+        File workingFolder = new File(folder);
+        // Search files that match expected file name format
+        String[] files = workingFolder.list(new CSVFileFilter(prefix, suffix));
+        if(files == null) {
+            return new ArrayList<>();
+        }
+        Map<String, ArrayList<String>> tableNameToFileNames = new HashMap<>();
+        for(String fileName : files) {
+            // Extract tableName from file name
+            String tableName = fileName.substring(fileName.indexOf(suffix, prefix.length()) + suffix.length(),
+                    fileName.length() - extension.length());
+            if(tableFilter.isEmpty() || tableFilter.contains(tableName.toUpperCase(Locale.ROOT))) {
+                ArrayList<String> fileNames;
+                if (!tableNameToFileNames.containsKey(tableName)) {
+                    fileNames = new ArrayList<>();
+                    tableNameToFileNames.put(tableName, fileNames);
+                } else {
+                    fileNames = tableNameToFileNames.get(tableName);
+                }
+                fileNames.add(fileName);
+            }
+        }
+        List<String> createdTables = new ArrayList<>();
+        for(Map.Entry<String, ArrayList<String>> entry : tableNameToFileNames.entrySet()) {
+            String finalTableName = entry.getKey().toUpperCase(Locale.ROOT);
+            try(Statement st = connection.createStatement()) {
+                ArrayList<String> fileNames = entry.getValue();
+                if(fileNames.isEmpty()) {
+                    continue;
+                }
+                // Copy the first table as a new table
+                String firstFileName = fileNames.remove(0);
+                st.execute("DROP TABLE IF EXISTS " + finalTableName);
+                st.execute("CREATE TABLE "+finalTableName+" AS SELECT * FROM CSVREAD('" + new File(workingFolder, firstFileName).getAbsolutePath() + "');");
+                createdTables.add(finalTableName);
+                for(String fileName : fileNames) {
+                    // insert into the existing table
+                    st.execute("INSERT INTO " + finalTableName + " SELECT * FROM CSVREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "');");
+                }
+            }
+        }
+        return createdTables;
     }
 
     /**
@@ -1152,7 +1227,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         return finishedStatusCount == configuration.slurmConfig.maxJobs;
     }
 
-    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException {
+    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException, SQLException {
         int connectionRetry = MAX_CONNECTION_RETRY;
         Session session = openSshSession(slurmConfig);
         try {
@@ -1257,6 +1332,20 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             logger.info("Clean remote data");
             runCommand(session, String.format("rm -rvf %s", configuration.remoteJobFolder));
             runCommand(session, String.format("rm -rvf %s", resultDir));
+            // merge files and load it in database
+            try(Connection nmConnection = nmDataSource.getConnection()){
+                mergeCSV(nmConnection, new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
+                        "out_", "_", Collections.singleton("POPULATION_EXPOSURE"));
+                Statement st = nmConnection.createStatement();
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDPEOPLE INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDAREA REAL;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDDWELLINGS INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDHOSPITALS INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDSCHOOLS INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN CPI INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN HA INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN HSD INT;");
+            }
         } finally {
             session.disconnect();
         }
