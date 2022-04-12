@@ -1145,7 +1145,7 @@ ALTER TABLE noisemodelling."C_BATIMENT_S_5490" ADD COLUMN "AGGLO" boolean DEFAUL
 DROP TABLE IF EXISTS noisemodelling.agglo_2154;
 CREATE TABLE noisemodelling.agglo_2154 AS SELECT 
 	ST_TRANSFORM(ST_SetSRID(the_geom,4326), 2154) as the_geom, "AUTCOMCBS" as autcomcbs, "CODEDEPT"  as codedept, "UUEID" as uueid 
-	FROM echeance4."'"C_CONTOUR_AUTCOMCBS_S"'";
+	FROM echeance4."C_CONTOUR_AUTCOMCBS_S";
 
 CREATE INDEX agglo_2154_geom_idx ON noisemodelling.agglo_2154 USING gist (the_geom);
 CREATE INDEX agglo_2154_insee_dep_idx ON noisemodelling.agglo_2154 USING btree (uueid);
