@@ -115,7 +115,7 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeDep,int 
                 if((sqlH2gis.firstRow("SELECT count(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE table_name ='" + inputTableCBS +"';")[0] as Integer) > 0) {
                     logger.info("La table $inputTableCBS va être exportée dans la table $table_cbs")
                     sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.'+ table_cbs +' (the_geom, cbstype, typesource, indicetype, codedept, pk, uueid, category, source) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?, ?)'.toString()) { BatchingPreparedStatementWrapper ps ->
-                        sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, $cbstype, $typesource, $indicetype, $codeDep, pk, uueid, category, $sourcepg as source FROM " + inputTableCBS +";"){row ->
+                        sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, $cbstype, $typesource, $indicetype, $codeDep, pk, uueid, category, $sourcepg as source FROM " + inputTableCBS +";"){GroovyResultSet row ->
                             ps.addBatch(writer.write(row[0] as Geometry), srid, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8])
                         }
                     }
