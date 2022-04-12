@@ -294,7 +294,7 @@ def exec(Connection connection, input) {
 
         // --> Pierre
         sql.execute("CREATE TABLE " + receivers_table_name + "(pk integer not null AUTO_INCREMENT, the_geom geometry, build_pk integer, pop real)")
-        sql.execute("INSERT INTO "+receivers_table_name+"(the_geom, build_pk, pop) SELECT a.the_geom, a.build_pk, b.pop/COUNT(DISTINCT aa.pk)::float FROM tmp_receivers a, " + building_table_name + " b,tmp_receivers aa WHERE b." + buildingPk + " = a.build_pk and a.build_pk = aa.build_pk and (b.pop>0 OR b.ERPS_NATUR ='Enseignement' OR b.ERPS_NATUR ='Sante') GROUP BY a.the_geom, a.build_pk, b.pop;")
+        sql.execute("INSERT INTO "+receivers_table_name+"(the_geom, build_pk, pop) SELECT a.the_geom, a.build_pk, b.pop/COUNT(DISTINCT aa.pk)::float FROM tmp_receivers a, " + building_table_name + " b,tmp_receivers aa WHERE b." + buildingPk + " = a.build_pk and a.build_pk = aa.build_pk and (b.pop>0 OR b.ERPS is true) GROUP BY a.the_geom, a.build_pk, b.pop;")
         sql.execute("ALTER TABLE "+receivers_table_name+" ADD PRIMARY KEY(pk)")
 
         // --> Gwen
@@ -322,7 +322,7 @@ def exec(Connection connection, input) {
 
     Double roadWidth = 2.0
 
-    Double maxArea = 2500
+    Double maxArea = 500
 
     int srid = SFSUtilities.getSRID(connection, TableLocation.parse(building_table_name))
 
