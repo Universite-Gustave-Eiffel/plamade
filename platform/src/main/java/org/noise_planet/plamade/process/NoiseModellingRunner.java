@@ -133,16 +133,16 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
     // https://curc.readthedocs.io/en/latest/running-jobs/squeue-status-codes.html
     public static final SlurmJobKnownStatus[] SLURM_JOB_KNOWN_STATUSES = new SlurmJobKnownStatus[]{
-            new SlurmJobKnownStatus("COMPLETED", true), // The job has completed successfully.
-            new SlurmJobKnownStatus("COMPLETING", false), // The job is finishing but some processes are still active.
-            new SlurmJobKnownStatus("FAILED", true), // The job terminated with a non-zero exit code and failed to execute.
-            new SlurmJobKnownStatus("PENDING", false), // The job is waiting for resource allocation. It will eventually run.
-            new SlurmJobKnownStatus("PREEMPTED", false), // The job was terminated because of preemption by another job.
-            new SlurmJobKnownStatus("RUNNING", false), // The job currently is allocated to a node and is running.
-            new SlurmJobKnownStatus("SUSPENDED", false), // A running job has been stopped with its cores released to other jobs.
-            new SlurmJobKnownStatus("STOPPED", true), // A running job has been stopped with its cores retained.
-            new SlurmJobKnownStatus("CANCELED", true), // Job canceled by system or user
-            new SlurmJobKnownStatus("TIMEOUT", true) // Job timeout (will not be restarted)
+            new SlurmJobKnownStatus("COMPLETED", true, false), // The job has completed successfully.
+            new SlurmJobKnownStatus("COMPLETING", false, false), // The job is finishing but some processes are still active.
+            new SlurmJobKnownStatus("FAILED", true, true), // The job terminated with a non-zero exit code and failed to execute.
+            new SlurmJobKnownStatus("PENDING", false, false), // The job is waiting for resource allocation. It will eventually run.
+            new SlurmJobKnownStatus("PREEMPTED", false, false), // The job was terminated because of preemption by another job.
+            new SlurmJobKnownStatus("RUNNING", false, false), // The job currently is allocated to a node and is running.
+            new SlurmJobKnownStatus("SUSPENDED", false, false), // A running job has been stopped with its cores released to other jobs.
+            new SlurmJobKnownStatus("STOPPED", true, false), // A running job has been stopped with its cores retained.
+            new SlurmJobKnownStatus("CANCELED", true, true), // Job canceled by system or user
+            new SlurmJobKnownStatus("TIMEOUT", true, true) // Job timeout (will not be restarted)
     };
 
     private static final Logger logger = LoggerFactory.getLogger(NoiseModellingRunner.class);
@@ -155,16 +155,14 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
     private int oldFinishedJobs = 0;
-    private Set<String> finishedStates = new HashSet<>();
+    private Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
 
     public NoiseModellingRunner(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
         this.plamadeDataSource = plamadeDataSource;
         // Loop check for job status
         for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
-            if(s.finished) {
-                finishedStates.add(s.status);
-            }
+            slurmStateMap.put(s.status, s);
         }
     }
 
@@ -1208,10 +1206,10 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, configuration.slurmJobId);
         int finishedStatusCount = 0;
         for(SlurmJobStatus s : jobStatusList) {
-            if(finishedStates.contains(s.status)) {
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).finished) {
                 finishedStatusCount++;
             }
-            if(s.status.equalsIgnoreCase(JOB_STATES.FAILED.toString())) {
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).error) {
                 // If one of the process fail, cancel the computation and set the computation as failed
                 runCommand(session, String.format("scancel %d", configuration.slurmJobId));
                 throw new CancellationException("Slurm job has failed");
@@ -1653,10 +1651,12 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     public static class SlurmJobKnownStatus {
         public final String status;
         public final boolean finished;
+        public final boolean error;
 
-        public SlurmJobKnownStatus(String status, boolean finished) {
+        public SlurmJobKnownStatus(String status, boolean finished, boolean error) {
             this.status = status;
             this.finished = finished;
+            this.error = error;
         }
     }
 

@@ -251,19 +251,15 @@ public class TestCluster {
 //            }
 //        }
 //    }
-//    @Test
-//    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
-//        String workingDir = "/home/nicolas/data/plamade/dep44/results_14966557";
-//        DataSource ds = NoiseModellingInstance.createDataSource("", "",
-//                "build", "h2gisdb", false);
-//        try(Connection sql = ds.getConnection()) {
-//            List<String> outputTables = NoiseModellingInstance.mergeGeoJSON(sql, workingDir, "out_", "_");
-//            for(String outputTable : outputTables) {
-//                new GeoJsonWriteDriver(sql).write(new EmptyProgressVisitor(), outputTable,
-//                        new File(workingDir, outputTable + ".geojson"), "UTF8", true);
-//            }
-//        }
-//    }
+    @Test
+    public void mergeGeoJSONFilesTest() throws SQLException, IOException {
+        String workingDir = "/home/nicolas/data/plamade/dep05";
+        DataSource ds = NoiseModellingInstance.createDataSource("", "",
+                workingDir, "h2gisdb", false);
+        try(Connection sql = ds.getConnection()) {
+            NoiseModellingRunner.makeGrid(sql, 4);
+        }
+    }
 //
 //    @Test
 //    public void emissionTrainTest() throws SQLException, IOException {
