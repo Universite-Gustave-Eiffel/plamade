@@ -56,27 +56,27 @@ typesource varchar, indicetype varchar, codedept varchar, legende varchar, categ
 
 DROP TABLE IF EXISTS noisemodelling_resultats.expo_2154;
 CREATE TABLE noisemodelling_resultats.expo_2154(pk varchar, estatunitcode varchar, uueid varchar, exposuretype varchar,
- category varchar, source varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
+ noiselevel varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
  exposedhospitals int DEFAULT(0), exposedschools int DEFAULT(0), cpi int DEFAULT(0), ha int DEFAULT(0), hsd int DEFAULT(0));
 
 DROP TABLE IF EXISTS noisemodelling_resultats.expo_2972;
 CREATE TABLE noisemodelling_resultats.expo_2972(pk varchar, estatunitcode varchar, uueid varchar, exposuretype varchar,
- category varchar, source varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
+ noiselevel varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
  exposedhospitals int DEFAULT(0), exposedschools int DEFAULT(0), cpi int DEFAULT(0), ha int DEFAULT(0), hsd int DEFAULT(0));
 
 DROP TABLE IF EXISTS noisemodelling_resultats.expo_2975;
 CREATE TABLE noisemodelling_resultats.expo_2975(pk varchar, estatunitcode varchar, uueid varchar, exposuretype varchar,
- category varchar, source varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
+ noiselevel varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
  exposedhospitals int DEFAULT(0), exposedschools int DEFAULT(0), cpi int DEFAULT(0), ha int DEFAULT(0), hsd int DEFAULT(0));
 
 DROP TABLE IF EXISTS noisemodelling_resultats.expo_4471;
 CREATE TABLE noisemodelling_resultats.expo_4471(pk varchar, estatunitcode varchar, uueid varchar, exposuretype varchar,
- category varchar, source varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
+ noiselevel varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
  exposedhospitals int DEFAULT(0), exposedschools int DEFAULT(0), cpi int DEFAULT(0), ha int DEFAULT(0), hsd int DEFAULT(0));
 
 DROP TABLE IF EXISTS noisemodelling_resultats.expo_5490;
 CREATE TABLE noisemodelling_resultats.expo_5490(pk varchar, estatunitcode varchar, uueid varchar, exposuretype varchar,
- category varchar, source varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
+ noiselevel varchar, exposedpeople int DEFAULT(0), exposedarea real DEFAULT(0), exposeddwellings int DEFAULT(0),
  exposedhospitals int DEFAULT(0), exposedschools int DEFAULT(0), cpi int DEFAULT(0), ha int DEFAULT(0), hsd int DEFAULT(0));
 
 
