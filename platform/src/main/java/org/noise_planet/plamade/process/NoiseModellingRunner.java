@@ -1415,6 +1415,13 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
     }
 
+    public void exportCSV(Connection connection, String path, String tableName) throws SQLException {
+        PreparedStatement ps = connection.prepareStatement("CALL CSVWRITE(?, ?)");
+        ps.setString(1, path);
+        ps.setString(2, tableName);
+        ps.execute();
+    }
+
     @Override
     public void run() {
         Thread.currentThread().setName("JOB_" + configuration.getTaskPrimaryKey());
@@ -1494,8 +1501,11 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 startNoiseModelling(subProg, clusterConfiguration);
             }
             try (Connection nmConnection = nmDataSource.getConnection()) {
+                exportCSV(nmConnection,
+                        new File(outDir.getAbsolutePath(), "POPULATION_EXPOSURE.csv").getAbsolutePath(), "POPULATION_EXPOSURE");
+                String resultDirectoryFullPath = new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath();
                 List<String> createdTables = mergeGeoJSON(nmConnection,
-                        new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
+                        resultDirectoryFullPath,
                         "out_", "_");
                 createdTables.addAll(mergeCBS(nmConnection, CBS_GRID_SIZE, CBS_MAIN_GRID_SIZE,
                         subProg));
