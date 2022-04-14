@@ -161,10 +161,10 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeDep,int 
 
     sqlPostgre.execute("DELETE FROM noisemodelling_resultats.expo_"+srid+" WHERE ESTATUnitCode='" + codeNuts + "'")
 
-    sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.expo_'+srid+' (PK,ESTATUnitCode,UUEID, EXPOSURETYPE,CATEGORY, SOURCE ,EXPOSEDPEOPLE, EXPOSEDAREA, EXPOSEDDWELLINGS, EXPOSEDHOSPITALS , EXPOSEDSCHOOLS , CPI , HA, HSD) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'.toString()) { BatchingPreparedStatementWrapper ps ->
+    sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.expo_'+srid+' (PK,ESTATUnitCode,UUEID, EXPOSURETYPE, NOISELEVEL,EXPOSEDPEOPLE, EXPOSEDAREA, EXPOSEDDWELLINGS, EXPOSEDHOSPITALS , EXPOSEDSCHOOLS , CPI , HA, HSD) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'.toString()) { BatchingPreparedStatementWrapper ps ->
         sqlH2gis.eachRow("SELECT * FROM POPULATION_EXPOSURE;"){ GroovyResultSet row ->
-         ps.addBatch(row[1], row[2], row[3], row[4], row[5], (row[3] as String).startsWith("RD") ? 'R' : 'F' ,row[6],
-                 row[7], row[8], row[9], row[10], row[11], row[12], row[13])
+         ps.addBatch(row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12],
+                 row[13])
         }
     }
 
