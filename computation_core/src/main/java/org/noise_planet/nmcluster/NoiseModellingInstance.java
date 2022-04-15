@@ -799,6 +799,10 @@ public class NoiseModellingInstance {
             }
             environmentalData.setWindRose(favOccurrences);
             pointNoiseMap.setPropagationProcessPathData(LDENConfig.TIME_PERIOD.values()[idTime], environmentalData);
+            logger.info("For " + fieldPFav[idTime] + " :");
+            logger.info(String.format(Locale.ROOT, "Temperature: %.2f °C", confTemperature));
+            logger.info(String.format(Locale.ROOT, "Humidity: %.2f °C", confTemperature));
+            logger.info("Favorable conditions probability: " + confFavorableOccurrences);
         }
         pointNoiseMap.setThreadCount(nThread);
         logger.info(String.format("PARAM : Number of thread used %d ", nThread));
