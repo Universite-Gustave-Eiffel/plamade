@@ -328,18 +328,6 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         return rootNode;
     }
 
-    private static class JobElement implements Comparable<JobElement> {
-        public List<String> roadsUueid = new ArrayList<>();
-        public List<String> railsUueid = new ArrayList<>();
-        public double totalSourceLineLength = 0;
-
-
-        @Override
-        public int compareTo(JobElement o) {
-            return Double.compare(o.totalSourceLineLength, totalSourceLineLength);
-        }
-    }
-
     public static Integer asInteger(Object v) {
         if(v instanceof Number) {
             return ((Number)v).intValue();
@@ -776,9 +764,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         int numberOfUUEID = asInteger(sql.firstRow("SELECT COUNT(DISTINCT UUEID) CPT FROM ROADS").get("CPT"));
         numberOfJobs = Math.min(numberOfUUEID, numberOfJobs);
         // Distribute UUEID over numberOfJobs (least road length receive the next one
-        List<JobElement> jobElementList = new ArrayList<>(numberOfJobs);
         for(int i=0; i < numberOfJobs; i++) {
-            jobElementList.add(new JobElement());
+            clusterConfiguration.jobElementList.add(new NoiseModellingInstance.JobElement());
         }
         sql.execute("DROP TABLE IF EXISTS SRC_UUEIDS");
         sql.execute("CREATE TABLE SRC_UUEIDS(UUEID varchar, weight double, src_type int)");
@@ -791,22 +778,22 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             while (rs.next()) {
                 String uueid = rs.getString("UUEID");
                 if (rs.getInt("src_type") == 0) {
-                    jobElementList.get(jobElementList.size() - 1).roadsUueid.add(uueid);
-                    clusterConfiguration.roads_uueids.add(uueid);
+                    clusterConfiguration.jobElementList.get(clusterConfiguration.jobElementList.size() - 1).roadsUueid.add(uueid);
+                    clusterConfiguration.roadsUueid.add(uueid);
                 } else {
-                    jobElementList.get(jobElementList.size() - 1).railsUueid.add(uueid);
-                    clusterConfiguration.rails_uueids.add(uueid);
+                    clusterConfiguration.jobElementList.get(clusterConfiguration.jobElementList.size() - 1).railsUueid.add(uueid);
+                    clusterConfiguration.railsUueids.add(uueid);
                 }
-                jobElementList.get(jobElementList.size() - 1).totalSourceLineLength += rs.getDouble("WEIGHT");
+                clusterConfiguration.jobElementList.get(clusterConfiguration.jobElementList.size() - 1).totalSourceLineLength += rs.getDouble("WEIGHT");
                 // Sort by source line length
-                Collections.sort(jobElementList);
+                Collections.sort(clusterConfiguration.jobElementList);
             }
         }
         AtomicInteger nodeId = new AtomicInteger();
         ObjectMapper mapper = new ObjectMapper();
         ArrayNode rootDoc = mapper.createArrayNode();
         // create lists so that each node have at least the quota length of roads (except the last one)
-        for (JobElement jobElement : jobElementList) {
+        for (NoiseModellingInstance.JobElement jobElement : clusterConfiguration.jobElementList) {
             ObjectNode nodeDoc = mapper.createObjectNode();
             rootDoc.add(nodeDoc);
             nodeDoc.put("nodeId", nodeId.getAndIncrement());
@@ -1418,7 +1405,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     public void exportCSV(Connection connection, String path, String tableName) throws SQLException {
         PreparedStatement ps = connection.prepareStatement("CALL CSVWRITE(?, ?)");
         ps.setString(1, path);
-        ps.setString(2, tableName);
+        ps.setString(2, "SELECT * FROM " + tableName);
         ps.execute();
     }
 
@@ -1496,6 +1483,14 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 } catch (JdbcSQLNonTransientConnectionException ex) {
                     // ignore
                 }
+                // limit the number of jobs according to the number of available Uueids
+                int numberOfNonEmptyJobs = 0;
+                for(NoiseModellingInstance.JobElement jobElement : clusterConfiguration.jobElementList) {
+                    if(!jobElement.railsUueid.isEmpty() || !jobElement.roadsUueid.isEmpty()) {
+                        numberOfNonEmptyJobs++;
+                    }
+                }
+                configuration.slurmConfig.maxJobs = numberOfNonEmptyJobs;
                 slurmInitAndStart(configuration.slurmConfig, subProg);
             } else {
                 startNoiseModelling(subProg, clusterConfiguration);

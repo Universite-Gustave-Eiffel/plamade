@@ -11,13 +11,7 @@
  */
 package org.noise_planet.nmcluster;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import groovy.sql.Sql;
 import org.apache.log4j.PropertyConfigurator;
-import org.h2gis.api.EmptyProgressVisitor;
-import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.slf4j.Logger;
@@ -28,16 +22,12 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.jar.Attributes;
@@ -142,8 +132,8 @@ public class Main {
             }
             NoiseModellingInstance.ClusterConfiguration clusterConfiguration = loadClusterConfiguration(workingDir, nodeId);
             logger.info(String.format(Locale.ROOT, "For job %d, will compute the following UUEID (%s)",
-                    nodeId, Stream.concat(clusterConfiguration.roads_uueids.stream(),
-                            clusterConfiguration.rails_uueids.stream()).collect(Collectors.joining(","))));
+                    nodeId, Stream.concat(clusterConfiguration.roadsUueid.stream(),
+                            clusterConfiguration.railsUueids.stream()).collect(Collectors.joining(","))));
             // Open database
             DataSource ds = NoiseModellingInstance.createDataSource("", "", new File(workingDir).getAbsolutePath(), "h2gisdb", false);
 

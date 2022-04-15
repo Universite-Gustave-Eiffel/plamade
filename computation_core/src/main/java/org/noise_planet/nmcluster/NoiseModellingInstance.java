@@ -25,7 +25,6 @@ import org.noise_planet.noisemodelling.jdbc.LDENPointNoiseMapFactory;
 import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
-import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
 import org.noise_planet.noisemodelling.pathfinder.utils.JVMMemoryMetric;
 import org.noise_planet.noisemodelling.pathfinder.utils.KMLDocument;
 import org.noise_planet.noisemodelling.pathfinder.utils.ProfilerThread;
@@ -38,14 +37,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import javax.xml.stream.XMLStreamException;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -177,10 +173,22 @@ public class NoiseModellingInstance {
         }
     }
 
+    public static class JobElement implements Comparable<JobElement> {
+        public List<String> roadsUueid = new ArrayList<>();
+        public List<String> railsUueid = new ArrayList<>();
+        public double totalSourceLineLength = 0;
+
+
+        @Override
+        public int compareTo(JobElement o) {
+            return Double.compare(o.totalSourceLineLength, totalSourceLineLength);
+        }
+    }
 
     public static class ClusterConfiguration {
-        public List<String> roads_uueids = new ArrayList<>();
-        public List<String> rails_uueids = new ArrayList<>();
+        public List<String> roadsUueid = new ArrayList<>();
+        public List<String> railsUueids = new ArrayList<>();
+        public List<JobElement> jobElementList = new ArrayList<>();
     }
 
     public static ClusterConfiguration loadClusterConfiguration(String workingDirectory, int nodeId) throws IOException {
@@ -196,12 +204,12 @@ public class NoiseModellingInstance {
                 if(nodeIdProp != null && nodeIdProp.canConvertToInt() && nodeIdProp.intValue() == nodeId) {
                     if(cellNode.get("roads_uueids") instanceof ArrayNode) {
                         for (JsonNode uueidNode : cellNode.get("roads_uueids")) {
-                            configuration.roads_uueids.add(uueidNode.asText());
+                            configuration.roadsUueid.add(uueidNode.asText());
                         }
                     }
                     if(cellNode.get("rails_uueids") instanceof ArrayNode) {
                         for (JsonNode uueidNode : cellNode.get("rails_uueids")) {
-                            configuration.rails_uueids.add(uueidNode.asText());
+                            configuration.railsUueids.add(uueidNode.asText());
                         }
                     }
                     break;
@@ -222,18 +230,18 @@ public class NoiseModellingInstance {
         nm.setConfigurationId(confId);
         nm.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", nodeId));
 
-        nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roads_uueids, clusterConfiguration.rails_uueids);
+        nm.createExpositionTables(new EmptyProgressVisitor(), clusterConfiguration.roadsUueid, clusterConfiguration.railsUueids);
 
         int subProcessCount = 0;
-        if(!clusterConfiguration.roads_uueids.isEmpty()) {
+        if(!clusterConfiguration.roadsUueid.isEmpty()) {
             subProcessCount++;
         }
-        if(!clusterConfiguration.rails_uueids.isEmpty()) {
+        if(!clusterConfiguration.railsUueids.isEmpty()) {
             subProcessCount++;
         }
         ProgressVisitor uueidVisitor = progressVisitor.subProcess(subProcessCount);
-        nm.uueidsLoop(uueidVisitor, clusterConfiguration.roads_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
-        nm.uueidsLoop(uueidVisitor, clusterConfiguration.rails_uueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+        nm.uueidsLoop(uueidVisitor, clusterConfiguration.roadsUueid, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
+        nm.uueidsLoop(uueidVisitor, clusterConfiguration.railsUueids, NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
 
         // export metadata
         PreparedStatement ps = connection.prepareStatement("CALL CSVWRITE(?, ?)");
