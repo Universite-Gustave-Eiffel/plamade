@@ -11,8 +11,9 @@
  */
 
 /**
- * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285
- * @Author Sylvain Palominos, Cerema 
+ * @Author Gwendall Petit, Cerema
+ * @Author Sylvain Palominos, Cerema
+ * @Author Nicolas Fortin, UGE
  */
 
 
@@ -98,7 +99,7 @@ def getPostgreConnection(user, password, url) {
 }
 
 @CompileStatic
-def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeDep,int srid, int batchSize, String codeNuts) {
+def doExport(Sql sqlH2gis, Sql sqlPostgre, String codeDep,int srid, int batchSize, String codeNuts) {
     def writer = new WKTWriter(3)
 
     // Create a logger to display messages in the geoserver logs and in the command prompt.
@@ -125,12 +126,12 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeDep,int 
             String sourcepg = typesource == 'R' ? 'majorRoadsIncludingAgglomeration' : 'majorRailwaysIncludingAgglomeration'
             for (indicetype in ['LD', 'LN']) {
                 // on génère le nom de la table à partir des éléments ci-dessus
-                def inputTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeDep
+                def inputTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeNuts
 
                 // on teste si la table existe dans NM
                 if ((sqlH2gis.firstRow("SELECT count(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE table_name ='" + inputTableCBS + "';")[0] as Integer) > 0) {
-                    logger.info("La table $inputTableCBS va être exportée dans la table $table_cbs")
-                    sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.' + table_cbs + ' (the_geom, cbstype, typesource, indicetype, codedept, pk, uueid, category, source) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?, ?)'.toString()) { BatchingPreparedStatementWrapper ps ->
+                    logger.info("La table $inputTableCBS va être exportée dans la table cbs_"+ srid)
+                    sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.cbs_'+ srid +' (the_geom, cbstype, typesource, indicetype, codedept, pk, uueid, category, source) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?, ?)'.toString()) { BatchingPreparedStatementWrapper ps ->
                         sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, pk, uueid, noiselevel FROM " + inputTableCBS + ";") {
                             GroovyResultSet row -> ps.addBatch(writer.write(row[0] as Geometry), srid, cbstype, typesource, indicetype, codeDep, row[1], row[2], row[3], sourcepg)
                         }
@@ -141,7 +142,7 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeDep,int 
                 }
 
                 // Send merged table (no UUEID column)
-                def inputMergedTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeDep + "_MERGED"
+                def inputMergedTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeNuts + "_MERGED"
 
                 // on teste si la table existe dans NM
                 if (JDBCUtilities.tableExists(sqlH2gis.getConnection(), inputMergedTableCBS)) {
@@ -161,9 +162,10 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String table_cbs, String codeDep,int 
 
     sqlPostgre.execute("DELETE FROM noisemodelling_resultats.expo_"+srid+" WHERE ESTATUnitCode='" + codeNuts + "'")
 
+    logger.info("Les indicateurs d'exposition de la table POPULATION_EXPOSURE vont être exportés dans la table expo_"+ srid)
     sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.expo_'+srid+' (PK,ESTATUnitCode,UUEID, EXPOSURETYPE, NOISELEVEL,EXPOSEDPEOPLE, EXPOSEDAREA, EXPOSEDDWELLINGS, EXPOSEDHOSPITALS , EXPOSEDSCHOOLS , CPI , HA, HSD) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'.toString()) { BatchingPreparedStatementWrapper ps ->
         sqlH2gis.eachRow("SELECT * FROM POPULATION_EXPOSURE;"){ GroovyResultSet row ->
-         ps.addBatch(row[0],row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12])
+            ps.addBatch(row[0],row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12])
         }
     }
 
@@ -198,34 +200,8 @@ def exec(Connection connection, input) {
 
     // On stocke dans les variables codeDep et codeNuts les informations relatives au département qui a été traité (présent dans la table metadata)
     def codeDep = sqlH2gis.firstRow("SELECT code_dept FROM metadata;").code_dept
+    def srid = sqlH2gis.firstRow("SELECT srid FROM metadata;").srid
     String codeNuts = sqlH2gis.firstRow("SELECT nuts FROM metadata;").nuts as String
-
-    // Declare table variables depending on the department and the projection system
-    def srid = 2154
-    def table_cbs = "cbs_2154"
-    def table_expo = "expo_2154"
-
-    if(codeDep=='971' || codeDep=='972') {
-        srid=5490
-        table_cbs = "cbs_5490"
-        table_expo = "expo_5490"
-    }
-    else if(codeDep=='973') {
-        srid=2972
-        table_cbs = "cbs_2972"
-        table_expo = "expo_2972"
-    }
-    else if(codeDep=='974') {
-            srid=2975
-            table_cbs = "cbs_2975"
-            table_expo = "expo_2975"
-        }
-        else if(codeDep=='976') {
-                srid=4471
-                table_cbs = "cbs_4471"
-                table_expo = "expo_4471"
-            }
-
 
 
     // print to command window
@@ -237,6 +213,7 @@ def exec(Connection connection, input) {
         logger.info("Le département $codeDep existe déjà dans la base. Suppression des données existantes")
         sqlPostgre.execute """
         DELETE FROM noisemodelling_resultats."$table_cbs" WHERE codedept = '$codeDep';
+        DELETE FROM noisemodelling_resultats."$table_cbs_agr" WHERE codedept = '$codeDep';
         DELETE FROM noisemodelling_resultats."$table_expo" WHERE estatunitcode = '$codeNuts';
         DELETE FROM noisemodelling_resultats.metadata WHERE nutscode = '$codeNuts';
         """
@@ -245,7 +222,7 @@ def exec(Connection connection, input) {
 
     } //end if
 
-    logger.info("Début de l'export du département $codeDep sur le serveur")
+    logger.info("Début de l'export des données du département $codeDep sur le serveur")
 
     // On insère les nouvelles données dans la table des metadata
     logger.info("Mise à jour de la table des métadonnées")
@@ -255,14 +232,13 @@ def exec(Connection connection, input) {
         }
     }
 
-    // On insère les nouvelles données dans la table des CBS
-    logger.info("Export des CBS")
+    // On insère les nouvelles données dans les tables respectives
+    logger.info("Export des CBS et des indicateurs")
 
-    doExport(sqlH2gis, sqlPostgre, table_cbs as String, codeDep as String, srid as Integer, input["batchSize"] as Integer, codeNuts)
+    doExport(sqlH2gis, sqlPostgre, codeDep as String, srid as Integer, input["batchSize"] as Integer, codeNuts)
 
-    logger.info("Les cartes du bruit du département $codeDep ont été exporté sur le serveur")
+    logger.info("Les cartes du bruit ainsi que les indicateurs d'exposition du département $codeDep ont été exporté sur le serveur")
 
-    return "Les cartes du bruit du département $codeDep ont été exporté sur le serveur"
+    return "Les cartes du bruit ainsi que les indicateurs d'exposition du département $codeDep ont été exporté sur le serveur"
 
 }
-
