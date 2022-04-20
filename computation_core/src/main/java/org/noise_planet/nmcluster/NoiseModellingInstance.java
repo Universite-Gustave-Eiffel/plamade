@@ -48,6 +48,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -94,6 +95,11 @@ public class NoiseModellingInstance {
     final List<Double>  isoCFerConvLevelsLDEN= Arrays.asList(73.0d,200.0d);
     // LNIGHT classes for C maps : >65 dB
     final List<Double>  isoCFerConvLevelsLNIGHT= Arrays.asList(65.0d,200.0d);
+
+    // LDEN classes for C maps and : >68 dB
+    final List<Double>  isoCFerLGVLevelsLDEN= Arrays.asList(68.0d,200.0d);
+    // LNIGHT classes for C maps : >62 dB
+    final List<Double>  isoCFerLGVLevelsLNIGHT= Arrays.asList(62.0d,200.0d);
 
     String cbsARoadLden;
     String cbsARoadLnight;
@@ -559,6 +565,13 @@ public class NoiseModellingInstance {
             sql.execute("CREATE TABLE "+ cbsCFerCONVLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
             sql.execute("DROP TABLE IF EXISTS "+ cbsCFerCONVLnight);
             sql.execute("CREATE TABLE "+ cbsCFerCONVLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+
+
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCFerLGVLden);
+            sql.execute("CREATE TABLE "+ cbsCFerLGVLden +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+            sql.execute("DROP TABLE IF EXISTS "+ cbsCFerLGVLnight);
+            sql.execute("CREATE TABLE "+ cbsCFerLGVLnight +" (the_geom geometry, pk varchar, UUEID varchar, PERIOD varchar, noiselevel varchar, AREA float)");
+
         } else{
             outputTables.add(cbsARoadLden);
             outputTables.add(cbsARoadLnight);
@@ -714,14 +727,22 @@ public class NoiseModellingInstance {
         generateIsoSurfaces(ldenInput, isoLevelsLDEN, connection, uueid, "A", "LD", sourceType);
 
         // For C maps
-        // Produce isocontours for LNIGHT (LN)
-        generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, connection, uueid, "C", "LN", sourceType);
-        // Produce isocontours for LDEN (LD)
-        generateIsoSurfaces(ldenInput, isoCLevelsLDEN, connection, uueid, "C", "LD", sourceType);
-
         if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
-            generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, connection, uueid, "C", "LN", sourceType);
-            generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, connection, uueid, "C", "LD", sourceType);
+            int typeLigne = Integer.parseInt((String)sql.firstRow(Collections.singletonMap("uueid", uueid),
+                    "SELECT LINETYPE  FROM RAIL_SECTIONS WHERE UUEID=:uueid LIMIT 1").getAt(0));
+            if(typeLigne == 1) // conventional
+            {
+                generateIsoSurfaces(lnightInput, isoCFerConvLevelsLNIGHT, connection, uueid, "C", "LN", sourceType);
+                generateIsoSurfaces(ldenInput, isoCFerConvLevelsLDEN, connection, uueid, "C", "LD", sourceType);
+            } else {
+                generateIsoSurfaces(lnightInput, isoCFerLGVLevelsLNIGHT, connection, uueid, "C", "LN", sourceType);
+                generateIsoSurfaces(ldenInput, isoCFerLGVLevelsLDEN, connection, uueid, "C", "LD", sourceType);
+            }
+        } else {
+            // Produce isocontours for LNIGHT (LN)
+            generateIsoSurfaces(lnightInput, isoCLevelsLNIGHT, connection, uueid, "C", "LN", sourceType);
+            // Produce isocontours for LDEN (LD)
+            generateIsoSurfaces(ldenInput, isoCLevelsLDEN, connection, uueid, "C", "LD", sourceType);
         }
 
         sql.execute("DROP TABLE IF EXISTS "+ldenInput + ", " + lnightInput);

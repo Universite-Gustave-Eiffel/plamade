@@ -55,6 +55,8 @@ import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.noise_planet.plamade.process.NoiseModellingRunner.CBS_GRID_SIZE;
+import static org.noise_planet.plamade.process.NoiseModellingRunner.CBS_MAIN_GRID_SIZE;
 
 public class TestCluster {
 
@@ -253,11 +255,19 @@ public class TestCluster {
 //    }
     @Test
     public void mergeGeoJSONFilesTest() throws SQLException, IOException {
-        String workingDir = "/home/nicolas/data/plamade/dep05";
-        DataSource ds = NoiseModellingInstance.createDataSource("", "",
-                workingDir, "h2gisdb", false);
-        try(Connection sql = ds.getConnection()) {
-            NoiseModellingRunner.makeGrid(sql, 4);
+        if(new File("/home/nicolas").exists()) {
+            String workingDir = "/home/nicolas/data/plamade/dep44";
+            DataSource ds = NoiseModellingInstance.createDataSource("", "", workingDir, "h2gisdb", false);
+            try (Connection connection = ds.getConnection()) {
+            NoiseModellingRunner.Configuration configuration = new NoiseModellingRunner.Configuration(
+                    1, workingDir, 4, workingDir.substring(workingDir.length() - 2), 1,
+                    null, new RootProgressVisitor(1), "build/");
+                NoiseModellingRunner noiseModellingRunner = new NoiseModellingRunner(configuration, null);
+                List<String> createdTables = NoiseModellingRunner.mergeCBS(connection, CBS_GRID_SIZE, CBS_MAIN_GRID_SIZE,
+                        new RootProgressVisitor(1, true, 1));
+                NoiseModellingRunner.exportTables(connection, createdTables,
+                        new  File("out/").getAbsolutePath(), 4326);
+            }
         }
     }
 //

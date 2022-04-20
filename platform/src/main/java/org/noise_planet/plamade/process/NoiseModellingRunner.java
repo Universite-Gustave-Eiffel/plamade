@@ -47,8 +47,10 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.prep.PreparedPolygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
+import org.locationtech.jts.triangulate.DelaunayTriangulationBuilder;
 import org.noise_planet.nmcluster.Main;
 import org.noise_planet.nmcluster.NoiseModellingInstance;
 import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
@@ -417,12 +419,17 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         isoLabelToLevel.put("Lnight5559", 57.0);
         isoLabelToLevel.put("Lnight6064", 62.0);
         isoLabelToLevel.put("Lnight6569", 67.0);
+        isoLabelToLevel.put("LdenGreaterThan68", 68.0);
+        isoLabelToLevel.put("LdenGreaterThan73", 73.0);
         isoLabelToLevel.put("LnightGreaterThan70", 70.0);
+        isoLabelToLevel.put("LnightGreaterThan62", 62.0);
+        isoLabelToLevel.put("LnightGreaterThan65", 65.0);
         ArrayList<String> outputTables = new ArrayList<>();
         ArrayList<TableLocation> cbsTables = new ArrayList<>();
         for(String tableName : allTables) {
             TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
-            if (tableLocation.getTable().startsWith("CBS_A_R_") || tableLocation.getTable().startsWith("CBS_A_F_")) {
+            if (!tableLocation.getTable().endsWith("_MERGED") && //not already merged
+                    (tableLocation.getTable().startsWith("CBS_"))) { // CBS Table
                 List<String> fields = JDBCUtilities.getColumnNames(connection, tableLocation);
                 if (!(fields.contains("UUEID") && fields.contains("PERIOD") && fields.contains("NOISELEVEL"))) {
                     continue;
@@ -431,6 +438,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             }
         }
         ProgressVisitor tableProgress = progressVisitor.subProcess(cbsTables.size());
+        int insertedPolygons = 0;
         for(TableLocation tableLocation : cbsTables) {
             String outputTable = tableLocation.getTable() + "_MERGED";
             try(Statement st = connection.createStatement()) {
@@ -482,6 +490,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                                 }
                                 CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, triangle);
                                 tesselatedIsos.insert(triEnv, cbsSplitedEntry);
+                                insertedPolygons++;
                             }
                         }
                     }
@@ -493,10 +502,13 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(MULTIPOLYGON,"+srid+"), NOISELEVEL VARCHAR(20))");
 
                 boolean isDay = tableLocation.getTable().contains("_LD_");
+                boolean isTypeA = tableLocation.getTable().startsWith("CBS_A_");
+                boolean isTrainConventional = tableLocation.getTable().contains("_CONV_");
+
                 long endCells = System.currentTimeMillis();
-                logger.info(String.format(Locale.ROOT, "Collect cells in %d ms may generate up to" +
-                                " %d iso-cells. Compute intersection of iso-cells..",(int)(endCells - startMerge) ,
-                        cellIndices.values().stream().mapToInt(ArrayList::size).sum()));
+                logger.info(String.format(Locale.ROOT, "Collect cells of %s in %d ms may generate up to" +
+                                " %d iso-cells from %d polygons. Compute intersection of iso-cells..",tableLocation, (int)(endCells - startMerge) ,
+                        cellIndices.values().stream().mapToInt(ArrayList::size).sum(), insertedPolygons));
 
                 Deque<IsoEntry> deque = new ConcurrentLinkedDeque<>();
                 ProgressVisitor mainGridProgress = tableProgress.subProcess(cellIndices.size());
@@ -526,41 +538,79 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                             // insert entry
                             double summedNoiseLevel = PowerUtils.wToDba(sumPower);
                             String noiseLevel = "";
-                            if (isDay) {
-                                if (summedNoiseLevel < 60) {
-                                    noiseLevel = "Lden5559";
-                                } else if (summedNoiseLevel < 65) {
-                                    noiseLevel = "Lden6064";
+                            if(isTypeA) {
+                                if (isDay) {
+                                    if (summedNoiseLevel < 60) {
+                                        noiseLevel = "Lden5559";
+                                    } else if (summedNoiseLevel < 65) {
+                                        noiseLevel = "Lden6064";
 
-                                } else if (summedNoiseLevel < 70) {
-                                    noiseLevel = "Lden6569";
+                                    } else if (summedNoiseLevel < 70) {
+                                        noiseLevel = "Lden6569";
 
-                                } else if (summedNoiseLevel < 75) {
-                                    noiseLevel = "Lden7074";
+                                    } else if (summedNoiseLevel < 75) {
+                                        noiseLevel = "Lden7074";
 
+                                    } else {
+                                        noiseLevel = "LdenGreaterThan75";
+                                    }
                                 } else {
-                                    noiseLevel = "LdenGreaterThan75";
+                                    if (summedNoiseLevel < 55) {
+                                        noiseLevel = "Lnight5054";
+                                    } else if (summedNoiseLevel < 60) {
+                                        noiseLevel = "Lnight5559";
+
+                                    } else if (summedNoiseLevel < 65) {
+                                        noiseLevel = "Lnight6064";
+
+                                    } else if (summedNoiseLevel < 70) {
+                                        noiseLevel = "Lnight6569";
+                                    } else {
+                                        noiseLevel = "LnightGreaterThan70";
+                                    }
                                 }
                             } else {
-                                if (summedNoiseLevel < 55) {
-                                    noiseLevel = "Lnight5054";
-                                } else if (summedNoiseLevel < 60) {
-                                    noiseLevel = "Lnight5559";
-
-                                } else if (summedNoiseLevel < 65) {
-                                    noiseLevel = "Lnight6064";
-
-                                } else if (summedNoiseLevel < 70) {
-                                    noiseLevel = "Lnight6569";
+                                // Type C map
+                                if (isDay) {
+                                    if(!isTrainConventional) {
+                                        // LGV or roads type C
+                                        if (summedNoiseLevel > 68) {
+                                            noiseLevel = "LdenGreaterThan68";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    } else {
+                                        // Fer. Conv.
+                                        if (summedNoiseLevel > 73) {
+                                            noiseLevel = "LdenGreaterThan73";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    }
                                 } else {
-                                    noiseLevel = "LnightGreaterThan70";
+                                    if(!isTrainConventional) {
+                                        // LGV or roads type C
+                                        if (summedNoiseLevel > 62) {
+                                            noiseLevel = "LnightGreaterThan62";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    } else {
+                                        // Fer. Conv.
+                                        if (summedNoiseLevel > 65) {
+                                            noiseLevel = "LnightGreaterThan65";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    }
                                 }
                             }
-                            IsoEntry isoEntry = new IsoEntry(cellId, gridCell, noiseLevel);
-                            ArrayList<IsoEntry> isoList = mainCellsPolys.putIfAbsent(noiseLevel,
-                                    new ArrayList<>(Collections.singleton(isoEntry)));
-                            if (isoList != null) {
-                                isoList.add(isoEntry);
+                            if(!noiseLevel.isEmpty()) {
+                                IsoEntry isoEntry = new IsoEntry(cellId, gridCell, noiseLevel);
+                                ArrayList<IsoEntry> isoList = mainCellsPolys.putIfAbsent(noiseLevel, new ArrayList<>(Collections.singleton(isoEntry)));
+                                if (isoList != null) {
+                                    isoList.add(isoEntry);
+                                }
                             }
                         }
                     });
@@ -1476,13 +1526,13 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 clusterConfiguration = generateClusterConfig(nmConnection, subProg, maxJobs, configuration.workingDirectory);
                 subProg.endStep();
             }
+            // Compact database
+            try (Connection nmConnection = nmDataSource.getConnection()) {
+                nmConnection.createStatement().execute("SHUTDOWN COMPACT");
+            } catch (JdbcSQLNonTransientConnectionException ex) {
+                // ignore
+            }
             if(configuration.computeOnCluster) {
-                // Compact database
-                try (Connection nmConnection = nmDataSource.getConnection()) {
-                    nmConnection.createStatement().execute("SHUTDOWN COMPACT");
-                } catch (JdbcSQLNonTransientConnectionException ex) {
-                    // ignore
-                }
                 // limit the number of jobs according to the number of available Uueids
                 int numberOfNonEmptyJobs = 0;
                 for(NoiseModellingInstance.JobElement jobElement : clusterConfiguration.jobElementList) {
