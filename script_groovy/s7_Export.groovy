@@ -212,9 +212,9 @@ def exec(Connection connection, input) {
         // On supprime les données déjà existantes
         logger.info("Le département $codeDep existe déjà dans la base. Suppression des données existantes")
         sqlPostgre.execute """
-        DELETE FROM noisemodelling_resultats."$table_cbs" WHERE codedept = '$codeDep';
-        DELETE FROM noisemodelling_resultats."$table_cbs_agr" WHERE codedept = '$codeDep';
-        DELETE FROM noisemodelling_resultats."$table_expo" WHERE estatunitcode = '$codeNuts';
+        DELETE FROM noisemodelling_resultats.cbs_$srid WHERE codedept = '$codeDep';
+        DELETE FROM noisemodelling_resultats.cbs_agr_$srid WHERE codedept = '$codeDep';
+        DELETE FROM noisemodelling_resultats.expo_$srid WHERE estatunitcode = '$codeNuts';
         DELETE FROM noisemodelling_resultats.metadata WHERE nutscode = '$codeNuts';
         """
         logger.info("Les données relatives au département $codeDep ont été supprimées de la base")
