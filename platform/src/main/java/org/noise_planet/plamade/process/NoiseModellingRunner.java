@@ -426,21 +426,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
                 new String[]{"TABLE"});
         GeometryFactory geometyFactory = new GeometryFactory();
-        Map<String, Double> isoLabelToLevel = new TreeMap<>();
-        isoLabelToLevel.put("Lden5559", 57.0);
-        isoLabelToLevel.put("Lden6064", 62.0);
-        isoLabelToLevel.put("Lden6569", 67.0);
-        isoLabelToLevel.put("Lden7074", 72.0);
-        isoLabelToLevel.put("LdenGreaterThan75", 75.0);
-        isoLabelToLevel.put("Lnight5054", 52.0);
-        isoLabelToLevel.put("Lnight5559", 57.0);
-        isoLabelToLevel.put("Lnight6064", 62.0);
-        isoLabelToLevel.put("Lnight6569", 67.0);
-        isoLabelToLevel.put("LdenGreaterThan68", 68.0);
-        isoLabelToLevel.put("LdenGreaterThan73", 73.0);
-        isoLabelToLevel.put("LnightGreaterThan70", 70.0);
-        isoLabelToLevel.put("LnightGreaterThan62", 62.0);
-        isoLabelToLevel.put("LnightGreaterThan65", 65.0);
+        Map<String, Double[]> isoLabelToLevel = NoiseModellingInstance.getIntervals();
         ArrayList<String> outputTables = new ArrayList<>();
         ArrayList<TableLocation> cbsTables = new ArrayList<>();
         for(String tableName : allTables) {
@@ -454,6 +440,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 cbsTables.add(tableLocation);
             }
         }
+        cbsTables.clear();
+        cbsTables.add(TableLocation.parse("H2GISDB.PUBLIC.CBS_C_F_CONV_LD_FRC24"));
         ProgressVisitor tableProgress = progressVisitor.subProcess(cbsTables.size());
         for(TableLocation tableLocation : cbsTables) {
             String outputTable = tableLocation.getTable() + "_MERGED";
@@ -506,7 +494,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         , nbPolygons));
                 ProgressVisitor geomLoading = tableProcessing.subProcess(nbPolygons);
                 geometriesToGrid.forEach((s, polygons) -> {
-                    Double noiseLevel = isoLabelToLevel.get(s);
+                    Double noiseLevel = isoLabelToLevel.get(s)[1]; //take mid range
                     ConcurrentLinkedDeque<CbsIntersectedEntry> entries = new ConcurrentLinkedDeque<>();
                     polygons.parallelStream().forEach(triangle -> {
                         PreparedPolygon preparedPolygon = new PreparedPolygon(triangle);

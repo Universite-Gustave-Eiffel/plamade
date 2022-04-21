@@ -259,7 +259,7 @@ public class TestCluster {
         Runtime r = Runtime.getRuntime();
         logger.info("Mem space: " + r.maxMemory());
         if(new File("/home/nicolas").exists()) {
-            String workingDir = "/home/nicolas/data/plamade/dep44";
+            String workingDir = "/home/nicolas/data/plamade/dep90";
             DataSource ds = NoiseModellingInstance.createDataSource("", "", workingDir, "h2gisdb", false);
             try (Connection connection = ds.getConnection()) {
             NoiseModellingRunner.Configuration configuration = new NoiseModellingRunner.Configuration(

@@ -399,13 +399,7 @@ public class NoiseModellingInstance {
         }
     }
 
-    public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID) throws SQLException, IOException {
-        // push uueids
-        String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75", "LdenGreaterThan68", "LnightGreaterThan62"};
-
-        String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
-                "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
-                "LnightGreaterThan70"};
+    public static Map<String, Double[]> getIntervals() {
         Map<String, Double[]> levelRoadsInterval = new TreeMap<>();
         levelRoadsInterval.put("Lden5559", new Double[]{55.0, 57.5, 60.0});
         levelRoadsInterval.put("Lden6064",  new Double[]{60.0, 62.5, 65.0});
@@ -420,7 +414,18 @@ public class NoiseModellingInstance {
         levelRoadsInterval.put("LnightGreaterThan62", new Double[]{62.0, 64.5, 200.0});
         levelRoadsInterval.put("LdenGreaterThan68", new Double[]{68.0, 70.5, 200.0});
         levelRoadsInterval.put("LdenGreaterThan73", new Double[]{73.0, 75.5, 200.0});
-        levelRoadsInterval.put("LnightGreaterThan65", new Double[]{65.0, 78.5, 200.0});
+        levelRoadsInterval.put("LnightGreaterThan65", new Double[]{65.0, 67.5, 200.0});
+        return levelRoadsInterval;
+    }
+
+    public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID) throws SQLException, IOException {
+        // push uueids
+        String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75", "LdenGreaterThan68", "LnightGreaterThan62"};
+
+        String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
+                "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan70"};
+        Map<String, Double[]> levelRoadsInterval = getIntervals();
 
         String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75","LdenGreaterThan73", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
