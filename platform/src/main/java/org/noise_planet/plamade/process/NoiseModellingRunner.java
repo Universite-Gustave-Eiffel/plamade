@@ -537,7 +537,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                     });
                     polygons.clear();
                     for (CbsIntersectedEntry intersectedEntry : entries) {
-                        ArrayList<CbsIntersectedEntry> ar = cellIndices.computeIfAbsent(intersectedEntry.mainIndex, k -> new ArrayList<>(Math.max(20, entries.size())));
+                        ArrayList<CbsIntersectedEntry> ar = cellIndices.computeIfAbsent(intersectedEntry.mainIndex, k -> new ArrayList<>());
                         ar.add(intersectedEntry);
                     }
                 });
