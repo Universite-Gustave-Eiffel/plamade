@@ -71,6 +71,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -1635,9 +1638,22 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             }catch (IOException ex) {
                 logger.error("Error while exporting logs");
             }
+            // Send notification
+
         }
     }
 
+    public void sendNotification() throws IOException {
+//        URL apiUrl = new URL("https://api.pushbullet.com/v2/pushes");
+//        URLConnection con = url.openConnection();
+//        HttpURLConnection http = (HttpURLConnection)con;
+//        http.setRequestMethod("POST"); // PUT is another valid option
+//        http.setDoOutput(true);
+//        Map<String,String> arguments = new HashMap<>();
+//        arguments.put("username", "");
+//        arguments.put("password", ""); // This is a fake password obviously
+//        arguments.entrySet().stream().map(stringStringEntry -> URLEncoder.encode(stringStringEntry.getKey(), "UTF-8"))
+    }
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         configuration.progressVisitor.cancel();
@@ -1676,6 +1692,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         private int slurmJobId = -1;
         private int userPK;
         private boolean computeOnCluster = true;
+        private String notificationAccessToken = "";
 
         public Configuration(int userPk, String workingDirectory, int configurationId, String inseeDepartment, int taskPrimaryKey
                 , DataBaseConfig dataBaseConfig, ProgressVisitor progressVisitor, String remoteJobFolder) {
@@ -1692,6 +1709,17 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         public Configuration setComputeOnCluster(boolean computeOnCluster) {
             this.computeOnCluster = computeOnCluster;
             return this;
+        }
+
+        public String getNotificationAccessToken() {
+            return notificationAccessToken;
+        }
+
+        /**
+         * @param notificationAccessToken Api access token for sending a notification when a job is finished
+         */
+        public void setNotificationAccessToken(String notificationAccessToken) {
+            this.notificationAccessToken = notificationAccessToken;
         }
 
         public int getSlurmJobId() {

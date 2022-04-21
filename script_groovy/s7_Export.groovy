@@ -200,7 +200,7 @@ def exec(Connection connection, input) {
 
     // On stocke dans les variables codeDep et codeNuts les informations relatives au département qui a été traité (présent dans la table metadata)
     def codeDep = sqlH2gis.firstRow("SELECT code_dept FROM metadata;").code_dept
-    def srid = sqlH2gis.firstRow("SELECT srid FROM metadata;").srid
+    int srid = sqlH2gis.firstRow("SELECT srid FROM metadata;").srid as Integer
     String codeNuts = sqlH2gis.firstRow("SELECT nuts FROM metadata;").nuts as String
 
 
@@ -212,9 +212,9 @@ def exec(Connection connection, input) {
         // On supprime les données déjà existantes
         logger.info("Le département $codeDep existe déjà dans la base. Suppression des données existantes")
         sqlPostgre.execute """
-        DELETE FROM noisemodelling_resultats.cbs_$srid WHERE codedept = '$codeDep';
-        DELETE FROM noisemodelling_resultats.cbs_agr_$srid WHERE codedept = '$codeDep';
-        DELETE FROM noisemodelling_resultats.expo_$srid WHERE estatunitcode = '$codeNuts';
+        DELETE FROM noisemodelling_resultats.cbs_"""+srid+""" WHERE codedept = '$codeDep';
+        DELETE FROM noisemodelling_resultats.cbs_agr_"""+srid+""" WHERE codedept = '$codeDep';
+        DELETE FROM noisemodelling_resultats.expo_"""+srid+""" WHERE estatunitcode = '$codeNuts';
         DELETE FROM noisemodelling_resultats.metadata WHERE nutscode = '$codeNuts';
         """
         logger.info("Les données relatives au département $codeDep ont été supprimées de la base")

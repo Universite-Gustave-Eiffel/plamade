@@ -88,6 +88,11 @@ public class PostAddJob implements Handler {
                                 JsonNode cfg = mapper.readTree(ctx.file("config.yaml").toFile());
                                 dataBaseConfig.user = cfg.findValue("database").findValue("user").asText();
                                 dataBaseConfig.password = cfg.findValue("database").findValue("password").asText();
+                                JsonNode apiTokenNode = cfg.findValue("auth").findValue("notificationAccessToken");
+                                String apiToken = "";
+                                if(apiTokenNode != null) {
+                                    apiToken = apiTokenNode.asText();
+                                }
                                 long timeJob = System.currentTimeMillis();
                                 String jobFolder = "dep" + inseeDepartment + "_" + timeJob;
                                 String remoteJobFolder;
@@ -118,6 +123,7 @@ public class PostAddJob implements Handler {
                                             pkUser,new File(NoiseModellingRunner.MAIN_JOBS_FOLDER+
                                             File.separatorChar+jobFolder).getAbsolutePath(), Integer.parseInt(confId),
                                             inseeDepartment, pk, dataBaseConfig , rootProgressVisitor, remoteJobFolder);
+                                    configuration.setNotificationAccessToken(apiToken);
                                     configuration.setComputeOnCluster(computeOnCluster);
                                     if(computeOnCluster) {
                                         configuration.setSlurmConfig(slurmConfigList.slurm);
