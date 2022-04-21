@@ -168,7 +168,7 @@ def exec(Connection connection, input) {
     }
 
     logger.info('Create line of receivers')
-    sql.execute("CREATE TABLE tmp_receivers_lines(pk integer not null PRIMARY KEY, the_geom geometry) AS SELECT " + buildingPk + " as pk, st_simplifypreservetopology(ST_ToMultiLine(ST_Buffer(the_geom, 2, 'join=bevel')), 0.1) the_geom FROM " + building_table_name + filter_geom_query)
+    sql.execute("CREATE TABLE tmp_receivers_lines(pk integer not null PRIMARY KEY, the_geom geometry) AS SELECT " + buildingPk + " as pk, st_simplifypreservetopology(ST_ToMultiLine(ST_Buffer(the_geom, 0.1, 'join=bevel')), 0.1) the_geom FROM " + building_table_name + filter_geom_query)
     sql.execute("CREATE SPATIAL INDEX ON tmp_receivers_lines(the_geom)")
 
     logger.info('List buildings that will remove receivers (if height is superior than receiver height)')
@@ -179,9 +179,7 @@ def exec(Connection connection, input) {
         
     logger.info('Truncate receiver lines')
     sql.execute("DROP TABLE IF EXISTS tmp_screen_truncated;")
-    //sql.execute("CREATE TABLE tmp_screen_truncated(pk_screen integer not null PRIMARY KEY, the_geom geometry) AS SELECT r.pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 2)) the_geom FROM tmp_relation_screen_building r, " + building_table_name + " b, tmp_receivers_lines s WHERE pk_building = b." + buildingPk + " AND pk_screen = s.pk  GROUP BY pk_screen, s.the_geom;")
-
-    sql.execute("CREATE TABLE tmp_screen_truncated(pk_screen integer not null, the_geom geometry) AS SELECT r.pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 2)) the_geom FROM tmp_relation_screen_building r, " + building_table_name + " b, tmp_receivers_lines s WHERE pk_building = b." + buildingPk + " AND pk_screen = s.pk  GROUP BY pk_screen, s.the_geom;")
+    sql.execute("CREATE TABLE tmp_screen_truncated(pk_screen integer not null, the_geom geometry) AS SELECT r.pk_screen, ST_DIFFERENCE(s.the_geom, ST_BUFFER(ST_ACCUM(b.the_geom), 0.1)) the_geom FROM tmp_relation_screen_building r, " + building_table_name + " b, tmp_receivers_lines s WHERE pk_building = b." + buildingPk + " AND pk_screen = s.pk  GROUP BY pk_screen, s.the_geom;")
 
     sql.execute("ALTER TABLE tmp_screen_truncated ADD PRIMARY KEY(pk_screen)")
     

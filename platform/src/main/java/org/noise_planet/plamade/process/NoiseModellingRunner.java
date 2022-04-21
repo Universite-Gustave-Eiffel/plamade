@@ -30,6 +30,7 @@ import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import groovy.sql.Sql;
 import org.apache.commons.compress.utils.CountingInputStream;
+import org.h2.jdbc.JdbcSQLNonTransientConnectionException;
 import org.h2.util.OsgiDataSourceFactory;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
@@ -46,6 +47,7 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.prep.PreparedPolygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
 import org.noise_planet.nmcluster.Main;
@@ -95,6 +97,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.Vector;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -124,6 +127,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         COMPLETED
     }
      public static final int MAX_CONNECTION_RETRY = 170;
+    public static final int MAX_SSH_SEND_RETRY = 4;
     public static final int CBS_GRID_SIZE = 10;
     public static final int CBS_MAIN_GRID_SIZE = 800;
     public static final String RESULT_DIRECTORY_NAME = "results";
@@ -131,16 +135,16 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
     // https://curc.readthedocs.io/en/latest/running-jobs/squeue-status-codes.html
     public static final SlurmJobKnownStatus[] SLURM_JOB_KNOWN_STATUSES = new SlurmJobKnownStatus[]{
-            new SlurmJobKnownStatus("COMPLETED", true), // The job has completed successfully.
-            new SlurmJobKnownStatus("COMPLETING", false), // The job is finishing but some processes are still active.
-            new SlurmJobKnownStatus("FAILED", true), // The job terminated with a non-zero exit code and failed to execute.
-            new SlurmJobKnownStatus("PENDING", false), // The job is waiting for resource allocation. It will eventually run.
-            new SlurmJobKnownStatus("PREEMPTED", false), // The job was terminated because of preemption by another job.
-            new SlurmJobKnownStatus("RUNNING", false), // The job currently is allocated to a node and is running.
-            new SlurmJobKnownStatus("SUSPENDED", false), // A running job has been stopped with its cores released to other jobs.
-            new SlurmJobKnownStatus("STOPPED", true), // A running job has been stopped with its cores retained.
-            new SlurmJobKnownStatus("CANCELED", true), // Job canceled by system or user
-            new SlurmJobKnownStatus("TIMEOUT", true) // Job timeout (will not be restarted)
+            new SlurmJobKnownStatus("COMPLETED", true, false), // The job has completed successfully.
+            new SlurmJobKnownStatus("COMPLETING", false, false), // The job is finishing but some processes are still active.
+            new SlurmJobKnownStatus("FAILED", true, true), // The job terminated with a non-zero exit code and failed to execute.
+            new SlurmJobKnownStatus("PENDING", false, false), // The job is waiting for resource allocation. It will eventually run.
+            new SlurmJobKnownStatus("PREEMPTED", false, false), // The job was terminated because of preemption by another job.
+            new SlurmJobKnownStatus("RUNNING", false, false), // The job currently is allocated to a node and is running.
+            new SlurmJobKnownStatus("SUSPENDED", false, false), // A running job has been stopped with its cores released to other jobs.
+            new SlurmJobKnownStatus("STOPPED", true, false), // A running job has been stopped with its cores retained.
+            new SlurmJobKnownStatus("CANCELED", true, true), // Job canceled by system or user
+            new SlurmJobKnownStatus("TIMEOUT", true, true) // Job timeout (will not be restarted)
     };
 
     private static final Logger logger = LoggerFactory.getLogger(NoiseModellingRunner.class);
@@ -153,16 +157,14 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
     private int oldFinishedJobs = 0;
-    private Set<String> finishedStates = new HashSet<>();
+    private Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
 
     public NoiseModellingRunner(Configuration configuration, DataSource plamadeDataSource) {
         this.configuration = configuration;
         this.plamadeDataSource = plamadeDataSource;
         // Loop check for job status
         for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
-            if(s.finished) {
-                finishedStates.add(s.status);
-            }
+            slurmStateMap.put(s.status, s);
         }
     }
 
@@ -328,18 +330,6 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         return rootNode;
     }
 
-    private static class JobElement implements Comparable<JobElement> {
-        public List<String> roadsUueid = new ArrayList<>();
-        public List<String> railsUueid = new ArrayList<>();
-        public double totalSourceLineLength = 0;
-
-
-        @Override
-        public int compareTo(JobElement o) {
-            return Double.compare(o.totalSourceLineLength, totalSourceLineLength);
-        }
-    }
-
     public static Integer asInteger(Object v) {
         if(v instanceof Number) {
             return ((Number)v).intValue();
@@ -348,6 +338,26 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
     }
 
+    public static class CSVFileFilter implements FilenameFilter {
+        String prefix;
+        String suffix;
+
+        public CSVFileFilter(String prefix, String suffix) {
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        @Override
+        public boolean accept(File dir, String name) {
+            if(!name.toLowerCase(Locale.ROOT).endsWith("csv")) {
+                return false;
+            }
+            if(!name.startsWith(prefix)) {
+                return false;
+            }
+            return suffix.isEmpty() || name.indexOf(suffix, prefix.length()) != -1;
+        }
+    }
     public static class GEOJSONFileFilter implements FilenameFilter {
         String prefix;
         String suffix;
@@ -371,11 +381,24 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
     private static class CbsSplitedEntry {
         double noiseLevel;
-        Geometry geometry;
+        double cellIntersectionArea;
 
-        public CbsSplitedEntry(double noiseLevel, Geometry geometry) {
+        public CbsSplitedEntry(double noiseLevel, double cellIntersectionArea) {
             this.noiseLevel = noiseLevel;
-            this.geometry = geometry;
+            this.cellIntersectionArea = cellIntersectionArea;
+        }
+    }
+
+    private static class CbsIntersectedEntry {
+        PointNoiseMap.CellIndex mainIndex;
+        PointNoiseMap.CellIndex cellIndex;
+        CbsSplitedEntry cbsSplitedEntry;
+
+        public CbsIntersectedEntry(PointNoiseMap.CellIndex mainIndex, PointNoiseMap.CellIndex cellIndex,
+                                   CbsSplitedEntry cbsSplitedEntry) {
+            this.mainIndex = mainIndex;
+            this.cellIndex = cellIndex;
+            this.cbsSplitedEntry = cbsSplitedEntry;
         }
     }
 
@@ -390,6 +413,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             this.isoLvl = isoLvl;
         }
     }
+
     /**
      * Merge UUEID in CBS over a regular grid
      * @param connection
@@ -409,12 +433,17 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         isoLabelToLevel.put("Lnight5559", 57.0);
         isoLabelToLevel.put("Lnight6064", 62.0);
         isoLabelToLevel.put("Lnight6569", 67.0);
+        isoLabelToLevel.put("LdenGreaterThan68", 68.0);
+        isoLabelToLevel.put("LdenGreaterThan73", 73.0);
         isoLabelToLevel.put("LnightGreaterThan70", 70.0);
+        isoLabelToLevel.put("LnightGreaterThan62", 62.0);
+        isoLabelToLevel.put("LnightGreaterThan65", 65.0);
         ArrayList<String> outputTables = new ArrayList<>();
         ArrayList<TableLocation> cbsTables = new ArrayList<>();
         for(String tableName : allTables) {
             TableLocation tableLocation = TableLocation.parse(tableName, DBTypes.H2GIS);
-            if (tableLocation.getTable().startsWith("CBS_A_R_") || tableLocation.getTable().startsWith("CBS_A_F_")) {
+            if (!tableLocation.getTable().endsWith("_MERGED") && //not already merged
+                    (tableLocation.getTable().startsWith("CBS_"))) { // CBS Table
                 List<String> fields = JDBCUtilities.getColumnNames(connection, tableLocation);
                 if (!(fields.contains("UUEID") && fields.contains("PERIOD") && fields.contains("NOISELEVEL"))) {
                     continue;
@@ -426,20 +455,25 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         for(TableLocation tableLocation : cbsTables) {
             String outputTable = tableLocation.getTable() + "_MERGED";
             try(Statement st = connection.createStatement()) {
-                final STRtree tesselatedIsos = new STRtree();
                 Envelope tableExtent = GeometryTableUtilities.getEstimatedExtent(connection, tableLocation).getEnvelopeInternal();
                 double minX = tableExtent.getMinX();
                 double minY = tableExtent.getMinY();
                 double cellHeight = tableExtent.getHeight();
                 int maxJ = (int)Math.ceil(cellHeight / gridSize);
-                Map<PointNoiseMap.CellIndex, ArrayList<PointNoiseMap.CellIndex>> cellIndices = new HashMap<>();
+                Map<PointNoiseMap.CellIndex, ArrayList<CbsIntersectedEntry>> cellIndices = new HashMap<>();
                 long startMerge = System.currentTimeMillis();
                 final int indexFactor = mainGridSize / gridSize;
+
+                ProgressVisitor tableProcessing = tableProgress.subProcess(2);
+                int insertedPolygons = 0;
+                Map<String, ArrayList<Polygon>> geometriesToGrid = new HashMap<>();
                 try(ResultSet rs = st.executeQuery("SELECT THE_GEOM, NOISELEVEL FROM " + tableLocation)) {
                     while (rs.next()) {
                         Geometry inputGeometry = (Geometry) rs.getObject(1);
-                        Double noiseLevel = isoLabelToLevel.get(rs.getString(2));
+                        ArrayList<Polygon> polygonsList = geometriesToGrid.computeIfAbsent(rs.getString(2),
+                                s -> new ArrayList<>(Math.max(10, inputGeometry.getNumGeometries())));
                         for (int idGeometry = 0; idGeometry < inputGeometry.getNumGeometries(); idGeometry++) {
+                            insertedPolygons++;
                             Geometry geom = inputGeometry.getGeometryN(idGeometry);
                             Geometry multiPolygon;
                             Envelope geomEnvelope = geom.getEnvelopeInternal();
@@ -447,7 +481,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                                 // tessellate the geometry if it is larger than the cell of the grid
                                 try {
                                     multiPolygon = ST_Tessellate.tessellate(geom);
-                                } catch (RuntimeException ex) {
+                                } catch (RuntimeException | StackOverflowError ex) {
                                     logger.warn("Error while tessellating the polygon", ex);
                                     multiPolygon = geom;
                                 }
@@ -456,45 +490,81 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                             }
                             for (int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
                                 Geometry triangle = multiPolygon.getGeometryN(idPoly);
-                                Envelope triEnv = triangle.getEnvelopeInternal();
-                                int startI = (int) ((triEnv.getMinX() - minX) / gridSize);
-                                int startJ = (int) ((triEnv.getMinY() - minY) / gridSize);
-                                int endI = (int) Math.ceil((triEnv.getMaxX() - minX) / gridSize);
-                                int endJ = (int) Math.ceil((triEnv.getMaxY() - minY) / gridSize);
-                                for (int i = startI; i < endI; i++) {
-                                    for (int j = startJ; j < endJ; j++) {
-                                        int mainI = i / indexFactor;
-                                        int mainJ = j / indexFactor;
-                                        PointNoiseMap.CellIndex cell = new PointNoiseMap.CellIndex(i, j);
-                                        PointNoiseMap.CellIndex key = new PointNoiseMap.CellIndex(mainI, mainJ);
-                                        ArrayList<PointNoiseMap.CellIndex> ar = cellIndices.computeIfAbsent(key,
-                                                k -> new ArrayList<>());
-                                        ar.add(cell);
-                                    }
+                                if(triangle instanceof Polygon) {
+                                    polygonsList.add((Polygon) triangle);
                                 }
-                                CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, triangle);
-                                tesselatedIsos.insert(triEnv, cbsSplitedEntry);
                             }
                         }
                     }
                 }
-                tesselatedIsos.build();
+                int nbPolygons = geometriesToGrid.values().stream().
+                        mapToInt(ArrayList::size).sum();
+                logger.info(String.format(Locale.ROOT, "Collect cells of %s from %d polygons..",tableLocation
+                        , nbPolygons));
+                ProgressVisitor geomLoading = tableProcessing.subProcess(nbPolygons);
+                geometriesToGrid.forEach((s, polygons) -> {
+                    Double noiseLevel = isoLabelToLevel.get(s);
+                    ConcurrentLinkedDeque<CbsIntersectedEntry> entries = new ConcurrentLinkedDeque<>();
+                    polygons.parallelStream().forEach(triangle -> {
+                        PreparedPolygon preparedPolygon = new PreparedPolygon(triangle);
+                        Envelope triEnv = triangle.getEnvelopeInternal();
+                        int startI = (int) ((triEnv.getMinX() - minX) / gridSize);
+                        int startJ = (int) ((triEnv.getMinY() - minY) / gridSize);
+                        int endI = (int) Math.ceil((triEnv.getMaxX() - minX) / gridSize);
+                        int endJ = (int) Math.ceil((triEnv.getMaxY() - minY) / gridSize);
+                        for (int i = startI; i < endI; i++) {
+                            for (int j = startJ; j < endJ; j++) {
+                                PointNoiseMap.CellIndex cell = new PointNoiseMap.CellIndex(i, j);
+                                int mainI = cell.getLongitudeIndex() / indexFactor;
+                                int mainJ = cell.getLatitudeIndex() / indexFactor;
+                                PointNoiseMap.CellIndex key = new PointNoiseMap.CellIndex(mainI, mainJ);
+                                double x1 = minX + (double) cell.getLongitudeIndex() * gridSize;
+                                double y1 = minY + (double) cell.getLatitudeIndex() * gridSize;
+                                double x2 = minX + (double) (cell.getLongitudeIndex() + 1) * gridSize;
+                                double y2 = minY + (double) (cell.getLatitudeIndex() + 1) * gridSize;
+                                Polygon gridCell = geometyFactory.createPolygon(new Coordinate[]{new Coordinate(x1, y1), new Coordinate(x2, y1), new Coordinate(x2, y2), new Coordinate(x1, y2), new Coordinate(x1, y1)});
+                                if (preparedPolygon.intersects(gridCell)) {
+                                    OverlayOp overlayOp = new OverlayOp(gridCell, triangle);
+                                    Geometry intersectedGeom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
+                                    if (!intersectedGeom.isEmpty()) {
+                                        CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, intersectedGeom.getArea());
+                                        entries.add(new CbsIntersectedEntry(key, cell, cbsSplitedEntry));
+                                    }
+                                }
+                            }
+                        }
+                        geomLoading.endStep();
+                    });
+                    polygons.clear();
+                    for (CbsIntersectedEntry intersectedEntry : entries) {
+                        ArrayList<CbsIntersectedEntry> ar = cellIndices.computeIfAbsent(intersectedEntry.mainIndex, k -> new ArrayList<>());
+                        ar.add(intersectedEntry);
+                    }
+                });
                 // Iterate over grid
                 int srid = GeometryTableUtilities.getSRID(connection, tableLocation);
                 st.execute("DROP TABLE IF EXISTS " + outputTable);
                 st.execute("CREATE TABLE "+outputTable+"(ID INTEGER, THE_GEOM GEOMETRY(MULTIPOLYGON,"+srid+"), NOISELEVEL VARCHAR(20))");
 
                 boolean isDay = tableLocation.getTable().contains("_LD_");
-                long endCells = System.currentTimeMillis();
-                logger.info(String.format(Locale.ROOT, "Collect cells in %d ms may generate up to" +
-                                " %d iso-cells. Compute intersection of iso-cells..",(int)(endCells - startMerge) ,
-                        cellIndices.values().stream().mapToInt(ArrayList::size).sum()));
+                boolean isTypeA = tableLocation.getTable().startsWith("CBS_A_");
+                boolean isTrainConventional = tableLocation.getTable().contains("_CONV_");
 
+                long endCells = System.currentTimeMillis();
+                logger.info(String.format(Locale.ROOT, "Collect cells in %d ms. Final polygons count is %d" +
+                        " Compute intersection of iso-cells..", (int)(endCells - startMerge) , insertedPolygons));
                 Deque<IsoEntry> deque = new ConcurrentLinkedDeque<>();
-                ProgressVisitor mainGridProgress = tableProgress.subProcess(cellIndices.size());
+                ProgressVisitor mainGridProgress = tableProcessing.subProcess(cellIndices.size());
                 cellIndices.entrySet().parallelStream().forEach(mainGridEntry -> {
                     Map<String, ArrayList<IsoEntry>> mainCellsPolys = new HashMap<>();
-                    mainGridEntry.getValue().forEach(cellIndex -> {
+                    Map<PointNoiseMap.CellIndex, ArrayList<CbsSplitedEntry>> cbsPerCellIndex = new HashMap<>();
+                    // Collect all cbs that share the same cell
+                    for (CbsIntersectedEntry cbsIntersectedEntry : mainGridEntry.getValue()) {
+                        ArrayList<CbsSplitedEntry> cbsForThisCellIndex = cbsPerCellIndex.computeIfAbsent(cbsIntersectedEntry.cellIndex, k -> new ArrayList<>());
+                        cbsForThisCellIndex.add(cbsIntersectedEntry.cbsSplitedEntry);
+                    }
+                    // Sum the power of all geometries inside this cell
+                    cbsPerCellIndex.forEach((cellIndex, cbsSplitedEntries) -> {
                         double x1 = minX + (double) cellIndex.getLongitudeIndex() * gridSize;
                         double y1 = minY + (double) cellIndex.getLatitudeIndex() * gridSize;
                         double x2 = minX + (double) (cellIndex.getLongitudeIndex() + 1) * gridSize;
@@ -503,56 +573,88 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         gridCell.setSRID(srid);
                         int cellId = cellIndex.getLongitudeIndex() * maxJ + cellIndex.getLatitudeIndex();
                         double area = gridCell.getArea();
-                        // Fetch all polygons that intersects this
-                        List<CbsSplitedEntry> results = (List<CbsSplitedEntry>) tesselatedIsos.query(gridCell.getEnvelopeInternal());
                         double sumPower = 0;
-                        for (CbsSplitedEntry result : results) {
-                            OverlayOp overlayOp = new OverlayOp(gridCell, result.geometry);
-                            Geometry geom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
-                            if (!geom.isEmpty()) {
-                                double intersectionArea = geom.getArea();
-                                sumPower += PowerUtils.dbaToW(result.noiseLevel) * (intersectionArea / area);
-                            }
+                        for (CbsSplitedEntry cbsSplitedEntry : cbsSplitedEntries) {
+                            double intersectionArea = cbsSplitedEntry.cellIntersectionArea;
+                            sumPower += PowerUtils.dbaToW(cbsSplitedEntry.noiseLevel) * (intersectionArea / area);
                         }
                         if (sumPower > 0) {
                             // insert entry
                             double summedNoiseLevel = PowerUtils.wToDba(sumPower);
                             String noiseLevel = "";
-                            if (isDay) {
-                                if (summedNoiseLevel < 60) {
-                                    noiseLevel = "Lden5559";
-                                } else if (summedNoiseLevel < 65) {
-                                    noiseLevel = "Lden6064";
+                            if (isTypeA) {
+                                if (isDay) {
+                                    if (summedNoiseLevel < 60) {
+                                        noiseLevel = "Lden5559";
+                                    } else if (summedNoiseLevel < 65) {
+                                        noiseLevel = "Lden6064";
 
-                                } else if (summedNoiseLevel < 70) {
-                                    noiseLevel = "Lden6569";
+                                    } else if (summedNoiseLevel < 70) {
+                                        noiseLevel = "Lden6569";
 
-                                } else if (summedNoiseLevel < 75) {
-                                    noiseLevel = "Lden7074";
+                                    } else if (summedNoiseLevel < 75) {
+                                        noiseLevel = "Lden7074";
 
+                                    } else {
+                                        noiseLevel = "LdenGreaterThan75";
+                                    }
                                 } else {
-                                    noiseLevel = "LdenGreaterThan75";
+                                    if (summedNoiseLevel < 55) {
+                                        noiseLevel = "Lnight5054";
+                                    } else if (summedNoiseLevel < 60) {
+                                        noiseLevel = "Lnight5559";
+
+                                    } else if (summedNoiseLevel < 65) {
+                                        noiseLevel = "Lnight6064";
+
+                                    } else if (summedNoiseLevel < 70) {
+                                        noiseLevel = "Lnight6569";
+                                    } else {
+                                        noiseLevel = "LnightGreaterThan70";
+                                    }
                                 }
                             } else {
-                                if (summedNoiseLevel < 55) {
-                                    noiseLevel = "Lnight5054";
-                                } else if (summedNoiseLevel < 60) {
-                                    noiseLevel = "Lnight5559";
-
-                                } else if (summedNoiseLevel < 65) {
-                                    noiseLevel = "Lnight6064";
-
-                                } else if (summedNoiseLevel < 70) {
-                                    noiseLevel = "Lnight6569";
+                                // Type C map
+                                if (isDay) {
+                                    if (!isTrainConventional) {
+                                        // LGV or roads type C
+                                        if (summedNoiseLevel > 68) {
+                                            noiseLevel = "LdenGreaterThan68";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    } else {
+                                        // Fer. Conv.
+                                        if (summedNoiseLevel > 73) {
+                                            noiseLevel = "LdenGreaterThan73";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    }
                                 } else {
-                                    noiseLevel = "LnightGreaterThan70";
+                                    if (!isTrainConventional) {
+                                        // LGV or roads type C
+                                        if (summedNoiseLevel > 62) {
+                                            noiseLevel = "LnightGreaterThan62";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    } else {
+                                        // Fer. Conv.
+                                        if (summedNoiseLevel > 65) {
+                                            noiseLevel = "LnightGreaterThan65";
+                                        } else {
+                                            noiseLevel = "";
+                                        }
+                                    }
                                 }
                             }
-                            IsoEntry isoEntry = new IsoEntry(cellId, gridCell, noiseLevel);
-                            ArrayList<IsoEntry> isoList = mainCellsPolys.putIfAbsent(noiseLevel,
-                                    new ArrayList<>(Collections.singleton(isoEntry)));
-                            if (isoList != null) {
-                                isoList.add(isoEntry);
+                            if (!noiseLevel.isEmpty()) {
+                                IsoEntry isoEntry = new IsoEntry(cellId, gridCell, noiseLevel);
+                                ArrayList<IsoEntry> isoList = mainCellsPolys.putIfAbsent(noiseLevel, new ArrayList<>(Collections.singleton(isoEntry)));
+                                if (isoList != null) {
+                                    isoList.add(isoEntry);
+                                }
                             }
                         }
                     });
@@ -577,7 +679,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                     });
                     mainGridProgress.endStep();
                 });
-                // merge sub cells geometries into main cells
+                // Insert entries into the database
                 long endOfIntersects = System.currentTimeMillis();
                 logger.info(String.format(Locale.ROOT, "Intersection of iso-cells in %d ms." +
                         " Begin insertion in database..", (int)(endOfIntersects - endCells)));
@@ -611,6 +713,60 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
         }
         return outputTables;
+    }
+    /**
+     * Merge geojson files with the same file name
+     * prefix[NUMJOB]suffix[TABLENAME].csv
+     * @param connection database connection
+     * @param folder folder that contains geojson files
+     * @param prefix common prefix before the number
+     * @param suffix common suffix after the number
+     * @return Tables created
+     */
+    public static List<String> mergeCSV(Connection connection,String folder, String prefix, String suffix, Set<String> tableFilter) throws SQLException {
+        String extension = ".csv";
+        File workingFolder = new File(folder);
+        // Search files that match expected file name format
+        String[] files = workingFolder.list(new CSVFileFilter(prefix, suffix));
+        if(files == null) {
+            return new ArrayList<>();
+        }
+        Map<String, ArrayList<String>> tableNameToFileNames = new HashMap<>();
+        for(String fileName : files) {
+            // Extract tableName from file name
+            String tableName = fileName.substring(fileName.indexOf(suffix, prefix.length()) + suffix.length(),
+                    fileName.length() - extension.length());
+            if(tableFilter.isEmpty() || tableFilter.contains(tableName.toUpperCase(Locale.ROOT))) {
+                ArrayList<String> fileNames;
+                if (!tableNameToFileNames.containsKey(tableName)) {
+                    fileNames = new ArrayList<>();
+                    tableNameToFileNames.put(tableName, fileNames);
+                } else {
+                    fileNames = tableNameToFileNames.get(tableName);
+                }
+                fileNames.add(fileName);
+            }
+        }
+        List<String> createdTables = new ArrayList<>();
+        for(Map.Entry<String, ArrayList<String>> entry : tableNameToFileNames.entrySet()) {
+            String finalTableName = entry.getKey().toUpperCase(Locale.ROOT);
+            try(Statement st = connection.createStatement()) {
+                ArrayList<String> fileNames = entry.getValue();
+                if(fileNames.isEmpty()) {
+                    continue;
+                }
+                // Copy the first table as a new table
+                String firstFileName = fileNames.remove(0);
+                st.execute("DROP TABLE IF EXISTS " + finalTableName);
+                st.execute("CREATE TABLE "+finalTableName+" AS SELECT * FROM CSVREAD('" + new File(workingFolder, firstFileName).getAbsolutePath() + "');");
+                createdTables.add(finalTableName);
+                for(String fileName : fileNames) {
+                    // insert into the existing table
+                    st.execute("INSERT INTO " + finalTableName + " SELECT * FROM CSVREAD('" + new File(workingFolder, fileName).getAbsolutePath() + "');");
+                }
+            }
+        }
+        return createdTables;
     }
 
     /**
@@ -692,8 +848,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
      * @throws SQLException
      * @throws IOException
      */
-    public static Main.ClusterConfiguration generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
-        Main.ClusterConfiguration clusterConfiguration = new Main.ClusterConfiguration();
+    public static NoiseModellingInstance.ClusterConfiguration generateClusterConfig(Connection nmConnection, ProgressVisitor progressVisitor, int numberOfJobs, String workingDirectory) throws SQLException, IOException {
+        NoiseModellingInstance.ClusterConfiguration clusterConfiguration = new NoiseModellingInstance.ClusterConfiguration();
         // Sum UUEID roads length
         // because the length of the roads should be proportional with the work load
         // Can't have more jobs than UUEID
@@ -701,9 +857,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         int numberOfUUEID = asInteger(sql.firstRow("SELECT COUNT(DISTINCT UUEID) CPT FROM ROADS").get("CPT"));
         numberOfJobs = Math.min(numberOfUUEID, numberOfJobs);
         // Distribute UUEID over numberOfJobs (least road length receive the next one
-        List<JobElement> jobElementList = new ArrayList<>(numberOfJobs);
         for(int i=0; i < numberOfJobs; i++) {
-            jobElementList.add(new JobElement());
+            clusterConfiguration.jobElementList.add(new NoiseModellingInstance.JobElement());
         }
         sql.execute("DROP TABLE IF EXISTS SRC_UUEIDS");
         sql.execute("CREATE TABLE SRC_UUEIDS(UUEID varchar, weight double, src_type int)");
@@ -716,22 +871,22 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             while (rs.next()) {
                 String uueid = rs.getString("UUEID");
                 if (rs.getInt("src_type") == 0) {
-                    jobElementList.get(jobElementList.size() - 1).roadsUueid.add(uueid);
-                    clusterConfiguration.roads_uueids.add(uueid);
+                    clusterConfiguration.jobElementList.get(clusterConfiguration.jobElementList.size() - 1).roadsUueid.add(uueid);
+                    clusterConfiguration.roadsUueid.add(uueid);
                 } else {
-                    jobElementList.get(jobElementList.size() - 1).railsUueid.add(uueid);
-                    clusterConfiguration.rails_uueids.add(uueid);
+                    clusterConfiguration.jobElementList.get(clusterConfiguration.jobElementList.size() - 1).railsUueid.add(uueid);
+                    clusterConfiguration.railsUueids.add(uueid);
                 }
-                jobElementList.get(jobElementList.size() - 1).totalSourceLineLength += rs.getDouble("WEIGHT");
+                clusterConfiguration.jobElementList.get(clusterConfiguration.jobElementList.size() - 1).totalSourceLineLength += rs.getDouble("WEIGHT");
                 // Sort by source line length
-                Collections.sort(jobElementList);
+                Collections.sort(clusterConfiguration.jobElementList);
             }
         }
         AtomicInteger nodeId = new AtomicInteger();
         ObjectMapper mapper = new ObjectMapper();
         ArrayNode rootDoc = mapper.createArrayNode();
         // create lists so that each node have at least the quota length of roads (except the last one)
-        for (JobElement jobElement : jobElementList) {
+        for (NoiseModellingInstance.JobElement jobElement : clusterConfiguration.jobElementList) {
             ObjectNode nodeDoc = mapper.createObjectNode();
             rootDoc.add(nodeDoc);
             nodeDoc.put("nodeId", nodeId.getAndIncrement());
@@ -750,7 +905,6 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         mapper.writerWithDefaultPrettyPrinter().writeValue(new File(workingDirectory, "cluster_config.json"), rootDoc);
         return clusterConfiguration;
     }
-
 
     public Object LoadNoiselevel(Connection nmConnection, ProgressVisitor progressVisitor) throws SQLException, IOException {
         GroovyShell shell = new GroovyShell();
@@ -891,16 +1045,33 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     }
 
 
-    public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory, Set<Path> ignorePaths) throws IOException, SftpException {
+    public static void pushToSSH(ChannelSftp c, ProgressVisitor progressVisitor, String from, String to, boolean createSubDirectory, Set<Path> ignorePaths) throws IOException, SftpException, InterruptedException {
         // List All files
         logger.info("Push files from " + from + " to " + to + " through SSH");
         File fromFile = new File(from);
         File parentFile = fromFile;
-        if(createSubDirectory) {
+        if (createSubDirectory) {
             parentFile = fromFile.getParentFile();
         }
-        WalkFileVisitor walkFileVisitor = new WalkFileVisitor(ignorePaths, parentFile, c, to);
-        Files.walkFileTree(fromFile.toPath(), walkFileVisitor);
+        int retries = 0;
+        while (true) {
+            try {
+                WalkFileVisitor walkFileVisitor = new WalkFileVisitor(ignorePaths, parentFile, c, to);
+                Files.walkFileTree(fromFile.toPath(), walkFileVisitor);
+                break;
+            } catch (IOException ex) {
+                retries++;
+                logger.warn("Could not send files, will retry again " + (MAX_SSH_SEND_RETRY - retries) + " times");
+                if(progressVisitor.isCanceled()) {
+                    throw ex;
+                }
+                Thread.sleep(POLL_SLURM_STATUS_TIME);
+                if (retries > MAX_SSH_SEND_RETRY) {
+                    throw ex;
+                }
+
+            }
+        }
     }
 
     private static final String[] names = {
@@ -1115,10 +1286,10 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         List<SlurmJobStatus> jobStatusList = parseSlurmStatus(output, configuration.slurmJobId);
         int finishedStatusCount = 0;
         for(SlurmJobStatus s : jobStatusList) {
-            if(finishedStates.contains(s.status)) {
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).finished) {
                 finishedStatusCount++;
             }
-            if(s.status.equalsIgnoreCase(JOB_STATES.FAILED.toString())) {
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).error) {
                 // If one of the process fail, cancel the computation and set the computation as failed
                 runCommand(session, String.format("scancel %d", configuration.slurmJobId));
                 throw new CancellationException("Slurm job has failed");
@@ -1134,7 +1305,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         return finishedStatusCount == configuration.slurmConfig.maxJobs;
     }
 
-    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException {
+    public void slurmInitAndStart(SlurmConfig slurmConfig, ProgressVisitor progressVisitor) throws JSchException, IOException, SftpException, InterruptedException, SQLException {
         int connectionRetry = MAX_CONNECTION_RETRY;
         Session session = openSshSession(slurmConfig);
         try {
@@ -1239,6 +1410,20 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
             logger.info("Clean remote data");
             runCommand(session, String.format("rm -rvf %s", configuration.remoteJobFolder));
             runCommand(session, String.format("rm -rvf %s", resultDir));
+            // merge files and load it in database
+            try(Connection nmConnection = nmDataSource.getConnection()){
+                mergeCSV(nmConnection, new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
+                        "out_", "_", Collections.singleton("POPULATION_EXPOSURE"));
+                Statement st = nmConnection.createStatement();
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDPEOPLE INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDAREA REAL;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDDWELLINGS INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDHOSPITALS INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN EXPOSEDSCHOOLS INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN CPI INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN HA INT;");
+                st.execute("ALTER TABLE POPULATION_EXPOSURE ALTER COLUMN HSD INT;");
+            }
         } finally {
             session.disconnect();
         }
@@ -1302,19 +1487,19 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
         }
     }
 
-    public void startNoiseModelling(ProgressVisitor progressVisitor, Main.ClusterConfiguration clusterConfiguration) throws SQLException, IOException {
+    public void startNoiseModelling(ProgressVisitor progressVisitor, NoiseModellingInstance.ClusterConfiguration clusterConfiguration) throws SQLException, IOException {
         Main.printBuildIdentifiers(logger);
-        ProgressVisitor subProgress = progressVisitor.subProcess(2);
+        String workingDir = new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath();
         try (Connection nmConnection = new ConnectionWrapper(nmDataSource.getConnection())) {
-            NoiseModellingInstance noiseModellingInstance = new NoiseModellingInstance(nmConnection, configuration.workingDirectory);
-            noiseModellingInstance.setConfigurationId(configuration.configurationId);
-            noiseModellingInstance.setOutputPrefix(String.format(Locale.ROOT, "out_%d_", 0));
-            noiseModellingInstance.setOutputFolder(new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath());
-            noiseModellingInstance.uueidsLoop(subProgress, clusterConfiguration.roads_uueids,
-                    NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_ROAD);
-            noiseModellingInstance.uueidsLoop(subProgress, clusterConfiguration.rails_uueids,
-                    NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+            NoiseModellingInstance.startNoiseModelling(nmConnection, progressVisitor, clusterConfiguration, workingDir, 0);
         }
+    }
+
+    public void exportCSV(Connection connection, String path, String tableName) throws SQLException {
+        PreparedStatement ps = connection.prepareStatement("CALL CSVWRITE(?, ?)");
+        ps.setString(1, path);
+        ps.setString(2, "SELECT * FROM " + tableName);
+        ps.execute();
     }
 
     @Override
@@ -1361,7 +1546,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                     return;
                 }
             }
-            Main.ClusterConfiguration clusterConfiguration;
+            NoiseModellingInstance.ClusterConfiguration clusterConfiguration;
             try (Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
                 exportTables(nmConnection,
@@ -1384,14 +1569,31 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 clusterConfiguration = generateClusterConfig(nmConnection, subProg, maxJobs, configuration.workingDirectory);
                 subProg.endStep();
             }
+            // Compact database
+            try (Connection nmConnection = nmDataSource.getConnection()) {
+                nmConnection.createStatement().execute("SHUTDOWN COMPACT");
+            } catch (JdbcSQLNonTransientConnectionException ex) {
+                // ignore
+            }
             if(configuration.computeOnCluster) {
+                // limit the number of jobs according to the number of available Uueids
+                int numberOfNonEmptyJobs = 0;
+                for(NoiseModellingInstance.JobElement jobElement : clusterConfiguration.jobElementList) {
+                    if(!jobElement.railsUueid.isEmpty() || !jobElement.roadsUueid.isEmpty()) {
+                        numberOfNonEmptyJobs++;
+                    }
+                }
+                configuration.slurmConfig.maxJobs = numberOfNonEmptyJobs;
                 slurmInitAndStart(configuration.slurmConfig, subProg);
             } else {
                 startNoiseModelling(subProg, clusterConfiguration);
             }
             try (Connection nmConnection = nmDataSource.getConnection()) {
+                exportCSV(nmConnection,
+                        new File(outDir.getAbsolutePath(), "POPULATION_EXPOSURE.csv").getAbsolutePath(), "POPULATION_EXPOSURE");
+                String resultDirectoryFullPath = new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath();
                 List<String> createdTables = mergeGeoJSON(nmConnection,
-                        new File(configuration.workingDirectory, RESULT_DIRECTORY_NAME).getAbsolutePath(),
+                        resultDirectoryFullPath,
                         "out_", "_");
                 createdTables.addAll(mergeCBS(nmConnection, CBS_GRID_SIZE, CBS_MAIN_GRID_SIZE,
                         subProg));
@@ -1408,7 +1610,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 ex = ex.getNextException();
             }
             setJobState(JOB_STATES.FAILED);
-        } catch (Exception ex) {
+        } catch (Throwable ex) {
             logger.error(ex.getLocalizedMessage(), ex);
             setJobState(JOB_STATES.FAILED);
         } finally {
@@ -1547,10 +1749,12 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
     public static class SlurmJobKnownStatus {
         public final String status;
         public final boolean finished;
+        public final boolean error;
 
-        public SlurmJobKnownStatus(String status, boolean finished) {
+        public SlurmJobKnownStatus(String status, boolean finished, boolean error) {
             this.status = status;
             this.finished = finished;
+            this.error = error;
         }
     }
 

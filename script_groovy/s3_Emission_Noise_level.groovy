@@ -241,68 +241,6 @@ def exec(Connection connection, input) {
             throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", receiverTableIdentifier))
         }
 
-
-        // -----------------------------------------------------------------------------
-        // Define and set the parameters coming from the global configuration table (CONF)
-        // The parameters are selected using the confId input variable
-
-        def row_conf = sql.firstRow("SELECT * FROM CONF WHERE CONFID = ?", input.confId)
-        int reflexion_order = row_conf.confreflorder.toInteger()
-        int max_src_dist = row_conf.confmaxsrcdist.toInteger()
-        int max_ref_dist = row_conf.confmaxrefldist.toInteger()
-        int n_thread = row_conf.confthreadnumber.toInteger()
-        boolean compute_vertical_diffraction = row_conf.confdiffvertical
-        boolean compute_horizontal_diffraction = row_conf.confdiffhorizontal
-        boolean confSkipLday = row_conf.confskiplday
-        boolean confSkipLevening = row_conf.confskiplevening
-        boolean confSkipLnight = row_conf.confskiplnight
-        boolean confSkipLden = row_conf.confskiplden
-        boolean confExportSourceId = row_conf.confexportsourceid
-        double wall_alpha = row_conf.wall_alpha.toDouble()
-
-        logger.info(String.format("PARAM : You have chosen the configuration number %d ", input.confId));
-        logger.info(String.format("PARAM : Reflexion order equal to %d ", reflexion_order));
-        logger.info(String.format("PARAM : Maximum source distance equal to %d ", max_src_dist));
-        logger.info(String.format("PARAM : Maximum reflexion distance equal to %d ", max_ref_dist));
-        logger.info(String.format("PARAM : Number of thread used %d ", n_thread));
-        logger.info(String.format("PARAM : The compute_vertical_diffraction parameter is %s ", compute_vertical_diffraction));
-        logger.info(String.format("PARAM : The compute_horizontal_diffraction parameter is %s ", compute_horizontal_diffraction));
-        logger.info(String.format("PARAM : The confSkipLday parameter is %s ", confSkipLday));
-        logger.info(String.format("PARAM : The confSkipLevening parameter is %s ", confSkipLevening));
-        logger.info(String.format("PARAM : The confSkipLnight parameter is %s ", confSkipLnight));
-        logger.info(String.format("PARAM : The confSkipLden parameter is %s ", confSkipLden));
-        logger.info(String.format("PARAM : The confExportSourceId parameter is %s ", confExportSourceId));
-        logger.info(String.format("PARAM : The wall_alpha is equal to %s ", wall_alpha));
-
-        // -----------------------------------------------------------------------------
-        // Define and set the parameters coming from the ZONE table
-
-        def row_zone = sql.firstRow("SELECT * FROM ZONE")
-
-        double confHumidity = row_zone.hygro_d.toDouble()
-        double confTemperature = row_zone.temp_d.toDouble()
-        String confFavorableOccurrences = row_zone.pfav_06_18
-
-        logger.info(String.format("PARAM : The relative humidity is set to %s ", confHumidity));
-        logger.info(String.format("PARAM : The temperature is set to %s ", confTemperature));
-        logger.info(String.format("PARAM : The pfav values are %s ", confFavorableOccurrences));
-
-
-        // -----------------------------------------------------------------------------
-        // Define and set the parameters coming from the PLATEFORM table
-
-        def row_plateform = sql.firstRow("SELECT * FROM PLATEFORM WHERE IDPLATFORM='SNCF'")
-        // h2 is normally set to 0.18m
-        double plateformeH2 = row_plateform.h2.toDouble()
-
-        // -------------------------
-        // Initialize some variables
-        // -------------------------
-
-        // Set of already processed receivers
-        Set<Long> receivers = new HashSet<>()
-
-
         // --------------------------------------------
         // Initialize NoiseModelling emission part
         // --------------------------------------------
@@ -376,7 +314,7 @@ def exec(Connection connection, input) {
 
 
     // Get size of the table (number of road segments)
-    st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + sources_table_name)
+    PreparedStatement st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + sources_table_name)
     ResultSet rs2 = st.executeQuery().unwrap(ResultSet.class)
     int nbRoads = 0
     while (rs2.next()) {
