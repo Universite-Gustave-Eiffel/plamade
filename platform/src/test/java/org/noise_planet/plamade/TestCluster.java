@@ -266,7 +266,7 @@ public class TestCluster {
                     1, workingDir, 4, workingDir.substring(workingDir.length() - 2), 1,
                     null, new RootProgressVisitor(1), "build/");
                 NoiseModellingRunner noiseModellingRunner = new NoiseModellingRunner(configuration, null);
-                List<String> createdTables = NoiseModellingRunner.mergeCBS2(connection, CBS_GRID_SIZE, CBS_MAIN_GRID_SIZE,
+                List<String> createdTables = NoiseModellingRunner.mergeCBS(connection, CBS_GRID_SIZE, CBS_MAIN_GRID_SIZE,
                         new RootProgressVisitor(1, true, 1));
                 NoiseModellingRunner.exportTables(connection, createdTables,
                         new  File("out/").getAbsolutePath(), 4326);
