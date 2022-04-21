@@ -35,10 +35,12 @@ then run (in order to push dependencies files into `computation_core/build/insta
 
 `../gradlew clean build installDist --refresh-dependencies`
 
+Go into project root folder `cd ..`
+
 Run ./gradlew platform:run
 
 Edit the configuration file located in `platform/build/resources/main/config.yaml` with the auth credentials.
 
 Run ./gradlew platform:run
 
-Once the application has started, point your web browser to [http://localhost:9580](http://localhost:9580) to access the platform
+Once the application has started, point your web browser to [http://localhost:9590](http://localhost:9590) to access the platform
