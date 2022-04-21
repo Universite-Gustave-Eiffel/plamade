@@ -381,11 +381,11 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
 
     private static class CbsSplitedEntry {
         double noiseLevel;
-        Geometry geometry;
+        double cellIntersectionArea;
 
-        public CbsSplitedEntry(double noiseLevel, Geometry geometry) {
+        public CbsSplitedEntry(double noiseLevel, double cellIntersectionArea) {
             this.noiseLevel = noiseLevel;
-            this.geometry = geometry;
+            this.cellIntersectionArea = cellIntersectionArea;
         }
     }
 
@@ -527,7 +527,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                                     OverlayOp overlayOp = new OverlayOp(gridCell, triangle);
                                     Geometry intersectedGeom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
                                     if (!intersectedGeom.isEmpty()) {
-                                        CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, intersectedGeom);
+                                        CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, intersectedGeom.getArea());
                                         entries.add(new CbsIntersectedEntry(key, cell, cbsSplitedEntry));
                                     }
                                 }
@@ -575,12 +575,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         double area = gridCell.getArea();
                         double sumPower = 0;
                         for (CbsSplitedEntry cbsSplitedEntry : cbsSplitedEntries) {
-                            OverlayOp overlayOp = new OverlayOp(gridCell, cbsSplitedEntry.geometry);
-                            Geometry geom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
-                            if (!geom.isEmpty()) {
-                                double intersectionArea = geom.getArea();
-                                sumPower += PowerUtils.dbaToW(cbsSplitedEntry.noiseLevel) * (intersectionArea / area);
-                            }
+                            double intersectionArea = cbsSplitedEntry.cellIntersectionArea;
+                            sumPower += PowerUtils.dbaToW(cbsSplitedEntry.noiseLevel) * (intersectionArea / area);
                         }
                         if (sumPower > 0) {
                             // insert entry
