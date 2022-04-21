@@ -29,9 +29,15 @@ Define memory to use with the command
 
 export _JAVA_OPTIONS="-Xms4000m -Xmx28000m"
 
+Go into computation_core folder `cd computation_core`
+
+then run (in order to push dependencies files into `computation_core/build/install/computation_core/lib`)
+
+`../gradlew clean build installDist --refresh-dependencies`
+
 Run ./gradlew platform:run
 
-Edit the configuration file located in  this file with the auth credentials.
+Edit the configuration file located in `platform/build/resources/main/config.yaml` with the auth credentials.
 
 Run ./gradlew platform:run
 
