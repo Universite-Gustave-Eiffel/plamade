@@ -14,9 +14,8 @@ ALTER TABLE receiver_expo ADD COLUMN POP double USING (SELECT B.POP / (SELECT CO
 ALTER TABLE receiver_expo ADD COLUMN AGGLO BOOLEAN USING (SELECT AGGLO FROM BUILDINGS_SCREENS B WHERE B.PK = BUILD_PK);
 CREATE INDEX receiver_expo_laeq on receiver_expo(LAEQ);
 -- update exposure table
-UPDATE POPULATION_EXPOSURE SET
-POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.LAEQ > POPULATION_EXPOSURE.MIN_LAEQ
-                                                                            AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ  AND (r.AGGLO = 0 OR exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID AND POPULATION_EXPOSURE.NOISELEVEL LIKE 'Lden%';
+UPDATE POPULATION_EXPOSURE SET POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.LAEQ > POPULATION_EXPOSURE.MIN_LAEQ
+                                                                            AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ  AND (NOT r.AGGLO OR exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID AND POPULATION_EXPOSURE.NOISELEVEL LIKE 'Lden%';
 
 -----------------------------------------------------------------------------
 -- Population Receiver Exposition for LN values
@@ -33,7 +32,7 @@ CREATE INDEX receiver_expo_laeq on receiver_expo(LAEQ);
 -- update exposure table
 UPDATE POPULATION_EXPOSURE SET
 POP_ACCURATE = COALESCE((SELECT SUM(POP) popsum FROM receiver_expo r WHERE r.LAEQ > POPULATION_EXPOSURE.MIN_LAEQ
-                                                                            AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ AND (r.AGGLO = 0 OR exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID AND POPULATION_EXPOSURE.NOISELEVEL LIKE 'Lnight%';
+                                                                            AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ AND (NOT r.AGGLO OR exposureType = 'mostExposedFacadeIncludingAgglomeration')), POP_ACCURATE) WHERE UUEID = @UUEID AND POPULATION_EXPOSURE.NOISELEVEL LIKE 'Lnight%';
 
 ----------------------------------------------------------------
 -- Autocomplete missing values
@@ -67,11 +66,11 @@ INSERT INTO BUILDINGS_MAX_ERPS SELECT id_erps, ERPS_NATUR, B.AGGLO, 'LN' PERIOD,
 
 UPDATE POPULATION_EXPOSURE SET
  EXPOSEDHOSPITALS = COALESCE((SELECT COUNT(*) FROM BUILDINGS_MAX_ERPS R  WHERE r.LAEQ > POPULATION_EXPOSURE.MIN_LAEQ
- AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ AND (r.AGGLO = 0 OR exposureType = 'mostExposedFacadeIncludingAgglomeration')
+ AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ AND (NOT r.AGGLO OR exposureType = 'mostExposedFacadeIncludingAgglomeration')
  AND ERPS_NATUR='Sante'), EXPOSEDHOSPITALS),
   EXPOSEDSCHOOLS   = COALESCE((SELECT COUNT(*) FROM BUILDINGS_MAX_ERPS R  WHERE
   r.LAEQ > POPULATION_EXPOSURE.MIN_LAEQ
- AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ AND (r.AGGLO = 0 OR exposureType = 'mostExposedFacadeIncludingAgglomeration')
+ AND r.LAEQ < POPULATION_EXPOSURE.MAX_LAEQ AND (NOT r.AGGLO OR exposureType = 'mostExposedFacadeIncludingAgglomeration')
    AND ERPS_NATUR='Enseignement'), EXPOSEDSCHOOLS) WHERE UUEID = @UUEID;
 
 -- Sum rows to special rows like lden55
