@@ -652,7 +652,7 @@ public class NoiseModellingInstance {
 
         // Insert iso areas into common table, according to rail or road input parameter
         // The noiselevel field will filtering for A or D
-        sql.execute("UPDATE POPULATION_EXPOSURE SET EXPOSEDAREA = COALESCE((SELECT ROUND(SUM(ST_AREA(THE_GEOM)) / 1e6, 1) TOTAREA_SQKM FROM ISO_AREA I WHERE I.noiselevel = POPULATION_EXPOSURE.noiselevel), EXPOSEDAREA)  WHERE UUEID = '" + uueid + "'");
+        sql.execute("UPDATE POPULATION_EXPOSURE SET EXPOSEDAREA = COALESCE((SELECT ROUND(SUM(ST_AREA(THE_GEOM)) / 1e6, 2) TOTAREA_SQKM FROM ISO_AREA I WHERE I.noiselevel = POPULATION_EXPOSURE.noiselevel), EXPOSEDAREA)  WHERE UUEID = '" + uueid + "'");
         if (sourceType == SOURCE_TYPE.SOURCE_TYPE_RAIL){
             if(cbsType.equalsIgnoreCase("A")) {
                 if(period.equalsIgnoreCase("LD")) {
