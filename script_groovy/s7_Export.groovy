@@ -121,10 +121,12 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String codeDep,int srid, int batchSiz
             'LnightGreaterThan65' : '65'
     ]
     int autoIncrement = 0;
+    def arTypeSourceInput = ['R', 'F_LGV', 'F_CONV']
     for(cbstype in ['A', 'C']) {
-        for(typesource in ['R', 'F']) {
+        for(typesource in arTypeSourceInput) {
             String sourcepg = typesource == 'R' ? 'majorRoadsIncludingAgglomeration' : 'majorRailwaysIncludingAgglomeration'
             for (indicetype in ['LD', 'LN']) {
+                String typeSourceColumn = ['R', 'F', 'F'][arTypeSourceInput.indexOf(typesource)]
                 // on génère le nom de la table à partir des éléments ci-dessus
                 def inputTableCBS = "CBS_" + cbstype + "_" + typesource + "_" + indicetype + "_" + codeNuts
 
@@ -133,7 +135,7 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String codeDep,int srid, int batchSiz
                     logger.info("La table $inputTableCBS va être exportée dans la table cbs_"+ srid)
                     sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.cbs_'+ srid +' (the_geom, cbstype, typesource, indicetype, codedept, pk, uueid, category, source) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?, ?)'.toString()) { BatchingPreparedStatementWrapper ps ->
                         sqlH2gis.eachRow("SELECT ST_Polygonize(the_geom) as the_geom, pk, uueid, noiselevel FROM " + inputTableCBS + ";") {
-                            GroovyResultSet row -> ps.addBatch(writer.write(row[0] as Geometry), srid, cbstype, typesource, indicetype, codeDep, row[1], row[2], row[3], sourcepg)
+                            GroovyResultSet row -> ps.addBatch(writer.write(row[0] as Geometry), srid, cbstype, typeSourceColumn, indicetype, codeDep, row[1], row[2], row[3], sourcepg)
                         }
                     }
                     logger.info("La carte du bruit $inputTableCBS a été exportée sur le serveur")
@@ -149,7 +151,7 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String codeDep,int srid, int batchSiz
                     logger.info("La table $inputMergedTableCBS va être exportée dans la table cbs_agr_" + srid)
                     sqlPostgre.withBatch(batchSize, 'INSERT INTO noisemodelling_resultats.cbs_agr_' + srid + ' (the_geom, cbstype, typesource, indicetype, codedept, pk, category, source, legende) VALUES (ST_SetSRID(ST_GeomFromText(?), ?), ?, ?, ?, ?, ?, ?, ?, ?)'.toString()) { BatchingPreparedStatementWrapper ps ->
                         sqlH2gis.eachRow("SELECT the_geom, noiselevel FROM " + inputMergedTableCBS + ";") {
-                            GroovyResultSet row -> ps.addBatch(writer.write(row[0] as Geometry), srid, cbstype, typesource, indicetype, codeDep, codeDep+"_"+(autoIncrement++), row[1] as String, sourcepg, noiseLevelToLegende[row[1] as String])
+                            GroovyResultSet row -> ps.addBatch(writer.write(row[0] as Geometry), srid, cbstype, typeSourceColumn, indicetype, codeDep, codeDep+"_"+(autoIncrement++), row[1] as String, sourcepg, noiseLevelToLegende[row[1] as String])
                         }
                     }
                     logger.info("La carte du bruit $inputMergedTableCBS a été exportée sur le serveur")
