@@ -120,9 +120,9 @@ def doExport(Sql sqlH2gis, Sql sqlPostgre, String codeDep,int srid, int batchSiz
             'LnightGreaterThan62' : '62',
             'LnightGreaterThan65' : '65'
     ]
-    int autoIncrement = 0;
-    def arTypeSourceInput = ['R', 'F_LGV', 'F_CONV']
+    int autoIncrement = 0
     for(cbstype in ['A', 'C']) {
+        def arTypeSourceInput = cbstype == 'A' ? ['R', 'F'] : ['R', 'F_LGV', 'F_CONV']
         for(typesource in arTypeSourceInput) {
             String sourcepg = typesource == 'R' ? 'majorRoadsIncludingAgglomeration' : 'majorRailwaysIncludingAgglomeration'
             for (indicetype in ['LD', 'LN']) {
