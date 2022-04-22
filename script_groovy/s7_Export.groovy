@@ -201,7 +201,7 @@ def exec(Connection connection, input) {
 
 
     // On stocke dans les variables codeDep et codeNuts les informations relatives au département qui a été traité (présent dans la table metadata)
-    def codeDep = sqlH2gis.firstRow("SELECT code_dept FROM metadata;").code_dept
+    String codeDep = sqlH2gis.firstRow("SELECT code_dept FROM metadata;").code_dept as String
     int srid = sqlH2gis.firstRow("SELECT srid FROM metadata;").srid as Integer
     String codeNuts = sqlH2gis.firstRow("SELECT nuts FROM metadata;").nuts as String
 
@@ -237,7 +237,7 @@ def exec(Connection connection, input) {
     // On insère les nouvelles données dans les tables respectives
     logger.info("Export des CBS et des indicateurs")
 
-    doExport(sqlH2gis, sqlPostgre, codeDep as String, srid as Integer, input["batchSize"] as Integer, codeNuts)
+    doExport(sqlH2gis, sqlPostgre, codeDep.padLeft(3, "0"), srid as Integer, input["batchSize"] as Integer, codeNuts)
 
     logger.info("Les cartes du bruit ainsi que les indicateurs d'exposition du département $codeDep ont été exporté sur le serveur")
 
