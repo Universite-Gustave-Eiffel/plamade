@@ -440,8 +440,6 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                 cbsTables.add(tableLocation);
             }
         }
-        cbsTables.clear();
-        cbsTables.add(TableLocation.parse("H2GISDB.PUBLIC.CBS_C_F_CONV_LD_FRC24"));
         ProgressVisitor tableProgress = progressVisitor.subProcess(cbsTables.size());
         for(TableLocation tableLocation : cbsTables) {
             String outputTable = tableLocation.getTable() + "_MERGED";
