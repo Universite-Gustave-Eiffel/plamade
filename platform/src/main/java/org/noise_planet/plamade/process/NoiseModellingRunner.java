@@ -47,6 +47,7 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.TopologyException;
 import org.locationtech.jts.geom.prep.PreparedPolygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
@@ -108,6 +109,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -423,6 +425,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
      * @return
      */
     public static List<String> mergeCBS(Connection connection, int gridSize, int mainGridSize, ProgressVisitor progressVisitor) throws SQLException {
+        AtomicBoolean exceptionPrinted = new AtomicBoolean(false);
         List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
                 new String[]{"TABLE"});
         GeometryFactory geometyFactory = new GeometryFactory();
@@ -471,7 +474,9 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                                 try {
                                     multiPolygon = ST_Tessellate.tessellate(geom);
                                 } catch (RuntimeException | StackOverflowError ex) {
-                                    logger.warn("Error while tessellating the polygon", ex);
+                                    if(exceptionPrinted.compareAndSet(false, true)) {
+                                        logger.warn("Error while tessellating the polygon", ex);
+                                    }
                                     multiPolygon = geom;
                                 }
                             } else {
@@ -514,10 +519,18 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                                 Polygon gridCell = geometyFactory.createPolygon(new Coordinate[]{new Coordinate(x1, y1), new Coordinate(x2, y1), new Coordinate(x2, y2), new Coordinate(x1, y2), new Coordinate(x1, y1)});
                                 if (preparedPolygon.intersects(gridCell)) {
                                     OverlayOp overlayOp = new OverlayOp(gridCell, triangle);
-                                    Geometry intersectedGeom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
-                                    if (!intersectedGeom.isEmpty()) {
-                                        CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, intersectedGeom.getArea());
-                                        entries.add(new CbsIntersectedEntry(key, cell, cbsSplitedEntry));
+                                    try {
+                                        Geometry intersectedGeom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
+                                        if (!intersectedGeom.isEmpty()) {
+                                            CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, intersectedGeom.getArea());
+                                            entries.add(new CbsIntersectedEntry(key, cell, cbsSplitedEntry));
+                                        }
+                                    } catch (TopologyException ex) {
+                                        // Rare case of topology exception while doing intersection
+                                        // no other choice than ignoring this polygon
+                                        if(exceptionPrinted.compareAndSet(false, true)) {
+                                            logger.warn(ex.getLocalizedMessage(), ex);
+                                        }
                                     }
                                 }
                             }
