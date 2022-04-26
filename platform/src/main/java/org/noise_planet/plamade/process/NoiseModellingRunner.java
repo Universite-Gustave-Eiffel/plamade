@@ -818,6 +818,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         // The file maybe empty, so ignore this file if there is no columns
                         st.execute("DROP TABLE IF EXISTS " + finalTableName);
                         st.execute("CREATE TABLE " + finalTableName + " AS SELECT * FROM " + tableName);
+                        st.execute("DROP TABLE IF EXISTS " + tableName);
                         createdTables.add(finalTableName);
                         break;
                     }
