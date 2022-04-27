@@ -13,6 +13,13 @@ compileJava {
     targetCompatibility = '11'
 }
 
+sourceSets {
+    main {
+        groovy {
+            srcDirs=['../script_groovy']
+        }
+    }
+}
 compileJava.options.encoding = "UTF-8"
 compileTestJava.options.encoding = "UTF-8"
 
@@ -34,7 +41,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'org.noise_planet.nmcluster.Main'
+    mainClass = 'org.noise_planet.scriptrunner.Main'
 }
 jar {
     manifest {

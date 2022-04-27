@@ -82,7 +82,7 @@ public class Main {
 
             try (Connection connection = new ConnectionWrapper(ds.getConnection())) {
                 GroovyShell shell = new GroovyShell();
-                Script receiversGrid= shell.parse(scriptPath);
+                Script receiversGrid= shell.parse(new File(scriptPath));
                 Map<String, Object> inputs = new HashMap<>();
                 inputs.putAll(customParameters);
                 inputs.put("progressVisitor", progressVisitor);
