@@ -467,26 +467,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         for (int idGeometry = 0; idGeometry < inputGeometry.getNumGeometries(); idGeometry++) {
                             insertedPolygons++;
                             Geometry geom = inputGeometry.getGeometryN(idGeometry);
-                            Geometry multiPolygon;
-                            Envelope geomEnvelope = geom.getEnvelopeInternal();
-                            if (geomEnvelope.getWidth() > gridSize || geomEnvelope.getHeight() > gridSize) {
-                                // tessellate the geometry if it is larger than the cell of the grid
-                                try {
-                                    multiPolygon = ST_Tessellate.tessellate(geom);
-                                } catch (RuntimeException | StackOverflowError ex) {
-                                    if(exceptionPrinted.compareAndSet(false, true)) {
-                                        logger.warn("Error while tessellating the polygon", ex);
-                                    }
-                                    multiPolygon = geom;
-                                }
-                            } else {
-                                multiPolygon = geom;
-                            }
-                            for (int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
-                                Geometry triangle = multiPolygon.getGeometryN(idPoly);
-                                if(triangle instanceof Polygon) {
-                                    polygonsList.add((Polygon) triangle);
-                                }
+                            if(geom instanceof Polygon) {
+                                polygonsList.add((Polygon) geom);
                             }
                         }
                     }
