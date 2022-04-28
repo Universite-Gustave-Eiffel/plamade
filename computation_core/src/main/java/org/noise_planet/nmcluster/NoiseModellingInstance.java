@@ -420,16 +420,69 @@ public class NoiseModellingInstance {
 
     public void createExpositionTables(ProgressVisitor progressVisitor, List<String> roadsUUEID, List<String> railsUUEID) throws SQLException, IOException {
         // push uueids
-        String[] additionalForAgglo = new String[] {"Lden55", "Lden65", "Lden75", "LdenGreaterThan68", "LnightGreaterThan62"};
-
-        String[] levelsRoads = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
+        String[] levelsRoadsExcludingAgglo = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
                 "LnightGreaterThan70"};
-        Map<String, Double[]> levelRoadsInterval = getIntervals();
 
-        String[] levelsRails = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
+        String[] levelsRoadsIncludingAgglo = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
+                "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan70", "Lden55", "Lden65", "Lden75", "LdenGreaterThan68", "LnightGreaterThan62"};
+
+        String[] levelsTrainLGVExcludingAgglo = new String[] {"Lden5559", "Lden6064", "Lden6569", "Lden7074",
                 "LdenGreaterThan75","LdenGreaterThan73", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
-                "LnightGreaterThan70", "LnightGreaterThan65"};
+                "LnightGreaterThan70"};
+
+        String[] levelsTrainLGVIncludingAgglo = new String[] {
+                "Lden5559",
+                "Lden6064",
+                "Lden6569",
+                "Lden7074",
+                "LdenGreaterThan75",
+                "Lden55",
+                "Lden65",
+                "Lden75",
+                "Lnight5054",
+                "Lnight5559",
+                "Lnight6064",
+                "Lnight6569",
+                "LnightGreaterThan70",
+                "LdenGreaterThan68",
+                "LnightGreaterThan62"
+        };
+
+        String[] levelsTrainConvExcludingAgglo = new String[] {
+                "Lden5559",
+                "Lden6064",
+                "Lden6569",
+                "Lden7074",
+                "LdenGreaterThan75",
+                "Lnight5054",
+                "Lnight5559",
+                "Lnight6064",
+                "Lnight6569",
+                "LnightGreaterThan70"
+        };
+
+        String[] levelsTrainConvIncludingAgglo = new String[] {
+                "Lden5559",
+                "Lden6064",
+                "Lden6569",
+                "Lden7074",
+                "LdenGreaterThan75",
+                "Lden55",
+                "Lden65",
+                "Lden75",
+                "Lnight5054",
+                "Lnight5559",
+                "Lnight6064",
+                "Lnight6569",
+                "LnightGreaterThan70",
+                "LdenGreaterThan73",
+                "LnightGreaterThan65"
+        };
+
+        Map<String, Double[]> levelRoadsInterval = getIntervals();
+        Sql sql = new Sql(connection);
 
         Statement st = connection.createStatement();
         st.execute("DROP TABLE IF EXISTS UUEIDS_LEVELS");
@@ -438,7 +491,7 @@ public class NoiseModellingInstance {
         PreparedStatement ps = connection.prepareStatement("INSERT INTO UUEIDS_LEVELS VALUES (?, ?, ?, ?, ?, ?)");
         String exposureType = "mostExposedFacade";
         for(String roadUUEID : roadsUUEID) {
-            for(String level : levelsRoads) {
+            for(String level : levelsRoadsExcludingAgglo) {
                 Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, roadUUEID);
                 ps.setString(2, level);
@@ -450,6 +503,9 @@ public class NoiseModellingInstance {
             }
         }
         for(String railUUEID : railsUUEID) {
+            int typeLigne = Integer.parseInt((String)sql.firstRow(Collections.singletonMap("uueid", railUUEID),
+                    "SELECT LINETYPE  FROM RAIL_SECTIONS WHERE UUEID=:uueid LIMIT 1").getAt(0));
+            String[] levelsRails = typeLigne == 1 ? levelsTrainConvExcludingAgglo : levelsTrainLGVExcludingAgglo;
             for(String level : levelsRails) {
                 Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, railUUEID);
@@ -463,8 +519,7 @@ public class NoiseModellingInstance {
         }
         exposureType = "mostExposedFacadeIncludingAgglomeration";
         for(String roadUUEID : roadsUUEID) {
-            for(String level : Stream.concat(Arrays.stream(levelsRoads),
-                    Arrays.stream(additionalForAgglo)).collect(Collectors.toList())) {
+            for(String level : levelsRoadsIncludingAgglo) {
                 Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, roadUUEID);
                 ps.setString(2, level);
@@ -476,8 +531,10 @@ public class NoiseModellingInstance {
             }
         }
         for(String railUUEID : railsUUEID) {
-            for(String level : Stream.concat(Arrays.stream(levelsRails),
-                    Arrays.stream(additionalForAgglo)).collect(Collectors.toList())) {
+            int typeLigne = Integer.parseInt((String)sql.firstRow(Collections.singletonMap("uueid", railUUEID),
+                    "SELECT LINETYPE  FROM RAIL_SECTIONS WHERE UUEID=:uueid LIMIT 1").getAt(0));
+            String[] levelsRails = typeLigne == 1 ? levelsTrainConvIncludingAgglo : levelsTrainLGVIncludingAgglo;
+            for(String level : levelsRails) {
                 Double[] levelIntervals = levelRoadsInterval.getOrDefault(level, null);
                 ps.setString(1, railUUEID);
                 ps.setString(2, level);
@@ -830,7 +887,7 @@ public class NoiseModellingInstance {
             pointNoiseMap.setPropagationProcessPathData(LDENConfig.TIME_PERIOD.values()[idTime], environmentalData);
             logger.info("For " + fieldPFav[idTime] + " :");
             logger.info(String.format(Locale.ROOT, "Temperature: %.2f °C", confTemperature));
-            logger.info(String.format(Locale.ROOT, "Humidity: %.2f °C", confTemperature));
+            logger.info(String.format(Locale.ROOT, "Humidity: %.2f %%", confHumidity));
             logger.info("Favorable conditions probability: " + confFavorableOccurrences);
         }
         pointNoiseMap.setThreadCount(nThread);

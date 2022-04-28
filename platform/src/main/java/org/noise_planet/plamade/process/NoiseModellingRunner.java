@@ -47,6 +47,7 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.TopologyException;
 import org.locationtech.jts.geom.prep.PreparedPolygon;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.operation.overlay.OverlayOp;
@@ -108,6 +109,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -423,6 +425,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
      * @return
      */
     public static List<String> mergeCBS(Connection connection, int gridSize, int mainGridSize, ProgressVisitor progressVisitor) throws SQLException {
+        AtomicBoolean exceptionPrinted = new AtomicBoolean(false);
         List<String> allTables = JDBCUtilities.getTableNames(connection, null, null, null,
                 new String[]{"TABLE"});
         GeometryFactory geometyFactory = new GeometryFactory();
@@ -464,24 +467,8 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         for (int idGeometry = 0; idGeometry < inputGeometry.getNumGeometries(); idGeometry++) {
                             insertedPolygons++;
                             Geometry geom = inputGeometry.getGeometryN(idGeometry);
-                            Geometry multiPolygon;
-                            Envelope geomEnvelope = geom.getEnvelopeInternal();
-                            if (geomEnvelope.getWidth() > gridSize || geomEnvelope.getHeight() > gridSize) {
-                                // tessellate the geometry if it is larger than the cell of the grid
-                                try {
-                                    multiPolygon = ST_Tessellate.tessellate(geom);
-                                } catch (RuntimeException | StackOverflowError ex) {
-                                    logger.warn("Error while tessellating the polygon", ex);
-                                    multiPolygon = geom;
-                                }
-                            } else {
-                                multiPolygon = geom;
-                            }
-                            for (int idPoly = 0; idPoly < multiPolygon.getNumGeometries(); idPoly++) {
-                                Geometry triangle = multiPolygon.getGeometryN(idPoly);
-                                if(triangle instanceof Polygon) {
-                                    polygonsList.add((Polygon) triangle);
-                                }
+                            if(geom instanceof Polygon) {
+                                polygonsList.add((Polygon) geom);
                             }
                         }
                     }
@@ -514,10 +501,18 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                                 Polygon gridCell = geometyFactory.createPolygon(new Coordinate[]{new Coordinate(x1, y1), new Coordinate(x2, y1), new Coordinate(x2, y2), new Coordinate(x1, y2), new Coordinate(x1, y1)});
                                 if (preparedPolygon.intersects(gridCell)) {
                                     OverlayOp overlayOp = new OverlayOp(gridCell, triangle);
-                                    Geometry intersectedGeom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
-                                    if (!intersectedGeom.isEmpty()) {
-                                        CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, intersectedGeom.getArea());
-                                        entries.add(new CbsIntersectedEntry(key, cell, cbsSplitedEntry));
+                                    try {
+                                        Geometry intersectedGeom = overlayOp.getResultGeometry(OverlayOp.INTERSECTION);
+                                        if (!intersectedGeom.isEmpty()) {
+                                            CbsSplitedEntry cbsSplitedEntry = new CbsSplitedEntry(noiseLevel, intersectedGeom.getArea());
+                                            entries.add(new CbsIntersectedEntry(key, cell, cbsSplitedEntry));
+                                        }
+                                    } catch (TopologyException ex) {
+                                        // Rare case of topology exception while doing intersection
+                                        // no other choice than ignoring this polygon
+                                        if(exceptionPrinted.compareAndSet(false, true)) {
+                                            logger.warn(ex.getLocalizedMessage(), ex);
+                                        }
                                     }
                                 }
                             }
@@ -805,6 +800,7 @@ public class NoiseModellingRunner implements RunnableFuture<String> {
                         // The file maybe empty, so ignore this file if there is no columns
                         st.execute("DROP TABLE IF EXISTS " + finalTableName);
                         st.execute("CREATE TABLE " + finalTableName + " AS SELECT * FROM " + tableName);
+                        st.execute("DROP TABLE IF EXISTS " + tableName);
                         createdTables.add(finalTableName);
                         break;
                     }

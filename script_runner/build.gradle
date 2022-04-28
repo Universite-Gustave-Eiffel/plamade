@@ -13,6 +13,13 @@ compileJava {
     targetCompatibility = '11'
 }
 
+sourceSets {
+    main {
+        groovy {
+            srcDirs=['../script_groovy']
+        }
+    }
+}
 compileJava.options.encoding = "UTF-8"
 compileTestJava.options.encoding = "UTF-8"
 
@@ -28,16 +35,17 @@ dependencies {
     implementation group: 'org.osgi', name: 'org.osgi.service.jdbc', version: '1.0.0'
     implementation (group: 'org.orbisgis', name: 'h2gis', version: '2.1.0-SNAPSHOT')
     implementation (group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '4.0.0-SNAPSHOT')
-    implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
     implementation group: 'org.apache.commons', name:'commons-text', version: '1.9'
+    implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'
+    implementation(project(':computation_core'))
 }
 
 application {
-    mainClass = 'org.noise_planet.nmcluster.Main'
+    mainClass = 'org.noise_planet.scriptrunner.Main'
 }
 jar {
     manifest {
         attributes('Class-Path': configurations.default.collect { it.getName() }.join(' '),
-                'Main-Class': 'org.noise_planet.nmcluster.Main')
+                'Main-Class': 'org.noise_planet.scriptrunner.Main')
     }
 }
