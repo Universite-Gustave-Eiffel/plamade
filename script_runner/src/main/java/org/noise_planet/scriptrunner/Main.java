@@ -43,6 +43,7 @@ public class Main {
             // Read parameters
             String workingDir = "";
             String scriptPath = "";
+            boolean runMergeCbs = false;
             Map<String, String> customParameters = new HashMap<>();
             for (int i = 0; args != null && i < args.length; i++) {
                 String a = args[i];
@@ -61,6 +62,8 @@ public class Main {
                         logger.error(scriptPath + " script does not exists");
                         scriptPath = "";
                     }
+                } else if (a.equals("--mergeCBS")) {
+                    runMergeCbs = true;
                 } else if(a.contains("=")){
                     String key = a.substring(0, a.indexOf("="));
                     String value = a.substring(a.indexOf("=") + 1);
@@ -72,7 +75,13 @@ public class Main {
                 for (String arg : args) {
                     logger.info("Got argument [" + arg + "]");
                 }
-                throw new IllegalArgumentException("Expected following arguments. -wMyWorkingFolder -sGroovyScriptFile.groovy customParameter=thevalue");
+                String help = "script_runner -wWORKSPACE -sSCRIPT_PATH\n" +
+                        "DESCRIPTION\n" +
+                        "-wWORKSPACE path where the database is located\n" +
+                        "-sSCRIPT_PATH path of the script\n" +
+                        "customParameter=thevalue Custom arguments for the script\n" +
+                        "--mergeCBS run merge cbs before the script";
+                throw new IllegalArgumentException(help);
             }
             // Open database
             DataSource ds = NoiseModellingInstance.createDataSource("", "", new File(workingDir).getAbsolutePath(), "h2gisdb", false);
@@ -81,6 +90,12 @@ public class Main {
                     SECONDS_BETWEEN_PROGRESSION_PRINT);
 
             try (Connection connection = new ConnectionWrapper(ds.getConnection())) {
+                if(runMergeCbs) {
+                    NoiseModellingInstance.mergeCBS(connection, NoiseModellingInstance.CBS_GRID_SIZE,
+                            NoiseModellingInstance.CBS_MAIN_GRID_SIZE,
+                            new RootProgressVisitor(1, true,
+                                    SECONDS_BETWEEN_PROGRESSION_PRINT));
+                }
                 GroovyShell shell = new GroovyShell();
                 Script receiversGrid= shell.parse(new File(scriptPath));
                 Map<String, Object> inputs = new HashMap<>();
