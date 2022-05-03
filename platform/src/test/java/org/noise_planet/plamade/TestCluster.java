@@ -3,8 +3,10 @@ package org.noise_planet.plamade;
 import org.apache.log4j.BasicConfigurator;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.locationtech.jts.geom.Coordinate;
 import org.noise_planet.nmcluster.NoiseModellingInstance;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
+import org.noise_planet.plamade.process.NoiseModellingProfileReport;
 import org.noise_planet.plamade.process.NoiseModellingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -135,12 +137,16 @@ public class TestCluster {
         assertEquals(0, jobList.size());
     }
 
-//    @Test
-//    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
-//        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
-//        noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep44",
-//                new Coordinate(-1.63176, 47.16458, 4.0), new Coordinate(-1.63258, 47.16370, 0.05), "FR_A_rd444061");
-//    }
+    @Test
+    public void testDebugNoiseProfile() throws Throwable {
+        if(new File("/home/nicolas").exists()) {
+            NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
+            noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep37",
+                    new Coordinate(1.01821,47.44004, 4.0),
+                    new Coordinate(1.01764,47.43828, 0.05), "RL_FR_00_101", NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+        }
+    }
+
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);

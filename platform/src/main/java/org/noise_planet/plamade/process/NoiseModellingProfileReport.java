@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import groovy.sql.GroovyRowResult;
 import groovy.sql.Sql;
+import org.apache.commons.text.StringSubstitutor;
 import org.cts.CRSFactory;
 import org.cts.IllegalCoordinateException;
 import org.cts.crs.CRSException;
@@ -28,9 +29,11 @@ import org.h2gis.utilities.dbtypes.DBUtils;
 import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateXY;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.math.Vector2D;
+import org.noise_planet.nmcluster.NoiseModellingInstance;
 import org.noise_planet.noisemodelling.jdbc.LDENComputeRaysOut;
 import org.noise_planet.noisemodelling.jdbc.LDENConfig;
 import org.noise_planet.noisemodelling.jdbc.LDENPointNoiseMapFactory;
@@ -50,9 +53,15 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.BufferedOutputStream;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -62,15 +71,18 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class NoiseModellingProfileReport {
     CRSFactory crsf = new CRSFactory();
     SpatialRefRegistry srr = new SpatialRefRegistry();
     private CoordinateOperation transform = null;
+    int sridBuildings;
 
     public void setInputCRS(String crs) throws CRSException, CoordinateOperationException {
         // Create a new CRSFactory, a necessary element to create a CRS without defining one by one all its components
@@ -105,6 +117,77 @@ public class NoiseModellingProfileReport {
         }
     }
 
+    public void exportHtml(CnossosPropagationData propagationData,
+                           LDENPointNoiseMapFactory ldenPointNoiseMapFactory,
+                           LDENComputeRaysOut ldenPropagationProcessData,  File path) throws IOException,
+            URISyntaxException, IllegalCoordinateException, CRSException, CoordinateOperationException {
+        String mapBoxAccessToken = "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw";
+
+
+        Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
+
+        // Merge rays by receiver identifier
+        Envelope envelope = new Envelope();
+        Map<Integer, Integer> sourcePkToLocalIndex = new HashMap<>();
+        for(int idSource = 0; idSource < propagationData.sourcesPk.size(); idSource++) {
+            sourcePkToLocalIndex.put(propagationData.sourcesPk.get(idSource).intValue(), idSource);
+        }
+
+        StringBuilder propagationLines = new StringBuilder();
+
+        int rayIdentifier = 0;
+        for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
+            ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
+                    propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
+            ar.add(propagationPath);
+            Coordinate sourceCoordinate = propagationData.sourceGeometries.get(sourcePkToLocalIndex.get(
+                    propagationPath.getIdSource())).getCoordinate();
+            Coordinate receiverCoordinate = propagationData.receivers.get(propagationData.receiversPk.indexOf((long)propagationPath.getIdReceiver()));
+            envelope.expandToInclude(sourceCoordinate);
+            envelope.expandToInclude(receiverCoordinate);
+            Coordinate wgs84SourceCoordinate = reproject(sourceCoordinate, sridBuildings, 4326);
+            Coordinate wgs84ReceiverCoordinate = reproject(receiverCoordinate, sridBuildings, 4326);
+            propagationLines.append(String.format(Locale.ROOT, "L.polyline([[%.8f, %.8f], [%.8f, %.8f]], {color: 'red'}).addTo(map);\n",
+                    wgs84SourceCoordinate.y, wgs84SourceCoordinate.x,
+                    wgs84ReceiverCoordinate.y, wgs84ReceiverCoordinate.x));
+            rayIdentifier++;
+        }
+        // reproject to crs
+        Coordinate env = reproject(envelope.centre(), sridBuildings, 4326);
+
+        try(Writer writer = new BufferedWriter(new FileWriter(path))){
+            writer.write("<!DOCTYPE html>");
+            writer.write("<html lang=\"en\">");
+            writer.write("<head>");
+            writer.write("<meta charset=\"utf-8\">");
+            writer.write("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            writer.write("<title>NoiseModelling propagation report</title>");
+            writer.write("<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.8.0/dist/leaflet.css\" " +
+                    "integrity=\"sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr" +
+                    "/Fs0W40kiNHxM9vyTtQ==\" crossorigin=\"\"/>");
+            writer.write("<script src=\"https://unpkg.com/leaflet@1.8.0/dist/leaflet.js\" " +
+                    "integrity=\"sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8" +
+                    "/KABdlkX68nAhlwcDFLGPCQ==\" crossorigin=\"\"></script>");
+            writer.write("<style>\n" + "\t\thtml, body {\n" + "\t\t\theight: 100%;\n" + "\t\t\tmargin: 0;\n" +
+                    "\t\t}\n" + "\t\t.leaflet-container {\n" + "\t\t\theight: 400px;\n" + "\t\t\twidth: 600px;\n" +
+                    "\t\t\tmax-width: 100%;\n" + "\t\t\tmax-height: 100%;\n" + "\t\t}\n" + "\t</style>");
+            writer.write("</head>");
+            writer.write("<body>");
+            Map<String, Object> parameters = new HashMap<>();
+            parameters.put("mapIdentifier", "map");
+            parameters.put("viewLatititude", env.y);
+            parameters.put("viewLongitude", env.x);
+            parameters.put("mapBoxToken", mapBoxAccessToken);
+            parameters.put("markers", propagationLines.toString());
+            StringSubstitutor stringSubstitutor = new StringSubstitutor(parameters);
+            String content = Files.lines(Paths.get(NoiseModellingProfileReport.class.
+                    getResource("leafletmap.html").toURI())).collect(Collectors.joining(System.lineSeparator()));
+            writer.write(stringSubstitutor.replace(content));
+            writer.write("</body>");
+            writer.write("</html>");
+        }
+    }
+
     private Coordinate reproject(Coordinate coordinate, int inputCRSCode, int outputCRSCode) throws IllegalCoordinateException, CoordinateOperationException, CRSException {
         CoordinateReferenceSystem inputCRS = crsf.getCRS(srr.getRegistryName() + ":" + inputCRSCode);
         CoordinateReferenceSystem targetCRS = crsf.getCRS(srr.getRegistryName() + ":" + outputCRSCode);
@@ -117,7 +200,9 @@ public class NoiseModellingProfileReport {
         return new Coordinate(srcPointLocalDoubles[0], srcPointLocalDoubles[1]);
     }
 
-    public void testDebugNoiseProfile(String workingDir, Coordinate receiverCoordinate, Coordinate sourceCoordinate, String uueid) throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
+    public void testDebugNoiseProfile(String workingDir, Coordinate receiverCoordinate, Coordinate sourceCoordinate,
+                                      String uueid, NoiseModellingInstance.SOURCE_TYPE sourceType) throws SQLException, IOException,
+            IllegalCoordinateException, CoordinateOperationException, CRSException, URISyntaxException {
         // TODO generate JSON for https://github.com/renhongl/json-viewer-js
         Logger logger = LoggerFactory.getLogger("debug");
         DataSource ds = NoiseModellingRunner.createDataSource("", "",
@@ -127,6 +212,9 @@ public class NoiseModellingProfileReport {
             srr.setConnection(connection);
 
             String sourceTable = "LW_ROADS";
+            if(sourceType == NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL) {
+                sourceTable = "LW_RAILWAY";
+            }
             String receiversTable = "RECEIVERS_TEST";
             int configurationId = 4;
 
@@ -145,35 +233,46 @@ public class NoiseModellingProfileReport {
             boolean compute_horizontal_edge_diffraction = (Boolean)rs.get("confdiffhorizontal");
 
             if(!uueid.isEmpty()) {
+                // Keep only receivers near selected UUEID
+                String conditionReceiver = "";
                 logger.info("Fetch receivers near roads with uueid " + uueid);
                 try(Statement st = connection.createStatement()) {
-                    String conditionReceiver = "";
-                    // keep only receiver from contouring noise map
-                    conditionReceiver = " AND RCV_TYPE = 2 ";
-                    st.execute("DROP TABLE IF EXISTS SOURCES_BUFFER;");
-                    st.execute("CREATE TABLE SOURCES_BUFFER AS SELECT * from ST_EXPLODE('(SELECT ST_TESSELLATE(ST_ACCUM(ST_BUFFER(THE_GEOM, "+maxSrcDist+"))) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
-                    st.execute("CREATE SPATIAL INDEX ON SOURCES_BUFFER(THE_GEOM)");
-                    st.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID_PK;");
-                    st.execute("CREATE TABLE RECEIVERS_UUEID_PK AS SELECT DISTINCT R.PK FROM RECEIVERS R, SOURCES_BUFFER R2 WHERE R.THE_GEOM && R2.THE_GEOM AND ST_INTERSECTS(R.THE_GEOM, R2.THE_GEOM)" + conditionReceiver);
-                    st.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
-                    st.execute("CREATE TABLE RECEIVERS_UUEID (THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer);");
-                    st.execute("INSERT INTO RECEIVERS_UUEID SELECT R.* FROM RECEIVERS R, RECEIVERS_UUEID_PK R2 WHERE R.PK = R2.PK;");
-                    st.execute("ALTER TABLE RECEIVERS_UUEID ADD PRIMARY KEY(PK)");
-                    st.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
-                    st.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
+                    sql.execute("DROP TABLE IF EXISTS SOURCES_SPLITED;");
+                    if(sourceType == NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL) {
+                        sql.execute("CREATE TABLE SOURCES_SPLITED AS SELECT * from ST_EXPLODE('(SELECT ST_ToMultiSegments(THE_GEOM) THE_GEOM FROM RAIL_SECTIONS WHERE UUEID = ''"+uueid+"'')');");
+                    } else {
+                        sql.execute("CREATE TABLE SOURCES_SPLITED AS SELECT * from ST_EXPLODE('(SELECT ST_ToMultiSegments(THE_GEOM) THE_GEOM FROM ROADS WHERE UUEID = ''"+uueid+"'')');");
+                    }
+                    logger.info("Fetch receivers near uueid " + uueid);
+                    sql.execute("CREATE SPATIAL INDEX ON SOURCES_SPLITED(THE_GEOM)");
+                    sql.execute("DROP TABLE IF EXISTS RECEIVERS_UUEID");
+                    sql.execute("CREATE TABLE RECEIVERS_UUEID(THE_GEOM geometry, PK integer not null, PK_1 integer, RCV_TYPE integer) AS SELECT R.* FROM RECEIVERS R WHERE "+conditionReceiver+" EXISTS (SELECT 1 FROM SOURCES_SPLITED R2 WHERE ST_EXPAND(R.THE_GEOM, "+maxSrcDist+", "+maxSrcDist+") && R2.THE_GEOM AND ST_DISTANCE(R.THE_GEOM, R2.THE_GEOM) <= "+maxSrcDist+" LIMIT 1)");
+                    logger.info("Create primary key and index on filtered receivers");
+                    sql.execute("ALTER TABLE RECEIVERS_UUEID ADD PRIMARY KEY(PK)");
+                    sql.execute("CREATE INDEX RECEIVERS_UUEID_PK1 ON RECEIVERS_UUEID(PK_1)");
+                    sql.execute("CREATE SPATIAL INDEX RECEIVERS_UUEID_SPI ON RECEIVERS_UUEID (THE_GEOM)");
+                    // Filter only sound source that match the UUEID
                     logger.info("Fetch sound sources that match with uueid " + uueid);
-                    st.execute("DROP TABLE IF EXISTS LW_ROADS_UUEID");
-                    st.execute("CREATE TABLE LW_ROADS_UUEID AS SELECT LW.* FROM LW_ROADS LW, ROADS R WHERE LW.PK = R.PK AND R.UUEID = '" + uueid + "'");
-                    st.execute("ALTER TABLE LW_ROADS_UUEID ALTER COLUMN PK INTEGER NOT NULL");
-                    st.execute("ALTER TABLE LW_ROADS_UUEID ADD PRIMARY KEY(PK)");
-                    st.execute("CREATE SPATIAL INDEX ON LW_ROADS_UUEID(THE_GEOM)");
-                    sourceTable = "LW_ROADS_UUEID";
-                    SHPWrite.exportTable(connection, new File(workingDir, "LW_ROADS_UUEID.shp").getAbsolutePath(), "LW_ROADS_UUEID");
+                    sql.execute("DROP TABLE IF EXISTS LW_UUEID");
+                    if(sourceType == NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL) {
+                        sql.execute("CREATE TABLE LW_UUEID AS SELECT LW.* FROM LW_RAILWAY LW WHERE UUEID = '" + uueid + "'");
+                    } else {
+                        sql.execute("CREATE TABLE LW_UUEID AS SELECT LW.* FROM LW_ROADS LW, ROADS R WHERE LW.PK = R.PK AND R.UUEID = '" + uueid + "'");
+                    }
+                    sql.execute("ALTER TABLE LW_UUEID ALTER COLUMN PK INTEGER NOT NULL");
+                    sql.execute("ALTER TABLE LW_UUEID ADD PRIMARY KEY(PK)");
+                    sql.execute("CREATE SPATIAL INDEX ON LW_UUEID(THE_GEOM)");
+                    int nbSources = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM LW_UUEID").get("CPT"));
+                    logger.info(String.format(Locale.ROOT, "There is %d sound sources with this UUEID", nbSources));
+                    int nbReceivers = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM RECEIVERS_UUEID").get("CPT"));
+                    logger.info(String.format(Locale.ROOT, "There is %d receivers with this UUEID", nbReceivers));
+                    sourceTable = "LW_UUEID";
+                    SHPWrite.exportTable(connection, new File(workingDir, "LW_"+uueid+".shp").getAbsolutePath(), sourceTable);
                 }
             }
 
             DBTypes dbTypes = DBUtils.getDBType(connection);
-            int sridBuildings = GeometryTableUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS", dbTypes));
+            sridBuildings = GeometryTableUtilities.getSRID(connection, TableLocation.parse("BUILDINGS_SCREENS", dbTypes));
 
             setInputCRS("EPSG:"+ sridBuildings);
 
@@ -282,6 +381,10 @@ public class NoiseModellingProfileReport {
 
             pointNoiseMap.setGridDim(1);
 
+            Envelope computationEnvelope = new Envelope(axeReceiver);
+            computationEnvelope.expandBy(maxSrcDist);
+            pointNoiseMap.setMainEnvelope(computationEnvelope);
+
             CnossosPropagationData propagationData = pointNoiseMap.prepareCell(connection, 0, 0, new EmptyProgressVisitor(), receivers);
 
             ComputeCnossosRays computeRays = new ComputeCnossosRays(propagationData);
@@ -302,6 +405,8 @@ public class NoiseModellingProfileReport {
             ldenPropagationProcessData.keepAbsorption = true;
 
             computeRays.run(ldenPropagationProcessData);
+
+            exportHtml(propagationData, ldenPointNoiseMapFactory, ldenPropagationProcessData, new File(workingDir, "report.html"));
 
             Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
 
@@ -354,7 +459,7 @@ public class NoiseModellingProfileReport {
                     }
                     jsonGenerator.writeEndArray();
                     jsonGenerator.writeArrayFieldStart("profile");
-                    ProfileBuilder.CutProfile profile = ldenPropagationProcessData.inputData.profileBuilder.getProfile(srcPoint, receiverCoordinate, 0);
+                    ProfileBuilder.CutProfile profile = ldenPropagationProcessData.inputData.profileBuilder.getProfile(srcPoint, axeReceiver, 0);
                     for(ProfileBuilder.CutPoint cutPoint : profile.getCutPoints()) {
                         if(cutPoint.getType() == ProfileBuilder.IntersectionType.TOPOGRAPHY) {
                             double zGround = cutPoint.getCoordinate().z;
