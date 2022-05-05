@@ -59,6 +59,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -134,58 +135,64 @@ public class NoiseModellingProfileReport {
         }
 
         StringBuilder propagationLines = new StringBuilder();
-
         int rayIdentifier = 0;
+        StringBuilder tables = new StringBuilder();
         for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
             ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
                     propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
             ar.add(propagationPath);
-            Coordinate sourceCoordinate = propagationData.sourceGeometries.get(sourcePkToLocalIndex.get(
-                    propagationPath.getIdSource())).getCoordinate();
-            Coordinate receiverCoordinate = propagationData.receivers.get(propagationData.receiversPk.indexOf((long)propagationPath.getIdReceiver()));
-            envelope.expandToInclude(sourceCoordinate);
-            envelope.expandToInclude(receiverCoordinate);
-            Coordinate wgs84SourceCoordinate = reproject(sourceCoordinate, sridBuildings, 4326);
-            Coordinate wgs84ReceiverCoordinate = reproject(receiverCoordinate, sridBuildings, 4326);
-            propagationLines.append(String.format(Locale.ROOT, "L.polyline([[%.8f, %.8f], [%.8f, %.8f]], {color: 'red'}).addTo(map);\n",
-                    wgs84SourceCoordinate.y, wgs84SourceCoordinate.x,
-                    wgs84ReceiverCoordinate.y, wgs84ReceiverCoordinate.x));
+            propagationLines.append("L.polyline([");
+            int pointIndex = 0;
+            tables.append("<h1>Ray n°");
+            tables.append(rayIdentifier);
+            tables.append("</h1>");
+            tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
+            for (Integer frequency : propagationData.freq_lvl) {
+                tables.append("<th>");
+                tables.append(frequency);
+                tables.append("</th>");
+            }
+            tables.append("<tr></thead><tbody><th>a Atm</th>");
+            for (double v : propagationPath.absorptionData.aAtm) {
+                tables.append("<td>");
+                tables.append(String.format(Locale.ROOT, "%.2f", v));
+                tables.append("</td>");
+            }
+            tables.append("</tbody></table>");
+
+            for (ProfileBuilder.CutPoint cutPoint : propagationPath.getCutPoints()) {
+                Coordinate c = cutPoint.getCoordinate();
+                envelope.expandToInclude(c);
+                Coordinate wgs84Coordinate = reproject(c, sridBuildings, 4326);
+                if(pointIndex > 0) {
+                    propagationLines.append(",");
+                }
+                propagationLines.append(String.format(Locale.ROOT, "[%.8f, %.8f, %.8f]", wgs84Coordinate.y,
+                        wgs84Coordinate.x, Double.isNaN(c.z) ? 0 : c.z));
+                pointIndex++;
+            }
+            propagationLines.append("], {color: 'red'}).bindPopup(\"").append("Ray n°").append(rayIdentifier)
+                    .append("\").addTo(map);\n");
             rayIdentifier++;
         }
         // reproject to crs
         Coordinate env = reproject(envelope.centre(), sridBuildings, 4326);
 
         try(Writer writer = new BufferedWriter(new FileWriter(path))){
-            writer.write("<!DOCTYPE html>");
-            writer.write("<html lang=\"en\">");
-            writer.write("<head>");
-            writer.write("<meta charset=\"utf-8\">");
-            writer.write("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-            writer.write("<title>NoiseModelling propagation report</title>");
-            writer.write("<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.8.0/dist/leaflet.css\" " +
-                    "integrity=\"sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr" +
-                    "/Fs0W40kiNHxM9vyTtQ==\" crossorigin=\"\"/>");
-            writer.write("<script src=\"https://unpkg.com/leaflet@1.8.0/dist/leaflet.js\" " +
-                    "integrity=\"sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8" +
-                    "/KABdlkX68nAhlwcDFLGPCQ==\" crossorigin=\"\"></script>");
-            writer.write("<style>\n" + "\t\thtml, body {\n" + "\t\t\theight: 100%;\n" + "\t\t\tmargin: 0;\n" +
-                    "\t\t}\n" + "\t\t.leaflet-container {\n" + "\t\t\theight: 400px;\n" + "\t\t\twidth: 600px;\n" +
-                    "\t\t\tmax-width: 100%;\n" + "\t\t\tmax-height: 100%;\n" + "\t\t}\n" + "\t</style>");
-            writer.write("</head>");
-            writer.write("<body>");
-            Map<String, Object> parameters = new HashMap<>();
-            parameters.put("mapIdentifier", "map");
-            parameters.put("viewLatititude", env.y);
-            parameters.put("viewLongitude", env.x);
-            parameters.put("mapBoxToken", mapBoxAccessToken);
-            parameters.put("markers", propagationLines.toString());
-            StringSubstitutor stringSubstitutor = new StringSubstitutor(parameters);
-            String content = Files.lines(Paths.get(NoiseModellingProfileReport.class.
-                    getResource("leafletmap.html").toURI())).collect(Collectors.joining(System.lineSeparator()));
-            writer.write(stringSubstitutor.replace(content));
-            writer.write("</body>");
-            writer.write("</html>");
+            String raysMap = pageToString(Map.of("mapIdentifier", "map",
+                    "viewLatititude", env.y,
+                    "viewLongitude", env.x,
+                    "mapBoxToken", mapBoxAccessToken,
+                    "markers", propagationLines.toString()), "leafletmap.html");
+            writer.write(pageToString(Map.of("raysMap", raysMap, "tables", tables), "report_page.html"));
         }
+    }
+
+    private static String pageToString(Map<String, Object> parameters, String resourceName) throws URISyntaxException, IOException {
+        StringSubstitutor stringSubstitutor = new StringSubstitutor(parameters);
+        String content = Files.lines(Paths.get(NoiseModellingProfileReport.class.
+                getResource(resourceName).toURI())).collect(Collectors.joining(System.lineSeparator()));
+        return stringSubstitutor.replace(content);
     }
 
     private Coordinate reproject(Coordinate coordinate, int inputCRSCode, int outputCRSCode) throws IllegalCoordinateException, CoordinateOperationException, CRSException {
@@ -267,7 +274,7 @@ public class NoiseModellingProfileReport {
                     int nbReceivers = asInteger(sql.firstRow("SELECT COUNT(*) CPT FROM RECEIVERS_UUEID").get("CPT"));
                     logger.info(String.format(Locale.ROOT, "There is %d receivers with this UUEID", nbReceivers));
                     sourceTable = "LW_UUEID";
-                    SHPWrite.exportTable(connection, new File(workingDir, "LW_"+uueid+".shp").getAbsolutePath(), sourceTable);
+                    SHPWrite.exportTable(connection, new File(workingDir, "LW_"+uueid+".shp").getAbsolutePath(), sourceTable, "UTF-8", true);
                 }
             }
 
@@ -407,76 +414,76 @@ public class NoiseModellingProfileReport {
             computeRays.run(ldenPropagationProcessData);
 
             exportHtml(propagationData, ldenPointNoiseMapFactory, ldenPropagationProcessData, new File(workingDir, "report.html"));
-
-            Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
-
-            for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
-                ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
-                        propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
-                ar.add(propagationPath);
-                Coordinate receiver = propagationPath.getSRSegment().r;
-                Coordinate source = propagationPath.getSRSegment().s;
-               // logger.info("(Src:"+ propagationPath.getIdSource() + " R:"+propagationPath.getIdReceiver()+") Distance "+   receiver.distance(source) + " m " + Arrays.toString(propagationPath.absorptionData.aGlobal));
-            }
-
-
-            try(FileOutputStream fos = new FileOutputStream(new File(workingDir, "debug.geojson").getAbsoluteFile())){
-                JsonFactory jsonFactory = new JsonFactory();
-                JsonEncoding jsonEncoding = JsonEncoding.UTF8;
-                JsonGenerator jsonGenerator = jsonFactory.createGenerator(new BufferedOutputStream(fos), jsonEncoding);
-                ObjectMapper mapper = new ObjectMapper();
-                mapper.enable(SerializationFeature.INDENT_OUTPUT);
-                mapper.setVisibility(mapper.getSerializationConfig().getDefaultVisibilityChecker()
-                        .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
-                        .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
-                        .withIsGetterVisibility(JsonAutoDetect.Visibility.NONE)
-                        .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
-                        .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
-                jsonGenerator.setCodec(mapper);
-                // header of the GeoJSON file
-                jsonGenerator.writeStartObject();
-                jsonGenerator.writeStringField("type", "FeatureCollection");
-                jsonGenerator.writeArrayFieldStart("features");
-                for (ComputeRaysOutAttenuation.VerticeSL v : ldenPointNoiseMapFactory.getLdenData().lDayLevels) {
-                    double globalDba = PowerUtils.wToDba(PowerUtils.sumArray(PowerUtils.dbaToW(v.value)));
-                    if(!Double.isNaN(globalDba) && Double.isFinite(globalDba)) {
-                        globalDba = Math.round(globalDba * 100.0) / 100.0;
-                    }
-                    jsonGenerator.writeStartObject();
-                    jsonGenerator.writeStringField("type", "Feature");
-                    int localReceiverIndex = ldenPropagationProcessData.inputData.receiversPk.indexOf(v.receiverId);
-                    Coordinate realReceiverCoordinate = ldenPropagationProcessData.inputData.receivers.get(localReceiverIndex);
-                    writePoint(realReceiverCoordinate, jsonGenerator, transform);
-                    jsonGenerator.writeObjectFieldStart("properties");
-                    jsonGenerator.writeFieldName("level");
-                    jsonGenerator.writeNumber(globalDba);
-                    jsonGenerator.writeFieldName("pk");
-                    jsonGenerator.writeNumber(v.receiverId);
-                    jsonGenerator.writeArrayFieldStart("rays");
-                    List<PropagationPath> rays =  propagationPathPerReceiver.get((int)v.receiverId);
-                    for(PropagationPath propagationPath : rays.subList(0, Math.min(10, rays.size()))) {
-                        mapper.writeValue(jsonGenerator, propagationPath);
-                    }
-                    jsonGenerator.writeEndArray();
-                    jsonGenerator.writeArrayFieldStart("profile");
-                    ProfileBuilder.CutProfile profile = ldenPropagationProcessData.inputData.profileBuilder.getProfile(srcPoint, axeReceiver, 0);
-                    for(ProfileBuilder.CutPoint cutPoint : profile.getCutPoints()) {
-                        if(cutPoint.getType() == ProfileBuilder.IntersectionType.TOPOGRAPHY) {
-                            double zGround = cutPoint.getCoordinate().z;
-                            jsonGenerator.writeNumber(Math.round(zGround * 100) / 100.0);
-                        }
-                    }
-                    jsonGenerator.writeEndArray();
-                    jsonGenerator.writeEndObject();
-                    // feature footer
-                    jsonGenerator.writeEndObject();
-                }
-                // footer
-                jsonGenerator.writeEndArray();
-                jsonGenerator.writeEndObject();
-                jsonGenerator.flush();
-                jsonGenerator.close();
-            }
+//
+//            Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
+//
+//            for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
+//                ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
+//                        propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
+//                ar.add(propagationPath);
+//                Coordinate receiver = propagationPath.getSRSegment().r;
+//                Coordinate source = propagationPath.getSRSegment().s;
+//               // logger.info("(Src:"+ propagationPath.getIdSource() + " R:"+propagationPath.getIdReceiver()+") Distance "+   receiver.distance(source) + " m " + Arrays.toString(propagationPath.absorptionData.aGlobal));
+//            }
+//
+//
+//            try(FileOutputStream fos = new FileOutputStream(new File(workingDir, "debug.geojson").getAbsoluteFile())){
+//                JsonFactory jsonFactory = new JsonFactory();
+//                JsonEncoding jsonEncoding = JsonEncoding.UTF8;
+//                JsonGenerator jsonGenerator = jsonFactory.createGenerator(new BufferedOutputStream(fos), jsonEncoding);
+//                ObjectMapper mapper = new ObjectMapper();
+//                mapper.enable(SerializationFeature.INDENT_OUTPUT);
+//                mapper.setVisibility(mapper.getSerializationConfig().getDefaultVisibilityChecker()
+//                        .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
+//                        .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
+//                        .withIsGetterVisibility(JsonAutoDetect.Visibility.NONE)
+//                        .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
+//                        .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
+//                jsonGenerator.setCodec(mapper);
+//                // header of the GeoJSON file
+//                jsonGenerator.writeStartObject();
+//                jsonGenerator.writeStringField("type", "FeatureCollection");
+//                jsonGenerator.writeArrayFieldStart("features");
+//                for (ComputeRaysOutAttenuation.VerticeSL v : ldenPointNoiseMapFactory.getLdenData().lDayLevels) {
+//                    double globalDba = PowerUtils.wToDba(PowerUtils.sumArray(PowerUtils.dbaToW(v.value)));
+//                    if(!Double.isNaN(globalDba) && Double.isFinite(globalDba)) {
+//                        globalDba = Math.round(globalDba * 100.0) / 100.0;
+//                    }
+//                    jsonGenerator.writeStartObject();
+//                    jsonGenerator.writeStringField("type", "Feature");
+//                    int localReceiverIndex = ldenPropagationProcessData.inputData.receiversPk.indexOf(v.receiverId);
+//                    Coordinate realReceiverCoordinate = ldenPropagationProcessData.inputData.receivers.get(localReceiverIndex);
+//                    writePoint(realReceiverCoordinate, jsonGenerator, transform);
+//                    jsonGenerator.writeObjectFieldStart("properties");
+//                    jsonGenerator.writeFieldName("level");
+//                    jsonGenerator.writeNumber(globalDba);
+//                    jsonGenerator.writeFieldName("pk");
+//                    jsonGenerator.writeNumber(v.receiverId);
+//                    jsonGenerator.writeArrayFieldStart("rays");
+//                    List<PropagationPath> rays =  propagationPathPerReceiver.get((int)v.receiverId);
+//                    for(PropagationPath propagationPath : rays.subList(0, Math.min(10, rays.size()))) {
+//                        mapper.writeValue(jsonGenerator, propagationPath);
+//                    }
+//                    jsonGenerator.writeEndArray();
+//                    jsonGenerator.writeArrayFieldStart("profile");
+//                    ProfileBuilder.CutProfile profile = ldenPropagationProcessData.inputData.profileBuilder.getProfile(srcPoint, axeReceiver, 0);
+//                    for(ProfileBuilder.CutPoint cutPoint : profile.getCutPoints()) {
+//                        if(cutPoint.getType() == ProfileBuilder.IntersectionType.TOPOGRAPHY) {
+//                            double zGround = cutPoint.getCoordinate().z;
+//                            jsonGenerator.writeNumber(Math.round(zGround * 100) / 100.0);
+//                        }
+//                    }
+//                    jsonGenerator.writeEndArray();
+//                    jsonGenerator.writeEndObject();
+//                    // feature footer
+//                    jsonGenerator.writeEndObject();
+//                }
+//                // footer
+//                jsonGenerator.writeEndArray();
+//                jsonGenerator.writeEndObject();
+//                jsonGenerator.flush();
+//                jsonGenerator.close();
+//            }
         }
     }
 
