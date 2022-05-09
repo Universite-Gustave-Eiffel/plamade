@@ -118,6 +118,51 @@ public class NoiseModellingProfileReport {
         }
     }
 
+    public static void generateLine(StringBuilder sb, double startX, double startY, double stopX, double stopY, String color) {
+        sb.append(String.format(Locale.ROOT, "<line x1=\"%f\" y1=\"%f\" x2=\"%f\" y2=\"%f\"" +
+                " stroke=\"%s\" stroke-width=\"1\" />\n",startX, startY, stopX, stopY, color));
+    }
+
+    public static void generateCutPointsSVG(StringBuilder sb, List<ProfileBuilder.CutPoint> cutPoints) {
+        if(cutPoints.size() < 2) {
+            return;
+        }
+        double dwidth = 500;
+        double dheight = 500;
+        double maxHeight = Double.NEGATIVE_INFINITY;
+        double minHeight = Double.POSITIVE_INFINITY;
+        Map<ProfileBuilder.IntersectionType, String> typeToColor =
+                Map.of(ProfileBuilder.IntersectionType.BUILDING, "red",
+                        ProfileBuilder.IntersectionType.GROUND_EFFECT, "blue",
+                        ProfileBuilder.IntersectionType.TOPOGRAPHY, "black");
+
+        double totalLength = 0;
+        for (int i = 1, cutPointsSize = cutPoints.size(); i < cutPointsSize; i++) {
+            totalLength += cutPoints.get(i).getCoordinate().distance(cutPoints.get(i-1).getCoordinate());
+        }
+        for (ProfileBuilder.CutPoint cutPoint : cutPoints) {
+            maxHeight = Math.max(maxHeight, cutPoint.getCoordinate().z);
+            minHeight = Math.min(minHeight, cutPoint.getCoordinate().z);
+        }
+
+        // HEADER
+        sb.append(String.format("<svg height=\"%d\" width=\"%d\">\n", (int)dheight, (int)dwidth));
+        double oldDrawX = Double.NaN;
+        double oldDrawY = Double.NaN;
+        for (int i = 1, cutPointsSize = cutPoints.size(); i < cutPointsSize; i++) {
+            ProfileBuilder.CutPoint cutPoint = cutPoints.get(i);
+            double distance = cutPoints.get(i).getCoordinate().distance(cutPoints.get(i-1).getCoordinate());
+            double drawX = oldDrawX + (distance  / totalLength) * dwidth;
+            double drawY = ((cutPoint.getCoordinate().y - minHeight) / (maxHeight - minHeight)) * dheight;
+            if(!Double.isNaN(oldDrawX)) {
+                generateLine(sb, oldDrawX, oldDrawY, drawX, drawY, "black");
+            }
+            oldDrawX = drawX;
+            oldDrawY = drawY;
+        }
+        sb.append("</svg>");
+    }
+
     public void exportHtml(CnossosPropagationData propagationData,
                            LDENPointNoiseMapFactory ldenPointNoiseMapFactory,
                            LDENComputeRaysOut ldenPropagationProcessData,  File path) throws IOException,
@@ -146,6 +191,7 @@ public class NoiseModellingProfileReport {
             tables.append("<h1>Ray n°");
             tables.append(rayIdentifier);
             tables.append("</h1>");
+            generateCutPointsSVG(tables, propagationPath.getCutPoints());
             tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
             for (Integer frequency : propagationData.freq_lvl) {
                 tables.append("<th>");
