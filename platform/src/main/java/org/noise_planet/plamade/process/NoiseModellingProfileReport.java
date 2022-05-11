@@ -42,6 +42,7 @@ import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
 import org.noise_planet.noisemodelling.pathfinder.CnossosPropagationData;
 import org.noise_planet.noisemodelling.pathfinder.ComputeCnossosRays;
 import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
+import org.noise_planet.noisemodelling.pathfinder.PointPath;
 import org.noise_planet.noisemodelling.pathfinder.ProfileBuilder;
 import org.noise_planet.noisemodelling.pathfinder.PropagationPath;
 import org.noise_planet.noisemodelling.pathfinder.QueryRTree;
@@ -120,36 +121,37 @@ public class NoiseModellingProfileReport {
     }
 
     public static double getCutPointHeight(ProfileBuilder.CutPoint cutPoint) {
-        if(cutPoint.getType() == ProfileBuilder.IntersectionType.RECEIVER ||
-                cutPoint.getType() == ProfileBuilder.IntersectionType.SOURCE) {
-            try {
-                return cutPoint.getzGround();
-            } catch (NullPointerException ex) {
-                return cutPoint.getCoordinate().z;
-            }
-        } else {
+        try {
+            return cutPoint.getzGround();
+        } catch (NullPointerException ex) {
             return cutPoint.getCoordinate().z;
         }
     }
 
-    public static void generateCutPointsVega(int id, StringBuilder sb, List<ProfileBuilder.CutPoint> cutPoints) throws URISyntaxException, IOException {
+
+    public static void generateCutPointsVega(int id, StringBuilder sb, List<PointPath> cutPoints) throws URISyntaxException, IOException {
         if(cutPoints.size() < 2) {
             return;
         }
-        double totDistance = 0;
         StringBuilder data = new StringBuilder();
-        data.append("{\"x\": 0, \"y\":");
-        data.append(String.format(Locale.ROOT, "%.2f", getCutPointHeight(cutPoints.get(0))));
-        data.append("}");
-        for (int i = 1, cutPointsSize = cutPoints.size(); i < cutPointsSize; i++) {
-            data.append(",\n");
-            double distance = cutPoints.get(i).getCoordinate().distance(cutPoints.get(i-1).getCoordinate());
+        for (PointPath current : cutPoints) {
+            if(data.length() > 0) {
+                data.append(",\n");
+            }
             data.append("{\"x\": " );
-            data.append(String.format(Locale.ROOT, "%.1f", distance + totDistance));
+            data.append(String.format(Locale.ROOT, "%.1f", current.coordinate.x));
             data.append(", \"y\": ");
-            data.append(String.format(Locale.ROOT, "%.2f", getCutPointHeight(cutPoints.get(i))));
+            data.append(String.format(Locale.ROOT, "%.2f", Double.isNaN(current.altitude) || Double.compare(current.altitude, 0) == 0 ? current.coordinate.y : current.altitude));
+            data.append(", \"z\": ");
+            if(!Double.isNaN(current.buildingHeight) && current.buildingHeight > 0) {
+                data.append(String.format(Locale.ROOT, "%.2f", current.coordinate.y + current.buildingHeight));
+            } else {
+                data.append(String.format(Locale.ROOT, "%.2f", current.coordinate.y));
+            }
+            data.append(", \"type\": \"");
+            data.append(current.type.toString());
+            data.append("\"");
             data.append("}");
-            totDistance+=distance;
         }
         sb.append(pageToString(Map.of("data", data.toString(), "graphID", id), "vega_graph.html"));
     }
@@ -194,7 +196,7 @@ public class NoiseModellingProfileReport {
             tables.append("<h1>Ray n°");
             tables.append(rayIdentifier);
             tables.append("</h1>");
-            generateCutPointsVega(rayIdentifier, tables, propagationPath.getCutPoints());
+            generateCutPointsVega(rayIdentifier, tables, propagationPath.getPointList());
             tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
             for (Integer frequency : propagationData.freq_lvl) {
                 tables.append("<th>");
