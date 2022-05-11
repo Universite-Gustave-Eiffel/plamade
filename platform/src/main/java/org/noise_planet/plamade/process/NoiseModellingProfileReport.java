@@ -128,6 +128,33 @@ public class NoiseModellingProfileReport {
         }
     }
 
+    public void generateLeafletMap(int id, StringBuilder sb, List<ProfileBuilder.CutPoint> cutPoints) throws IllegalCoordinateException, CoordinateOperationException, CRSException, URISyntaxException, IOException {
+        StringBuilder propagationLines = new StringBuilder();
+        propagationLines.append("L.polyline([");
+        Envelope envelope = new Envelope();
+        String mapBoxAccessToken = "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw";
+        int pointIndex = 0;
+        for (ProfileBuilder.CutPoint cutPoint : cutPoints) {
+            Coordinate c = cutPoint.getCoordinate();
+            envelope.expandToInclude(c);
+            Coordinate wgs84Coordinate = reproject(c, sridBuildings, 4326);
+            if(pointIndex > 0) {
+                propagationLines.append(",");
+            }
+            propagationLines.append(String.format(Locale.ROOT, "[%.8f, %.8f, %.8f]", wgs84Coordinate.y,
+                    wgs84Coordinate.x, Double.isNaN(c.z) ? 0 : c.z));
+            pointIndex++;
+        }
+        propagationLines.append("], {color: 'red'}).bindPopup(\"").append("Ray n°").append(id).append("\").addTo(map").append(id).append(");\n");
+        // reproject to crs
+        Coordinate env = reproject(envelope.centre(), sridBuildings, 4326);
+        String raysMap = pageToString(Map.of("mapIdentifier", id,
+                "viewLatititude", env.y,
+                "viewLongitude", env.x,
+                "mapBoxToken", mapBoxAccessToken,
+                "markers", propagationLines.toString()), "leafletmap.html");
+        sb.append(raysMap);
+    }
 
     public static void generateCutPointsVega(int id, StringBuilder sb, List<PointPath> cutPoints) throws URISyntaxException, IOException {
         if(cutPoints.size() < 2) {
@@ -172,30 +199,24 @@ public class NoiseModellingProfileReport {
                            LDENPointNoiseMapFactory ldenPointNoiseMapFactory,
                            LDENComputeRaysOut ldenPropagationProcessData,  File path) throws IOException,
             URISyntaxException, IllegalCoordinateException, CRSException, CoordinateOperationException {
-        String mapBoxAccessToken = "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw";
-
-
         Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
 
         // Merge rays by receiver identifier
-        Envelope envelope = new Envelope();
         Map<Integer, Integer> sourcePkToLocalIndex = new HashMap<>();
         for(int idSource = 0; idSource < propagationData.sourcesPk.size(); idSource++) {
             sourcePkToLocalIndex.put(propagationData.sourcesPk.get(idSource).intValue(), idSource);
         }
-
-        StringBuilder propagationLines = new StringBuilder();
         int rayIdentifier = 0;
         StringBuilder tables = new StringBuilder();
         for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
             ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
                     propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
             ar.add(propagationPath);
-            propagationLines.append("L.polyline([");
             int pointIndex = 0;
             tables.append("<h1>Ray n°");
             tables.append(rayIdentifier);
             tables.append("</h1>");
+            generateLeafletMap(rayIdentifier, tables, propagationPath.getCutPoints());
             generateCutPointsVega(rayIdentifier, tables, propagationPath.getPointList());
             tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
             for (Integer frequency : propagationData.freq_lvl) {
@@ -207,41 +228,24 @@ public class NoiseModellingProfileReport {
             pushArray(tables, "aAtm", propagationPath.absorptionData.aAtm);
             pushArray(tables, "aDiv", propagationPath.absorptionData.aDiv);
             pushArray(tables, "aRef", propagationPath.absorptionData.aRef);
+            pushArray(tables, "dLAbs", propagationPath.reflectionAttenuation.dLAbs);
+            pushArray(tables, "dLRetro", propagationPath.reflectionAttenuation.dLRetro);
             pushArray(tables, "aBoundaryH", propagationPath.absorptionData.aBoundaryH);
             pushArray(tables, "aBoundaryF", propagationPath.absorptionData.aBoundaryF);
-            pushArray(tables, "aGlobalH", propagationPath.absorptionData.aGlobalH);
-            pushArray(tables, "aGlobalF", propagationPath.absorptionData.aGlobalF);
+            pushArray(tables, "aGroundF", propagationPath.groundAttenuation.aGroundF);
+            pushArray(tables, "aGroundH", propagationPath.groundAttenuation.aGroundH);
             pushArray(tables, "aDifH", propagationPath.absorptionData.aDifH);
             pushArray(tables, "aDifF", propagationPath.absorptionData.aDifF);
-            pushArray(tables, "aGlobal", propagationPath.absorptionData.aGlobal);
             pushArray(tables, "aSource", propagationPath.absorptionData.aSource);
+            pushArray(tables, "aGlobalH", propagationPath.absorptionData.aGlobalH);
+            pushArray(tables, "aGlobalF", propagationPath.absorptionData.aGlobalF);
+            pushArray(tables, "aGlobal", propagationPath.absorptionData.aGlobal);
             tables.append("</tbody></table>");
-
-            for (ProfileBuilder.CutPoint cutPoint : propagationPath.getCutPoints()) {
-                Coordinate c = cutPoint.getCoordinate();
-                envelope.expandToInclude(c);
-                Coordinate wgs84Coordinate = reproject(c, sridBuildings, 4326);
-                if(pointIndex > 0) {
-                    propagationLines.append(",");
-                }
-                propagationLines.append(String.format(Locale.ROOT, "[%.8f, %.8f, %.8f]", wgs84Coordinate.y,
-                        wgs84Coordinate.x, Double.isNaN(c.z) ? 0 : c.z));
-                pointIndex++;
-            }
-            propagationLines.append("], {color: 'red'}).bindPopup(\"").append("Ray n°").append(rayIdentifier)
-                    .append("\").addTo(map);\n");
             rayIdentifier++;
         }
-        // reproject to crs
-        Coordinate env = reproject(envelope.centre(), sridBuildings, 4326);
 
         try(Writer writer = new BufferedWriter(new FileWriter(path))){
-            String raysMap = pageToString(Map.of("mapIdentifier", "map",
-                    "viewLatititude", env.y,
-                    "viewLongitude", env.x,
-                    "mapBoxToken", mapBoxAccessToken,
-                    "markers", propagationLines.toString()), "leafletmap.html");
-            writer.write(pageToString(Map.of("raysMap", raysMap, "tables", tables), "report_page.html"));
+            writer.write(pageToString(Map.of("tables", tables), "report_page.html"));
         }
     }
 
