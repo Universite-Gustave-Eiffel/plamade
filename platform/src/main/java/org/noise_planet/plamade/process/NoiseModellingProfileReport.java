@@ -30,6 +30,7 @@ import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateXY;
 import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.math.Vector2D;
@@ -120,17 +121,8 @@ public class NoiseModellingProfileReport {
         }
     }
 
-    public static double getCutPointHeight(ProfileBuilder.CutPoint cutPoint) {
-        try {
-            return cutPoint.getzGround();
-        } catch (NullPointerException ex) {
-            return cutPoint.getCoordinate().z;
-        }
-    }
-
-    public void generateLeafletMap(int id, StringBuilder sb, List<ProfileBuilder.CutPoint> cutPoints) throws IllegalCoordinateException, CoordinateOperationException, CRSException, URISyntaxException, IOException {
-        StringBuilder propagationLines = new StringBuilder();
-        propagationLines.append("L.polyline([");
+    public void generateLeafletMap(int id, StringBuilder sb, List<ProfileBuilder.CutPoint> cutPoints, Geometry sourceGeometry) throws IllegalCoordinateException, CoordinateOperationException, CRSException, URISyntaxException, IOException {
+        StringBuilder propagationLines = new StringBuilder("L.polyline([");
         Envelope envelope = new Envelope();
         String mapBoxAccessToken = "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw";
         int pointIndex = 0;
@@ -146,6 +138,25 @@ public class NoiseModellingProfileReport {
             pointIndex++;
         }
         propagationLines.append("], {color: 'red'}).bindPopup(\"").append("Ray n°").append(id).append("\").addTo(map").append(id).append(");\n");
+        // add source geom
+        Coordinate[] sourceCoordinates = sourceGeometry.getCoordinates();
+        if(sourceCoordinates.length > 1) {
+            propagationLines.append("L.polyline([");
+            pointIndex = 0;
+            for (Coordinate sourceCoordinate : sourceCoordinates) {
+                if(pointIndex > 0) {
+                    propagationLines.append(",");
+                }
+                Coordinate wgs84Coordinate = reproject(sourceCoordinate, sridBuildings, 4326);
+                propagationLines.append(String.format(Locale.ROOT, "[%.8f, %.8f, %.8f]", wgs84Coordinate.y,
+                        wgs84Coordinate.x, Double.isNaN(sourceCoordinate.z) ? 0 : sourceCoordinate.z));
+                pointIndex++;
+            }
+        } else {
+            Coordinate wgs84Coordinate = reproject(sourceCoordinates[0], sridBuildings, 4326);
+            propagationLines.append(String.format(Locale.ROOT, "L.marker([%f, %f,", wgs84Coordinate.y, wgs84Coordinate.x));
+        }
+        propagationLines.append("], {color: 'black'}).bindPopup(\"").append("Source").append("\").addTo(map").append(id).append(");\n");
         // reproject to crs
         Coordinate env = reproject(envelope.centre(), sridBuildings, 4326);
         String raysMap = pageToString(Map.of("mapIdentifier", id,
@@ -216,7 +227,9 @@ public class NoiseModellingProfileReport {
             tables.append("<h1>Ray n°");
             tables.append(rayIdentifier);
             tables.append("</h1>");
-            generateLeafletMap(rayIdentifier, tables, propagationPath.getCutPoints());
+            Geometry sourceGeometry = propagationData.sourceGeometries.get(
+                    propagationData.sourcesPk.indexOf((long)propagationPath.getIdSource()));
+            generateLeafletMap(rayIdentifier, tables, propagationPath.getCutPoints(), sourceGeometry);
             generateCutPointsVega(rayIdentifier, tables, propagationPath.getPointList());
             tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
             for (Integer frequency : propagationData.freq_lvl) {
