@@ -14,7 +14,7 @@
     <div id="main" class="content">
         <div class="header"><h1>Generate debug report</h1>
             <div class="l-box" id="message_div" th:if="${not #strings.isEmpty(message)}">
-                <aside><p th:text="${message}"></p></aside>
+                <aside><p th:utext="${message}"></p></aside>
             </div>
             <form class="pure-form pure-form-aligned" id="createreportform" action="/manage/do_generate_report" method="POST">
                 <fieldset>
