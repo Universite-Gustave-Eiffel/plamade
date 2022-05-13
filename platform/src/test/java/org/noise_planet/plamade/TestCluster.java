@@ -142,8 +142,8 @@ public class TestCluster {
         if(new File("/home/nicolas").exists()) {
             NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
             noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep37",
-                    new Coordinate(1.01821,47.44004, 4.0),
-                    new Coordinate(1.01764,47.43828, 0.05), "RL_FR_00_101", NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL);
+                    new Coordinate(1.01821,47.44004, 4.0), "RL_FR_00_101",
+                    NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL, 100, new File("/home/nicolas/data/plamade/dep37", "report.html"));
         }
     }
 

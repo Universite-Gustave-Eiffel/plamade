@@ -207,8 +207,7 @@ public class NoiseModellingProfileReport {
     }
 
     public void exportHtml(CnossosPropagationData propagationData,
-                           LDENPointNoiseMapFactory ldenPointNoiseMapFactory,
-                           LDENComputeRaysOut ldenPropagationProcessData,  File path) throws IOException,
+                           LDENPointNoiseMapFactory ldenPointNoiseMapFactory,  File path, int maxRays) throws IOException,
             URISyntaxException, IllegalCoordinateException, CRSException, CoordinateOperationException {
         Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
 
@@ -255,6 +254,9 @@ public class NoiseModellingProfileReport {
             pushArray(tables, "aGlobal", propagationPath.absorptionData.aGlobal);
             tables.append("</tbody></table>");
             rayIdentifier++;
+            if(rayIdentifier >= maxRays) {
+                break;
+            }
         }
 
         try(Writer writer = new BufferedWriter(new FileWriter(path))){
@@ -281,8 +283,8 @@ public class NoiseModellingProfileReport {
         return new Coordinate(srcPointLocalDoubles[0], srcPointLocalDoubles[1]);
     }
 
-    public void testDebugNoiseProfile(String workingDir, Coordinate receiverCoordinate, Coordinate sourceCoordinate,
-                                      String uueid, NoiseModellingInstance.SOURCE_TYPE sourceType) throws SQLException, IOException,
+    public void testDebugNoiseProfile(String workingDir, Coordinate receiverCoordinate,
+                                      String uueid, NoiseModellingInstance.SOURCE_TYPE sourceType, int maxRays, File resultReportFile) throws SQLException, IOException,
             IllegalCoordinateException, CoordinateOperationException, CRSException, URISyntaxException {
         // TODO generate JSON for https://github.com/renhongl/json-viewer-js
         Logger logger = LoggerFactory.getLogger("debug");
@@ -357,19 +359,11 @@ public class NoiseModellingProfileReport {
 
             setInputCRS("EPSG:"+ sridBuildings);
 
-            Coordinate srcPoint = reproject(sourceCoordinate, 4326, sridBuildings);
             Coordinate axeReceiver = reproject(receiverCoordinate, 4326, sridBuildings);
-            int distance = 50;
-            //int step = 5;
-            //double receiverHeight = 4.0;
-            double sourceHeight = 0.5;
-
             Statement st = connection.createStatement();
 
             st.execute("DROP TABLE IF EXISTS RECEIVERS_TEST");
             st.execute("CREATE TABLE RECEIVERS_TEST(PK serial primary key, the_geom geometry(POINTZ, " + sridBuildings + "))");
-
-            Vector2D vector2D = new Vector2D(srcPoint, axeReceiver).normalize();
 
             PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO " +
                     "RECEIVERS_TEST(THE_GEOM) VALUES (?)");
@@ -379,18 +373,6 @@ public class NoiseModellingProfileReport {
             preparedStatement.setObject(1, geom);
             preparedStatement.addBatch();
             preparedStatement.executeBatch();
-//            for(int i = -distance ; i < distance; i += step) {
-//                if(i != 0) {
-//                    Coordinate receiverCoordinate = new Coordinate(srcPoint.x +
-//                            vector2D.multiply(i).getX(), srcPoint.y +
-//                            vector2D.multiply(i).getY(), receiverHeight);
-//                    Point geom = factory.createPoint(receiverCoordinate);
-//                    geom.setSRID(sridBuildings);
-//                    preparedStatement.setObject(1, geom);
-//                    preparedStatement.addBatch();
-//                    preparedStatement.executeBatch();
-//                }
-//            }
 
             PointNoiseMap pointNoiseMap = new PointNoiseMap("BUILDINGS_SCREENS",
                     sourceTable, receiversTable);
@@ -487,104 +469,8 @@ public class NoiseModellingProfileReport {
 
             computeRays.run(ldenPropagationProcessData);
 
-            exportHtml(propagationData, ldenPointNoiseMapFactory, ldenPropagationProcessData, new File(workingDir, "report.html"));
-//
-//            Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
-//
-//            for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
-//                ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
-//                        propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
-//                ar.add(propagationPath);
-//                Coordinate receiver = propagationPath.getSRSegment().r;
-//                Coordinate source = propagationPath.getSRSegment().s;
-//               // logger.info("(Src:"+ propagationPath.getIdSource() + " R:"+propagationPath.getIdReceiver()+") Distance "+   receiver.distance(source) + " m " + Arrays.toString(propagationPath.absorptionData.aGlobal));
-//            }
-//
-//
-//            try(FileOutputStream fos = new FileOutputStream(new File(workingDir, "debug.geojson").getAbsoluteFile())){
-//                JsonFactory jsonFactory = new JsonFactory();
-//                JsonEncoding jsonEncoding = JsonEncoding.UTF8;
-//                JsonGenerator jsonGenerator = jsonFactory.createGenerator(new BufferedOutputStream(fos), jsonEncoding);
-//                ObjectMapper mapper = new ObjectMapper();
-//                mapper.enable(SerializationFeature.INDENT_OUTPUT);
-//                mapper.setVisibility(mapper.getSerializationConfig().getDefaultVisibilityChecker()
-//                        .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
-//                        .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
-//                        .withIsGetterVisibility(JsonAutoDetect.Visibility.NONE)
-//                        .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
-//                        .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
-//                jsonGenerator.setCodec(mapper);
-//                // header of the GeoJSON file
-//                jsonGenerator.writeStartObject();
-//                jsonGenerator.writeStringField("type", "FeatureCollection");
-//                jsonGenerator.writeArrayFieldStart("features");
-//                for (ComputeRaysOutAttenuation.VerticeSL v : ldenPointNoiseMapFactory.getLdenData().lDayLevels) {
-//                    double globalDba = PowerUtils.wToDba(PowerUtils.sumArray(PowerUtils.dbaToW(v.value)));
-//                    if(!Double.isNaN(globalDba) && Double.isFinite(globalDba)) {
-//                        globalDba = Math.round(globalDba * 100.0) / 100.0;
-//                    }
-//                    jsonGenerator.writeStartObject();
-//                    jsonGenerator.writeStringField("type", "Feature");
-//                    int localReceiverIndex = ldenPropagationProcessData.inputData.receiversPk.indexOf(v.receiverId);
-//                    Coordinate realReceiverCoordinate = ldenPropagationProcessData.inputData.receivers.get(localReceiverIndex);
-//                    writePoint(realReceiverCoordinate, jsonGenerator, transform);
-//                    jsonGenerator.writeObjectFieldStart("properties");
-//                    jsonGenerator.writeFieldName("level");
-//                    jsonGenerator.writeNumber(globalDba);
-//                    jsonGenerator.writeFieldName("pk");
-//                    jsonGenerator.writeNumber(v.receiverId);
-//                    jsonGenerator.writeArrayFieldStart("rays");
-//                    List<PropagationPath> rays =  propagationPathPerReceiver.get((int)v.receiverId);
-//                    for(PropagationPath propagationPath : rays.subList(0, Math.min(10, rays.size()))) {
-//                        mapper.writeValue(jsonGenerator, propagationPath);
-//                    }
-//                    jsonGenerator.writeEndArray();
-//                    jsonGenerator.writeArrayFieldStart("profile");
-//                    ProfileBuilder.CutProfile profile = ldenPropagationProcessData.inputData.profileBuilder.getProfile(srcPoint, axeReceiver, 0);
-//                    for(ProfileBuilder.CutPoint cutPoint : profile.getCutPoints()) {
-//                        if(cutPoint.getType() == ProfileBuilder.IntersectionType.TOPOGRAPHY) {
-//                            double zGround = cutPoint.getCoordinate().z;
-//                            jsonGenerator.writeNumber(Math.round(zGround * 100) / 100.0);
-//                        }
-//                    }
-//                    jsonGenerator.writeEndArray();
-//                    jsonGenerator.writeEndObject();
-//                    // feature footer
-//                    jsonGenerator.writeEndObject();
-//                }
-//                // footer
-//                jsonGenerator.writeEndArray();
-//                jsonGenerator.writeEndObject();
-//                jsonGenerator.flush();
-//                jsonGenerator.close();
-//            }
+            exportHtml(propagationData, ldenPointNoiseMapFactory, resultReportFile, maxRays);
         }
     }
 
-
-    public static void writePoint(Coordinate coordinate, JsonGenerator gen, CoordinateOperation coordinateOperation) throws IOException {
-        gen.writeObjectFieldStart("geometry");
-        gen.writeStringField("type", "Point");
-        gen.writeFieldName("coordinates");
-        writeCoordinate(coordinate, gen, coordinateOperation);
-        gen.writeEndObject();
-    }
-
-    public static void writeCoordinate(Coordinate coordinate, JsonGenerator gen, CoordinateOperation coordinateOperation) throws IOException {
-        gen.writeStartArray();
-        if(coordinateOperation != null) {
-            try {
-                double[] xyz = coordinateOperation.transform(new double[]{coordinate.x, coordinate.y, coordinate.z});
-                coordinate = new Coordinate(xyz[0], xyz[1], coordinate.z);
-            } catch (CoordinateOperationException | IllegalCoordinateException ex) {
-                throw new IOException("Error wile re-project", ex);
-            }
-        }
-        gen.writeNumber(coordinate.x);
-        gen.writeNumber(coordinate.y);
-        if (!Double.isNaN(coordinate.getZ())) {
-            gen.writeNumber(coordinate.getZ());
-        }
-        gen.writeEndArray();
-    }
 }

@@ -32,5 +32,7 @@ public class ApiModule extends AbstractModule {
         bind(PostAddJob.class);
         bind(GetJobLogs.class);
         bind(PostManageJob.class);
+        bind(GetGenerateReport.class);
+        bind(PostGenerateReport.class);
     }
 }

@@ -34,6 +34,8 @@ public class ApiEndpoints implements Action<Chain> {
             c.get(GetJobList.class);
             c.get("add_job", GetAddJob.class);
             c.post("do_add_job", PostAddJob.class);
+            c.get("generate_report", GetGenerateReport.class);
+            c.post("do_generate_report", PostGenerateReport.class);
             c.post("manage_job", PostManageJob.class);
             c.get("job_list", GetJobList.class);
             c.get("users", GetUsers.class);
