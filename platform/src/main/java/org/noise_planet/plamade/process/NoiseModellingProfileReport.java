@@ -83,6 +83,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class NoiseModellingProfileReport {
+    private Logger logger = LoggerFactory.getLogger(NoiseModellingProfileReport.class);
     CRSFactory crsf = new CRSFactory();
     SpatialRefRegistry srr = new SpatialRefRegistry();
     private CoordinateOperation transform = null;
@@ -206,8 +207,9 @@ public class NoiseModellingProfileReport {
         tables.append("</tr>");
     }
 
-    public void exportHtml(CnossosPropagationData propagationData,
-                           LDENPointNoiseMapFactory ldenPointNoiseMapFactory,  File path, int maxRays) throws IOException,
+    public void exportHtml(LDENPropagationProcessData propagationData,
+                           LDENPointNoiseMapFactory ldenPointNoiseMapFactory,
+                           LDENComputeRaysOut ldenPropagationProcessData, File path, int maxRays) throws IOException,
             URISyntaxException, IllegalCoordinateException, CRSException, CoordinateOperationException {
         Map<Integer, ArrayList<PropagationPath>> propagationPathPerReceiver = new HashMap<>();
 
@@ -230,29 +232,55 @@ public class NoiseModellingProfileReport {
                     propagationData.sourcesPk.indexOf((long)propagationPath.getIdSource()));
             generateLeafletMap(rayIdentifier, tables, propagationPath.getCutPoints(), sourceGeometry);
             generateCutPointsVega(rayIdentifier, tables, propagationPath.getPointList());
-            tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
-            for (Integer frequency : propagationData.freq_lvl) {
-                tables.append("<th>");
-                tables.append(frequency);
-                tables.append("</th>");
+            // restore local source identifier
+            propagationPath.setIdSource(propagationData.sourcesPk.indexOf((long)propagationPath.getIdSource()));
+            propagationPath.setIdReceiver(propagationData.receiversPk.indexOf((long)propagationPath.getIdReceiver()));
+            String[] lblTime = new String[] {"D", "E", "N"};
+            for(LDENConfig.TIME_PERIOD timePeriod : LDENConfig.TIME_PERIOD.values()) {
+                List<double[]> wjSource;
+                PropagationProcessPathData pathData;
+                if(timePeriod == LDENConfig.TIME_PERIOD.TIME_PERIOD_DAY) {
+                    wjSource = propagationData.wjSourcesD;
+                    pathData = ldenPropagationProcessData.dayPathData;
+                } else if(timePeriod == LDENConfig.TIME_PERIOD.TIME_PERIOD_EVENING) {
+                    wjSource = propagationData.wjSourcesE;
+                    pathData = ldenPropagationProcessData.eveningPathData;
+                } else {
+                    wjSource = propagationData.wjSourcesN;
+                    pathData = ldenPropagationProcessData.nightPathData;
+                }
+                tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
+                for (Integer frequency : propagationData.freq_lvl) {
+                    tables.append("<th>");
+                    tables.append(frequency);
+                    tables.append("</th>");
+                }
+                tables.append("</tr></thead><tbody>");
+                ComputeRaysOutAttenuation computeRaysOutAttenuationDay = new ComputeRaysOutAttenuation(false,
+                        pathData, propagationData);
+                computeRaysOutAttenuationDay.keepAbsorption = true;
+                double[] level = computeRaysOutAttenuationDay.addPropagationPaths(propagationPath.getIdSource(),
+                        1.0, propagationPath.getIdReceiver(), Collections.singletonList(propagationPath));
+                level = PowerUtils.sumArray(PowerUtils.wToDba(wjSource.get(propagationPath.getIdSource())), level);
+                pushArray(tables, "aAtm", propagationPath.absorptionData.aAtm);
+                pushArray(tables, "aDiv", propagationPath.absorptionData.aDiv);
+                pushArray(tables, "aRef", propagationPath.absorptionData.aRef);
+                pushArray(tables, "dLAbs", propagationPath.reflectionAttenuation.dLAbs);
+                pushArray(tables, "dLRetro", propagationPath.reflectionAttenuation.dLRetro);
+                pushArray(tables, "aBoundaryH", propagationPath.absorptionData.aBoundaryH);
+                pushArray(tables, "aBoundaryF", propagationPath.absorptionData.aBoundaryF);
+                pushArray(tables, "aGroundF", propagationPath.groundAttenuation.aGroundF);
+                pushArray(tables, "aGroundH", propagationPath.groundAttenuation.aGroundH);
+                pushArray(tables, "aDifH", propagationPath.absorptionData.aDifH);
+                pushArray(tables, "aDifF", propagationPath.absorptionData.aDifF);
+                pushArray(tables, "aGlobalH", propagationPath.absorptionData.aGlobalH);
+                pushArray(tables, "aGlobalF", propagationPath.absorptionData.aGlobalF);
+                pushArray(tables, "aGlobal", propagationPath.absorptionData.aGlobal);
+                pushArray(tables, "aSource", propagationPath.absorptionData.aSource);
+                pushArray(tables, "LSource", PowerUtils.wToDba(wjSource.get(propagationPath.getIdSource())));
+                pushArray(tables, "L"+lblTime[timePeriod.ordinal()], level);
+                tables.append("</tbody></table>");
             }
-            tables.append("</tr></thead><tbody>");
-            pushArray(tables, "aAtm", propagationPath.absorptionData.aAtm);
-            pushArray(tables, "aDiv", propagationPath.absorptionData.aDiv);
-            pushArray(tables, "aRef", propagationPath.absorptionData.aRef);
-            pushArray(tables, "dLAbs", propagationPath.reflectionAttenuation.dLAbs);
-            pushArray(tables, "dLRetro", propagationPath.reflectionAttenuation.dLRetro);
-            pushArray(tables, "aBoundaryH", propagationPath.absorptionData.aBoundaryH);
-            pushArray(tables, "aBoundaryF", propagationPath.absorptionData.aBoundaryF);
-            pushArray(tables, "aGroundF", propagationPath.groundAttenuation.aGroundF);
-            pushArray(tables, "aGroundH", propagationPath.groundAttenuation.aGroundH);
-            pushArray(tables, "aDifH", propagationPath.absorptionData.aDifH);
-            pushArray(tables, "aDifF", propagationPath.absorptionData.aDifF);
-            pushArray(tables, "aSource", propagationPath.absorptionData.aSource);
-            pushArray(tables, "aGlobalH", propagationPath.absorptionData.aGlobalH);
-            pushArray(tables, "aGlobalF", propagationPath.absorptionData.aGlobalF);
-            pushArray(tables, "aGlobal", propagationPath.absorptionData.aGlobal);
-            tables.append("</tbody></table>");
             rayIdentifier++;
             if(rayIdentifier >= maxRays) {
                 break;
@@ -262,6 +290,7 @@ public class NoiseModellingProfileReport {
         try(Writer writer = new BufferedWriter(new FileWriter(path))){
             writer.write(pageToString(Map.of("tables", tables), "report_page.html"));
         }
+        logger.info("Html page written to " + path.getAbsolutePath());
     }
 
     private static String pageToString(Map<String, Object> parameters, String resourceName) throws URISyntaxException, IOException {
@@ -272,15 +301,20 @@ public class NoiseModellingProfileReport {
     }
 
     private Coordinate reproject(Coordinate coordinate, int inputCRSCode, int outputCRSCode) throws IllegalCoordinateException, CoordinateOperationException, CRSException {
-        CoordinateReferenceSystem inputCRS = crsf.getCRS(srr.getRegistryName() + ":" + inputCRSCode);
-        CoordinateReferenceSystem targetCRS = crsf.getCRS(srr.getRegistryName() + ":" + outputCRSCode);
-        Set<CoordinateOperation> ops = CoordinateOperationFactory.createCoordinateOperations((GeodeticCRS)inputCRS, (GeodeticCRS)targetCRS);
-        if (ops.isEmpty()) {
-            return coordinate;
+        if(transform != null && inputCRSCode == sridBuildings) {
+            double[] transformed = transform.transform(new double[]{coordinate.x, coordinate.y});
+            return new Coordinate(transformed[0], transformed[1], coordinate.z);
+        } else {
+            CoordinateReferenceSystem inputCRS = crsf.getCRS(srr.getRegistryName() + ":" + inputCRSCode);
+            CoordinateReferenceSystem targetCRS = crsf.getCRS(srr.getRegistryName() + ":" + outputCRSCode);
+            Set<CoordinateOperation> ops = CoordinateOperationFactory.createCoordinateOperations((GeodeticCRS) inputCRS, (GeodeticCRS) targetCRS);
+            if (ops.isEmpty()) {
+                return coordinate;
+            }
+            CoordinateOperation op = CoordinateOperationFactory.getMostPrecise(ops);
+            double[] srcPointLocalDoubles = op.transform(new double[]{coordinate.x, coordinate.y});
+            return new Coordinate(srcPointLocalDoubles[0], srcPointLocalDoubles[1], coordinate.z);
         }
-        CoordinateOperation op = CoordinateOperationFactory.getMostPrecise(ops);
-        double[] srcPointLocalDoubles = op.transform(new double[] {coordinate.x, coordinate.y});
-        return new Coordinate(srcPointLocalDoubles[0], srcPointLocalDoubles[1]);
     }
 
     public void testDebugNoiseProfile(String workingDir, Coordinate receiverCoordinate,
@@ -412,6 +446,7 @@ public class NoiseModellingProfileReport {
 
             LDENPointNoiseMapFactory ldenPointNoiseMapFactory = new LDENPointNoiseMapFactory(connection, ldenConfig);
             pointNoiseMap.setPropagationProcessDataFactory(ldenPointNoiseMapFactory);
+            ldenPointNoiseMapFactory.insertTrainDirectivity();
 
             // Building height field name
             pointNoiseMap.setHeightField("HEIGHT");
@@ -469,7 +504,7 @@ public class NoiseModellingProfileReport {
 
             computeRays.run(ldenPropagationProcessData);
 
-            exportHtml(propagationData, ldenPointNoiseMapFactory, resultReportFile, maxRays);
+            exportHtml((LDENPropagationProcessData) propagationData, ldenPointNoiseMapFactory, ldenPropagationProcessData, resultReportFile, maxRays);
         }
     }
 
