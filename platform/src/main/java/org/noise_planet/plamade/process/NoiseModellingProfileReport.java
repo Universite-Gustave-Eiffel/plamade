@@ -204,6 +204,9 @@ public class NoiseModellingProfileReport {
             tables.append(String.format(Locale.ROOT, "%.2f", v));
             tables.append("</td>");
         }
+        tables.append("<td>");
+        tables.append(String.format(Locale.ROOT, "%.2f", PowerUtils.sumDbArray(attenuationTable)));
+        tables.append("</td>");
         tables.append("</tr>");
     }
 
@@ -255,6 +258,7 @@ public class NoiseModellingProfileReport {
                     tables.append(frequency);
                     tables.append("</th>");
                 }
+                tables.append("<th>Global</th>");
                 tables.append("</tr></thead><tbody>");
                 ComputeRaysOutAttenuation computeRaysOutAttenuationDay = new ComputeRaysOutAttenuation(false,
                         pathData, propagationData);
