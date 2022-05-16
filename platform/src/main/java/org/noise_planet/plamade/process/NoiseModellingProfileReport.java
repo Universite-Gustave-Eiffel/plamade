@@ -79,6 +79,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -221,8 +222,30 @@ public class NoiseModellingProfileReport {
         for(int idSource = 0; idSource < propagationData.sourcesPk.size(); idSource++) {
             sourcePkToLocalIndex.put(propagationData.sourcesPk.get(idSource).intValue(), idSource);
         }
-        int rayIdentifier = 0;
+        // Construct summary levels for the receiver
+        String[] lblTime = new String[] {"D", "E", "N"};
         StringBuilder tables = new StringBuilder();
+        ConcurrentLinkedDeque<ComputeRaysOutAttenuation.VerticeSL>[] denValues = new ConcurrentLinkedDeque[] {
+                ldenPropagationProcessData.getLdenData().lDayLevels,
+                ldenPropagationProcessData.getLdenData().lEveningLevels,
+                ldenPropagationProcessData.getLdenData().lNightLevels
+        };
+        tables.append("<table id=\"attable\"><thead><tr><th>f in Hz</th>");
+        for (Integer frequency : propagationData.freq_lvl) {
+            tables.append("<th>");
+            tables.append(frequency);
+            tables.append("</th>");
+        }
+        tables.append("<th>Global</th>");
+        tables.append("</tr></thead><tbody>");
+        for(LDENConfig.TIME_PERIOD timePeriod : LDENConfig.TIME_PERIOD.values()) {
+            for (ComputeRaysOutAttenuation.VerticeSL lDayLevel : denValues[timePeriod.ordinal()]) {
+                pushArray(tables, "L" + lblTime[timePeriod.ordinal()], lDayLevel.value);
+            }
+        }
+        tables.append("</tbody></table>");
+
+        int rayIdentifier = 0;
         for(PropagationPath propagationPath : ldenPointNoiseMapFactory.getLdenData().rays) {
             ArrayList<PropagationPath> ar = propagationPathPerReceiver.computeIfAbsent(
                     propagationPath.getIdReceiver(), k1 -> new ArrayList<>());
@@ -232,13 +255,12 @@ public class NoiseModellingProfileReport {
             tables.append(rayIdentifier);
             tables.append("</h1>");
             Geometry sourceGeometry = propagationData.sourceGeometries.get(
-                    propagationData.sourcesPk.indexOf((long)propagationPath.getIdSource()));
+                    sourcePkToLocalIndex.get(propagationPath.getIdSource()));
             generateLeafletMap(rayIdentifier, tables, propagationPath.getCutPoints(), sourceGeometry);
             generateCutPointsVega(rayIdentifier, tables, propagationPath.getPointList());
             // restore local source identifier
-            propagationPath.setIdSource(propagationData.sourcesPk.indexOf((long)propagationPath.getIdSource()));
+            propagationPath.setIdSource(sourcePkToLocalIndex.get(propagationPath.getIdSource()));
             propagationPath.setIdReceiver(propagationData.receiversPk.indexOf((long)propagationPath.getIdReceiver()));
-            String[] lblTime = new String[] {"D", "E", "N"};
             for(LDENConfig.TIME_PERIOD timePeriod : LDENConfig.TIME_PERIOD.values()) {
                 List<double[]> wjSource;
                 PropagationProcessPathData pathData;
