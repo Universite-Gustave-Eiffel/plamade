@@ -1,40 +1,11 @@
 package org.noise_planet.plamade;
 
-import groovy.sql.GroovyRowResult;
-import groovy.sql.Sql;
 import org.apache.log4j.BasicConfigurator;
-import org.cts.CRSFactory;
-import org.cts.IllegalCoordinateException;
-import org.cts.crs.CRSException;
-import org.cts.crs.CoordinateReferenceSystem;
-import org.cts.crs.GeodeticCRS;
-import org.cts.op.CoordinateOperation;
-import org.cts.op.CoordinateOperationException;
-import org.cts.op.CoordinateOperationFactory;
-import org.h2.value.ValueBoolean;
-import org.h2gis.api.EmptyProgressVisitor;
-import org.h2gis.functions.io.geojson.GeoJsonWriteDriver;
-import org.h2gis.functions.io.shp.SHPWrite;
-import org.h2gis.functions.spatial.crs.ST_Transform;
-import org.h2gis.functions.spatial.crs.SpatialRefRegistry;
-import org.h2gis.utilities.GeometryTableUtilities;
-import org.h2gis.utilities.TableLocation;
-import org.h2gis.utilities.dbtypes.DBTypes;
-import org.h2gis.utilities.dbtypes.DBUtils;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.locationtech.jts.geom.Coordinate;
-import org.noise_planet.nmcluster.Main;
 import org.noise_planet.nmcluster.NoiseModellingInstance;
-import org.noise_planet.noisemodelling.jdbc.LDENConfig;
-import org.noise_planet.noisemodelling.jdbc.PointNoiseMap;
-import org.noise_planet.noisemodelling.pathfinder.CnossosPropagationData;
-import org.noise_planet.noisemodelling.pathfinder.ComputeCnossosRays;
-import org.noise_planet.noisemodelling.pathfinder.IComputeRaysOut;
 import org.noise_planet.noisemodelling.pathfinder.RootProgressVisitor;
-import org.noise_planet.noisemodelling.propagation.ComputeRaysOutAttenuation;
-import org.noise_planet.noisemodelling.propagation.PropagationProcessPathData;
 import org.noise_planet.plamade.process.NoiseModellingProfileReport;
 import org.noise_planet.plamade.process.NoiseModellingRunner;
 import org.slf4j.Logger;
@@ -46,17 +17,11 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.StringTokenizer;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.TestCase.assertEquals;
-import static org.noise_planet.plamade.process.NoiseModellingRunner.CBS_GRID_SIZE;
-import static org.noise_planet.plamade.process.NoiseModellingRunner.CBS_MAIN_GRID_SIZE;
+import static org.noise_planet.nmcluster.NoiseModellingInstance.CBS_GRID_SIZE;
 
 public class TestCluster {
 
@@ -172,12 +137,16 @@ public class TestCluster {
         assertEquals(0, jobList.size());
     }
 
-//    @Test
-//    public void testDebugNoiseProfile() throws SQLException, IOException, IllegalCoordinateException, CoordinateOperationException, CRSException {
-//        NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
-//        noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep44",
-//                new Coordinate(-1.63176, 47.16458, 4.0), new Coordinate(-1.63258, 47.16370, 0.05), "FR_A_rd444061");
-//    }
+    @Test
+    public void testDebugNoiseProfile() throws Throwable {
+        if(new File("/home/nicolas").exists()) {
+            NoiseModellingProfileReport noiseModellingProfileReport = new NoiseModellingProfileReport();
+            noiseModellingProfileReport.testDebugNoiseProfile("/home/nicolas/data/plamade/dep37",
+                    new Coordinate(1.01821,47.44004, 4.0), "RL_FR_00_101",
+                    NoiseModellingInstance.SOURCE_TYPE.SOURCE_TYPE_RAIL, 100, new File("/home/nicolas/data/plamade/dep37", "report.html"));
+        }
+    }
+
 //    @Test
 //    public void makeGridTest() throws SQLException, IOException, LayerDelaunayError {
 //        DataSource ds = NoiseModellingInstance.createDataSource("", "", "/home/nicolas/data/plamade/dep69", "h2gisdb", false);
@@ -267,7 +236,8 @@ public class TestCluster {
                     null, new RootProgressVisitor(1), "build/");
                 NoiseModellingRunner noiseModellingRunner = new NoiseModellingRunner(configuration, null);
                 //noiseModellingRunner.makeEmission(connection);
-                List<String> createdTables = NoiseModellingRunner.mergeCBS(connection, CBS_GRID_SIZE, CBS_MAIN_GRID_SIZE,
+                List<String> createdTables = NoiseModellingInstance.mergeCBS(connection, CBS_GRID_SIZE,
+                        NoiseModellingInstance.CBS_MAIN_GRID_SIZE,
                         new RootProgressVisitor(1, true, 1));
                 NoiseModellingRunner.exportTables(connection, createdTables,
                         new  File("out/").getAbsolutePath(), 4326);

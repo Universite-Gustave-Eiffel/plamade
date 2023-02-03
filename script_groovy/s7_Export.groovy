@@ -182,9 +182,9 @@ def exec(Connection connection, input) {
     // Get provided parameters
     def databaseUrl
     if(input["inputServer"].equals('cerema')) {
-        databaseUrl="jdbc:postgresql_h2://161.48.203.166:5432/plamade?ssl=true&sslmode=prefer"
+        databaseUrl="jdbc:postgres_jts://161.48.203.166:5432/plamade?ssl=true&sslmode=prefer"
     } else if(input["inputServer"].equals('cloud')) {
-        databaseUrl = "jdbc:postgresql_h2://57.100.98.126:5432/plamade?ssl=true&sslmode=prefer"
+        databaseUrl = "jdbc:postgres_jts://57.100.98.126:5432/plamade?ssl=true&sslmode=prefer"
     } else{
         return "Vous n'avez pas spécifié le bon nom de serveur"
     }
@@ -202,6 +202,7 @@ def exec(Connection connection, input) {
 
     // On stocke dans les variables codeDep et codeNuts les informations relatives au département qui a été traité (présent dans la table metadata)
     String codeDep = sqlH2gis.firstRow("SELECT code_dept FROM metadata;").code_dept as String
+    codeDep = codeDep.padLeft(3, "0")
     int srid = sqlH2gis.firstRow("SELECT srid FROM metadata;").srid as Integer
     String codeNuts = sqlH2gis.firstRow("SELECT nuts FROM metadata;").nuts as String
 
@@ -210,19 +211,17 @@ def exec(Connection connection, input) {
     logger.info("Début de l'export vers la base PostGIS sur le serveur")
 
 
-    if(sqlPostgre.firstRow("SELECT count(*) as count FROM noisemodelling_resultats.metadata WHERE codedept='$codeDep';").count>0) {
-        // On supprime les données déjà existantes
-        logger.info("Le département $codeDep existe déjà dans la base. Suppression des données existantes")
-        sqlPostgre.execute """
-        DELETE FROM noisemodelling_resultats.cbs_"""+srid+""" WHERE codedept = '$codeDep';
-        DELETE FROM noisemodelling_resultats.cbs_agr_"""+srid+""" WHERE codedept = '$codeDep';
-        DELETE FROM noisemodelling_resultats.expo_"""+srid+""" WHERE estatunitcode = '$codeNuts';
-        DELETE FROM noisemodelling_resultats.metadata WHERE nutscode = '$codeNuts';
-        """
-        logger.info("Les données relatives au département $codeDep ont été supprimées de la base")
+    sqlPostgre.execute("DELETE FROM noisemodelling_resultats.cbs_"+srid+" WHERE codedept = :codeDep", [codeDep:codeDep]);
+    logger.info(sqlPostgre.getUpdateCount() + " rows deleted in noisemodelling_resultats.cbs_"+srid);
 
+    sqlPostgre.execute("DELETE FROM noisemodelling_resultats.cbs_agr_"+srid+" WHERE codedept = :codeDep", [codeDep:codeDep]);
+    logger.info(sqlPostgre.getUpdateCount() + " rows deleted in noisemodelling_resultats.cbs_agr_"+srid);
 
-    } //end if
+    sqlPostgre.execute("DELETE FROM noisemodelling_resultats.expo_"+srid+" WHERE estatunitcode = :codeNuts", [codeNuts:codeNuts]);
+    logger.info(sqlPostgre.getUpdateCount() + " rows deleted in noisemodelling_resultats.expo_"+srid);
+
+    sqlPostgre.execute("DELETE FROM noisemodelling_resultats.metadata WHERE nutscode = :codeNuts", [codeNuts:codeNuts]);
+    logger.info(sqlPostgre.getUpdateCount() + " rows deleted in noisemodelling_resultats.metadata");
 
     logger.info("Début de l'export des données du département $codeDep sur le serveur")
 
@@ -237,7 +236,7 @@ def exec(Connection connection, input) {
     // On insère les nouvelles données dans les tables respectives
     logger.info("Export des CBS et des indicateurs")
 
-    doExport(sqlH2gis, sqlPostgre, codeDep.padLeft(3, "0"), srid as Integer, input["batchSize"] as Integer, codeNuts)
+    doExport(sqlH2gis, sqlPostgre, codeDep, srid as Integer, input["batchSize"] as Integer, codeNuts)
 
     logger.info("Les cartes du bruit ainsi que les indicateurs d'exposition du département $codeDep ont été exporté sur le serveur")
 
