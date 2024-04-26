@@ -44,3 +44,41 @@ Edit the configuration file located in `platform/build/resources/main/config.yam
 Run ./gradlew platform:run
 
 Once the application has started, point your web browser to [http://localhost:9590](http://localhost:9590) to access the platform
+
+## Ngnix configuration and https
+
+Example of nginx configuration for setting up a https connection in production
+
+```nginx
+server {
+
+        server_name mydomainname.org;
+
+        root /var/www/html;
+        index index.html;
+
+        location / {
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_pass http://localhost:9590;
+          proxy_set_header X-Forwarded-Host $host:$server_port;
+          proxy_set_header X-Forwarded-Server $host;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_read_timeout 3600;
+          proxy_connect_timeout 3600;
+          proxy_send_timeout 3600;
+        }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
