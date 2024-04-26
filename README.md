@@ -21,7 +21,7 @@ This example requires that you configure a Google API resource before running.
 
 8. Click the `Create` button.
 
-9. Copy the newly created client id and client secret for use in the example.
+9. Copy the newly created client id and client secret in the configuration file located in *platform/build/resources/main/config.yaml*
 
 ## Running plamade server
 
