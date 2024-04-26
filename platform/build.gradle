@@ -73,11 +73,11 @@ dependencies {
     implementation group: 'net.postgis', name: 'postgis-jdbc-jtsparser', version: '2.3.0'
     implementation group: 'org.apache.commons', name: 'commons-compress', version: '1.18'
 
-    implementation (group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '4.0.0-SNAPSHOT')
-    implementation (group: 'org.orbisgis', name: 'h2gis-utilities', version: '2.1.0-SNAPSHOT')
-    implementation (group: 'org.orbisgis', name: 'h2gis', version: '2.1.0-SNAPSHOT')
-    implementation group: 'org.orbisgis', name: 'postgis-jts', version: '2.1.0-SNAPSHOT'
-    implementation group: 'org.orbisgis', name: 'postgis-jts-osgi', version: '2.1.0-SNAPSHOT'
+    implementation (group: 'org.orbisgis', name: 'noisemodelling-jdbc', version: '4.0.6-SNAPSHOT')
+    implementation (group: 'org.orbisgis', name: 'h2gis-utilities', version: '2.2.0')
+    implementation (group: 'org.orbisgis', name: 'h2gis', version: '2.2.0')
+    implementation group: 'org.orbisgis', name: 'postgis-jts', version: '2.2.0'
+    implementation group: 'org.orbisgis', name: 'postgis-jts-osgi', version: '2.2.0'
     implementation group: 'org.apache.commons', name:'commons-text', version: '1.9'
 
 
