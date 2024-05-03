@@ -1,0 +1,224 @@
+@startuml
+'https://plantuml.com/fr/object-diagram
+
+package wsp {
+
+package GeoClimate_Tools {
+
+    object Import_geoClimate_Data {
+        title : String
+        description : String
+        inputs : ArrayList
+        outputs : ArrayList
+        ---
+        {static} openGeoserverDataStoreConnection(dbName : String) : Connection
+        exec(connection : Connection, input) : String
+        run(input)
+        {static} createGeoClimateConfig(zone : String, outputDirectory : String, srid : Integer, geoclimatedb : Boolean, logger : Logger) : LinkedHashMap<String, Serializable>
+        {static} runGeoClimate(workflow_parameters : LinkedHashMap<String, Serializable>, logger : Logger)
+        {static} parseRoadData(outputDirectory : String, location : String)
+    }
+
+    object Export_Noise_Map {
+        title : String
+        description : String
+        inputs : ArrayList
+        outputs : ArrayList
+        ---
+        {static} openGeoserverDataStoreConnection(dbName : String) : Connection
+        exec(connection : Connection, input)
+        run(input)
+        Upload_Data_File(TODO)
+        Road_Emission_from_Traffic(file_path : String)
+        Generate_Delaunay(TODO)
+        Noise_level_from_OSM(TODO)
+    }
+
+    object Complete_Noise_Map{
+        title : String
+        description : String
+        inputs : ArrayList
+        outputs : ArrayList
+        ---
+        {static} openGeoserverDataStoreConnection(dbName : String) : Connection
+        exec(connection : Connection, input)
+        run(input)
+    }
+
+    package utils{
+        enum RoadValue{
+               LV_D("DAY_LV_HOUR","LV_D")
+               EV_LV_HOUR("EV_LV_HOUR","LV_E")
+               NIGHT_LV_HOUR("NIGHT_LV_HOUR","LV_N")
+               DAY_LV_SPEED("DAY_LV_SPEED","LV_SPD_D")
+               EV_LV_SPEED("EV_LV_SPEED","LV_SPD_E")
+               NIGHT_LV_SPEED("NIGHT_LV_SPEED","LV_SPD_N")
+               DAY_HV_HOUR("DAY_HV_HOUR","HGV_D")
+               EV_HV_HOUR("EV_HV_HOUR","HGV_E")
+               NIGHT_HV_HOUR("NIGHT_HV_HOUR","HGV_N")
+               DAY_HV_SPEED("DAY_HV_SPEED","HGV_SPD_D")
+               EV_HV_SPEED("EV_HV_SPEED","HGV_SPD_E")
+               NIGHT_HV_SPEED("NIGHT_HV_SPEED","HGV_SPD_N")
+               PAVEMENT("PAVEMENT","PVMT")
+               DIRECTION("DIRECTION","WAY")
+            - {final} gcProperties
+            - {final} nmProperties
+            - RoadValue(gcProperty, nmProperty)
+            + getGcProperty() : Object
+            + getNmProperty() : Object
+        }
+    }
+
+    object Delete_Config_File {
+    }
+
+    /'
+    package Data {
+        package gc_outputs {
+        }
+        package nm_inputs {
+        }
+        package nm_outputs {
+        }
+        package config_file {
+        }
+    }
+    '/
+}
+
+package Database_Manageur{
+    object Add_Primary_Key{
+
+    }
+
+    object Clean_Database{
+
+    }
+
+     object Display_Database{
+
+     }
+}
+
+package Import_and_Export{
+
+    object Export_Table{
+    }
+
+    object Import_File{
+    }
+
+}
+
+package Acoustic_Tools{
+
+    object Create_Isosurface{
+    }
+}
+
+package NoiseModelling{
+
+    object Road_Emission_From_Traffic{
+    }
+
+    object Noise_level_from_traffic{
+    }
+
+}
+
+package Receivers{
+
+    object Delaunay_Grid{
+    }
+
+}
+
+}
+
+note left of GeoClimate_Tools
+(All package names, file names, and method names are temporary)
+
+Export_Noise_Map and Import_geoClimate_Data are files and not classes
+because in the template of noiseModelling, the WPS block uses methods but not classes.
+
+All the code is in methods for use in other folders if necessary.
+end note
+
+note top of Import_geoClimate_Data
+createGeoClimateConfig : Creates the JSON config file.
+runGeoClimate : Executes the Config File.
+parseRoadData : Renames the columns of the geoJson for noiseModelling.
+end note
+
+note top of Import_geoClimate_Data
+Inputs mandatory :
+     -locations,
+     -exportFilesPath
+Inputs optional :
+    -targetSRID (default --> 2154)
+    -geoclimatedb : (default --> true)
+Use but not in Input :
+    -tables : "building", "road_traffic", "ground_acoustic", "rail", "zone"
+    -parameters : indicatorUse
+        - estimateHeight = true
+        - road_traffic = true
+        - worldpop_indicators = true
+        - ground_acoustic = true
+end note
+
+note top of Export_Noise_Map
+Upload_Data_File : Gets all the geoJson Files.
+Road_Emission_from_Traffic : Creates the tables.
+Generate_Delaunay : Generates Delaunay Grid.
+Noise_level_from_OSM : Propagates noise.
+end note
+
+note top of Export_Noise_Map
+Inputs mandatory :
+    -folder of geoClimat output
+    -folder of noiseModelling output
+Inputs optional :
+    -nReceivers (default --> 5000),
+    -maxPropDist (default --> 500),
+    -isoSurfaceInBuildings (default --> 500),
+    -maxArea (default --> 2500),
+    -reflOrder (default --> 1),
+    -maxSrcDist (default --> 350),
+    -maxReflDist (default --> 150),
+    -diffVertical (default --> 0),
+    -diffHorizontal (default --> 0),
+Use but not in Input :
+    -receiversHeight = 4.0,
+    -roadWidth = 2,
+    -wallAlpha = 0.1,
+    -humidity,
+    -temperature,
+    -smoothCoefficient = 0.0
+end note
+
+note top of Complete_Noise_Map
+Use method of other files to keep data and create noise map
+end note
+
+note top of Delete_Config_File
+Not sure for this WPS block.
+end note
+
+Export_Noise_Map --> Add_Primary_Key : <<use>>
+Export_Noise_Map --> Clean_Database : <<use>>
+Export_Noise_Map --> Display_Database : <<use>>
+
+Export_Noise_Map --> Import_File : <<use>>
+Export_Noise_Map --> Export_Table : <<use>>
+
+Export_Noise_Map --> Create_Isosurface : <<use>>
+
+Export_Noise_Map --> Delaunay_Grid : <<use>>
+
+Export_Noise_Map --> Noise_level_from_traffic : <<use>>
+Export_Noise_Map --> Road_Emission_From_Traffic : <<use>>
+
+Import_geoClimate_Data *-left-> RoadValue
+
+
+@enduml
