@@ -1,16 +1,26 @@
 /**
  * TODO
  */
+/**
+ * INFO : The snapshot version of geoClimate use is not the good but the 1.0.1 generate an error.
+ */
+
 
 //import geoserver.GeoServer
+import groovy.sql.Sql
+//import org.geoserver.*
+//import org.geotools.data.store.*
 //import geoserver.catalog.Store
 //import org.geotools.jdbc.JDBCDataStore
+import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.orbisgis.geoclimate.osm.OSM
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import utils.RoadValue
+
+import java.sql.Connection
 
 title = 'Import building, ground_acoustic, road_traffic, rail and zone files from GéoClimate'
 
@@ -58,7 +68,7 @@ inputs = [
                         '&#128736; Default value: <b> true </b> ',
                 min        : 0, max: 1,
                 type       : Boolean.class
-        ]
+        ],
 ]
 
 outputs = [
@@ -82,6 +92,7 @@ static Connection openGeoserverDataStoreConnection(String dbName) {
 }
 */
 
+
 run(inputs)
 
 // run the script
@@ -93,12 +104,13 @@ def run(input) {
   //String dbName = "h2gisdb"
 
   // Open connection
+
   /*
   openGeoserverDataStoreConnection(dbName).withCloseable {
       Connection connection ->
           return [result: exec(connection, input)]
-  }
-  */
+  }*/
+
   exec(input)
 }
 
@@ -121,25 +133,29 @@ def exec(/*Connection connection,*/ input) {
   // Get every inputs
   // -------------------
 
-  String location = "Orbey"/*input["locations"] as String
+  String location = "Epfig"/*input["locations"] as String
   if(location.isEmpty() || !input["locations"]){
       resultString = "Location argument has not been provided."
       throw new Exception('ERROR : ' + resultString)
   }*/
 
-    String outputDirectory = System.getProperty("user.dir")+"\\..\\outPut" /*input["exportFilesPath"] as String*/
+  String outputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\geoClimate" /*input["filesExportPath"] as String*/
+
+  try{
 
     if(!outputDirectory){
-        resultString = "The output directory to store the result cannot be null or empty"
-        throw new Exception('ERROR : ' + resultString)
+      throw new IllegalArgumentException('ERROR : The output directory to store the result cannot be null or empty')
     }
 
     // Test if the outPut folder exist
     File dirFile = new File(outputDirectory)
-    if(!dirFile.exists()){
-        println "Create the output directory because it doesn't exist"
-        dirFile.mkdir()
+    if(!dirFile.exists() || !dirFile.isDirectory()){
+      logger.info("Create the output directory because it doesn't exist")
+      dirFile.mkdir()
     }
+  } catch (IllegalArgumentException e){
+    return e.toString()
+  }
 
   Integer srid = 2154
   /*
@@ -159,13 +175,18 @@ def exec(/*Connection connection,*/ input) {
 
   logger.info('Parse road value for noiseModelling input')
 
-
   parseRoadData(outputDirectory, location)
 
-  logger.info('Parse data done')
+  logger.info('Parse road data done')
+
+  logger.info('Parse building value for noiseModelling input')
+
+  parseBuildingData(outputDirectory, location)
+
+  logger.info('Parse building data done')
 
 
-  logger.info('File is config for noiseModelling')
+  logger.info('File is ready for noiseModelling')
 
 
   resultString = "Success"
@@ -316,6 +337,43 @@ static def parseRoadData(String outputDirectory, String location){
   def newJsonString = newJsonBuilder.toPrettyString()
 
   new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson").text = newJsonString
+
+}
+
+/**
+ * The building layer issued from GeoClimate is updated by adding a new attribute named 'HEIGHT' that corresponds with the already existing field 'HEIGHT_ROOF'.
+ * @param outputDirectory: String. The location of the output files.
+ * @param location: String. The name of the chosen location.
+ * @return None
+ */
+static def parseBuildingData(String outputDirectory, String location){
+
+  //Define the file to change data
+  def jsonSlurper = new JsonSlurper()
+  def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\building.geojson"))
+
+  //Loops through all "features" data in the file
+  jsonData.features.each { feature ->
+
+    def propertiesData = feature.properties
+    def updatedProperties = [:]
+
+    propertiesData.each { key, value ->
+      switch (key) {
+        case "HEIGHT_ROOF" :
+          updatedProperties["HEIGHT"] = value
+          break
+        default :
+          updatedProperties[key] = value
+      }
+    }
+    feature.properties = updatedProperties
+  }
+
+  def newJsonBuilder = new JsonBuilder(jsonData)
+  def newJsonString = newJsonBuilder.toPrettyString()
+
+  new File(outputDirectory+"\\osm_"+location+"\\building.geojson").text = newJsonString
 
 }
 

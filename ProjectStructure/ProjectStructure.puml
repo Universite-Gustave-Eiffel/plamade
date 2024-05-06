@@ -17,6 +17,7 @@ package GeoClimate_Tools {
         {static} createGeoClimateConfig(zone : String, outputDirectory : String, srid : Integer, geoclimatedb : Boolean, logger : Logger) : LinkedHashMap<String, Serializable>
         {static} runGeoClimate(workflow_parameters : LinkedHashMap<String, Serializable>, logger : Logger)
         {static} parseRoadData(outputDirectory : String, location : String)
+        {static} parseBuildingData(outputDirectory : String, location : String)
     }
 
     object Export_Noise_Map {
@@ -28,10 +29,10 @@ package GeoClimate_Tools {
         {static} openGeoserverDataStoreConnection(dbName : String) : Connection
         exec(connection : Connection, input)
         run(input)
-        Upload_Data_File(TODO)
-        Road_Emission_from_Traffic(file_path : String)
-        Generate_Delaunay(TODO)
-        Noise_level_from_OSM(TODO)
+        CreateDatabase(TODO)
+        RoadEmissionFromTraffic(file_path : String)
+        GenerateDelaunay(TODO)
+        NoiseLevelFromOSM(TODO)
     }
 
     object Complete_Noise_Map{
@@ -147,7 +148,8 @@ end note
 note top of Import_geoClimate_Data
 createGeoClimateConfig : Creates the JSON config file.
 runGeoClimate : Executes the Config File.
-parseRoadData : Renames the columns of the geoJson for noiseModelling.
+parseRoadData : Renames the columns of the geoJson for noiseModelling input.
+parseBuildingData : Add the column HEIGHT to the geoJson for noiseModelling input.
 end note
 
 note top of Import_geoClimate_Data
@@ -167,10 +169,10 @@ Use but not in Input :
 end note
 
 note top of Export_Noise_Map
-Upload_Data_File : Gets all the geoJson Files.
-Road_Emission_from_Traffic : Creates the tables.
-Generate_Delaunay : Generates Delaunay Grid.
-Noise_level_from_OSM : Propagates noise.
+CreateDatabase : Gets all the geoJson Files and convert it in database.
+RoadEmissionFromTraffic : Creates the tables.
+GenerateDelaunay : Generates Delaunay Grid.
+NoiseLevelFromOSM : Propagates noise.
 end note
 
 note top of Export_Noise_Map
