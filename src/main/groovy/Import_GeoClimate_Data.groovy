@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import utils.RoadValue
+import java.sql.DriverManager;
 
 import java.sql.Connection
 
@@ -80,17 +81,24 @@ outputs = [
         ]
 ]
 
-/*
-// Open Connection to Geoserver
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
-    }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
+// Open Connection to H2GIS Database
+static Connection openH2GISDataStoreConnection(String dbName) {
+  // Driver class name for H2GIS
+  String driverClassName = "org.h2.Driver";
+  // JDBC URL for H2GIS (change it as needed)
+  String jdbcUrl = "jdbc:h2:~/"+dbName;
+
+  Connection connection = null;
+  try {
+    // Load JDBC driver
+    Class.forName(driverClassName);
+    // Establish connection
+    connection = DriverManager.getConnection(jdbcUrl);
+  } catch (Exception e) {
+    e.printStackTrace();
+  }
+  return connection;
 }
-*/
 
 
 run(inputs)
@@ -101,27 +109,26 @@ def run(input) {
   // Get name of the database
   // by default an embedded h2gis database is created
   // Advanced user can replace this database for a postGis or h2Gis server database.
-  //String dbName = "h2gisdb"
+  String dbName = "h2gisdb"
 
   // Open connection
+  def connection = openH2GISDataStoreConnection(dbName);
+  connection.withCloseable {
+    conn ->
+      return [result: exec(conn, input)]
+  }
 
-  /*
-  openGeoserverDataStoreConnection(dbName).withCloseable {
-      Connection connection ->
-          return [result: exec(connection, input)]
-  }*/
-
-  exec(input)
+  //exec(input)
 }
 
 // main function of the script
-def exec(/*Connection connection,*/ input) {
+def exec(Connection connection, input) {
 
 
   //Map buildingsParamsMap = buildingsParams.toMap();
-  //connection = new ConnectionWrapper(connection)
+  connection = new ConnectionWrapper(connection)
 
-  //Sql sql = new Sql(connection)
+  Sql sql = new Sql(connection)
 
   String resultString
 

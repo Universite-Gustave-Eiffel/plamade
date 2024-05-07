@@ -39,5 +39,4 @@ build/
 
 ## Project ##
 notes_questions
-src/main/outPut/*
-!src/main/outPut/**/.saveDirectory
+src/main/outPut/**/osm_*
