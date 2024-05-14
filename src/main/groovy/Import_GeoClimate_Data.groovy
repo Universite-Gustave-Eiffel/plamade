@@ -7,6 +7,7 @@
 
 
 //import geoserver.GeoServer
+
 import groovy.sql.Sql
 //import org.geoserver.*
 //import org.geotools.data.store.*
@@ -81,6 +82,10 @@ outputs = [
         ]
 ]
 
+
+run(inputs)
+
+
 // Open Connection to H2GIS Database
 static Connection openH2GISDataStoreConnection(String dbName) {
   // Driver class name for H2GIS
@@ -101,7 +106,7 @@ static Connection openH2GISDataStoreConnection(String dbName) {
 }
 
 
-run(inputs)
+
 
 // run the script
 def run(input) {
@@ -118,7 +123,6 @@ def run(input) {
       return [result: exec(conn, input)]
   }
 
-  //exec(input)
 }
 
 // main function of the script
@@ -140,7 +144,7 @@ def exec(Connection connection, input) {
   // Get every inputs
   // -------------------
 
-  String location = "Epfig"/*input["locations"] as String
+  String location = "Saint-Jean-la-Poterie"/*input["locations"] as String
   if(location.isEmpty() || !input["locations"]){
       resultString = "Location argument has not been provided."
       throw new Exception('ERROR : ' + resultString)
@@ -192,9 +196,13 @@ def exec(Connection connection, input) {
 
   logger.info('Parse building data done')
 
+  logger.info('Parse dem value for noiseModelling input')
+
+  parseDemData(outputDirectory, location)
+
+  logger.info('Parse dem data done')
 
   logger.info('File is ready for noiseModelling')
-
 
   resultString = "Success"
 
@@ -218,14 +226,6 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
   //Name of default H2GIS database
   def local_database_name="osm_geoclimate_${System.currentTimeMillis()}"
 
-  //Set input parameters for géoClimate
-  def geoInput = ["locations" : [zone], "delete":true]
-
-
-  //Set output parameters for géoClimate
-  def geoOutput  = [
-          "folder" : [ "path": "$outputDirectory", "tables": ["building", "road_traffic", "ground_acoustic", "rail", "zone"], "srid": "$srid"]
-  ]
 
   //Set configurations parameters
   def workflow_parameters = [
@@ -233,15 +233,25 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
           "geoclimatedb" : [
                   "folder" :outputDirectory,
                   "name" : "${local_database_name};AUTO_SERVER=TRUE",
-                  "delete" : geoclimatedb,
+                  "delete" : geoclimatedb
           ],
-          "input" :geoInput,
-          "output" : geoOutput,
+          "input" : [
+                  "locations" : [zone],
+                  "delete":true
+          ],
+          "output" : [
+                  "srid": srid,
+                  "folder" : [
+                          "path": "$outputDirectory",
+                          "tables": ["building", "road_traffic", "ground_acoustic", "rail", "zone"],
+                  ],
+          ],
           "parameters": [
                   "rsu_indicators":[
                           "indicatorUse": ["LCZ"],
                           "estimateHeight": true,
-                  ],"worldpop_indicators" : true,
+                  ],
+                  "worldpop_indicators" : true,
                   "road_traffic" : true,
                   "noise_indicators": [
                           "ground_acoustic": true
@@ -283,13 +293,25 @@ static def parseRoadData(String outputDirectory, String location){
   def jsonSlurper = new JsonSlurper()
   def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson"))
 
-  //Loops through all "features" data in the file
+  def featureIteration
+  featureIteration = 0
+
+    //Loops through all "features" data in the file
   jsonData.features.each { feature ->
 
     def propertiesData = feature.properties
     def updatedProperties = [:]
 
+    featureIteration++
+
+    def addKey
+    addKey = false
+
     propertiesData.each { key, value ->
+      if (!addKey){
+        updatedProperties.put("PK",featureIteration)
+        addKey = true
+      }
       switch (key) {
         case RoadValue.LV_D.gcProperty :
           updatedProperties[RoadValue.LV_D.nmProperty] = value
@@ -337,7 +359,23 @@ static def parseRoadData(String outputDirectory, String location){
           updatedProperties[key] = value
       }
     }
+
     feature.properties = updatedProperties
+    addKey=false
+
+    def propertiess = feature.geometry
+
+    propertiess.collect {key, value ->
+
+      if (key == "coordinates"){
+        value.collect { key2 ->
+
+          def test = key2 as ArrayList
+          test.add(0.5)
+
+        }
+      }
+    }
   }
 
   def newJsonBuilder = new JsonBuilder(jsonData)
@@ -383,4 +421,66 @@ static def parseBuildingData(String outputDirectory, String location){
   new File(outputDirectory+"\\osm_"+location+"\\building.geojson").text = newJsonString
 
 }
+
+/**
+ * The zone layer issued from GeoClimate is updated by editing "features" and create data for all coordinate points and just not only a list of coordinates.
+ * @param outputDirectory: String. The location of the output files.
+ * @param location: String. The name of the chosen location.
+ * @return None
+ */
+static def parseDemData(String outputDirectory, String location){
+
+  //Define the file to change data
+  def jsonSlurper = new JsonSlurper()
+  def file = new File(outputDirectory+"\\osm_"+location+"\\zone.geojson")
+  def jsonData = jsonSlurper.parse(file)
+
+  def updatedProperties = []
+
+  //Loops through all "features" data in the file
+  jsonData.features.each { feature ->
+
+    def propertiesData = feature.geometry.coordinates
+
+    propertiesData.each { key ->
+      key.collect { key2 ->
+          def builder = new JsonBuilder()
+          builder.content {
+            type 'Feature'
+            geometry {
+              type 'Point'
+              coordinates key2
+            }
+            properties {
+              height 0.0
+            }
+          }
+          updatedProperties.add(builder.content.content)
+      }
+    }
+  }
+
+  jsonData.features = updatedProperties
+
+  def newJsonBuilder = new JsonBuilder(jsonData)
+  def newJsonString = newJsonBuilder.toPrettyString()
+
+  new File(outputDirectory+"\\osm_"+location+"\\dem.geojson").text = newJsonString
+  file.delete()
+
+}
+
+//Zone (DEM) --> ajoute la hauteur des batiments (0) : voir le nom de sur géoclimate
+
+//Pour le DEM, voir comment ajouter la hauteur des batiments pour chaque points --> voir géoclimate
+
+// Pour autre script : créer table LW_ROADS pour receiver et delaunay --> FAUX
+
+// LE script sans GUI accepte une géométrie 2D mais pas le block WPS
+
+// Dans les coordonées des routes, pourquoi le z est à 0.5 (sur géoclimate peut-on le trouver)
+
+// Modifier nom variables
+
+// FAIRE DES TESTES SUR LES CHEMIN INPUT ET OUTPUT
 

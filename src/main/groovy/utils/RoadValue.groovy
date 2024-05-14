@@ -1,7 +1,6 @@
 package utils
 
 enum RoadValue {
-
     LV_D("DAY_LV_HOUR","LV_D"),
     EV_LV_HOUR("EV_LV_HOUR","LV_E"),
     NIGHT_LV_HOUR("NIGHT_LV_HOUR","LV_N"),
