@@ -1,3 +1,5 @@
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -10,7 +12,7 @@ import Import_GeoClimate_Data
 
 class GeoClimate_Script_CL implements Runnable {
 
-    public static final def ERROR = 0
+    public static final def ERROR = 1
 
     @Option(names = ['-l', '--location'], description = 'Location of City or Street', required = true)
     String location
@@ -24,16 +26,12 @@ class GeoClimate_Script_CL implements Runnable {
     @Option(names = ['-d', '--database'], description = 'Database use by géoClimate for create files (is a .mv.db)', defaultValue = 'true')
     Boolean dataBase
 
-    static class Input {
-        String locations
-        String filesExportPath
-        Integer targetSRID
-        Boolean geoclimatedb
-    }
-
     @Override
     void run() {
-        Input input = new Input(
+
+        Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
+
+        HashMap input = new HashMap(
                 locations: location,
                 filesExportPath: path,
                 targetSRID: srid,
@@ -43,7 +41,8 @@ class GeoClimate_Script_CL implements Runnable {
         try {
             Import_GeoClimate_Data.execWithCommandLine(input)
         } catch (e) {
-            println('ERROR : '+ e.toString())
+            logger.info('ERROR : '+ e.toString())
+            System.exit(ERROR)
         }
 
     }
