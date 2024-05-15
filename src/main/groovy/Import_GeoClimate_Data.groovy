@@ -82,9 +82,7 @@ outputs = [
         ]
 ]
 
-
 run(inputs)
-
 
 // Open Connection to H2GIS Database
 static Connection openH2GISDataStoreConnection(String dbName) {
@@ -93,7 +91,9 @@ static Connection openH2GISDataStoreConnection(String dbName) {
   // JDBC URL for H2GIS (change it as needed)
   String jdbcUrl = "jdbc:h2:~/"+dbName;
 
-  Connection connection = null;
+  Connection connection
+  connection = null
+
   try {
     // Load JDBC driver
     Class.forName(driverClassName);
@@ -104,8 +104,6 @@ static Connection openH2GISDataStoreConnection(String dbName) {
   }
   return connection;
 }
-
-
 
 
 // run the script
@@ -125,12 +123,26 @@ def run(input) {
 
 }
 
-// main function of the script
-def exec(Connection connection, input) {
+static def execWithCommandLine(input){
 
+  // Get name of the database
+  // by default an embedded h2gis database is created
+  // Advanced user can replace this database for a postGis or h2Gis server database.
+  String dbName = "h2gisdb"
+
+  // Open connection
+  def connection = openH2GISDataStoreConnection(dbName);
+  connection.withCloseable {
+    conn ->
+      return [result: exec(conn, input)]
+  }
+}
+
+// main function of the script
+static def exec(Connection connection, input) {
 
   //Map buildingsParamsMap = buildingsParams.toMap();
-  connection = new ConnectionWrapper(connection)
+  def newConnection = new ConnectionWrapper(connection)
 
   Sql sql = new Sql(connection)
 
@@ -144,13 +156,13 @@ def exec(Connection connection, input) {
   // Get every inputs
   // -------------------
 
-  String location = "Saint-Jean-la-Poterie"/*input["locations"] as String
+  String location = /*"Saint-Jean-la-Poterie" */ input["locations"] as String
   if(location.isEmpty() || !input["locations"]){
       resultString = "Location argument has not been provided."
       throw new Exception('ERROR : ' + resultString)
-  }*/
+  }
 
-  String outputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\geoClimate" /*input["filesExportPath"] as String*/
+  String outputDirectory = /*System.getProperty("user.dir")+"\\..\\outPut\\geoClimate" */ input["filesExportPath"] as String
 
   try{
 
@@ -168,21 +180,23 @@ def exec(Connection connection, input) {
     return e.toString()
   }
 
-  Integer srid = 2154
-  /*
-  if (input['targetSRID']) {
-      srid = input['targetSRID'] as Integer
-  }*/
+  Integer srid
+  srid = 2154
 
-    Boolean geoclimatedb = true
-    /*
-    if (!input['geoclimatedb']) {
-        geoclimatedb = input['geoclimatedb'] as Boolean
-    }*/
+  if (input['targetSRID']) {
+    srid = input['targetSRID'] as Integer
+  }
+
+  Boolean geoclimatedb
+  geoclimatedb = true
+
+  if (!input['geoclimatedb']) {
+    geoclimatedb = input['geoclimatedb'] as Boolean
+  }
 
   logger.info('Input Read done')
 
-  runGeoClimate(createGeoClimateConfig(location, outputDirectory,srid, geoclimatedb, logger), logger)
+  runGeoClimate(createGeoClimateConfig(location, outputDirectory, srid, geoclimatedb, logger), logger)
 
   logger.info('Parse road value for noiseModelling input')
 
@@ -223,16 +237,12 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
 
   logger.info('Creation of the config ')
 
-  //Name of default H2GIS database
-  def local_database_name="osm_geoclimate_${System.currentTimeMillis()}"
-
-
   //Set configurations parameters
-  def workflow_parameters = [
-          "description" :"Run the Geoclimate chain  and export result to a folder",
+  def workflowParameters = [
+          "description" :"Run the Geoclimate chain and export result to a folder",
           "geoclimatedb" : [
                   "folder" :outputDirectory,
-                  "name" : "${local_database_name};AUTO_SERVER=TRUE",
+                  "name" : "osm_geoclimate_${System.currentTimeMillis()};AUTO_SERVER=TRUE", //Name of default H2GIS database
                   "delete" : geoclimatedb
           ],
           "input" : [
@@ -243,12 +253,12 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
                   "srid": srid,
                   "folder" : [
                           "path": "$outputDirectory",
-                          "tables": ["building", "road_traffic", "ground_acoustic", "rail", "zone"],
+                          "tables": ["building", "road_traffic", "ground_acoustic", "rail", "zone"], // Tables output by géoClimate
                   ],
           ],
           "parameters": [
                   "rsu_indicators":[
-                          "indicatorUse": ["LCZ"],
+                          "indicatorUse": ["LCZ"], // set the Reference Spatial Unit (RSU) with the Local Climat Zone (LCZ)
                           "estimateHeight": true,
                   ],
                   "worldpop_indicators" : true,
@@ -261,21 +271,21 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
 
   logger.info('Create config file Read done')
 
-  return workflow_parameters
+  return workflowParameters
 
 }
 
 /**
  * Call géoClimate lib with the parameters set before
- * @param workflow_parameters: LinkedHashMap<String, Serializable>. Parameters given to geoClimate
+ * @param workflowParameters: LinkedHashMap<String, Serializable>. Parameters given to geoClimate
  * @param logger: Logger. Displays messages in the console.
  * @return None
  */
-static def runGeoClimate( LinkedHashMap<String, Serializable> workflow_parameters, Logger logger){
+static def runGeoClimate( LinkedHashMap<String, Serializable> workflowParameters, Logger logger){
   logger.info('Start import data')
 
   //Call géoClimate lib with configurations
-  OSM.workflow(workflow_parameters)
+  OSM.workflow(workflowParameters)
 
   logger.info('Import files done')
 }
@@ -304,7 +314,7 @@ static def parseRoadData(String outputDirectory, String location){
 
     featureIteration++
 
-    def addKey
+    Boolean addKey
     addKey = false
 
     propertiesData.each { key, value ->
@@ -313,8 +323,8 @@ static def parseRoadData(String outputDirectory, String location){
         addKey = true
       }
       switch (key) {
-        case RoadValue.LV_D.gcProperty :
-          updatedProperties[RoadValue.LV_D.nmProperty] = value
+        case RoadValue.DAY_LV_HOUR.gcProperty :
+          updatedProperties[RoadValue.DAY_LV_HOUR.nmProperty] = value
           break
         case RoadValue.EV_LV_HOUR.gcProperty :
           updatedProperties[RoadValue.EV_LV_HOUR.nmProperty] = value
@@ -363,25 +373,25 @@ static def parseRoadData(String outputDirectory, String location){
     feature.properties = updatedProperties
     addKey=false
 
-    def propertiess = feature.geometry
+    def geometry = feature.geometry
 
-    propertiess.collect {key, value ->
+    geometry.collect {key, value ->
 
       if (key == "coordinates"){
-        value.collect { key2 ->
+        value.collect { coordinates ->
 
-          def test = key2 as ArrayList
-          test.add(0.5)
+          def coordinate = coordinates as ArrayList
+          coordinate.add(0.5)
 
         }
       }
     }
   }
 
-  def newJsonBuilder = new JsonBuilder(jsonData)
-  def newJsonString = newJsonBuilder.toPrettyString()
+  JsonBuilder jsonBuilder = new JsonBuilder(jsonData)
+  def jsonString = jsonBuilder.toPrettyString()
 
-  new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson").text = newJsonString
+  new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson").text = jsonString
 
 }
 
@@ -415,10 +425,10 @@ static def parseBuildingData(String outputDirectory, String location){
     feature.properties = updatedProperties
   }
 
-  def newJsonBuilder = new JsonBuilder(jsonData)
-  def newJsonString = newJsonBuilder.toPrettyString()
+  JsonBuilder jsonBuilder = new JsonBuilder(jsonData)
+  def jsonString = jsonBuilder.toPrettyString()
 
-  new File(outputDirectory+"\\osm_"+location+"\\building.geojson").text = newJsonString
+  new File(outputDirectory+"\\osm_"+location+"\\building.geojson").text = jsonString
 
 }
 
@@ -443,13 +453,13 @@ static def parseDemData(String outputDirectory, String location){
     def propertiesData = feature.geometry.coordinates
 
     propertiesData.each { key ->
-      key.collect { key2 ->
+      key.collect { coordinate ->
           def builder = new JsonBuilder()
           builder.content {
             type 'Feature'
             geometry {
               type 'Point'
-              coordinates key2
+              coordinates coordinate
             }
             properties {
               height 0.0
@@ -462,25 +472,13 @@ static def parseDemData(String outputDirectory, String location){
 
   jsonData.features = updatedProperties
 
-  def newJsonBuilder = new JsonBuilder(jsonData)
-  def newJsonString = newJsonBuilder.toPrettyString()
+  JsonBuilder jsonBuilder = new JsonBuilder(jsonData)
+  def jsonString = jsonBuilder.toPrettyString()
 
-  new File(outputDirectory+"\\osm_"+location+"\\dem.geojson").text = newJsonString
+  new File(outputDirectory+"\\osm_"+location+"\\dem.geojson").text = jsonString
   file.delete()
 
 }
 
-//Zone (DEM) --> ajoute la hauteur des batiments (0) : voir le nom de sur géoclimate
-
 //Pour le DEM, voir comment ajouter la hauteur des batiments pour chaque points --> voir géoclimate
-
-// Pour autre script : créer table LW_ROADS pour receiver et delaunay --> FAUX
-
-// LE script sans GUI accepte une géométrie 2D mais pas le block WPS
-
-// Dans les coordonées des routes, pourquoi le z est à 0.5 (sur géoclimate peut-on le trouver)
-
-// Modifier nom variables
-
-// FAIRE DES TESTES SUR LES CHEMIN INPUT ET OUTPUT
 
