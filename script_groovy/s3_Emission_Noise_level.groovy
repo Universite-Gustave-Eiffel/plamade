@@ -42,7 +42,10 @@ import org.h2gis.utilities.dbtypes.DBUtils
 import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.geom.LineString
-import org.noise_planet.noisemodelling.emission.RailWayLW
+import org.noise_planet.noisemodelling.emission.LineSource
+import org.noise_planet.noisemodelling.emission.railway.RailWayParameters
+import org.noise_planet.noisemodelling.emission.railway.cnossos.RailwayCnossos
+import org.noise_planet.noisemodelling.emission.utils.Utils
 import org.noise_planet.noisemodelling.jdbc.LDENConfig
 import org.noise_planet.noisemodelling.jdbc.LDENPropagationProcessData
 import org.noise_planet.noisemodelling.jdbc.RailWayLWIterator

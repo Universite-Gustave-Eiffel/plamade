@@ -264,10 +264,10 @@ public class NoiseModellingProfileReport {
             for(LDENConfig.TIME_PERIOD timePeriod : LDENConfig.TIME_PERIOD.values()) {
                 List<double[]> wjSource;
                 PropagationProcessPathData pathData;
-                if(timePeriod == LDENConfig.TIME_PERIOD.TIME_PERIOD_DAY) {
+                if(timePeriod == LDENConfig.TIME_PERIOD.DAY) {
                     wjSource = propagationData.wjSourcesD;
                     pathData = ldenPropagationProcessData.dayPathData;
-                } else if(timePeriod == LDENConfig.TIME_PERIOD.TIME_PERIOD_EVENING) {
+                } else if(timePeriod == LDENConfig.TIME_PERIOD.EVENING) {
                     wjSource = propagationData.wjSourcesE;
                     pathData = ldenPropagationProcessData.eveningPathData;
                 } else {
