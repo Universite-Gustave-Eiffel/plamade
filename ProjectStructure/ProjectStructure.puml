@@ -1,7 +1,7 @@
 @startuml
 'https://plantuml.com/fr/object-diagram
 
-package wsp {
+package wps {
 
 package GeoClimate_Tools {
 
@@ -11,13 +11,20 @@ package GeoClimate_Tools {
         inputs : ArrayList
         outputs : ArrayList
         ---
-        {static} openGeoserverDataStoreConnection(dbName : String) : Connection
-        exec(connection : Connection, input) : String
+        {static} openH2GISDataStoreConnection(dbName : String) : Connection
         run(input)
+        {static} execWithCommandLine(input)
+        exec(connection : Connection, input) : String
         {static} createGeoClimateConfig(zone : String, outputDirectory : String, srid : Integer, geoclimatedb : Boolean, logger : Logger) : LinkedHashMap<String, Serializable>
         {static} runGeoClimate(workflow_parameters : LinkedHashMap<String, Serializable>, logger : Logger)
         {static} parseRoadData(outputDirectory : String, location : String)
         {static} parseBuildingData(outputDirectory : String, location : String)
+        {static} parseDemData(outputDirectory : String, location : String)
+    }
+
+    class GeoClimate_Script_CL implements .Runnable{
+         - {static} Error : Integer
+         {static} main(args : String[])
     }
 
     object Export_Noise_Map {
@@ -26,13 +33,13 @@ package GeoClimate_Tools {
         inputs : ArrayList
         outputs : ArrayList
         ---
-        {static} openGeoserverDataStoreConnection(dbName : String) : Connection
-        exec(connection : Connection, input)
+        {static} openH2GISDataStoreConnection(dbName : String) : Connection
         run(input)
-        CreateDatabase(TODO)
-        RoadEmissionFromTraffic(file_path : String)
-        GenerateDelaunay(TODO)
-        NoiseLevelFromOSM(TODO)
+        exec(connection : Connection, input)
+        {static} CreateDatabase(TODO)
+        {static} RoadEmissionFromTraffic(file_path : String)
+        {static} GenerateDelaunay(TODO)
+        {static} NoiseLevelFromOSM(TODO)
     }
 
     object Complete_Noise_Map{
@@ -48,7 +55,13 @@ package GeoClimate_Tools {
 
     package utils{
         enum RoadValue{
-               LV_D("DAY_LV_HOUR","LV_D")
+               ID_ROAD("ID_ROAD","ID_ROAD")
+               ID_SOURCE("ID_SOURCE","ID_SOURCE")
+               ROAD_TYPE("ROAD_TYPE","ROAD_TYPE"
+               SOURCE_ROAD_TYPE("SOURCE_ROAD_TYPE","SOURCE_ROAD_TYPE")
+               SURFACE("SURFACE","SURFACE")
+               SLOPE("SLOPE","SLOPE")
+               DAY_LV_HOUR("DAY_LV_HOUR","LV_D")
                EV_LV_HOUR("EV_LV_HOUR","LV_E")
                NIGHT_LV_HOUR("NIGHT_LV_HOUR","LV_N")
                DAY_LV_SPEED("DAY_LV_SPEED","LV_SPD_D")
@@ -70,23 +83,17 @@ package GeoClimate_Tools {
         }
     }
 
-    object Delete_Config_File {
-    }
+    package outPut {
 
-    /'
-    package Data {
-        package gc_outputs {
+        package geoClimate {
         }
-        package nm_inputs {
-        }
-        package nm_outputs {
-        }
-        package config_file {
+
+        package noiseModelling {
         }
     }
-    '/
 }
 
+/'
 package Database_Manageur{
     object Add_Primary_Key{
 
@@ -100,6 +107,7 @@ package Database_Manageur{
 
      }
 }
+
 
 package Import_and_Export{
 
@@ -133,6 +141,7 @@ package Receivers{
     }
 
 }
+'/
 
 }
 
@@ -148,8 +157,9 @@ end note
 note top of Import_geoClimate_Data
 createGeoClimateConfig : Creates the JSON config file.
 runGeoClimate : Executes the Config File.
-parseRoadData : Renames the columns of the geoJson for noiseModelling input.
+parseRoadData : Renames the columns of the geoJson for noiseModelling input and add Z axes for coordinates.
 parseBuildingData : Add the column HEIGHT to the geoJson for noiseModelling input.
+parseDemData : For each coordinate, add a lot of information for noiseModelling input.
 end note
 
 note top of Import_geoClimate_Data
@@ -168,6 +178,17 @@ Use but not in Input :
         - ground_acoustic = true
 end note
 
+note top of GeoClimate_Script_CL
+Script to lunch Import_geoClimate_Data with commande line :
+
+Options are :
+
+"-l" or "--location" for the location like "Paris"
+"-o" or "--output" for the output folder
+"-s" or "--srid" for the Target projection identifier
+"-d" or "--database" for save or not the temp file .mv.db
+end note
+
 note top of Export_Noise_Map
 CreateDatabase : Gets all the geoJson Files and convert it in database.
 RoadEmissionFromTraffic : Creates the tables.
@@ -177,8 +198,9 @@ end note
 
 note top of Export_Noise_Map
 Inputs mandatory :
-    -folder of geoClimat output
-    -folder of noiseModelling output
+    -filesImportPath
+    -filesExportPath
+    -locations
 Inputs optional :
     -nReceivers (default --> 5000),
     -maxPropDist (default --> 500),
@@ -202,10 +224,7 @@ note top of Complete_Noise_Map
 Use method of other files to keep data and create noise map
 end note
 
-note top of Delete_Config_File
-Not sure for this WPS block.
-end note
-
+/'
 Export_Noise_Map --> Add_Primary_Key : <<use>>
 Export_Noise_Map --> Clean_Database : <<use>>
 Export_Noise_Map --> Display_Database : <<use>>
@@ -220,7 +239,11 @@ Export_Noise_Map --> Delaunay_Grid : <<use>>
 Export_Noise_Map --> Noise_level_from_traffic : <<use>>
 Export_Noise_Map --> Road_Emission_From_Traffic : <<use>>
 
+'/
+
 Import_geoClimate_Data *-left-> RoadValue
+
+GeoClimate_Script_CL -right-> Import_geoClimate_Data : <<use>>
 
 
 @enduml

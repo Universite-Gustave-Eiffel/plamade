@@ -2,30 +2,30 @@
  * TODO
  */
 
-/*
-<dependency>
-            <groupId>org.geoserver</groupId>
-            <artifactId>gs-main</artifactId>
-            <version>2.24.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-main</artifactId>
-            <version>29.1</version>
-        </dependency>
- */
-
 //import geoserver.GeoServer
 //import geoserver.catalog.Store
 //import org.geotools.jdbc.JDBCDataStore
+
+import groovy.sql.Sql
+import org.h2gis.api.EmptyProgressVisitor
+import org.h2gis.functions.io.geojson.GeoJsonDriverFunction
+import org.h2gis.functions.io.geojson.GeoJsonWrite
+import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.apache.commons.io.FilenameUtils
+
+/*
 import org.noise_planet.noisemodelling.jdbc.*
 import org.noise_planet.noisemodelling.pathfinder.*
 import org.noise_planet.noisemodelling.emission.*
 import org.noise_planet.noisemodelling.propagation.*
+*/
+
+import java.sql.Connection
+import java.sql.DriverManager
+import java.sql.ResultSet
+import java.sql.Statement
 
 title = 'Export files for generate à noise map'
 
@@ -33,6 +33,13 @@ description = '&#10145;&#65039; Use the files export by geoClimate for create fi
         '<img src="/wps_images/import_osm_file.png" alt="Import OSM file" width="95%" align="center">'
 
 inputs = [
+        locations : [
+                name       : 'Name of the municipality or street',
+                title      : 'Name of the location',
+                description: '&#128194; Name of the municipality or street you want informations.<br>' +
+                        'For example: Paris',
+                type       : String.class
+        ],
         filesImportPath : [
                 name       : 'Files import path',
                 title      : 'Files import path',
@@ -58,17 +65,26 @@ outputs = [
         ]
 ]
 
-/*
-// Open Connection to Geoserver
-static Connection openGeoserverDataStoreConnection(String dbName) {
-    if (dbName == null || dbName.isEmpty()) {
-        dbName = new GeoServer().catalog.getStoreNames().get(0)
+// Open Connection to H2GIS Database
+static Connection openH2GISDataStoreConnection(String dbName) {
+    // Driver class name for H2GIS
+    String driverClassName = "org.h2.Driver";
+    // JDBC URL for H2GIS (change it as needed)
+    String jdbcUrl = "jdbc:h2:~/"+dbName;
+
+    Connection connection
+    connection = null
+
+    try {
+        // Load JDBC driver
+        Class.forName(driverClassName);
+        // Establish connection
+        connection = DriverManager.getConnection(jdbcUrl);
+    } catch (Exception e) {
+        e.printStackTrace();
     }
-    Store store = new GeoServer().catalog.getStore(dbName)
-    JDBCDataStore jdbcDataStore = (JDBCDataStore) store.getDataStoreInfo().getDataStore(null)
-    return jdbcDataStore.getDataSource().getConnection()
+    return connection;
 }
-*/
 
 run(inputs)
 
@@ -78,26 +94,24 @@ def run(input) {
     // Get name of the database
     // by default an embedded h2gis database is created
     // Advanced user can replace this database for a postGis or h2Gis server database.
-    //String dbName = "h2gisdb"
+    String dbName = "h2gisdb"
 
-    // Open connection
-    /*
-    openGeoserverDataStoreConnection(dbName).withCloseable {
-        Connection connection ->
-            return [result: exec(connection, input)]
+    def connection = openH2GISDataStoreConnection(dbName);
+    connection.withCloseable {
+        conn ->
+            return [result: exec(conn, input)]
     }
-    */
-    exec(input)
+
 }
 
 // main function of the script
-def exec(/*Connection connection,*/ input) {
+def exec(Connection connection, input) {
 
 
     //Map buildingsParamsMap = buildingsParams.toMap();
-    //connection = new ConnectionWrapper(connection)
+    def newConnection = new ConnectionWrapper(connection)
 
-    //Sql sql = new Sql(connection)
+    Sql sql = new Sql(connection)
 
     String resultString
 
@@ -109,7 +123,13 @@ def exec(/*Connection connection,*/ input) {
     // Get every inputs
     // -------------------
 
-    String inputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\geoClimate\\osm_Orbey" /*input["filesImportPath"] as String*/
+    String location = "Epfig"/*input["locations"] as String
+    if(location.isEmpty() || !input["locations"]){
+      resultString = "Location argument has not been provided."
+      throw new Exception('ERROR : ' + resultString)
+    }*/
+
+    String inputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\geoClimate\\osm_${location}" /*input["filesImportPath"] as String*/
     String outputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\noiseModelling" /*input["filesExportPath"] as String*/
 
     try {
@@ -139,7 +159,7 @@ def exec(/*Connection connection,*/ input) {
         return e.toString()
     }
 
-    /* IN THE WPS SCRIPT
+    /* IN THE WPS SCRIPT --> TODO
 
     // list of the system tables
     List<String> ignorelst = ["SPATIAL_REF_SYS", "GEOMETRY_COLUMNS"]
@@ -149,7 +169,7 @@ def exec(/*Connection connection,*/ input) {
         StringBuilder sb = new StringBuilder()
 
         // Get every table names
-        List<String> tables = JDBCUtilities.getTableNames(connection, null, "PUBLIC", "%", null)
+        List<String> tables = JDBCUtilities.getTableNames(newConnection, null, "PUBLIC", "%", null)
         // Loop over the tables
         tables.each { t ->
             TableLocation tab = TableLocation.parse(t)
@@ -160,8 +180,8 @@ def exec(/*Connection connection,*/ input) {
                 }
                 sb.append(tab.getTable())
 
-                // Create a connection statement to interact with the database in SQL
-                Statement stmt = connection.createStatement()
+                // Create a newConnection statement to interact with the database in SQL
+                Statement stmt = newConnection.createStatement()
                 // Drop the table
                 stmt.execute("drop table if exists " + tab)
             }
@@ -171,11 +191,13 @@ def exec(/*Connection connection,*/ input) {
         resultString = "If you're not sure, we won't do anything !"
     }*/
 
-    def folder = new File(inputDirectory)
+    Statement stmt = newConnection.createStatement()
+
+    def folderin = new File(inputDirectory)
     def tablesName = []
 
 
-    folder.eachFile { file ->
+    folderin.eachFile { file ->
         if (file.isFile() && file.name.endsWith('.geojson')) {
 
             // get the name of the fileName
@@ -185,9 +207,25 @@ def exec(/*Connection connection,*/ input) {
             // remove special characters in the file name
             fileName.replaceAll("[^a-zA-Z0-9 ]+", "_")
             // the tableName will be called as the fileName
-            tablesName.add(fileName.toUpperCase())
+            tablesName.add((fileName+location).toUpperCase())
+
+            println(outputDirectory)
+
+            println(fileName.toUpperCase())
+
+            String dropOutputTable = "drop table if exists " + (fileName+location).toUpperCase()
+            stmt.execute(dropOutputTable)
+
+            GeoJsonDriverFunction geoJsonDriver = new GeoJsonDriverFunction()
+            geoJsonDriver.importFile(newConnection, (fileName+"${location}").toUpperCase(), new File(file as String), new EmptyProgressVisitor())
+            //GeoJsonRead.importTable(connection,, (fileName+"${location}").toUpperCase(),null,true)
 
         }
+    }
+
+
+    tablesName.each { table ->
+        GeoJsonWrite.exportTable(newConnection,outputDirectory+"\\"+(table as String).toLowerCase()+".geojson", "(SELECT * FROM ${table})")
     }
 
     println("Fichiers .geojson trouvés : $tablesName")
@@ -202,14 +240,23 @@ def exec(/*Connection connection,*/ input) {
 
 /*
 <dependency>
-    <groupId>org.matsim</groupId>
-    <artifactId>matsim</artifactId>
-    <version>11.0</version>
-    <exclusions>
-        <exclusion>
-            <groupId>org.geotools</groupId>
-            <artifactId>*</artifactId>
-        </exclusion>
-    </exclusions>
+    <groupId>org.orbisgis</groupId>
+    <artifactId>noisemodelling-emission</artifactId>
+    <version>4.0.6-SNAPSHOT</version>
+</dependency>
+<dependency>
+    <groupId>org.orbisgis</groupId>
+    <artifactId>noisemodelling-propagation</artifactId>
+    <version>4.0.6-SNAPSHOT</version>
+</dependency>
+<dependency>
+    <groupId>org.orbisgis</groupId>
+    <artifactId>noisemodelling-pathfinder</artifactId>
+    <version>4.0.6-SNAPSHOT</version>
+</dependency>
+<dependency>
+    <groupId>org.orbisgis</groupId>
+    <artifactId>noisemodelling-jdbc</artifactId>
+    <version>4.0.6-SNAPSHOT</version>
 </dependency>
  */

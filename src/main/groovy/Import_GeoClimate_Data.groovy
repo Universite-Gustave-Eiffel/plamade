@@ -6,22 +6,13 @@
  */
 
 
-//import geoserver.GeoServer
-
-import groovy.sql.Sql
-//import org.geoserver.*
-//import org.geotools.data.store.*
-//import geoserver.catalog.Store
-//import org.geotools.jdbc.JDBCDataStore
-import org.h2gis.utilities.wrapper.ConnectionWrapper
-import org.orbisgis.geoclimate.osm.OSM
+import org.orbisgis.geoclimate.osm.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import utils.RoadValue
-import java.sql.DriverManager;
-
+import java.sql.DriverManager
 import java.sql.Connection
 
 title = 'Import building, ground_acoustic, road_traffic, rail and zone files from GéoClimate'
@@ -87,20 +78,20 @@ run(inputs)
 // Open Connection to H2GIS Database
 static Connection openH2GISDataStoreConnection(String dbName) {
   // Driver class name for H2GIS
-  String driverClassName = "org.h2.Driver";
+  String driverClassName = "org.h2.Driver"
   // JDBC URL for H2GIS (change it as needed)
-  String jdbcUrl = "jdbc:h2:~/"+dbName;
+  String jdbcUrl = "jdbc:h2:~/"+dbName
 
   Connection connection
   connection = null
 
   try {
     // Load JDBC driver
-    Class.forName(driverClassName);
+    Class.forName(driverClassName)
     // Establish connection
-    connection = DriverManager.getConnection(jdbcUrl);
+    connection = DriverManager.getConnection(jdbcUrl)
   } catch (Exception e) {
-    e.printStackTrace();
+    e.printStackTrace()
   }
   return connection;
 }
@@ -118,7 +109,7 @@ def run(input) {
   def connection = openH2GISDataStoreConnection(dbName);
   connection.withCloseable {
     conn ->
-      return [result: exec(conn, input)]
+      return [result: exec(conn, input, false)]
   }
 
 }
@@ -131,67 +122,83 @@ static def execWithCommandLine(input){
   String dbName = "h2gisdb"
 
   // Open connection
-  def connection = openH2GISDataStoreConnection(dbName);
+  def connection = openH2GISDataStoreConnection(dbName)
   connection.withCloseable {
     conn ->
-      return [result: exec(conn, input)]
+      return [result: exec(conn, input, true)]
   }
 }
 
 // main function of the script
-static def exec(Connection connection, input) {
+static def exec(Connection connection, input, Boolean isCommandeLine) {
 
   //Map buildingsParamsMap = buildingsParams.toMap();
-  def newConnection = new ConnectionWrapper(connection)
+  //ConnectionWrapper newConnection = new ConnectionWrapper(connection)
 
-  Sql sql = new Sql(connection)
+  //Sql sql = new Sql(connection)
 
   String resultString
 
   Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
-  logger.info('Start : Create files from GéoClimate')
+  logger.info('Start : Create files from GeoClimate')
   logger.info("inputs {}", input)
 
   // -------------------
   // Get every inputs
   // -------------------
 
-  String location = /*"Saint-Jean-la-Poterie" */ input["locations"] as String
-  if(location.isEmpty() || !input["locations"]){
+  String location
+
+  if (isCommandeLine){
+    location = input["locations"] as String
+    if(location.isEmpty() || !input["locations"]){
       resultString = "Location argument has not been provided."
       throw new Exception('ERROR : ' + resultString)
+    }
+  } else {
+    location = "Saint-Jean-la-Poterie"
   }
 
-  String outputDirectory = /*System.getProperty("user.dir")+"\\..\\outPut\\geoClimate" */ input["filesExportPath"] as String
+  String outputDirectory
 
-  try{
+  if (isCommandeLine){
+    outputDirectory = input["filesExportPath"] as String
 
-    if(!outputDirectory){
-      throw new IllegalArgumentException('ERROR : The output directory to store the result cannot be null or empty')
+    try{
+
+      if(!outputDirectory){
+        throw new IllegalArgumentException('ERROR : The output directory to store the result cannot be null or empty')
+      }
+
+      // Test if the outPut folder exist
+      File dirFile = new File(outputDirectory)
+      if(!dirFile.exists() || !dirFile.isDirectory()){
+        logger.info("Create the output directory because it doesn't exist")
+        dirFile.mkdir()
+      }
+    } catch (IllegalArgumentException e){
+      return e.toString()
     }
 
-    // Test if the outPut folder exist
-    File dirFile = new File(outputDirectory)
-    if(!dirFile.exists() || !dirFile.isDirectory()){
-      logger.info("Create the output directory because it doesn't exist")
-      dirFile.mkdir()
-    }
-  } catch (IllegalArgumentException e){
-    return e.toString()
+  } else {
+    outputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\geoClimate"
   }
 
   Integer srid
   srid = 2154
-
-  if (input['targetSRID']) {
-    srid = input['targetSRID'] as Integer
+  if (isCommandeLine) {
+    if (input['targetSRID']) {
+      srid = input['targetSRID'] as Integer
+    }
   }
 
   Boolean geoclimatedb
   geoclimatedb = true
 
-  if (!input['geoclimatedb']) {
-    geoclimatedb = input['geoclimatedb'] as Boolean
+  if (isCommandeLine) {
+    if (!input['geoclimatedb']) {
+      geoclimatedb = input['geoclimatedb'] as Boolean
+    }
   }
 
   logger.info('Input Read done')
@@ -281,13 +288,17 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
  * @param logger: Logger. Displays messages in the console.
  * @return None
  */
-static def runGeoClimate( LinkedHashMap<String, Serializable> workflowParameters, Logger logger){
-  logger.info('Start import data')
+static def runGeoClimate( def workflowParameters, Logger logger){
+    try {
+        logger.info('Starting GeoClimate Workflow')
 
-  //Call géoClimate lib with configurations
-  OSM.workflow(workflowParameters)
-
-  logger.info('Import files done')
+        //Call géoClimate lib with configurations
+      WorkflowOSM test = new WorkflowOSM()
+      test.workflow(workflowParameters)
+    } catch (Exception e) {
+        logger.error('ERROR : ' + e.toString())
+        throw new Exception('ERROR : ' + e.toString())
+    }
 }
 
 

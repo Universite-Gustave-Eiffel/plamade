@@ -3,9 +3,11 @@
     <module name="GeoClimate_Tools" />
     <setting name="path" value="file://$PROJECT_DIR$/src/main/groovy/GeoClimate_Script_CL.groovy" />
     <setting name="vmparams" value="" />
-    <setting name="params" value="-l Epfig -o C:\Users\samuel.marsault\Documents\Important_Stage\Block_WPS\GeoClimate_Tools\src\main\outPut\geoClimate -s 2154" />
+    <setting name="params" value="-l Urbach -o C:\Users\samuel.marsault\Documents\Important_Stage\Block_WPS\GeoClimate_Tools\src\main\outPut\geoClimate -s 2154" />
     <setting name="workDir" value="file://$PROJECT_DIR$" />
     <setting name="debug" value="false" />
+    <setting name="alternativeJrePathEnabled" value="true" />
+    <setting name="alternativeJrePath" value="11" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
