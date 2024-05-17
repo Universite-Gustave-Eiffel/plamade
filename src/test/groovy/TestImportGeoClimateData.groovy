@@ -1,3 +1,4 @@
+import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
@@ -143,7 +144,7 @@ class TestImportGeoClimateData {
     }
 
     @Nested
-    class TestParse {
+    class TestParseofFileData {
 
         public static TestImportGeoClimateData testGeoClimateTools = new TestImportGeoClimateData()
 
@@ -228,6 +229,29 @@ class TestImportGeoClimateData {
          */
         @Test
         void testParseDEM() {
+
+            def jsonSlurper1 = new JsonSlurper()
+            def jsonData2 = jsonSlurper1.parse(new File(outputDirectory+"\\osm_"+location+"\\zone.geojson"))
+
+            def coordonates = [:]
+
+            Integer iterationNumber
+            iterationNumber = 1
+
+            jsonData2.features.each { feature ->
+
+                def propertiesData = feature.geometry.coordinates
+
+                propertiesData.each { key ->
+                    key.collect { coordinate ->
+                        coordonates.put(iterationNumber,coordinate)
+                        iterationNumber++
+                    }
+                }
+            }
+
+            iterationNumber = 1
+
             // Parsing DEM file
             Import_GeoClimate_Data.parseDemData(outputDirectory, location)
 
@@ -235,6 +259,7 @@ class TestImportGeoClimateData {
             def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\dem.geojson"))
 
             jsonData.features.each { Map feature ->
+
                 // Check if the object contains the key "type" with the value "Feature"
                 assertTrue(feature.containsKey("type"), "The key 'type' is missing in the object.")
                 assertEquals("Feature", feature.get("type"), "The value of key 'type' is not 'Feature'.")
@@ -248,6 +273,7 @@ class TestImportGeoClimateData {
 
                 assertTrue(geometry.containsKey("coordinates"), "The key 'coordinates' is missing in the 'geometry' object.")
                 assertEquals(2, (geometry.get("coordinates") as List).size(), "The number of values of key 'coordinates' in 'geometry' is not '2'.")
+                assertEquals(coordonates.get(iterationNumber),geometry.get("coordinates"), "The coordinates value is note the same.")
 
                 // Check if the object contains the key "properties" with a non-null value
                 assertTrue(feature.containsKey("properties"), "The key 'properties' is missing in the object.")
@@ -255,6 +281,8 @@ class TestImportGeoClimateData {
 
                 assertTrue(properties.containsKey("height"), "The key 'height' is missing in the 'properties' object.")
                 assertEquals(0.0, properties.get("height"), "The value of key 'height' in 'properties' is not '0.0'.")
+
+                iterationNumber++
             }
 
         }

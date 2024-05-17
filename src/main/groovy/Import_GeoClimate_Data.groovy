@@ -288,18 +288,20 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
  * @param logger: Logger. Displays messages in the console.
  * @return None
  */
-static def runGeoClimate( def workflowParameters, Logger logger){
+static def runGeoClimate(def workflowParameters, Logger logger){
     try {
         logger.info('Starting GeoClimate Workflow')
 
         //Call géoClimate lib with configurations
       WorkflowOSM test = new WorkflowOSM()
       test.workflow(workflowParameters)
+
     } catch (Exception e) {
         logger.error('ERROR : ' + e.toString())
         throw new Exception('ERROR : ' + e.toString())
     }
 }
+
 
 
 /**

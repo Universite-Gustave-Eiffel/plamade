@@ -190,6 +190,10 @@ Options are :
 end note
 
 note top of Export_Noise_Map
+This file will no longer be used as it is impossible to use geoClimate and geoServer.
+The file is not deleted, however, as it may be continued at a later date.
+
+
 CreateDatabase : Gets all the geoJson Files and convert it in database.
 RoadEmissionFromTraffic : Creates the tables.
 GenerateDelaunay : Generates Delaunay Grid.

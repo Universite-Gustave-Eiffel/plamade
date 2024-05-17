@@ -1,11 +1,16 @@
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovyjarjarpicocli.CommandLine
+import java.util.concurrent.Callable
+
+//Essayer de mettre le .jar de géoclimate et le faire en dépendance pour pas utiliser celle de l'internet.
 
 @CommandLine.Command(name = 'GeoClimate_Script_CL', mixinStandardHelpOptions = true, version = '1.0',
         description = 'Script for run Import_GeoClimate_Data')
 
-class GeoClimate_Script_CL implements Runnable {
+class GeoClimate_Script_CL implements Callable<Integer> {
+
+    private static final Integer SUCCESS = 0
 
     private static final Integer ERROR = 1
 
@@ -22,8 +27,7 @@ class GeoClimate_Script_CL implements Runnable {
     Boolean dataBase
 
     @Override
-    void run() {
-
+    Integer call() throws Exception {
         Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
         def input = [
@@ -36,14 +40,15 @@ class GeoClimate_Script_CL implements Runnable {
         try {
             Import_GeoClimate_Data.execWithCommandLine(input)
         } catch (e) {
-            logger.info('ERROR : '+ e.toString())
-            System.exit(ERROR)
+            //logger.info('ERROR : '+ e.toString())
+            return ERROR
         }
-
+        return SUCCESS
     }
 
     static void main(String[] args) {
         int exitCode = new CommandLine(new GeoClimate_Script_CL()).execute(args)
         System.exit(exitCode)
     }
+
 }
