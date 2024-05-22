@@ -173,8 +173,7 @@ class TestImportGeoClimateData {
 
                 def propertiesData = feature.properties
 
-                assertTrue(propertiesData.containsKey("PK"), "The key 'PK' does not exist in properties of this file")
-                assertTrue(propertiesData.containsKey(RoadValue.ID_ROAD.nmProperty), "The key 'ID_ROAD' does not exist in properties of this file")
+                assertTrue(propertiesData.containsKey(RoadValue.ID_ROAD.nmProperty), "The key 'PK' does not exist in properties of this file")
                 assertTrue(propertiesData.containsKey(RoadValue.ID_SOURCE.nmProperty), "The key 'ID_SOURCE' does not exist in properties of this file")
                 assertTrue(propertiesData.containsKey(RoadValue.ROAD_TYPE.nmProperty), "The key 'ROAD_TYPE' does not exist in properties of this file")
                 assertTrue(propertiesData.containsKey(RoadValue.SURFACE.nmProperty), "The key 'SURFACE' does not exist in properties of this file")

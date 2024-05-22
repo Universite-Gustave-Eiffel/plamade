@@ -156,7 +156,7 @@ static def exec(Connection connection, input, Boolean isCommandeLine) {
       throw new Exception('ERROR : ' + resultString)
     }
   } else {
-    location = "Saint-Jean-la-Poterie"
+    location = "Urbach"
   }
 
   String outputDirectory
@@ -316,26 +316,17 @@ static def parseRoadData(String outputDirectory, String location){
   def jsonSlurper = new JsonSlurper()
   def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson"))
 
-  def featureIteration
-  featureIteration = 0
-
-    //Loops through all "features" data in the file
+  //Loops through all "features" data in the file
   jsonData.features.each { feature ->
 
     def propertiesData = feature.properties
     def updatedProperties = [:]
 
-    featureIteration++
-
-    Boolean addKey
-    addKey = false
-
     propertiesData.each { key, value ->
-      if (!addKey){
-        updatedProperties.put("PK",featureIteration)
-        addKey = true
-      }
       switch (key) {
+        case RoadValue.ID_ROAD.gcProperty :
+          updatedProperties[RoadValue.ID_ROAD.nmProperty] = value
+          break
         case RoadValue.DAY_LV_HOUR.gcProperty :
           updatedProperties[RoadValue.DAY_LV_HOUR.nmProperty] = value
           break
@@ -384,7 +375,6 @@ static def parseRoadData(String outputDirectory, String location){
     }
 
     feature.properties = updatedProperties
-    addKey=false
 
     def geometry = feature.geometry
 

@@ -1,7 +1,7 @@
 package utils
 
 enum RoadValue {
-    ID_ROAD("ID_ROAD","ID_ROAD"),
+    ID_ROAD("ID_ROAD","PK"),
     ID_SOURCE("ID_SOURCE","ID_SOURCE"),
     ROAD_TYPE("ROAD_TYPE","ROAD_TYPE"),
     SOURCE_ROAD_TYPE("SOURCE_ROAD_TYPE","SOURCE_ROAD_TYPE"),
