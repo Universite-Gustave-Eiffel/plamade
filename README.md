@@ -18,6 +18,8 @@ If you want to configure the run of the command line in IntelliJ:
 6. In program argument enter the option. For exemple : "-l Urbach -o C:noiseModelling\Block_WPS\GeoClimate_Tools\src\main\outPut\geoClimate -s 2154"
 7. Save and run
 
+You can also just modify the one already made which is called runGeo.
+
 There are 4 options. Options are :
 - "-l" or "--location" for the location. Example : "Paris". **(required)**
 - "-o" or "--output" for the output folder. Examble : "C:/temp/geoClimate". **(required)**
