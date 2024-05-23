@@ -6,7 +6,7 @@
 
     <groupId>org.noise_planet.noisemodelling.wps</groupId>
     <artifactId>GeoClimate_Tools</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.1-SNAPSHOT</version>
 
     <dependencies>
         <!-- Groovy Dependencies -->
@@ -18,11 +18,160 @@
         </dependency>
         <dependency>
             <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-json</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-templates</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-xml</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-jsr223</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-sql</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-datetime</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-groovysh</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-yaml</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-dateutil</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-nio</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-macro</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-ant</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-contracts</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-test</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-macro-library</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-typecheckers</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-toml</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-ginq</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-test-junit5</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-groovydoc</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-swing</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-console</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-astbuilder</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-jmx</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-docgenerator</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-servlet</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-testng</artifactId>
+            <version>4.0.17</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-bom</artifactId>
+            <version>4.0.17</version>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-cli-picocli</artifactId>
             <version>4.0.17</version>
         </dependency>
-
-        <!-- Additional Dependencies -->
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-cli-commons</artifactId>
+            <version>4.0.17</version>
+        </dependency>
         <dependency>
             <groupId>org.orbisgis.geoclimate</groupId>
             <artifactId>osm</artifactId>

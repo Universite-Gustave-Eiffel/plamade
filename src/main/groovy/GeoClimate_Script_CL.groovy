@@ -6,7 +6,7 @@ import java.util.concurrent.Callable
 // ! The .jar to run the script on the command line does not work because at
 // one point a groovy method does not exist in the .jar or in geoClimate but in the IDE sa works.
 
-@CommandLine.Command(name = 'GeoClimate_Script_CL', mixinStandardHelpOptions = true, version = '1.0',
+@CommandLine.Command(name = 'GeoClimate_Script_CL', mixinStandardHelpOptions = true, version = '1.0.1',
         description = 'Script for run Import_GeoClimate_Data')
 
 class GeoClimate_Script_CL implements Callable<Integer> {

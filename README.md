@@ -15,10 +15,18 @@ If you want to configure the run of the command line in IntelliJ:
 3. Name it
 4. In "Script Path" enter the absolute path of "GeoClimate_Script_CL" file
 5. In "Working directory", enter the absolute path of "GeoClimate_Tools" directory
-6. In program argument enter the option. For exemple : "-l Urbach -o C:noiseModelling\Block_WPS\GeoClimate_Tools\src\main\outPut\geoClimate -s 2154"
+6. In program argument enter the option. For exemple : "-l Urbach -o C:noiseModelling\Block_WPS\GeoClimate_Tools\outPut\geoClimate -s 2154"
 7. Save and run
 
-You can also just modify the one already made which is called runGeo.
+If you still want to test in the terminal to see the error, in the GeoCliamte_Tools folder do :
+java -jar target/GeoClimate_Tools-1.0.1-SNAPSHOT-jar-with-dependencies.jar -l "Urbach" -o "C:\Users\samuel.m\Documents\GeoClimate_Tools\outPut\geoClimate" -s 2154
+
+don't forget to replace the -o with your path.
+
+If this doesn't work, check that you have jdk 11.0.2 in your computer's environment variables.
+Tutorial for windows [here](https://confluence.atlassian.com/doc/setting-the-java_home-variable-in-windows-8895.html) or for all user [here](https://stackoverflow.com/questions/24641536/how-to-set-java-home-in-linux-for-all-users)
+
+
 
 There are 4 options. Options are :
 - "-l" or "--location" for the location. Example : "Paris". **(required)**

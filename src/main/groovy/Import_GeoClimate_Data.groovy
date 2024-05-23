@@ -6,7 +6,7 @@
  */
 
 
-import org.orbisgis.geoclimate.osm.*
+import org.orbisgis.geoclimate.osm.OSM
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import groovy.json.JsonBuilder
@@ -294,8 +294,8 @@ static def runGeoClimate(def workflowParameters, Logger logger){
         logger.info('Starting GeoClimate Workflow')
 
         //Call géoClimate lib with configurations
-      WorkflowOSM test = new WorkflowOSM()
-      test.workflow(workflowParameters)
+      //WorkflowOSM test = new WorkflowOSM()
+      OSM.workflow(workflowParameters)
 
     } catch (Exception e) {
         logger.error('ERROR : ' + e.toString())
