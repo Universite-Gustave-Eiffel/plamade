@@ -482,5 +482,3 @@ static def parseDemData(String outputDirectory, String location){
 
 }
 
-//Pour le DEM, voir comment ajouter la hauteur des batiments pour chaque points --> voir géoclimate
-

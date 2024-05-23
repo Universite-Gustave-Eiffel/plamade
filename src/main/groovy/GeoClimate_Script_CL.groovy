@@ -41,7 +41,7 @@ class GeoClimate_Script_CL implements Callable<Integer> {
         try {
             Import_GeoClimate_Data.execWithCommandLine(input)
         } catch (e) {
-            //logger.info('ERROR : '+ e.toString())
+            logger.info('ERROR : '+ e.toString())
             return ERROR
         }
         return SUCCESS

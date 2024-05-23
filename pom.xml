@@ -8,169 +8,177 @@
     <artifactId>GeoClimate_Tools</artifactId>
     <version>1.0.1-SNAPSHOT</version>
 
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <groovy.version>4.0.17</groovy.version>
+        <groovy.groupID>org.apache.groovy</groovy.groupID>
+    </properties>
+
     <dependencies>
         <!-- Groovy Dependencies -->
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-all</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-json</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-templates</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-xml</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-jsr223</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-sql</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-datetime</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-groovysh</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-yaml</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-dateutil</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-nio</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-macro</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-ant</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-contracts</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-test</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-macro-library</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-typecheckers</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-toml</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-ginq</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-test-junit5</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-groovydoc</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-swing</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-console</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-astbuilder</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-jmx</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-docgenerator</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-servlet</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-testng</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-bom</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-cli-picocli</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.groovy</groupId>
+            <groupId>${groovy.groupID}</groupId>
             <artifactId>groovy-cli-commons</artifactId>
-            <version>4.0.17</version>
+            <version>${groovy.version}</version>
         </dependency>
         <dependency>
             <groupId>org.orbisgis.geoclimate</groupId>
@@ -200,9 +208,9 @@
                 </executions>
                 <dependencies>
                     <dependency>
-                        <groupId>org.apache.groovy</groupId>
+                        <groupId>${groovy.groupID}</groupId>
                         <artifactId>groovy</artifactId>
-                        <version>4.0.17</version>
+                        <version>${groovy.version}</version>
                     </dependency>
                 </dependencies>
                 <configuration>
@@ -259,11 +267,5 @@
             </releases>
         </repository>
     </repositories>
-
-    <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
 
 </project>

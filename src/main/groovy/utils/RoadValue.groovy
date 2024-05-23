@@ -1,5 +1,9 @@
 package utils
 
+/**
+ * Enumeration that allows you to take the names of properties present
+ * in the road_traffic file and modify them more easily.
+ */
 enum RoadValue {
     ID_ROAD("ID_ROAD","PK"),
     ID_SOURCE("ID_SOURCE","ID_SOURCE"),
@@ -25,15 +29,28 @@ enum RoadValue {
     private final gcProperties
     private final nmProperties
 
+    /**
+     * RoadValue constructor
+     * @param gcProperty : Value use in geoClimate
+     * @param nmProperty : value use in noiseModelling
+     */
     private RoadValue(gcProperty,nmProperty){
         this.gcProperties = gcProperty
         this.nmProperties = nmProperty
     }
 
+    /**
+     * Getter of gcProperties
+     * @return gcProperties
+     */
     public Object getGcProperty(){
         return gcProperties
     }
 
+    /**
+     * Getter of gcProperties
+     * @return nmProperties
+     */
     public Object getNmProperty(){
         return nmProperties
     }

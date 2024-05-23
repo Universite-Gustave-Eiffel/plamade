@@ -1,9 +1,12 @@
 # NoiseModelling-OSM
 ## Description
 
-The project is to create WPS block for noiseModelling using géoClimate for create noise map
+The project is to create WPS block for noiseModelling using geoClimate for create noise map.
+Unfortunately the project cannot be finalized due to version problems between geoServer and geoClimate.
 
 The current version use for géoClimate is the SNAPSHOT-1.0.2 because the 1.0.1 not work.
+
+## Configure and use in the IDE
 
 There's also a scrpit to run the main script with command lines. 
 However, due to a dependency problem, it still doesn't work when run in a terminal. (it works fine in an IDE with parameter configuration).
@@ -26,15 +29,21 @@ don't forget to replace the -o with your path.
 If this doesn't work, check that you have jdk 11.0.2 in your computer's environment variables.
 Tutorial for windows [here](https://confluence.atlassian.com/doc/setting-the-java_home-variable-in-windows-8895.html) or for all user [here](https://stackoverflow.com/questions/24641536/how-to-set-java-home-in-linux-for-all-users)
 
-
-
 There are 4 options. Options are :
 - "-l" or "--location" for the location. Example : "Paris". **(required)**
 - "-o" or "--output" for the output folder. Examble : "C:/temp/geoClimate". **(required)**
 - "-s" or "--srid" for the Target projection identifier. Exemple : 2154. **(optional)**
 - "-d" or "--database" for save or not the temp file .mv.db. Example : 1. **(optional)**
 
+## Project usage (create noise Map)
+
+To create a noise map with this project, please follow the steps below.
+
+### Configuration and requirements
+
 ### Sources
 - [noiseModelling](https://github.com/Universite-Gustave-Eiffel/NoiseModelling)
 - [geoClimate](https://github.com/orbisgis/geoclimate)
+
+
 
