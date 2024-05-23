@@ -14,6 +14,7 @@ import groovy.json.JsonSlurper
 import utils.RoadValue
 import java.sql.DriverManager
 import java.sql.Connection
+import java.nio.file.Paths
 
 title = 'Import building, ground_acoustic, road_traffic, rail and zone files from GéoClimate'
 
@@ -106,7 +107,7 @@ def run(input) {
   String dbName = "h2gisdb"
 
   // Open connection
-  def connection = openH2GISDataStoreConnection(dbName);
+  Connection connection = openH2GISDataStoreConnection(dbName);
   connection.withCloseable {
     conn ->
       return [result: exec(conn, input, false)]
@@ -122,7 +123,7 @@ static def execWithCommandLine(input){
   String dbName = "h2gisdb"
 
   // Open connection
-  def connection = openH2GISDataStoreConnection(dbName)
+  Connection connection = openH2GISDataStoreConnection(dbName)
   connection.withCloseable {
     conn ->
       return [result: exec(conn, input, true)]
@@ -181,7 +182,7 @@ static def exec(Connection connection, input, Boolean isCommandeLine) {
     }
 
   } else {
-    outputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\geoClimate"
+    outputDirectory = Paths.get(System.getProperty("user.dir"), "..", "..", "..", "outPut", "geoClimate").toString()
   }
 
   Integer srid
@@ -245,7 +246,7 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
   logger.info('Creation of the config ')
 
   //Set configurations parameters
-  def workflowParameters = [
+  LinkedHashMap workflowParameters = [
           "description" :"Run the Geoclimate chain and export result to a folder",
           "geoclimatedb" : [
                   "folder" :outputDirectory,
@@ -302,8 +303,6 @@ static def runGeoClimate(def workflowParameters, Logger logger){
     }
 }
 
-
-
 /**
  * Format the name of the fields given by geoClimate so that noiseModelling can use them.
  * @param outputDirectory: String. The location of the output files.
@@ -313,14 +312,14 @@ static def runGeoClimate(def workflowParameters, Logger logger){
 static def parseRoadData(String outputDirectory, String location){
 
   //Define the file to change data
-  def jsonSlurper = new JsonSlurper()
-  def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson"))
+  JsonSlurper jsonSlurper = new JsonSlurper()
+  def jsonData = jsonSlurper.parse(Paths.get(outputDirectory, "osm_" + location, "road_traffic.geojson").toFile())
 
   //Loops through all "features" data in the file
   jsonData.features.each { feature ->
 
-    def propertiesData = feature.properties
-    def updatedProperties = [:]
+    Map propertiesData = feature.properties
+    LinkedHashMap updatedProperties = [:]
 
     propertiesData.each { key, value ->
       switch (key) {
@@ -394,7 +393,7 @@ static def parseRoadData(String outputDirectory, String location){
   JsonBuilder jsonBuilder = new JsonBuilder(jsonData)
   def jsonString = jsonBuilder.toPrettyString()
 
-  new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson").text = jsonString
+  Paths.get(outputDirectory, "osm_" + location, "road_traffic.geojson").toFile().text = jsonString
 
 }
 
@@ -407,14 +406,14 @@ static def parseRoadData(String outputDirectory, String location){
 static def parseBuildingData(String outputDirectory, String location){
 
   //Define the file to change data
-  def jsonSlurper = new JsonSlurper()
-  def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\building.geojson"))
+  JsonSlurper jsonSlurper = new JsonSlurper()
+  def jsonData = jsonSlurper.parse(Paths.get(outputDirectory, "osm_" + location, "building.geojson").toFile())
 
   //Loops through all "features" data in the file
   jsonData.features.each { feature ->
 
-    def propertiesData = feature.properties
-    def updatedProperties = [:]
+    Map propertiesData = feature.properties
+    LinkedHashMap updatedProperties = [:]
 
     propertiesData.each { key, value ->
       switch (key) {
@@ -429,9 +428,9 @@ static def parseBuildingData(String outputDirectory, String location){
   }
 
   JsonBuilder jsonBuilder = new JsonBuilder(jsonData)
-  def jsonString = jsonBuilder.toPrettyString()
+  String jsonString = jsonBuilder.toPrettyString()
 
-  new File(outputDirectory+"\\osm_"+location+"\\building.geojson").text = jsonString
+  Paths.get(outputDirectory, "osm_" + location, "building.geojson").toFile().text = jsonString
 
 }
 
@@ -444,11 +443,11 @@ static def parseBuildingData(String outputDirectory, String location){
 static def parseDemData(String outputDirectory, String location){
 
   //Define the file to change data
-  def jsonSlurper = new JsonSlurper()
-  def file = new File(outputDirectory+"\\osm_"+location+"\\zone.geojson")
+  JsonSlurper jsonSlurper = new JsonSlurper()
+  File file = Paths.get(outputDirectory, "osm_" + location, "zone.geojson").toFile()
   def jsonData = jsonSlurper.parse(file)
 
-  def updatedProperties = []
+  ArrayList updatedProperties = []
 
   //Loops through all "features" data in the file
   jsonData.features.each { feature ->
@@ -476,9 +475,9 @@ static def parseDemData(String outputDirectory, String location){
   jsonData.features = updatedProperties
 
   JsonBuilder jsonBuilder = new JsonBuilder(jsonData)
-  def jsonString = jsonBuilder.toPrettyString()
+  String jsonString = jsonBuilder.toPrettyString()
 
-  new File(outputDirectory+"\\osm_"+location+"\\dem.geojson").text = jsonString
+  Paths.get(outputDirectory, "osm_" + location, "dem.geojson").toFile().text = jsonString
   file.delete()
 
 }

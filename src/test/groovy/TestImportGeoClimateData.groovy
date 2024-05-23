@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import utils.RoadValue
+import java.nio.file.Paths
 
 import static org.junit.jupiter.api.Assertions.assertEquals
 import static org.junit.jupiter.api.Assertions.assertTrue
@@ -16,7 +17,7 @@ class TestImportGeoClimateData {
 
     private final Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
     private final String location = "Urbach"
-    private final String outputDirectory = System.getProperty("user.dir") + "\\src\\test\\groovy\\outputTest"
+    private final String outputDirectory = Paths.get(System.getProperty("user.dir"),"src", "test", "groovy", "outputTest").toString()
     private final Integer srid = 2154
     private final Boolean geoclimatedb = true
     private Map<String, Serializable> params
@@ -86,7 +87,7 @@ class TestImportGeoClimateData {
         Import_GeoClimate_Data.runGeoClimate(params as LinkedHashMap<String, Serializable>, logger)
 
         // Directory name where files are supposed to exist
-        File outDir = new File(outputDirectory + "\\osm_" + location)
+        File outDir = Paths.get(outputDirectory, "osm_" + location).toFile()
 
         // Check if directory exists
         assertEquals(outputDirectory, outDir.getParentFile().toString())
@@ -103,7 +104,7 @@ class TestImportGeoClimateData {
 
         // Check the existence of each file
         for (String fileName : expectedFiles) {
-            File filePath = new File(outDir.getAbsolutePath() + "\\" + fileName)
+            File filePath = Paths.get(outDir.getAbsolutePath(), fileName).toFile()
             assertTrue(filePath.exists(), "File " + fileName + " does not exist.")
         }
 
@@ -120,7 +121,7 @@ class TestImportGeoClimateData {
         Import_GeoClimate_Data.runGeoClimate(Import_GeoClimate_Data.createGeoClimateConfig(location, outputDirectory, srid, false, logger), logger)
 
         // Directory name where files are supposed to exist
-        File outDir = new File(outputDirectory + "\\osm_" + location)
+        File outDir = Paths.get(outputDirectory, "osm_" + location).toFile()
 
         // Check if directory exists
         assertEquals(outputDirectory, outDir.getParentFile().toString())
@@ -166,12 +167,12 @@ class TestImportGeoClimateData {
             // Parsing road_traffic data file
             Import_GeoClimate_Data.parseRoadData(outputDirectory, location)
 
-            def jsonSlurper = new JsonSlurper()
-            def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\road_traffic.geojson"))
+            JsonSlurper jsonSlurper = new JsonSlurper()
+            def jsonData = jsonSlurper.parse(Paths.get(outputDirectory, "osm_" + location, "road_traffic.geojson").toFile())
 
             jsonData.features.each { feature ->
 
-                def propertiesData = feature.properties
+                Map propertiesData = feature.properties
 
                 assertTrue(propertiesData.containsKey(RoadValue.ID_ROAD.nmProperty), "The key 'PK' does not exist in properties of this file")
                 assertTrue(propertiesData.containsKey(RoadValue.ID_SOURCE.nmProperty), "The key 'ID_SOURCE' does not exist in properties of this file")
@@ -212,12 +213,12 @@ class TestImportGeoClimateData {
             // Parsing building file
             Import_GeoClimate_Data.parseBuildingData(outputDirectory, location)
 
-            def jsonSlurper = new JsonSlurper()
-            def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\building.geojson"))
+            JsonSlurper jsonSlurper = new JsonSlurper()
+            def jsonData = jsonSlurper.parse(Paths.get(outputDirectory, "osm_" + location, "building.geojson").toFile())
 
             jsonData.features.each { feature ->
 
-                def propertiesData = feature.properties
+                Map propertiesData = feature.properties
                 assertTrue(propertiesData.containsKey("HEIGHT"), "The key 'HEIGHT' does not exist in properties of this file")
 
             }
@@ -229,10 +230,10 @@ class TestImportGeoClimateData {
         @Test
         void testParseDEM() {
 
-            def jsonSlurper1 = new JsonSlurper()
-            def jsonData2 = jsonSlurper1.parse(new File(outputDirectory+"\\osm_"+location+"\\zone.geojson"))
+            JsonSlurper jsonSlurper2 = new JsonSlurper()
+            def jsonData2 = jsonSlurper2.parse(Paths.get(outputDirectory, "osm_" + location, "zone.geojson").toFile())
 
-            def coordonates = [:]
+            LinkedHashMap coordinates = [:]
 
             Integer iterationNumber
             iterationNumber = 1
@@ -243,7 +244,7 @@ class TestImportGeoClimateData {
 
                 propertiesData.each { key ->
                     key.collect { coordinate ->
-                        coordonates.put(iterationNumber,coordinate)
+                        coordinates.put(iterationNumber,coordinate)
                         iterationNumber++
                     }
                 }
@@ -254,10 +255,10 @@ class TestImportGeoClimateData {
             // Parsing DEM file
             Import_GeoClimate_Data.parseDemData(outputDirectory, location)
 
-            def jsonSlurper = new JsonSlurper()
-            def jsonData = jsonSlurper.parse(new File(outputDirectory+"\\osm_"+location+"\\dem.geojson"))
+            JsonSlurper jsonSlurper1 = new JsonSlurper()
+            def jsonData1 = jsonSlurper1.parse(Paths.get(outputDirectory, "osm_" + location, "dem.geojson").toFile())
 
-            jsonData.features.each { Map feature ->
+            jsonData1.features.each { Map feature ->
 
                 // Check if the object contains the key "type" with the value "Feature"
                 assertTrue(feature.containsKey("type"), "The key 'type' is missing in the object.")
@@ -272,7 +273,7 @@ class TestImportGeoClimateData {
 
                 assertTrue(geometry.containsKey("coordinates"), "The key 'coordinates' is missing in the 'geometry' object.")
                 assertEquals(2, (geometry.get("coordinates") as List).size(), "The number of values of key 'coordinates' in 'geometry' is not '2'.")
-                assertEquals(coordonates.get(iterationNumber),geometry.get("coordinates"), "The coordinates value is note the same.")
+                assertEquals(coordinates.get(iterationNumber),geometry.get("coordinates"), "The coordinates value is note the same.")
 
                 // Check if the object contains the key "properties" with a non-null value
                 assertTrue(feature.containsKey("properties"), "The key 'properties' is missing in the object.")

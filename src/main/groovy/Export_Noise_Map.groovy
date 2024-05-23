@@ -1,10 +1,7 @@
 /**
  * TODO
+ * NOT WORK
  */
-
-//import geoserver.GeoServer
-//import geoserver.catalog.Store
-//import org.geotools.jdbc.JDBCDataStore
 
 import groovy.sql.Sql
 import org.h2gis.api.EmptyProgressVisitor
@@ -14,20 +11,12 @@ import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.apache.commons.io.FilenameUtils
-
-/*
-import org.noise_planet.noisemodelling.jdbc.*
-import org.noise_planet.noisemodelling.pathfinder.*
-import org.noise_planet.noisemodelling.emission.*
-import org.noise_planet.noisemodelling.propagation.*
-*/
-
 import java.sql.Connection
 import java.sql.DriverManager
-import java.sql.ResultSet
 import java.sql.Statement
+import java.nio.file.Paths
 
-title = 'Export files for generate à noise map'
+title = 'Export files to generate a noise map'
 
 description = '&#10145;&#65039; Use the files export by geoClimate for create files the noise of the location. This return <b>.geojson</b> files </br>' +
         '<img src="/wps_images/import_osm_file.png" alt="Import OSM file" width="95%" align="center">'
@@ -129,8 +118,9 @@ def exec(Connection connection, input) {
       throw new Exception('ERROR : ' + resultString)
     }*/
 
-    String inputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\geoClimate\\osm_${location}" /*input["filesImportPath"] as String*/
-    String outputDirectory = System.getProperty("user.dir")+"\\..\\outPut\\noiseModelling" /*input["filesExportPath"] as String*/
+    String inputDirectory = Paths.get(System.getProperty("user.dir"), "..", "..", "..", "outPut", "geoClimate", "osm_${location}").toString() /*input["filesImportPath"] as String*/
+    String outputDirectory = Paths.get(System.getProperty("user.dir"), "..", "..", "..", "outPut", "noiseModelling").toString() /*input["filesExportPath"] as String*/
+
 
     try {
 
@@ -225,7 +215,7 @@ def exec(Connection connection, input) {
 
 
     tablesName.each { table ->
-        GeoJsonWrite.exportTable(newConnection,outputDirectory+"\\"+(table as String).toLowerCase()+".geojson", "(SELECT * FROM ${table})")
+        GeoJsonWrite.exportTable(newConnection, Paths.get(outputDirectory, (table as String).toLowerCase() + ".geojson").toString(), "(SELECT * FROM ${table})")
     }
 
     println("Fichiers .geojson trouvés : $tablesName")

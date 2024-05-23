@@ -3,7 +3,8 @@ import org.slf4j.LoggerFactory
 import groovyjarjarpicocli.CommandLine
 import java.util.concurrent.Callable
 
-//Essayer de mettre le .jar de géoclimate et le faire en dépendance pour pas utiliser celle de l'internet.
+// ! The .jar to run the script on the command line does not work because at
+// one point a groovy method does not exist in the .jar or in geoClimate but in the IDE sa works.
 
 @CommandLine.Command(name = 'GeoClimate_Script_CL', mixinStandardHelpOptions = true, version = '1.0',
         description = 'Script for run Import_GeoClimate_Data')
