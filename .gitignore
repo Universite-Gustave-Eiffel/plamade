@@ -4,10 +4,7 @@ target/
 !**/src/test/**/target/
 
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+.idea/*
 *.iws
 *.iml
 *.ipr
@@ -39,5 +36,4 @@ build/
 
 ## Project ##
 notes_questions
-src/main/outPut/*
-!src/main/outPut/.saveDirectory
+outPut/**/osm_*
