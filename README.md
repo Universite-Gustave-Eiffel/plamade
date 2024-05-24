@@ -181,8 +181,3 @@ Well done! You have finished the tutorial and have a wonderful noise map.
 
 - [NoiseModelling](https://github.com/Universite-Gustave-Eiffel/NoiseModelling)
 - [geoClimate](https://github.com/orbisgis/geoclimate)
-
-## 📝 TODO
-
-- Add a tutorial from A to Z on how to import an area up to visualizing the noise map in QGIS.
-- Review the project structure.
