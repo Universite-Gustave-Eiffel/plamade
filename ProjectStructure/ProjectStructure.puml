@@ -5,82 +5,86 @@ package wps {
 
 package GeoClimate_Tools {
 
+    package src.main.groovy {
+
     object Import_geoClimate_Data {
-        title : String
-        description : String
-        inputs : ArrayList
-        outputs : ArrayList
-        ---
-        {static} openH2GISDataStoreConnection(dbName : String) : Connection
-        run(input)
-        {static} execWithCommandLine(input)
-        exec(connection : Connection, input) : String
-        {static} createGeoClimateConfig(zone : String, outputDirectory : String, srid : Integer, geoclimatedb : Boolean, logger : Logger) : LinkedHashMap<String, Serializable>
-        {static} runGeoClimate(workflow_parameters : LinkedHashMap<String, Serializable>, logger : Logger)
-        {static} parseRoadData(outputDirectory : String, location : String)
-        {static} parseBuildingData(outputDirectory : String, location : String)
-        {static} parseDemData(outputDirectory : String, location : String)
-    }
-
-    class GeoClimate_Script_CL implements .Runnable{
-         - {static} Error : Integer
-         {static} main(args : String[])
-    }
-
-    object Export_Noise_Map {
-        title : String
-        description : String
-        inputs : ArrayList
-        outputs : ArrayList
-        ---
-        {static} openH2GISDataStoreConnection(dbName : String) : Connection
-        run(input)
-        exec(connection : Connection, input)
-        {static} CreateDatabase(TODO)
-        {static} RoadEmissionFromTraffic(file_path : String)
-        {static} GenerateDelaunay(TODO)
-        {static} NoiseLevelFromOSM(TODO)
-    }
-
-    object Complete_Noise_Map{
-        title : String
-        description : String
-        inputs : ArrayList
-        outputs : ArrayList
-        ---
-        {static} openGeoserverDataStoreConnection(dbName : String) : Connection
-        exec(connection : Connection, input)
-        run(input)
-    }
-
-    package utils{
-        enum RoadValue{
-               ID_ROAD("ID_ROAD","PK")
-               ID_SOURCE("ID_SOURCE","ID_SOURCE")
-               ROAD_TYPE("ROAD_TYPE","ROAD_TYPE"
-               SOURCE_ROAD_TYPE("SOURCE_ROAD_TYPE","SOURCE_ROAD_TYPE")
-               SURFACE("SURFACE","SURFACE")
-               SLOPE("SLOPE","SLOPE")
-               DAY_LV_HOUR("DAY_LV_HOUR","LV_D")
-               EV_LV_HOUR("EV_LV_HOUR","LV_E")
-               NIGHT_LV_HOUR("NIGHT_LV_HOUR","LV_N")
-               DAY_LV_SPEED("DAY_LV_SPEED","LV_SPD_D")
-               EV_LV_SPEED("EV_LV_SPEED","LV_SPD_E")
-               NIGHT_LV_SPEED("NIGHT_LV_SPEED","LV_SPD_N")
-               DAY_HV_HOUR("DAY_HV_HOUR","HGV_D")
-               EV_HV_HOUR("EV_HV_HOUR","HGV_E")
-               NIGHT_HV_HOUR("NIGHT_HV_HOUR","HGV_N")
-               DAY_HV_SPEED("DAY_HV_SPEED","HGV_SPD_D")
-               EV_HV_SPEED("EV_HV_SPEED","HGV_SPD_E")
-               NIGHT_HV_SPEED("NIGHT_HV_SPEED","HGV_SPD_N")
-               PAVEMENT("PAVEMENT","PVMT")
-               DIRECTION("DIRECTION","WAY")
-            - {final} gcProperties
-            - {final} nmProperties
-            - RoadValue(gcProperty, nmProperty)
-            + getGcProperty() : Object
-            + getNmProperty() : Object
+            title : String
+            description : String
+            inputs : ArrayList
+            outputs : ArrayList
+            ---
+            {static} openH2GISDataStoreConnection(dbName : String) : Connection
+            run(input)
+            {static} execWithCommandLine(input)
+            exec(connection : Connection, input) : String
+            {static} createGeoClimateConfig(zone : String, outputDirectory : String, srid : Integer, geoclimatedb : Boolean, logger : Logger) : LinkedHashMap<String, Serializable>
+            {static} runGeoClimate(workflow_parameters : LinkedHashMap<String, Serializable>, logger : Logger)
+            {static} parseRoadData(outputDirectory : String, location : String)
+            {static} parseBuildingData(outputDirectory : String, location : String)
+            {static} parseDemData(outputDirectory : String, location : String)
         }
+
+        class GeoClimate_Script_CL implements .Runnable{
+             - {static} Error : Integer
+             {static} main(args : String[])
+        }
+
+        object Export_Noise_Map {
+            title : String
+            description : String
+            inputs : ArrayList
+            outputs : ArrayList
+            ---
+            {static} openH2GISDataStoreConnection(dbName : String) : Connection
+            run(input)
+            exec(connection : Connection, input)
+            {static} CreateDatabase(TODO)
+            {static} RoadEmissionFromTraffic(file_path : String)
+            {static} GenerateDelaunay(TODO)
+            {static} NoiseLevelFromOSM(TODO)
+        }
+
+        object Complete_Noise_Map{
+            title : String
+            description : String
+            inputs : ArrayList
+            outputs : ArrayList
+            ---
+            {static} openGeoserverDataStoreConnection(dbName : String) : Connection
+            exec(connection : Connection, input)
+            run(input)
+        }
+
+        package utils{
+            enum RoadValue{
+                   ID_ROAD("ID_ROAD","PK")
+                   ID_SOURCE("ID_SOURCE","ID_SOURCE")
+                   ROAD_TYPE("ROAD_TYPE","ROAD_TYPE"
+                   SOURCE_ROAD_TYPE("SOURCE_ROAD_TYPE","SOURCE_ROAD_TYPE")
+                   SURFACE("SURFACE","SURFACE")
+                   SLOPE("SLOPE","SLOPE")
+                   DAY_LV_HOUR("DAY_LV_HOUR","LV_D")
+                   EV_LV_HOUR("EV_LV_HOUR","LV_E")
+                   NIGHT_LV_HOUR("NIGHT_LV_HOUR","LV_N")
+                   DAY_LV_SPEED("DAY_LV_SPEED","LV_SPD_D")
+                   EV_LV_SPEED("EV_LV_SPEED","LV_SPD_E")
+                   NIGHT_LV_SPEED("NIGHT_LV_SPEED","LV_SPD_N")
+                   DAY_HV_HOUR("DAY_HV_HOUR","HGV_D")
+                   EV_HV_HOUR("EV_HV_HOUR","HGV_E")
+                   NIGHT_HV_HOUR("NIGHT_HV_HOUR","HGV_N")
+                   DAY_HV_SPEED("DAY_HV_SPEED","HGV_SPD_D")
+                   EV_HV_SPEED("EV_HV_SPEED","HGV_SPD_E")
+                   NIGHT_HV_SPEED("NIGHT_HV_SPEED","HGV_SPD_N")
+                   PAVEMENT("PAVEMENT","PVMT")
+                   DIRECTION("DIRECTION","WAY")
+                - {final} gcProperties
+                - {final} nmProperties
+                - RoadValue(gcProperty, nmProperty)
+                + getGcProperty() : Object
+                + getNmProperty() : Object
+            }
+        }
+
     }
 
     package outPut {
@@ -145,13 +149,9 @@ package Receivers{
 
 }
 
-note left of GeoClimate_Tools
-(All package names, file names, and method names are temporary)
-
+note left of groovy
 Export_Noise_Map and Import_geoClimate_Data are files and not classes
 because in the template of noiseModelling, the WPS block uses methods but not classes.
-
-All the code is in methods for use in other folders if necessary.
 end note
 
 note top of Import_geoClimate_Data
