@@ -39,7 +39,7 @@ Go into project root folder `cd ..`
 
 Run ./gradlew platform:run
 
-Edit the configuration file located in `platform/src/ratpack/config.yaml` with the auth credentials.
+Copy the configuration file located in `platform/src/ratpack/config.demo.yaml` to `platform/src/ratpack/config.yaml` and edit with your auth credentials.
 
 Run ./gradlew platform:run
 
