@@ -17,7 +17,7 @@ This example requires that you configure a Google API resource before running.
 
 6. When prompted for Application Type select `Web Application`
 
-7. In the `Authorized redirect URIs` add: `http://localhost:5050/authenticator?client_name=GoogleOidcClient`
+7. In the `Authorized redirect URIs` add: `http://localhost:9590/authenticator?client_name=GoogleOidcClient`
 
 8. Click the `Create` button.
 
