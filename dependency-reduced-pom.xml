@@ -67,6 +67,16 @@
   <repositories>
     <repository>
       <releases>
+        <updatePolicy>always</updatePolicy>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <id>osgeo-release</id>
+      <url>https://repo.osgeo.org/repository/release/</url>
+    </repository>
+    <repository>
+      <releases>
         <enabled>false</enabled>
       </releases>
       <snapshots>
@@ -75,23 +85,17 @@
       <id>orbisgis-snapshot</id>
       <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
     </repository>
+    <repository>
+      <releases>
+        <updatePolicy>always</updatePolicy>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <id>maven-central</id>
+      <url>https://repo.maven.apache.org/maven2</url>
+    </repository>
   </repositories>
-  <dependencies>
-    <dependency>
-      <groupId>org.apache.groovy</groupId>
-      <artifactId>groovy-all</artifactId>
-      <version>4.0.17</version>
-      <type>pom</type>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.groovy</groupId>
-      <artifactId>groovy-bom</artifactId>
-      <version>4.0.17</version>
-      <type>pom</type>
-      <scope>compile</scope>
-    </dependency>
-  </dependencies>
   <properties>
     <groovy.groupID>org.apache.groovy</groovy.groupID>
     <maven.compiler.target>11</maven.compiler.target>

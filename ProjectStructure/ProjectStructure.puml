@@ -1,7 +1,7 @@
 @startuml
 'https://plantuml.com/fr/object-diagram
 
-package wps {
+
 
 package GeoClimate_Tools {
 
@@ -18,6 +18,10 @@ package GeoClimate_Tools {
             {static} execWithCommandLine(input)
             exec(connection : Connection, input) : String
             {static} createGeoClimateConfig(zone : String, outputDirectory : String, srid : Integer, geoclimatedb : Boolean, logger : Logger) : LinkedHashMap<String, Serializable>
+            {static} getFGBFiles(directoryPath : String) : File[]
+            {static} listFilesWithExtension(directoryPath : String , logger : Logger)
+            {static} deleteFGBFiles(directoryPath : String, logger : Logger)
+            {static} convertFgbToGeoJson(inputFilePath : String, outputFilePath : String)
             {static} runGeoClimate(workflow_parameters : LinkedHashMap<String, Serializable>, logger : Logger)
             {static} parseRoadData(outputDirectory : String, location : String)
             {static} parseBuildingData(outputDirectory : String, location : String)
@@ -42,17 +46,6 @@ package GeoClimate_Tools {
             {static} RoadEmissionFromTraffic(file_path : String)
             {static} GenerateDelaunay(TODO)
             {static} NoiseLevelFromOSM(TODO)
-        }
-
-        object Complete_Noise_Map{
-            title : String
-            description : String
-            inputs : ArrayList
-            outputs : ArrayList
-            ---
-            {static} openGeoserverDataStoreConnection(dbName : String) : Connection
-            exec(connection : Connection, input)
-            run(input)
         }
 
         package utils{
@@ -97,57 +90,7 @@ package GeoClimate_Tools {
     }
 }
 
-/'
-package Database_Manageur{
-    object Add_Primary_Key{
 
-    }
-
-    object Clean_Database{
-
-    }
-
-     object Display_Database{
-
-     }
-}
-
-
-package Import_and_Export{
-
-    object Export_Table{
-    }
-
-    object Import_File{
-    }
-
-}
-
-package Acoustic_Tools{
-
-    object Create_Isosurface{
-    }
-}
-
-package NoiseModelling{
-
-    object Road_Emission_From_Traffic{
-    }
-
-    object Noise_level_from_traffic{
-    }
-
-}
-
-package Receivers{
-
-    object Delaunay_Grid{
-    }
-
-}
-'/
-
-}
 
 note left of groovy
 Export_Noise_Map and Import_geoClimate_Data are files and not classes
@@ -157,6 +100,10 @@ end note
 note top of Import_geoClimate_Data
 createGeoClimateConfig : Creates the JSON config file.
 runGeoClimate : Executes the Config File.
+getFGBFiles : Retrieves all .fgb files in the specified directory.
+listFilesWithExtension : Browse all .fgb files found to convert them
+deleteFGBFiles : Deletes all .fgb files in the specified directory.
+convertFgbToGeoJson : Converts a .fgb file to a .geojson file using ogr2ogr.
 parseRoadData : Renames the columns of the geoJson for noiseModelling input and add Z axes for coordinates.
 parseBuildingData : Add the column HEIGHT to the geoJson for noiseModelling input.
 parseDemData : For each coordinate, add a lot of information for noiseModelling input.
@@ -169,7 +116,7 @@ Inputs mandatory :
 Inputs optional :
     -targetSRID (default --> 2154)
     -geoclimatedb : (default --> true)
-Use but not in Input :
+Use but not in input options :
     -tables : "building", "road_traffic", "ground_acoustic", "rail", "zone"
     -parameters : indicatorUse
         - estimateHeight = true
@@ -215,17 +162,13 @@ Inputs optional :
     -maxReflDist (default --> 150),
     -diffVertical (default --> 0),
     -diffHorizontal (default --> 0),
-Use but not in Input :
+Use but not in input options :
     -receiversHeight = 4.0,
     -roadWidth = 2,
     -wallAlpha = 0.1,
     -humidity,
     -temperature,
     -smoothCoefficient = 0.0
-end note
-
-note top of Complete_Noise_Map
-Use method of other files to keep data and create noise map
 end note
 
 note top of outPut
@@ -236,24 +179,8 @@ are output when the Import_GeoClimate_Data file is run.
 reason explain in the note of Export_Noise_Map
 end note
 
-/'
-Export_Noise_Map --> Add_Primary_Key : <<use>>
-Export_Noise_Map --> Clean_Database : <<use>>
-Export_Noise_Map --> Display_Database : <<use>>
 
-Export_Noise_Map --> Import_File : <<use>>
-Export_Noise_Map --> Export_Table : <<use>>
-
-Export_Noise_Map --> Create_Isosurface : <<use>>
-
-Export_Noise_Map --> Delaunay_Grid : <<use>>
-
-Export_Noise_Map --> Noise_level_from_traffic : <<use>>
-Export_Noise_Map --> Road_Emission_From_Traffic : <<use>>
-
-'/
-
-Import_geoClimate_Data *-left-> RoadValue
+Import_geoClimate_Data *-left-> RoadValue : <<use>>
 
 GeoClimate_Script_CL -right-> Import_geoClimate_Data : <<use>>
 

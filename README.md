@@ -24,7 +24,7 @@
 
 The project aims to create a WPS block for NoiseModelling using geoClimate to create noise maps. Unfortunately, the project could not be finalized due to compatibility issues between GeoServer and geoClimate.
 
-The current version used for geoClimate is `SNAPSHOT-1.0.2` because `1.0.1` does not work.
+The current version used for geoClimate is `SNAPSHOT-1.0.1`.
 
 ## 🛠️ Configuration and Use in the IDE
 
@@ -58,7 +58,6 @@ Inside, there should be 5 files:
 - `dem.geojson` 🔲
 - `ground_acoustic.geojson` 🌱
 - `road_traffic.geojson` 🛣️
-- `rail.geojson` 🚆
 
 If you want to test in the terminal to see the error, in the `GeoClimate_Tools` folder, run:
 
@@ -89,6 +88,10 @@ There is a tutorial for installing the Java JDK [here](https://noisemodelling.re
 and how to install NoiseModelling [here](https://noisemodelling.readthedocs.io/en/4.x/Get_Started_GUI.html#step-1-download-noisemodelling). Only step 1 is necessary unless you want to learn how to use the software; in that case, I recommend following the subsequent steps.
 
 You will also need the QGIS software. You can install it [here](https://www.qgis.org/en/site/forusers/download.html).
+
+If you are in windows, Vous devrez également télécharger [OSGeo4W here](http://download.osgeo.org/osgeo4w/osgeo4w-setup.exe)
+
+(etape de configuration)
 
 Of course, you will need this project on your computer and follow the configuration steps to launch the script [from this section](#-configuration-and-use-in-the-ide).
 

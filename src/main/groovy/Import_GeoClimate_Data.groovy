@@ -16,7 +16,8 @@ import java.sql.DriverManager
 import java.sql.Connection
 import java.nio.file.Paths
 
-title = 'Import building, ground_acoustic, road_traffic, rail and zone files from GéoClimate'
+
+title = 'Import building, ground_acoustic, road_traffic and zone files from GéoClimate'
 
 description = '&#10145;&#65039; Use a location (town or street) and geoClimate lib for get data about this location. This return <b>.geojson</b> files </br>' +
         '<hr>' +
@@ -24,7 +25,6 @@ description = '&#10145;&#65039; Use a location (town or street) and geoClimate l
         '- <b> building </b>: a file containing the buildings <br>' +
         '- <b> ground_acoustic </b>: a file containing ground acoustic absorption. <br>' +
         '- <b> road_traffic </b>: a file containing the roads. <br>' +
-        '- <b> rail </b>: a file containing the railway. <br>' +
         '- <b> zone </b>: a file containing the studied area. <br>' +
         /*'&#128161; The user can choose to avoid creating some of these tables by checking the dedicated boxes </br> </br>' +*/
         '<img src="/wps_images/import_osm_file.png" alt="Import OSM file" width="95%" align="center">'
@@ -206,6 +206,8 @@ static def exec(Connection connection, input, Boolean isCommandeLine) {
 
   runGeoClimate(createGeoClimateConfig(location, outputDirectory, srid, geoclimatedb, logger), logger)
 
+  listFilesWithExtension(Paths.get(outputDirectory,"osm_"+location).toString(), logger)
+
   logger.info('Parse road value for noiseModelling input')
 
   parseRoadData(outputDirectory, location)
@@ -225,6 +227,8 @@ static def exec(Connection connection, input, Boolean isCommandeLine) {
   logger.info('Parse dem data done')
 
   logger.info('File is ready for noiseModelling')
+
+  deleteFGBFiles(Paths.get(outputDirectory,"osm_"+location).toString(), logger)
 
   resultString = "Success"
 
@@ -261,7 +265,7 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
                   "srid": srid,
                   "folder" : [
                           "path": "$outputDirectory",
-                          "tables": ["building", "road_traffic", "ground_acoustic", "rail", "zone"], // Tables output by géoClimate
+                          "tables": ["building", "road_traffic", "ground_acoustic", "zone"], // Tables output by géoClimate
                   ],
           ],
           "parameters": [
@@ -293,7 +297,7 @@ static def runGeoClimate(def workflowParameters, Logger logger){
     try {
         logger.info('Starting GeoClimate Workflow')
 
-        //Call géoClimate lib with configurations
+      //Call géoClimate lib with configurations
       //WorkflowOSM test = new WorkflowOSM()
       OSM.workflow(workflowParameters)
 
@@ -301,6 +305,89 @@ static def runGeoClimate(def workflowParameters, Logger logger){
         logger.error('ERROR : ' + e.toString())
         throw new Exception('ERROR : ' + e.toString())
     }
+}
+
+/**
+ * Retrieves all .fgb files in the specified directory.
+ * @param directoryPath: String. The directory to search for .fgb files.
+ * @return List<File>. A list of .fgb files.
+ */
+static def getFGBFiles(String directoryPath) {
+  def dir = new File(directoryPath)
+  if (!dir.exists() || !dir.isDirectory()) {
+    println "The specified path is not a valid directory."
+    return []
+  }
+
+  return dir.listFiles().findAll { file ->
+    file.isFile() && file.name.endsWith(".fgb")
+  }
+}
+
+/**
+ * Browse all .fgb files found to convert them.
+ * @param directoryPath: String. The directory containing the files to be converted.
+ * @param logger: Logger. Displays messages in the console.
+ * @return None
+ */
+static def listFilesWithExtension(String directoryPath, Logger logger) {
+  List<File> filesWithExtension = getFGBFiles(directoryPath)
+
+  filesWithExtension.each { file ->
+    def fileNameWithOtherExtension = file.name[0..-".fgb".length() - 1] + ".geojson"
+    logger.info("Start converting ${file.name} to ${fileNameWithOtherExtension}")
+    try {
+      convertFgbToGeoJson(Paths.get(directoryPath, file.name).toString(), Paths.get(directoryPath, fileNameWithOtherExtension).toString())
+      def outputFile = new File(Paths.get(directoryPath, fileNameWithOtherExtension).toString())
+      if (outputFile.exists()) {
+        logger.info("End converting ${fileNameWithOtherExtension}. SUCCESS")
+      } else {
+        logger.error("The output file ${fileNameWithOtherExtension} was not created.")
+      }
+    } catch (Exception e) {
+      logger.error("Error during conversion of ${file.name}: ${e.toString()}")
+    }
+  }
+}
+
+/**
+ * Deletes all .fgb files in the specified directory.
+ * @param directoryPath: String. The directory containing the files to be deleted.
+ * @param logger: Logger. Displays messages in the console.
+ * @return None
+ */
+static def deleteFGBFiles(String directoryPath, Logger logger) {
+  def filesWithExtension = getFGBFiles(directoryPath)
+
+  logger.info("Start of deletion of .fgb files")
+  filesWithExtension.each { file ->
+    if (file.delete()) {
+      logger.info("${file.name} was successfully deleted")
+    } else {
+      logger.error("${file.name} was not successfully deleted")
+    }
+  }
+  logger.info("End of deletion of .fgb files")
+}
+
+/**
+ * Converts a .fgb file to a .geojson file using ogr2ogr.
+ * @param inputFilePath: String. The path to the input .fgb file.
+ * @param outputFilePath: String. The path to the output .geojson file.
+ * @return None
+ */
+static def convertFgbToGeoJson(String inputFilePath, String outputFilePath) {
+
+  def command = "ogr2ogr -f GeoJSON ${outputFilePath} ${inputFilePath}"
+  def process = command.execute()
+  process.waitFor()
+
+  if (process.exitValue() == 0) {
+    println "Conversion réussie : ${outputFilePath}"
+  } else {
+    println "Erreur lors de la conversion : ${process.err.text}"
+  }
+
 }
 
 /**
@@ -481,4 +568,6 @@ static def parseDemData(String outputDirectory, String location){
   file.delete()
 
 }
+
+
 

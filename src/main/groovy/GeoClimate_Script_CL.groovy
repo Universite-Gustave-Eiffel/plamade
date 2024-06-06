@@ -1,6 +1,6 @@
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import groovyjarjarpicocli.CommandLine
+import picocli.CommandLine
 import java.util.concurrent.Callable
 
 // ! The .jar to run the script on the command line does not work because at
