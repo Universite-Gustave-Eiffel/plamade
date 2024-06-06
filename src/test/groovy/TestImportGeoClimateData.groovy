@@ -1,10 +1,12 @@
-import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Order
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestMethodOrder
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import utils.RoadValue
@@ -148,6 +150,7 @@ class TestImportGeoClimateData {
     }
 
     @Nested
+    @TestMethodOrder(OrderAnnotation.class)
     class TestParseofFileData {
 
         public static TestImportGeoClimateData testGeoClimateTools = new TestImportGeoClimateData()
@@ -162,44 +165,76 @@ class TestImportGeoClimateData {
             Import_GeoClimate_Data.runGeoClimate(testGeoClimateTools.params as LinkedHashMap<String, Serializable>, testGeoClimateTools.logger)
         }
 
+        /**
+         * Test if the FGB files exist and have the correct names and counts.
+         */
         @Test
+        @Order(1)
         void testExistingFGBFile() {
-            List<File> files = Import_GeoClimate_Data.getFGBFiles(Paths.get(outputDirectory, "osm_" + location).toString())
-            assertTrue(files.size() == 4, "The Number of files in output is not the good")
+            List<File> files = Import_GeoClimate_Data.getFGBFiles(Paths.get(outputDirectory, "osm_" + location).toString());
+            assertEquals(4, files.size(), "The Number of files in output is not correct");
 
-            def encounteredFileNames = new HashSet<>()
+            HashSet<String> encounteredFileNames = new HashSet<>();
 
-            files.each { file ->
-                assertTrue(file.exists())
-                assertTrue(file.name in ["building.fgb", "zone.fgb", "road_traffic.fgb", "ground_acoustic.fgb"], "File name ${file.getName()} is not as expected")
-                assertFalse(encounteredFileNames.contains(file.name), "File name ${file.getName()} is encountered multiple times")
-                encounteredFileNames.add(file.name)
+            for (File file : files) {
+                assertTrue(file.exists(), "File does not exist");
+                assertTrue(file.getName().matches("building.fgb|zone.fgb|road_traffic.fgb|ground_acoustic.fgb"),
+                        "File name " + file.getName() + " is not as expected");
+                assertFalse(encounteredFileNames.contains(file.getName()),
+                        "File name " + file.getName() + " is encountered multiple times");
+                encounteredFileNames.add(file.getName());
             }
         }
 
+        /**
+         * Test the conversion of files to .geojson format and ensure the correct files are present.
+         */
         @Test
-        void testConvertFilesType(){
-            Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(),logger)
-            Import_GeoClimate_Data.deleteFGBFiles(Paths.get(outputDirectory, "osm_" + location).toString(),logger)
+        @Order(2)
+        void testConvertFilesType() {
+            Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(), logger);
 
-            def dir = new File(Paths.get(outputDirectory, "osm_" + location).toString())
-            assertTrue(!dir.exists() || !dir.isDirectory(),"Files does not existe")
+            File dir = new File(Paths.get(outputDirectory, "osm_" + location).toString());
+            assertFalse(!dir.exists() && !dir.isDirectory(), "Directory still exists");
 
+            List<File> files = List.of(dir.listFiles());
 
+            assertEquals(8, files.size(), "The Number of files in output is not correct");
 
-            List<File> files = dir.listFiles().findAll { file ->
-                file.isFile() && file.name.endsWith(".fgb")
+            HashSet<String> encounteredFileNames = new HashSet<>();
+
+            for (File file : files) {
+                assertTrue(file.exists(), "File does not exist");
+                assertTrue(file.name in ["building.fgb", "zone.fgb", "road_traffic.fgb", "ground_acoustic.fgb", "building.geojson", "zone.geojson", "road_traffic.geojson", "ground_acoustic.geojson"], "File name ${file.getName()} is not as expected")
+                assertFalse(encounteredFileNames.contains(file.getName()),
+                        "File name " + file.getName() + " is encountered multiple times");
+                encounteredFileNames.add(file.getName());
             }
+        }
 
-            assertTrue(files.size() == 4, "The Number of files in output is not the good")
+        /**
+         * Test the deleting of files to .fgb format and ensure the correct files are already present.
+         */
+        @Test
+        @Order(3)
+        void testDeleteFGBFile() {
+            Import_GeoClimate_Data.deleteFGBFiles(Paths.get(outputDirectory, "osm_" + location).toString(), logger);
 
-            def encounteredFileNames = new HashSet<>()
+            File dir = new File(Paths.get(outputDirectory, "osm_" + location).toString());
+            assertFalse(!dir.exists() && !dir.isDirectory(), "Directory still exists");
 
-            files.each { file ->
-                assertTrue(file.exists())
-                assertTrue(file.name in ["building.geojson", "dem.geojson", "road_traffic.geojson", "ground_acoustic.geojson"], "File name ${file.getName()} is not as expected")
-                assertFalse(encounteredFileNames.contains(file.name), "File name ${file.getName()} is encountered multiple times")
-                encounteredFileNames.add(file.name)
+            List<File> files = List.of(dir.listFiles((d, name) -> name.endsWith(".geojson")));
+
+            assertEquals(4, files.size(), "The Number of files in output is not correct");
+
+            HashSet<String> encounteredFileNames = new HashSet<>();
+
+            for (File file : files) {
+                assertTrue(file.exists(), "File does not exist");
+                assertTrue(file.name in ["building.geojson", "zone.geojson", "road_traffic.geojson", "ground_acoustic.geojson"], "File name ${file.getName()} is not as expected")
+                assertFalse(encounteredFileNames.contains(file.getName()),
+                        "File name " + file.getName() + " is encountered multiple times");
+                encounteredFileNames.add(file.getName());
             }
         }
 
@@ -208,6 +243,7 @@ class TestImportGeoClimateData {
          * Test if the file road_traffic.geojson is correctly parse
          */
         @Test
+        @Order(4)
         void testParseRoad() {
             // Parsing road_traffic data file
             Import_GeoClimate_Data.parseRoadData(outputDirectory, location)
@@ -254,6 +290,7 @@ class TestImportGeoClimateData {
          * Test if the file building.geojson is correctly parse
          */
         @Test
+        @Order(5)
         void testParseBuilding() {
             // Parsing building file
             Import_GeoClimate_Data.parseBuildingData(outputDirectory, location)
@@ -273,6 +310,7 @@ class TestImportGeoClimateData {
          * Test if the file dem.geojson is correctly parse
          */
         @Test
+        @Order(6)
         void testParseDEM() {
 
             JsonSlurper jsonSlurper2 = new JsonSlurper()

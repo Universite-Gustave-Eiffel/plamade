@@ -313,7 +313,7 @@ static def runGeoClimate(def workflowParameters, Logger logger){
  * @return List<File>. A list of .fgb files.
  */
 static def getFGBFiles(String directoryPath) {
-  def dir = new File(directoryPath)
+  File dir = new File(directoryPath)
   if (!dir.exists() || !dir.isDirectory()) {
     println "The specified path is not a valid directory."
     return []
@@ -334,11 +334,11 @@ static def listFilesWithExtension(String directoryPath, Logger logger) {
   List<File> filesWithExtension = getFGBFiles(directoryPath)
 
   filesWithExtension.each { file ->
-    def fileNameWithOtherExtension = file.name[0..-".fgb".length() - 1] + ".geojson"
+    String fileNameWithOtherExtension = file.name[0..-".fgb".length() - 1] + ".geojson"
     logger.info("Start converting ${file.name} to ${fileNameWithOtherExtension}")
     try {
       convertFgbToGeoJson(Paths.get(directoryPath, file.name).toString(), Paths.get(directoryPath, fileNameWithOtherExtension).toString())
-      def outputFile = new File(Paths.get(directoryPath, fileNameWithOtherExtension).toString())
+      File outputFile = new File(Paths.get(directoryPath, fileNameWithOtherExtension).toString())
       if (outputFile.exists()) {
         logger.info("End converting ${fileNameWithOtherExtension}. SUCCESS")
       } else {
@@ -357,7 +357,7 @@ static def listFilesWithExtension(String directoryPath, Logger logger) {
  * @return None
  */
 static def deleteFGBFiles(String directoryPath, Logger logger) {
-  def filesWithExtension = getFGBFiles(directoryPath)
+  List<File> filesWithExtension = getFGBFiles(directoryPath)
 
   logger.info("Start of deletion of .fgb files")
   filesWithExtension.each { file ->
@@ -378,8 +378,8 @@ static def deleteFGBFiles(String directoryPath, Logger logger) {
  */
 static def convertFgbToGeoJson(String inputFilePath, String outputFilePath) {
 
-  def command = "ogr2ogr -f GeoJSON ${outputFilePath} ${inputFilePath}"
-  def process = command.execute()
+  GString command = "ogr2ogr -f GeoJSON ${outputFilePath} ${inputFilePath}"
+  Process process = command.execute()
   process.waitFor()
 
   if (process.exitValue() == 0) {
