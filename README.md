@@ -210,4 +210,3 @@ Well done! You have finished the tutorial and have a wonderful noise map.
 - [NoiseModelling](https://github.com/Universite-Gustave-Eiffel/NoiseModelling)
 - [geoClimate](https://github.com/orbisgis/geoclimate)
 - [GDAL](https://gdal.org/)
-- 
