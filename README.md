@@ -1,8 +1,15 @@
+<!-- En-tête -->
+<header>
+    <p>Auteur: Samuel Marsault</p>
+</header>
+
 # 🌍 NoiseModelling-OSM
 
 <p align="center">
   <img src="https://media1.tenor.com/m/G38rWJ7c66MAAAAC/earth-world.gif" width="250" height="200" alt="earth">
 </p>
+
+<hr>
 
 ## 📖 Table of Contents
 
