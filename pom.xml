@@ -19,171 +19,14 @@
     <dependencies>
         <!-- Groovy Dependencies -->
         <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-all</artifactId>
-            <version>${groovy.version}</version>
-            <type>pom</type>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-json</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-templates</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-xml</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-jsr223</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-sql</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-datetime</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-groovysh</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-yaml</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-dateutil</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-nio</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-macro</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-ant</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-contracts</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-test</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-macro-library</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-typecheckers</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-toml</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-ginq</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-test-junit5</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-groovydoc</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-swing</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-console</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-astbuilder</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-jmx</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-docgenerator</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-servlet</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-testng</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-bom</artifactId>
-            <version>${groovy.version}</version>
-            <type>pom</type>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-cli-picocli</artifactId>
-            <version>${groovy.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${groovy.groupID}</groupId>
-            <artifactId>groovy-cli-commons</artifactId>
-            <version>${groovy.version}</version>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.6.3</version>
         </dependency>
         <dependency>
             <groupId>org.orbisgis.geoclimate</groupId>
-            <artifactId>osm</artifactId>
-            <version>1.0.2-SNAPSHOT</version>
+            <artifactId>geoclimate</artifactId>
+            <version>1.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.orbisgis</groupId>
@@ -220,7 +63,6 @@
                     </scripts>
                 </configuration>
             </plugin>
-            <!-- Plugin pour créer un JAR exécutable avec toutes les dépendances -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -237,13 +79,11 @@
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
-                                        <!-- Exemple : <exclude>META-INF/MANIFEST.MF</exclude> -->
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/LICENSE</exclude>
                                         <exclude>META-INF/NOTICE</exclude>
                                         <exclude>META-INF/groovy-release-info.properties</exclude>
                                         <exclude>META-INF/services/org.codehaus.groovy.transform.ASTTransformation</exclude>
-                                        <!-- Ajoutez ici d'autres exclusions si nécessaire -->
                                     </excludes>
                                 </filter>
                             </filters>
@@ -259,8 +99,18 @@
         </plugins>
     </build>
 
-
     <repositories>
+        <repository>
+            <id>osgeo-release</id>
+            <url>https://repo.osgeo.org/repository/release/</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <releases>
+                <updatePolicy>always</updatePolicy>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
         <repository>
             <id>orbisgis-snapshot</id>
             <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
@@ -271,6 +121,17 @@
             <releases>
                 <enabled>false</enabled>
             </releases>
+        </repository>
+        <repository>
+            <id>maven-central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
         </repository>
     </repositories>
 
