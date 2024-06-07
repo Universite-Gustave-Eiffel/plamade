@@ -339,7 +339,9 @@ class TestImportGeoClimateData {
             Import_GeoClimate_Data.parseDemData(outputDirectory, location)
 
             JsonSlurper jsonSlurper1 = new JsonSlurper()
+            assertTrue(Paths.get(outputDirectory, "osm_" + location, "dem.geojson").toFile().exists(), "The file does not existe")
             def jsonData1 = jsonSlurper1.parse(Paths.get(outputDirectory, "osm_" + location, "dem.geojson").toFile())
+
 
             jsonData1.features.each { Map feature ->
 
