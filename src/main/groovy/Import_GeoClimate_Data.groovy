@@ -23,6 +23,9 @@ import utils.RoadValue
 import java.sql.DriverManager
 import java.sql.Connection
 import java.nio.file.Paths
+import org.h2gis.functions.io.fgb.FGBRead
+import org.h2gis.functions.io.geojson.GeoJsonWrite
+import java.sql.SQLException
 
 
 title = 'Import building, ground_acoustic, road_traffic and zone files from GéoClimate'
@@ -99,10 +102,14 @@ static Connection openH2GISDataStoreConnection(String dbName) {
     Class.forName(driverClassName)
     // Establish connection
     connection = DriverManager.getConnection(jdbcUrl)
-  } catch (Exception e) {
+  }  catch (ClassNotFoundException e) {
     e.printStackTrace()
+    throw new RuntimeException("H2 Driver not found", e)
+  } catch (SQLException e) {
+    e.printStackTrace()
+    throw new RuntimeException("Failed to connect to H2 database", e)
   }
-  return connection;
+  return connection
 }
 
 
@@ -115,12 +122,15 @@ def run(input) {
   String dbName = "h2gisdb"
 
   // Open connection
-  Connection connection = openH2GISDataStoreConnection(dbName);
+  Connection connection = openH2GISDataStoreConnection(dbName)
+
   connection.withCloseable {
     conn ->
       return [result: exec(conn, input, false)]
   }
 
+  // Close connection
+  connection.close()
 }
 
 static def execWithCommandLine(input){
@@ -140,11 +150,6 @@ static def execWithCommandLine(input){
 
 // main function of the script
 static def exec(Connection connection, input, Boolean isCommandeLine) {
-
-  //Map buildingsParamsMap = buildingsParams.toMap();
-  //ConnectionWrapper newConnection = new ConnectionWrapper(connection)
-
-  //Sql sql = new Sql(connection)
 
   String resultString
 
@@ -214,7 +219,7 @@ static def exec(Connection connection, input, Boolean isCommandeLine) {
 
   runGeoClimate(createGeoClimateConfig(location, outputDirectory, srid, geoclimatedb, logger), logger)
 
-  listFilesWithExtension(Paths.get(outputDirectory,"osm_"+location).toString(), logger)
+  listFilesWithExtension(Paths.get(outputDirectory,"osm_"+location).toString(), logger, connection)
 
   logger.info('Parse road value for noiseModelling input')
 
@@ -273,7 +278,7 @@ static def createGeoClimateConfig(String zone, String outputDirectory, Integer s
                   "srid": srid,
                   "folder" : [
                           "path": "$outputDirectory",
-                          "tables": ["building", "road_traffic", "ground_acoustic", "zone"], // Tables output by géoClimate
+                          "tables": ["building", "road_traffic", "ground_acoustic", "rail", "zone"], // Tables output by géoClimate
                   ],
           ],
           "parameters": [
@@ -306,7 +311,6 @@ static def runGeoClimate(def workflowParameters, Logger logger){
         logger.info('Starting GeoClimate Workflow')
 
       //Call géoClimate lib with configurations
-      //WorkflowOSM test = new WorkflowOSM()
       OSM.workflow(workflowParameters)
 
     } catch (Exception e) {
@@ -338,14 +342,14 @@ static def getFGBFiles(String directoryPath) {
  * @param logger: Logger. Displays messages in the console.
  * @return None
  */
-static def listFilesWithExtension(String directoryPath, Logger logger) {
+static def listFilesWithExtension(String directoryPath, Logger logger, Connection connection) {
   List<File> filesWithExtension = getFGBFiles(directoryPath)
 
   filesWithExtension.each { file ->
     String fileNameWithOtherExtension = file.name[0..-".fgb".length() - 1] + ".geojson"
     logger.info("Start converting ${file.name} to ${fileNameWithOtherExtension}")
     try {
-      convertFgbToGeoJson(Paths.get(directoryPath, file.name).toString(), Paths.get(directoryPath, fileNameWithOtherExtension).toString())
+      convertFgbToGeoJson(Paths.get(directoryPath, file.name).toString(), Paths.get(directoryPath, fileNameWithOtherExtension).toString(), connection)
       File outputFile = new File(Paths.get(directoryPath, fileNameWithOtherExtension).toString())
       if (outputFile.exists()) {
         logger.info("End converting ${fileNameWithOtherExtension}. SUCCESS")
@@ -379,23 +383,25 @@ static def deleteFGBFiles(String directoryPath, Logger logger) {
 }
 
 /**
- * Converts a .fgb file to a .geojson file using ogr2ogr.
+ * Converts a .fgb file to a .geojson file using h2gis.
  * @param inputFilePath: String. The path to the input .fgb file.
  * @param outputFilePath: String. The path to the output .geojson file.
  * @return None
  */
-static def convertFgbToGeoJson(String inputFilePath, String outputFilePath) {
+static def convertFgbToGeoJson(String inputFilePath, String outputFilePath, Connection connection) {
+  try {
+    // Load H2GIS functions
+    connection.createStatement().execute("CREATE ALIAS IF NOT EXISTS H2GIS_ENABLE FOR \"org.h2gis.functions.factory.H2GISFunctions.load\"")
+    connection.createStatement().execute("CALL H2GIS_ENABLE()")
 
-  GString command = "ogr2ogr -f GeoJSON ${outputFilePath} ${inputFilePath}"
-  Process process = command.execute()
-  process.waitFor()
+    // Read the FGB file and load into MYTABLE
+    FGBRead.execute(connection, inputFilePath, "MYTABLE", true)
 
-  if (process.exitValue() == 0) {
-    println "Conversion réussie : ${outputFilePath}"
-  } else {
-    println "Erreur lors de la conversion : ${process.err.text}"
+    // Export the table to GeoJSON
+    GeoJsonWrite.exportTable(connection, outputFilePath, "MYTABLE")
+  } catch (Exception e) {
+    throw new RuntimeException("Error during conversion: " + e.getMessage(), e)
   }
-
 }
 
 /**

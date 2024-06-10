@@ -27,6 +27,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import utils.RoadValue
 import java.nio.file.Paths
+import java.sql.Connection
 
 import static org.junit.jupiter.api.Assertions.assertEquals
 import static org.junit.jupiter.api.Assertions.assertTrue
@@ -77,7 +78,7 @@ class TestImportGeoClimateData {
                     assertEquals(srid, outputConfig.get("srid"))
                     Map<String, Object> folderConfig = (Map<String, Object>) outputConfig.get("folder")
                     assertEquals(outputDirectory, folderConfig.get("path").toString())
-                    List<String> expectedTables = Arrays.asList("building", "road_traffic", "ground_acoustic", "zone")
+                    List<String> expectedTables = Arrays.asList("building", "road_traffic", "ground_acoustic", "rail", "zone")
                     assertEquals(expectedTables, folderConfig.get("tables"))
                     break
                 case "parameters":
@@ -103,8 +104,9 @@ class TestImportGeoClimateData {
     void testRunGeoClimateWithoutDB() {
 
         // Test running GeoClimate without saving the database
+        Connection connection = Import_GeoClimate_Data.openH2GISDataStoreConnection("h2gis")
         Import_GeoClimate_Data.runGeoClimate(params as LinkedHashMap<String, Serializable>, logger)
-        Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(),logger)
+        Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(),logger, connection)
 
         // Directory name where files are supposed to exist
         File outDir = Paths.get(outputDirectory, "osm_" + location).toFile()
@@ -117,7 +119,7 @@ class TestImportGeoClimateData {
         File[] matchingFiles = parentDir.listFiles(file -> file.getName().startsWith("osm_geoclimate_") && file.getName().endsWith(".mv"))
         assertTrue(matchingFiles == null || matchingFiles.length == 0, "There are osm_geoclimate_*.mv files in the parent directory.")
 
-        List<String> expectedFiles = List.of("building.geojson", "zone.geojson", "ground_acoustic.geojson", "road_traffic.geojson")
+        List<String> expectedFiles = List.of("building.geojson", "zone.geojson", "ground_acoustic.geojson", "rail.geojson", "road_traffic.geojson")
 
         // Check if the directory exists
         assertTrue(outDir.exists(), "Chosen zone directory does not exist.")
@@ -129,6 +131,7 @@ class TestImportGeoClimateData {
         }
 
         deleteDirectoryRecursively(new File(outputDirectory))
+        connection.close()
     }
 
     /**
@@ -138,8 +141,9 @@ class TestImportGeoClimateData {
     void testRunGeoClimateWithDB() {
 
         // Test running GeoClimate with saving the database
+        Connection connection = Import_GeoClimate_Data.openH2GISDataStoreConnection("h2gis")
         Import_GeoClimate_Data.runGeoClimate(Import_GeoClimate_Data.createGeoClimateConfig(location, outputDirectory, srid, false, logger), logger)
-        Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(),logger)
+        Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(),logger, connection)
 
         // Directory name where files are supposed to exist
         File outDir = Paths.get(outputDirectory, "osm_" + location).toFile()
@@ -152,7 +156,7 @@ class TestImportGeoClimateData {
         File[] matchingFiles = parentDir.listFiles(file -> file.getName().startsWith("osm_geoclimate_") && file.getName().endsWith(".mv"))
         assertTrue(matchingFiles != null || matchingFiles.length == 1, "There are no osm_geoclimate_*.mv files in the parent directory.")
 
-        List<String> expectedFiles = List.of("building.geojson", "zone.geojson", "ground_acoustic.geojson", "road_traffic.geojson")
+        List<String> expectedFiles = List.of("building.geojson", "zone.geojson", "ground_acoustic.geojson", "rail.geojson", "road_traffic.geojson")
 
         // Check if the directory exists
         assertTrue(outDir.exists(), "Chosen zone directory does not exist.")
@@ -163,6 +167,7 @@ class TestImportGeoClimateData {
             assertTrue(filePath.exists(), "File " + fileName + " does not exist.")
         }
         deleteDirectoryRecursively(new File(outputDirectory))
+        connection.close()
     }
 
     @Nested
@@ -188,13 +193,13 @@ class TestImportGeoClimateData {
         @Order(1)
         void testExistingFGBFile() {
             List<File> files = Import_GeoClimate_Data.getFGBFiles(Paths.get(outputDirectory, "osm_" + location).toString());
-            assertEquals(4, files.size(), "The Number of files in output is not correct");
+            assertEquals(5, files.size(), "The Number of files in output is not correct");
 
             HashSet<String> encounteredFileNames = new HashSet<>();
 
             for (File file : files) {
                 assertTrue(file.exists(), "File does not exist");
-                assertTrue(file.getName().matches("building.fgb|zone.fgb|road_traffic.fgb|ground_acoustic.fgb"),
+                assertTrue(file.getName().matches("building.fgb|zone.fgb|road_traffic.fgb|rail.fgb|ground_acoustic.fgb"),
                         "File name " + file.getName() + " is not as expected");
                 assertFalse(encounteredFileNames.contains(file.getName()),
                         "File name " + file.getName() + " is encountered multiple times");
@@ -208,24 +213,26 @@ class TestImportGeoClimateData {
         @Test
         @Order(2)
         void testConvertFilesType() {
-            Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(), logger);
+            Connection connection = Import_GeoClimate_Data.openH2GISDataStoreConnection("h2gis")
+            Import_GeoClimate_Data.listFilesWithExtension(Paths.get(outputDirectory, "osm_" + location).toString(), logger, connection);
 
             File dir = new File(Paths.get(outputDirectory, "osm_" + location).toString());
             assertFalse(!dir.exists() && !dir.isDirectory(), "Directory still exists");
 
             List<File> files = List.of(dir.listFiles());
 
-            assertEquals(8, files.size(), "The Number of files in output is not correct");
+            assertEquals(10, files.size(), "The Number of files in output is not correct");
 
             HashSet<String> encounteredFileNames = new HashSet<>();
 
             for (File file : files) {
                 assertTrue(file.exists(), "File does not exist");
-                assertTrue(file.name in ["building.fgb", "zone.fgb", "road_traffic.fgb", "ground_acoustic.fgb", "building.geojson", "zone.geojson", "road_traffic.geojson", "ground_acoustic.geojson"], "File name ${file.getName()} is not as expected")
+                assertTrue(file.name in ["building.fgb", "zone.fgb", "road_traffic.fgb", "rail.fgb", "ground_acoustic.fgb", "building.geojson", "zone.geojson", "road_traffic.geojson", "rail.geojson", "ground_acoustic.geojson"], "File name ${file.getName()} is not as expected")
                 assertFalse(encounteredFileNames.contains(file.getName()),
                         "File name " + file.getName() + " is encountered multiple times");
                 encounteredFileNames.add(file.getName());
             }
+            connection.close()
         }
 
         /**
@@ -241,13 +248,13 @@ class TestImportGeoClimateData {
 
             List<File> files = List.of(dir.listFiles((d, name) -> name.endsWith(".geojson")));
 
-            assertEquals(4, files.size(), "The Number of files in output is not correct");
+            assertEquals(5, files.size(), "The Number of files in output is not correct");
 
             HashSet<String> encounteredFileNames = new HashSet<>();
 
             for (File file : files) {
                 assertTrue(file.exists(), "File does not exist");
-                assertTrue(file.name in ["building.geojson", "zone.geojson", "road_traffic.geojson", "ground_acoustic.geojson"], "File name ${file.getName()} is not as expected")
+                assertTrue(file.name in ["building.geojson", "zone.geojson", "road_traffic.geojson", "rail.geojson", "ground_acoustic.geojson"], "File name ${file.getName()} is not as expected")
                 assertFalse(encounteredFileNames.contains(file.getName()),
                         "File name " + file.getName() + " is encountered multiple times");
                 encounteredFileNames.add(file.getName());

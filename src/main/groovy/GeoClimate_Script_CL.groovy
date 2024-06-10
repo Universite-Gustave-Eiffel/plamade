@@ -40,7 +40,7 @@ class GeoClimate_Script_CL implements Callable<Integer> {
     @CommandLine.Option(names = ['-s', '--srid'], description = 'Target projection identifier (also called SRID) of your table', defaultValue = '2154')
     Integer srid
 
-    @CommandLine.Option(names = ['-d', '--database'], description = 'Database use by géoClimate for create files (is a .mv.db)', defaultValue = '1')
+    @CommandLine.Option(names = ['-d', '--database'], description = 'Database use by geoClimate for create files (is a .mv.db)', defaultValue = '1')
     Integer dataBase
 
     @Override
