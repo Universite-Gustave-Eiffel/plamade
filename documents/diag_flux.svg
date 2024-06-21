@@ -1,0 +1,1345 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="297mm"
+   height="210mm"
+   viewBox="0 0 297 210"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="diag_flux.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="1.1474186"
+     inkscape:cx="597.86375"
+     inkscape:cy="368.65359"
+     inkscape:window-width="2490"
+     inkscape:window-height="1366"
+     inkscape:window-x="1990"
+     inkscape:window-y="27"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     inkscape:snap-global="true" />
+  <defs
+     id="defs2">
+    <marker
+       style="overflow:visible;"
+       id="marker138414"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.3) rotate(180) translate(-2.3,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="stroke:context-stroke;fill-rule:evenodd;fill:context-stroke;stroke-width:0.62500000;stroke-linejoin:round;"
+         id="path138412" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Mend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.6) rotate(180) translate(0,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="stroke:context-stroke;fill-rule:evenodd;fill:context-stroke;stroke-width:0.62500000;stroke-linejoin:round;"
+         id="path137661" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow1Mend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4) rotate(180) translate(10,0)"
+         style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt;"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         id="path137643" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="DiamondS"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="DiamondS"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.2)"
+         style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt"
+         d="M 0,-7.0710768 L -7.0710894,0 L 0,7.0710589 L 7.0710462,0 L 0,-7.0710768 z "
+         id="path137719" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow2Send"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.3) rotate(180) translate(-2.3,0)"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         style="stroke:context-stroke;fill-rule:evenodd;fill:context-stroke;stroke-width:0.62500000;stroke-linejoin:round;"
+         id="path137667" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow1Send"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow1Send"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.2) rotate(180) translate(6,0)"
+         style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt;"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         id="path137649" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="Arrow1Lend"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow1Lend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.8) rotate(180) translate(12.5,0)"
+         style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt;"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         id="path137637" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow1Lstart"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow1Lstart"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.8) translate(12.5,0)"
+         style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         id="path137634" />
+    </marker>
+    <rect
+       x="996.12323"
+       y="55.124171"
+       width="67.772759"
+       height="69.384754"
+       id="rect77358" />
+    <rect
+       x="996.12323"
+       y="55.124171"
+       width="67.772759"
+       height="69.384754"
+       id="rect69872" />
+    <rect
+       x="508.5032"
+       y="261.26367"
+       width="242.32466"
+       height="248.08846"
+       id="rect11825" />
+    <rect
+       x="508.5032"
+       y="261.26367"
+       width="242.32466"
+       height="248.08846"
+       id="rect7661" />
+    <marker
+       style="overflow:visible"
+       id="marker138414-9"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-3" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-0"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-1" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-5"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-9" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-5-5"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-9-7" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-5-5-8"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-9-7-1" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-90"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-2" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-90-1"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-2-9" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-0-1"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-1-1" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-90-8"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-2-2" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-90-2"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-2-6" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-90-2-9"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-2-6-9" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-0-5"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-1-10" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-0-5-6"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-1-10-7" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-5-5-8-7"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-9-7-1-8" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker138414-0-1-7"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.3,0,0,-0.3,0.69,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:0.625;stroke-linejoin:round"
+         id="path138412-1-1-9" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Calque 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       transform="scale(0.26458333)"
+       id="text7659"
+       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect7661);fill:#000000;fill-opacity:1;stroke:none" />
+    <text
+       xml:space="preserve"
+       transform="scale(0.26458333)"
+       id="text11823"
+       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect11825);fill:#000000;fill-opacity:1;stroke:none"><tspan
+         x="508.50391"
+         y="296.6543"
+         id="tspan212123">
+</tspan><tspan
+         x="508.50391"
+         y="346.6543"
+         id="tspan212125">
+</tspan><tspan
+         x="508.50391"
+         y="396.6543"
+         id="tspan212127">
+</tspan></text>
+    <g
+       id="g132343"
+       transform="matrix(0.43598685,0,0,0.43598685,102.32664,-2.1990135)"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16">
+      <rect
+         style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.688092;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+         id="rect853"
+         width="41.128632"
+         height="42.106888"
+         x="369.80695"
+         y="38.49646"
+         ry="0" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-weight:normal;font-size:6.22864px;line-height:1.25;font-family:sans-serif;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.688092;stroke-miterlimit:4;stroke-dasharray:none"
+         x="390.22586"
+         y="45.909744"
+         id="text14639"><tspan
+           id="tspan14637"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.47319px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.688092;stroke-miterlimit:4;stroke-dasharray:none">
+
+Entité</tspan></text>
+    </g>
+    <g
+       id="g132349"
+       transform="matrix(0.43598685,0,0,0.43598685,102.32664,-2.8580818)"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16">
+      <g
+         id="g32086"
+         transform="matrix(0.64148155,0,0,0.64148155,305.99761,-13.153547)"
+         style="stroke-width:1.07266;stroke-miterlimit:4;stroke-dasharray:none">
+        <path
+           style="fill:none;stroke:#000000;stroke-width:1.07266;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="M 163.90415,157.44665 H 99.727942 v 61.00958 h 64.165328"
+           id="path20069"
+           sodipodi:nodetypes="cccc" />
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-weight:normal;font-size:9.70977px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.07266;stroke-miterlimit:4;stroke-dasharray:none"
+           x="109.07313"
+           y="190.63016"
+           id="text21138"><tspan
+             sodipodi:role="line"
+             id="tspan21136"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.091px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:1.07266;stroke-miterlimit:4;stroke-dasharray:none"
+             x="109.07313"
+             y="190.63016">Stockage</tspan></text>
+      </g>
+    </g>
+    <g
+       id="g140704"
+       transform="matrix(0.43598685,0,0,0.43598685,102.32664,-6.2293997)"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16">
+      <rect
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.688092;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+         id="rect853-3"
+         width="41.128632"
+         height="42.106888"
+         x="369.80695"
+         y="143.41563"
+         ry="12.448008" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.47319px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.688092;stroke-miterlimit:4;stroke-dasharray:none"
+         x="374.80725"
+         y="166.91583"
+         id="text14639-6"><tspan
+           sodipodi:role="line"
+           id="tspan14637-7"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.47319px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.688092;stroke-miterlimit:4;stroke-dasharray:none"
+           x="374.80725"
+           y="166.91583">Processus</tspan></text>
+    </g>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.699999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect32160"
+       width="32.874813"
+       height="82.073044"
+       x="255.75417"
+       y="6.6545777"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37"
+       width="17.931543"
+       height="18.358049"
+       x="11.894581"
+       y="14.004347"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.71561px;line-height:1.25;font-family:sans-serif;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="20.796959"
+       y="24.018463"
+       id="text14639-3"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         id="tspan14637-2"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none">Opérateur</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5"
+       width="29.373981"
+       height="18.449833"
+       x="35.335873"
+       y="13.958455"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="49.978764"
+       y="20.764221"
+       id="text14639-6-2"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         id="tspan121629"
+         x="49.978764"
+         y="20.764221"
+         style="stroke-width:0.299999"><tspan
+           id="tspan14637-7-6"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none">Séléction du</tspan></tspan><tspan
+         sodipodi:role="line"
+         x="49.978764"
+         y="24.292004"
+         id="tspan128989"
+         style="stroke-width:0.299999"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+           id="tspan128991">département</tspan></tspan><tspan
+         sodipodi:role="line"
+         id="tspan121631"
+         x="49.978764"
+         y="27.819784"
+         style="stroke-width:0.299999"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+           id="tspan121633"> à calculer</tspan></tspan></text>
+    <path
+       style="fill:none;stroke:#8d807b;stroke-width:0.565;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:2.26, 1.13, 0.565, 1.13;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 9.4545872,38.103178 H 248.93115"
+       id="path132428"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-7"
+       width="17.931543"
+       height="18.358049"
+       x="12.012632"
+       y="43.192688"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.71561px;line-height:1.25;font-family:sans-serif;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="20.91501"
+       y="53.206806"
+       id="text14639-3-9"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         id="tspan14637-2-6"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none">Plateforme</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0"
+       width="29.373981"
+       height="18.449833"
+       x="35.453922"
+       y="43.146797"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="50.096809"
+       y="49.952564"
+       id="text14639-6-2-4"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         id="tspan121631-7"
+         x="50.096809"
+         y="49.952564"
+         style="stroke-width:0.299999">Création de la</tspan><tspan
+         sodipodi:role="line"
+         x="50.096809"
+         y="53.480343"
+         id="tspan135201"
+         style="stroke-width:0.299999"> base de données</tspan><tspan
+         sodipodi:role="line"
+         x="50.096809"
+         y="57.008129"
+         id="tspan135203"
+         style="stroke-width:0.299999"> embarqué</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.299999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="M 115.21724,43.847245 H 81.922766 V 60.910253 H 115.2142"
+       id="path20069-2"
+       sodipodi:nodetypes="cccc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.7156px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="82.551071"
+       y="51.368645"
+       id="text21138-4"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         id="tspan21136-7"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+         x="82.551071"
+         y="51.368645">BDD H2GIS</tspan><tspan
+         sodipodi:role="line"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+         x="82.551071"
+         y="54.896431"
+         id="tspan150829">Département X</tspan></text>
+    <g
+       id="g140699"
+       transform="matrix(0.43598685,0,0,0.43598685,102.32664,-6.9615054)"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16">
+      <path
+         style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:2.29365;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-9);paint-order:normal"
+         d="m 372.59882,195.57883 h 35.53581"
+         id="path137632-9"
+         inkscape:connector-type="polyline"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.47319px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.688092;stroke-miterlimit:4;stroke-dasharray:none"
+         x="385.08554"
+         y="206.08629"
+         id="text14639-6-28"><tspan
+           sodipodi:role="line"
+           id="tspan14637-7-3"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.47319px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.688092;stroke-miterlimit:4;stroke-dasharray:none"
+           x="385.08554"
+           y="206.08629">Flux</tspan></text>
+    </g>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-0);paint-order:normal"
+       d="m 65.015087,52.830885 15.371487,0.01853"
+       id="path137632-7"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:2.29365;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414);paint-order:normal"
+       d="m -119.88083,79.376939 0.0996,24.630351"
+       id="path137632"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       inkscape:connection-start="#rect853-3-5"
+       inkscape:connection-end="#rect853-3-5-0"
+       sodipodi:nodetypes="cc"
+       transform="matrix(0.43598685,0,0,0.43598685,102.32664,-2.1990135)"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-90);paint-order:normal"
+       d="m 89.794596,60.94492 0.04343,8.621842"
+       id="path137632-0"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-90-1);paint-order:normal"
+       d="m 110.15517,61.064055 0.0434,8.621842"
+       id="path137632-0-6"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0-9"
+       width="29.373981"
+       height="18.449833"
+       x="69.390388"
+       y="70.938873"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="84.067047"
+       y="75.813309"
+       id="text14639-6-2-4-1"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         x="84.067047"
+         y="75.813309"
+         id="tspan135203-9"
+         style="stroke-width:0.299999">Calcul des valeurs</tspan><tspan
+         sodipodi:role="line"
+         x="84.067047"
+         y="79.341095"
+         style="stroke-width:0.299999"
+         id="tspan167981">d'émission</tspan><tspan
+         sodipodi:role="line"
+         x="84.067047"
+         y="82.868881"
+         style="stroke-width:0.299999"
+         id="tspan167983">acoustique</tspan><tspan
+         sodipodi:role="line"
+         x="84.067047"
+         y="86.396675"
+         style="stroke-width:0.299999"
+         id="tspan168861">route/rail</tspan></text>
+    <rect
+       style="fill:#d7d84c;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-2"
+       width="13.230268"
+       height="6.9108515"
+       x="32.742332"
+       y="3.2483108"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.71561px;line-height:1.25;font-family:sans-serif;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="38.905987"
+       y="7.6832671"
+       id="text14639-3-5"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         id="tspan14637-2-7"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none">Début</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.299999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="m 58.305785,70.083208 h -17.94864 v 17.063008 h 17.9456"
+       id="path20069-2-4"
+       sodipodi:nodetypes="cccc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.7156px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="50.482925"
+       y="77.604607"
+       id="text21138-4-9"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+         x="50.482925"
+         y="77.604607"
+         id="tspan150829-4">BDD POSTGIS</tspan><tspan
+         sodipodi:role="line"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+         x="50.482925"
+         y="81.132393"
+         id="tspan161284">FRANCE</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-5);paint-order:normal"
+       d="m 50.348439,69.897264 0,-6.703584"
+       id="path137632-3"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-5-5);paint-order:normal"
+       d="M 83.650747,70.746996 V 62.505949"
+       id="path137632-3-0"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0-9-9"
+       width="29.373981"
+       height="18.449833"
+       x="100.14033"
+       y="71.163994"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="114.86935"
+       y="75.875824"
+       id="text14639-6-2-4-1-9"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         x="114.86935"
+         y="75.875824"
+         style="stroke-width:0.299999"
+         id="tspan168861-5">Maillage du</tspan><tspan
+         sodipodi:role="line"
+         x="114.86935"
+         y="79.40361"
+         style="stroke-width:0.299999"
+         id="tspan172944">domaine, création</tspan><tspan
+         sodipodi:role="line"
+         x="114.86935"
+         y="82.931396"
+         style="stroke-width:0.299999"
+         id="tspan172946">de la grille de</tspan><tspan
+         sodipodi:role="line"
+         x="114.86935"
+         y="86.45919"
+         style="stroke-width:0.299999"
+         id="tspan172948">récepteurs</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0-9-9-2"
+       width="29.373981"
+       height="18.449833"
+       x="134.67888"
+       y="42.69101"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="149.40779"
+       y="47.40284"
+       id="text14639-6-2-4-1-9-1"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         x="149.40779"
+         y="47.40284"
+         style="stroke-width:0.299999"
+         id="tspan172948-3">Transfert de la</tspan><tspan
+         sodipodi:role="line"
+         x="149.40779"
+         y="50.930626"
+         style="stroke-width:0.299999"
+         id="tspan176323">base de données</tspan><tspan
+         sodipodi:role="line"
+         x="149.40779"
+         y="54.458416"
+         style="stroke-width:0.299999"
+         id="tspan176325">au noeud de</tspan><tspan
+         sodipodi:role="line"
+         x="149.40779"
+         y="57.986202"
+         style="stroke-width:0.299999"
+         id="tspan176327">calcul portail</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-5-5-8);paint-order:normal"
+       d="M 114.40075,70.972122 V 62.731075"
+       id="path137632-3-0-3"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-0-1);paint-order:normal"
+       d="m 117.67975,50.963491 15.37149,0.0185"
+       id="path137632-7-9"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;stroke:#8d807b;stroke-width:0.565;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:2.26, 1.13, 0.565, 1.13;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 9.4545866,94.90565 H 248.93115"
+       id="path132428-0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-7-5"
+       width="17.931543"
+       height="18.358049"
+       x="12.012632"
+       y="103.34892"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.71561px;line-height:1.25;font-family:sans-serif;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="20.972437"
+       y="111.8393"
+       id="text14639-3-9-6"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         id="tspan180115"
+         x="20.972437"
+         y="111.8393"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none">HPC</tspan><tspan
+         sodipodi:role="line"
+         id="tspan180117"
+         x="20.972437"
+         y="115.27276"
+         style="text-align:center;text-anchor:middle">Portail</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0-4"
+       width="29.373981"
+       height="18.449833"
+       x="70.170151"
+       y="103.30303"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="84.813042"
+       y="110.0523"
+       id="text14639-6-2-4-7"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         x="84.813042"
+         y="110.0523"
+         id="tspan135203-5"
+         style="stroke-width:0.299999">sbatch</tspan><tspan
+         sodipodi:role="line"
+         x="84.813042"
+         y="113.58009"
+         style="stroke-width:0.299999"
+         id="tspan185357">Orchestration du</tspan><tspan
+         sodipodi:role="line"
+         x="84.813042"
+         y="117.10787"
+         style="stroke-width:0.299999"
+         id="tspan185359">calcul distribué</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-90-8);paint-order:normal"
+       d="m 149.86749,61.101288 v 36.40865 H 85.54948 v 4.290832"
+       id="path137632-0-60"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cccc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;stroke:#8d807b;stroke-width:0.565;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:2.26, 1.13, 0.565, 1.13;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 9.4545868,124.39245 H 248.93115"
+       id="path132428-0-6"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-7-5-4"
+       width="17.931543"
+       height="18.358049"
+       x="12.012632"
+       y="128.48366"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-7-5-4-9"
+       width="17.931543"
+       height="18.358049"
+       x="12.474035"
+       y="128.96585"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-7-5-4-9-0"
+       width="17.931543"
+       height="18.358049"
+       x="12.945063"
+       y="129.4157"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-7-5-4-9-7"
+       width="17.931543"
+       height="18.358049"
+       x="13.364421"
+       y="129.8494"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#cbe0b9;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-7-5-4-9-01"
+       width="17.931543"
+       height="18.358049"
+       x="13.829673"
+       y="130.2784"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.71561px;line-height:1.25;font-family:sans-serif;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="22.728483"
+       y="132.84209"
+       id="text14639-3-9-6-6"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         id="tspan180115-2"
+         x="22.728483"
+         y="135.3391"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none" /><tspan
+         sodipodi:role="line"
+         id="tspan180117-8"
+         x="22.728483"
+         y="138.77255"
+         style="text-align:center;text-anchor:middle">Noeuds</tspan><tspan
+         sodipodi:role="line"
+         x="22.728483"
+         y="142.16707"
+         style="text-align:center;text-anchor:middle"
+         id="tspan188591">HPC</tspan></text>
+    <g
+       id="g189059"
+       transform="translate(6.1106339)"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16">
+      <rect
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+         id="rect853-3-5-0-4-0"
+         width="29.373981"
+         height="18.449833"
+         x="64.059517"
+         y="126.36204"
+         ry="5.4271674" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+         x="78.702408"
+         y="133.11131"
+         id="text14639-6-2-4-7-1"><tspan
+           sodipodi:role="line"
+           x="78.702408"
+           y="133.11131"
+           style="stroke-width:0.299999"
+           id="tspan190528">Calcul propagation,</tspan><tspan
+           sodipodi:role="line"
+           x="78.702408"
+           y="136.6391"
+           style="stroke-width:0.299999"
+           id="tspan190532">attenuation,</tspan><tspan
+           sodipodi:role="line"
+           x="78.702408"
+           y="140.16689"
+           style="stroke-width:0.299999"
+           id="tspan190534">exposition</tspan></text>
+    </g>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-90-2);paint-order:normal"
+       d="m 84.902123,121.77152 0.0434,3.33018"
+       id="path137632-0-4"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0-4-2"
+       width="29.373981"
+       height="18.449833"
+       x="109.80612"
+       y="102.79702"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="124.44901"
+       y="109.54629"
+       id="text14639-6-2-4-7-0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         x="124.44901"
+         y="109.54629"
+         style="stroke-width:0.299999"
+         id="tspan185359-0">Synchronisation</tspan><tspan
+         sodipodi:role="line"
+         x="124.44901"
+         y="113.07407"
+         style="stroke-width:0.299999"
+         id="tspan199311">fin du calcul</tspan><tspan
+         sodipodi:role="line"
+         x="124.44901"
+         y="116.60186"
+         style="stroke-width:0.299999"
+         id="tspan199313">des noeuds</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-0-5);paint-order:normal"
+       d="M 99.737056,136.67879 H 124.36168 V 122.8513"
+       id="path137632-7-3"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0-4-2-8"
+       width="29.373981"
+       height="18.449833"
+       x="155.42476"
+       y="70.429222"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="170.06764"
+       y="77.17849"
+       id="text14639-6-2-4-7-0-8"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         x="170.06764"
+         y="77.17849"
+         style="stroke-width:0.299999"
+         id="tspan199313-4">Transfert des</tspan><tspan
+         sodipodi:role="line"
+         x="170.06764"
+         y="80.706276"
+         style="stroke-width:0.299999"
+         id="tspan201297">fichiers de</tspan><tspan
+         sodipodi:role="line"
+         x="170.06764"
+         y="84.234062"
+         style="stroke-width:0.299999"
+         id="tspan201299">résultats</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-0-5-6);paint-order:normal"
+       d="m 139.47427,111.96989 h 30.97069 V 90.488228"
+       id="path137632-7-3-6"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-3-5-0-4-2-8-0"
+       width="29.373981"
+       height="18.449833"
+       x="168.93889"
+       y="42.553661"
+       ry="5.4271674"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="183.58177"
+       y="49.302929"
+       id="text14639-6-2-4-7-0-8-9"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         x="183.58177"
+         y="49.302929"
+         style="stroke-width:0.299999"
+         id="tspan201299-9">Fusion des</tspan><tspan
+         sodipodi:role="line"
+         x="183.58177"
+         y="52.830715"
+         style="stroke-width:0.299999"
+         id="tspan202984">résultats et </tspan><tspan
+         sodipodi:role="line"
+         x="183.58177"
+         y="56.358505"
+         style="stroke-width:0.299999"
+         id="tspan202986">export des rapports</tspan><tspan
+         sodipodi:role="line"
+         x="183.58177"
+         y="59.886292"
+         style="stroke-width:0.299999"
+         id="tspan209115">vers PostGIS</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-5-5-8-7);paint-order:normal"
+       d="M 175.59914,70.676946 V 62.435899"
+       id="path137632-3-0-3-5"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.299999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="m 228.14262,70.474373 h -17.94865 v 17.063008 h 17.94561"
+       id="path20069-2-4-3"
+       sodipodi:nodetypes="cccc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.7156px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="220.31976"
+       y="77.995773"
+       id="text21138-4-9-3"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         sodipodi:role="line"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+         x="220.31976"
+         y="77.995773"
+         id="tspan150829-4-8">BDD POSTGIS</tspan><tspan
+         sodipodi:role="line"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+         x="220.31976"
+         y="81.52356"
+         id="tspan161284-3">FRANCE</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker138414-0-1-7);paint-order:normal"
+       d="m 198.34474,51.359096 h 21.83587 v 17.56979"
+       id="path137632-7-9-3"
+       inkscape:connector-type="polyline"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccc"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <rect
+       style="fill:#d7d84c;fill-opacity:1;stroke:#000000;stroke-width:0.299999;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       id="rect853-37-2-7"
+       width="13.230268"
+       height="6.9108515"
+       x="228.61607"
+       y="85.049225"
+       ry="0"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.71561px;line-height:1.25;font-family:sans-serif;white-space:pre;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none"
+       x="234.77972"
+       y="89.484184"
+       id="text14639-3-5-8"
+       inkscape:export-filename="/home/fortin/Nextcloud/univ_eiffel/documents/projets/plamade/g132343.png"
+       inkscape:export-xdpi="16"
+       inkscape:export-ydpi="16"><tspan
+         id="tspan14637-2-7-7"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82223px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;stroke-width:0.299999;stroke-miterlimit:4;stroke-dasharray:none">Fin</tspan></text>
+  </g>
+</svg>
