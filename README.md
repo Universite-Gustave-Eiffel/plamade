@@ -2,6 +2,8 @@
 
 Plateforme plamade d'éxecution de traitements NoiseModelling sur serveur (ou cluster de calcul) avec accès restraint utilisant OpenID (google pour l'instant).
 
+![Diagramme de flux](/documents/diag_flux.svg "Execution process")
+
 ## Prerequisites
 This example requires that you configure a Google API resource before running.
 
