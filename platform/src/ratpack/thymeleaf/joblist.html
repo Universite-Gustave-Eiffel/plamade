@@ -27,8 +27,8 @@
                         <th>Insee Department</th>
                         <th>Conf ID</th>
                         <th>Data</th>
-                        <th>Cancel</th>
-                        <th>Delete</th>
+                        <th>Cancel <button type="button" onclick="toggleCheckboxes('cancel')">Check All</button></th>
+                        <th>Delete <button type="button" onclick="toggleCheckboxes('delete')">Check All</button></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -52,5 +52,24 @@
         </div>
     </div>
 </div>
+
+<script>
+    let toggleStates = {
+        cancel: false,
+        delete: false
+    };
+
+    function toggleCheckboxes(column) {
+        const checkboxes = document.querySelectorAll(`input[name="${column}"]`);
+        if (!checkboxes.length) return;
+
+        toggleStates[column] = !toggleStates[column];
+
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = toggleStates[column];
+        });
+    }
+</script>
+
 </body>
 </html>
