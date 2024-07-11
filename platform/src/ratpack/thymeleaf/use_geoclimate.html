@@ -1,0 +1,121 @@
+<!doctype html>
+<html xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width"/>
+    <title data-react-helmet="true">Plamade computation platform</title>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/png"/>
+    <link rel="stylesheet" href="/css/pure-min.css"/>
+    <link rel="stylesheet" href="/css/plamade.css"/>
+</head>
+<body>
+<div id="layout">
+    <div th:replace="menu :: menu"></div>
+    <div id="main" class="content">
+        <div class="header"><h1>GeoClimate config</h1>
+            <div class="l-box" id="message_div" th:if="${not #strings.isEmpty(message)}">
+                <aside><p th:text="${message}"></p></aside>
+            </div>
+            <form class="pure-form pure-form-aligned" id="setgeoclimateconfig" action="/manage/do_use_geoclimate" method="POST">
+                <fieldset>
+                    <legend>Configure options for launch GeoClimate</legend>
+                    <div class="pure-control-group"><label for="LOCATION">Code location</label>
+                        <input type="text" placeholder="Name Location" id="LOCATION" name="LOCATION"/>
+                    </div>
+                    <div class="pure-control-group"><label for="OUTPUT_RESULT">Path output file</label>
+                        <input type="text" placeholder="Output directory result" id="OUTPUT_RESULT" name="OUTPUT_RESULT" value=""/>
+                    </div>
+                    <div class="pure-control-group"><label for="SRID">Spatial Reference Identifier</label>
+                        <input type="text" placeholder="" id="SRID" name="SRID" value="2154"/>
+                    </div>
+                    <div class="pure-control-group"><label for="TEMP_BASE">Save the OSM temp base</label> <!-- Change -->
+                        <input type="checkbox" value="false" id="TEMP_BASE" name="CLUSTER_COMPUTE" />
+                    </div>
+                    <!-- For the grid -->
+                    <div class="pure-control-group"><label for="ISO_BUILDING">Create IsoSurfaces over buildings</label>
+                        <input type="checkbox" value="false" id="ISO_BUILDING" name="ISO_BUILDING" />
+                    </div>
+                    <div class="pure-control-group"><label for="MAX_CELL_DIST">Maximum Cell size</label>
+                        <input type="text" value="600.0" id="MAX_CELL_DIST" name="MAX_CELL_DIST" />
+                    </div>
+                    <div class="pure-control-group"><label for="HEIGHT">height relative to the ground</label>
+                        <input type="text" value="4.0" id="HEIGHT" name="HEIGHT" />
+                    </div>
+                    <div class="pure-control-group"><label for="ROAD_WIDTH">Road Witdh (in m)</label>
+                        <input type="text" value="2.0" id="ROAD_WIDTH" name="ROAD_WIDTH" />
+                    </div>
+                    <div class="pure-control-group"><label for="MAX_AREA">Maximum area (in m2)</label>
+                        <input type="text" value="2500.0" id="MAX_AREA" name="MAX_AREA" />
+                    </div>
+                    <!-- For the noise level -->
+                    <div class="pure-control-group"><label for="WALL_ALPHA">Wall absorption coefficient</label>
+                        <input type="text" value="0.1" id="WALL_ALPHA" name="WALL_ALPHA" />
+                    </div>
+                    <div class="pure-control-group"><label for="REFLEXION">Order of reflexion</label>
+                        <input type="text" value="1" id="REFLEXION" name="REFLEXION" />
+                    </div>
+                    <div class="pure-control-group"><label for="SRC_DIST">Maximum source-receiver distance</label>
+                        <input type="text" value="350" id="SRC_DIST" name="SRC_DIST" />
+                    </div>
+                    <div class="pure-control-group"><label for="SRC_REFL">Maximum source-reflexion distance</label>
+                        <input type="text" value="150" id="SRC_REFL" name="SRC_REFL" />
+                    </div>
+                    <div class="pure-control-group"><label for="THREAD">Thread number</label>
+                        <input type="text" value="0" id="THREAD" name="THREAD" />
+                    </div>
+                    <div class="pure-control-group"><label for="DIF_HORI">Diffraction on horizontal edges</label>
+                        <input type="checkbox" value="false" id="DIF_HORI" name="DIF_HORI" />
+                    </div>
+                    <div class="pure-control-group"><label for="DIF_VERT">Diffraction on Vertical edges</label>
+                        <input type="checkbox" value="false" id="DIF_VERT" name="DIF_VERT" />
+                    </div>
+                    <div class="pure-control-group"><label for="LDAY">Do not compute LDAY table</label>
+                        <input type="checkbox" value="false" id="LDAY" name="LDAY" />
+                    </div>
+                    <div class="pure-control-group"><label for="LEVENING">Do not compute LEVENING table</label>
+                        <input type="checkbox" value="false" id="LEVENING" name="LEVENING" />
+                    </div>
+                    <div class="pure-control-group"><label for="LNIGHT">Do not compute LNIGHT table</label>
+                        <input type="checkbox" value="false" id="LNIGHT" name="LNIGHT" />
+                    </div>
+                    <div class="pure-control-group"><label for="LDEN">Do not compute LDEN table</label>
+                        <input type="checkbox" value="false" id="LDEN" name="LDEN" />
+                    </div>
+                    <div class="pure-control-group"><label for="SOURCE_ID">Separate receiver level by source identifier</label>
+                        <input type="checkbox" value="false" id="SOURCE_ID" name="SOURCE_ID" />
+                    </div>
+                    <div class="pure-control-group"><label for="HUMIDITY">Relative humidity</label>
+                        <input type="text" value="70" id="HUMIDITY" name="HUMIDITY" />
+                    </div>
+                    <div class="pure-control-group"><label for="TEMPERATURE">Air temperature</label>
+                        <input type="text" value="15" id="TEMPERATURE" name="TEMPERATURE" />
+                    </div>
+                    <div class="pure-control-group"><label for="PB_DAY">Probability of occurrences (Day)</label>
+                        <input type="text" value="0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5" id="PB_DAY" name="PB_DAY" />
+                    </div>
+                    <div class="pure-control-group"><label for="PB_EVENING">Probability of occurrences (EVENING)</label>
+                        <input type="text" value="0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5" id="PB_EVENING" name="PB_EVENING" />
+                    </div>
+                    <div class="pure-control-group"><label for="PB_NIGHT">Probability of occurrences (NIGHT)</label>
+                        <input type="text" value="0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5" id="PB_NIGHT" name="PB_NIGHT" />
+                    </div>
+
+                    <div class="pure-control-group"><label for="CONF_ID">Configuration ID</label>
+                        <input type="text" placeholder="Configuration ID" id="CONF_ID" name="CONF_ID" value="4"/>
+                    </div>
+                    <div class="pure-control-group"><label for="CLUSTER_COMPUTE">Compute on cluster</label>
+                        <input type="checkbox" value="true" id="CLUSTER_COMPUTE" name="CLUSTER_COMPUTE" checked="checked"/>
+                    </div>
+                    <div class="pure-controls">
+                        <button id="addButton" type="submit" class="pure-button pure-button-primary">Add
+                        </button>
+                    </div>
+                    <fieldset></fieldset>
+                </fieldset>
+            </form>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

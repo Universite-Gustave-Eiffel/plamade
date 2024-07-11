@@ -79,6 +79,7 @@ dependencies {
     implementation group: 'org.orbisgis', name: 'postgis-jts', version: '2.2.0'
     implementation group: 'org.orbisgis', name: 'postgis-jts-osgi', version: '2.2.0'
     implementation group: 'org.apache.commons', name:'commons-text', version: '1.9'
+    implementation group: 'commons-io', name: 'commons-io', version: '2.16.1'
 
 
     implementation group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.22'

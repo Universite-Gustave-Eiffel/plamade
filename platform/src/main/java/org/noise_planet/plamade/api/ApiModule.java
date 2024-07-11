@@ -34,5 +34,7 @@ public class ApiModule extends AbstractModule {
         bind(PostManageJob.class);
         bind(GetGenerateReport.class);
         bind(PostGenerateReport.class);
+        bind(GetUseGeoclimate.class);
+        bind(PostUseGeoclimate.class);
     }
 }

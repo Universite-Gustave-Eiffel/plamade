@@ -39,6 +39,8 @@ public class ApiEndpoints implements Action<Chain> {
             c.post("manage_job", PostManageJob.class);
             c.get("job_list", GetJobList.class);
             c.get("users", GetUsers.class);
+            c.get("use_geoclimate", GetUseGeoclimate.class);
+            c.post("do_use_geoclimate", PostUseGeoclimate.class);
             c.prefix("user/:userooid", sc -> {
                 sc.get("accept", AcceptUser.class);
                 sc.get("refuse", RefuseUser.class);

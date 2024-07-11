@@ -1,0 +1,6 @@
+[JOB_3618] INFO  11 juil. 10:17:18 - Starting the process with command: java -jar ..\script_groovy\GeoClimate_Tools-1.0.1-SNAPSHOT.jar -l Caubous -o C:\Users\samuel.marsault\Documents\Important_Stage\Plamade\platform\Documents\Important_Stage\test\depCaubous_1720685837632\results\geoclimate_running -s 2154 -d 0
+[JOB_3618] INFO  11 juil. 10:17:18 - GeoClimate currently process, don't stop execution
+[JOB_3618] INFO  11 juil. 10:17:20 - Process exited with code 1
+[JOB_3618] INFO  11 juil. 10:17:20 - End GeoClimate running
+[JOB_3618] INFO  11 juil. 10:17:25 - Start linking with PostGIS
+[JOB_3618] ERROR 11 juil. 10:17:26 - java.io.FileNotFoundException: C:\Users\samuel.marsault\Documents\Important_Stage\Plamade\platform\Documents\Important_Stage\test\depCaubous_1720685837632\results\geoclimate_running\osm_Caubous
