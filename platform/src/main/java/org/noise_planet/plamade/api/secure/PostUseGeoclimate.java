@@ -71,6 +71,7 @@ public class PostUseGeoclimate implements Handler {
                 CommonProfile profile = commonProfile.get();
                 final Map<String, Object> model = Maps.newHashMap();
                 final String location = f.get("LOCATION");
+                // If the path is not absolute, use the default path
                 final String outputPath = Paths.get(f.get("OUTPUT_RESULT")).isAbsolute() ? f.get("OUTPUT_RESULT") : GeoClimateRunner.MAIN_JOBS_FOLDER;
                 final String srid = f.get("SRID");
                 final String confId = f.get("CONF_ID");
