@@ -93,6 +93,7 @@ import java.util.stream.Collectors;
 /**
  * This process hold one instance of NoiseModelling
  * @author Nicolas Fortin, Université Gustave Eiffel
+ * @Author Samuel Marsault, Trainee
  */
 public class GeoClimateRunner implements RunnableFuture<String> {
 

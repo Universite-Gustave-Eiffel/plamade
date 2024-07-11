@@ -37,6 +37,10 @@ import java.util.*;
 import static ratpack.jackson.Jackson.json;
 
 /**
+ * @Author Samuel Marsault, Trainee
+ */
+
+/**
  * Display add job form using geoClimate
  */
 public class GetUseGeoclimate implements Handler {

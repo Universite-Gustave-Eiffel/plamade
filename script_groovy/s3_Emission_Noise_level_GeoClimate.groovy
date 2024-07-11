@@ -14,6 +14,7 @@
  * @Author Pierre Aumond, Université Gustave Eiffel
  * @Author Nicolas Fortin, Université Gustave Eiffel
  * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285
+ * @Author Samuel Marsault, Trainee
  */
 
 

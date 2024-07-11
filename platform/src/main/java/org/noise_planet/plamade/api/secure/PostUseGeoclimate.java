@@ -54,6 +54,10 @@ TODO :
  */
 
 /**
+ * @Author Samuel Marsault, Trainee
+ */
+
+/**
  * Create new job
  */
 public class PostUseGeoclimate implements Handler {
