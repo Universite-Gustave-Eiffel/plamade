@@ -216,7 +216,7 @@ public class PostUseGeoclimate implements Handler {
                                     apiToken = apiTokenNode.asText();
                                 }
                                 long timeJob = System.currentTimeMillis();
-                                String jobFolder = "dep" + location + "_" + timeJob;
+                                String jobFolder = "location_"+ location + "_" + timeJob;
                                 String remoteJobFolder;
                                 if(computeOnCluster) {
                                     remoteJobFolder = slurmConfigList.slurm.serverTempFolder + "/" + jobFolder;

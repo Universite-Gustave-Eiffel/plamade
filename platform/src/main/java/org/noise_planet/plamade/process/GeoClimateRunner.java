@@ -1314,7 +1314,7 @@ public class GeoClimateRunner implements RunnableFuture<String> {
             try (Connection nmConnection = nmDataSource.getConnection()) {
                 importData(nmConnection, subProg);
                 exportTables(nmConnection,
-                        Arrays.asList("ROAD_TRAFFIC", "BUILDINGS", "GROUND_ACOUSTIC", "DEM", "RAIL"),
+                        Arrays.asList("ROAD_TRAFFIC", "BUILDING", "GROUND_ACOUSTIC", "DEM", "RAIL"),
                         outDir.getAbsolutePath(), Integer.parseInt(configuration.srid));
 
                 if (subProg.isCanceled()) {

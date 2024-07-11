@@ -4,6 +4,8 @@ Plateforme plamade d'éxecution de traitements NoiseModelling sur serveur (ou cl
 
 ![Diagramme de flux](/documents/diag_flux.svg "Execution process")
 
+For an almost complete installation and launch guide, follow the steps in the [initPlamade.md](initPlamade.md) file.
+
 ## Prerequisites
 This example requires that you configure a Google API resource before running.
 
