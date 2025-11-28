@@ -1,0 +1,57 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.2.0
+          https://maven.apache.org/xsd/assembly-2.2.0.xsd">
+
+    <id>dist</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+
+    <includeBaseDirectory>true</includeBaseDirectory>
+
+    <fileSets>
+        <!-- Include appassembler-generated scripts and lib directory -->
+        <fileSet>
+            <directory>${project.build.directory}/appassembler</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>**/*</include>
+            </includes>
+            <fileMode>0755</fileMode>
+        </fileSet>
+
+        <fileSet>
+            <directory>${project.basedir}/src/main/groovy/org/noise_planet/noisemodelling</directory>
+            <outputDirectory>/noisemodelling</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}</directory>
+            <outputDirectory>/</outputDirectory>
+            <fileMode>0755</fileMode>
+            <includes>
+                <include>get_started_tutorial.sh</include>
+                <include>get_started_tutorial.groovy</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.build.directory}/Docs/_build/html</directory>
+            <outputDirectory>/static/help</outputDirectory>
+            <includes>
+                <include>**/*</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.parent.basedir}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>LICENSE</include>
+                <include>README.md</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/src/test/resources</directory>
+            <outputDirectory>/resources</outputDirectory>
+        </fileSet>
+    </fileSets>
+</assembly>
