@@ -129,7 +129,7 @@ class NoiseModellingServerHttpTest {
         HttpClient client = HttpClient.newHttpClient();
         String serviceParam = URLEncoder.encode("WPS", StandardCharsets.UTF_8);
         String requestParam = URLEncoder.encode("DescribeProcess", StandardCharsets.UTF_8);
-        URI uri = URI.create(BASE_URL + "?service=" + serviceParam + "&VERSION=1.0.0&request=" + requestParam + "&identifier=Geometric_Tools:Screen_to_building");
+        URI uri = URI.create(BASE_URL + "?service=" + serviceParam + "&VERSION=1.0.0&request=" + requestParam + "&identifier=Database_Manager:Display_Database");
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
@@ -141,9 +141,8 @@ class NoiseModellingServerHttpTest {
         assertEquals(200, response.statusCode());
         String body = response.body();
         assertNotNull(body);
-        assertTrue(body.contains("wps:ProcessDescriptions "));
-        assertTrue(body.contains("Convert screens to building format."));
-        assertTrue(body.contains("Convert the screens to the building format.  A width of 10 cm will be defined. If you also give a building table, this WPS script allows you to merge the two layers together"));
+        assertTrue(body.contains("wps:ProcessDescriptions"));
+        assertTrue(body.contains("Display columns of the tables"));
     }
 
     /**
