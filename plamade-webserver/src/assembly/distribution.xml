@@ -22,7 +22,7 @@
         </fileSet>
 
         <fileSet>
-            <directory>${project.basedir}/src/main/groovy/org/noise_planet/noisemodelling</directory>
+            <directory>${project.basedir}/src/noiseModellingServer/groovy/org/noise_planet/noisemodelling</directory>
             <outputDirectory>/noisemodelling</outputDirectory>
         </fileSet>
         <fileSet>

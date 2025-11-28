@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.noise-planet</groupId>
-        <artifactId>plamade-main</artifactId>
+        <artifactId>plamade-noiseModellingServer</artifactId>
         <version>2.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
@@ -92,7 +92,7 @@
         </dependency>
         <dependency>
             <groupId>org.geotools</groupId>
-            <artifactId>gt-main</artifactId>
+            <artifactId>gt-noiseModellingServer</artifactId>
         </dependency>
         <dependency>
             <groupId>org.geotools</groupId>
@@ -191,7 +191,7 @@
                 <configuration>
                     <sources>
                         <source>
-                            <directory>${project.basedir}/src/main/groovy</directory>
+                            <directory>${project.basedir}/src/noiseModellingServer/groovy</directory>
                             <includes>
                                 <include>**/*.groovy</include>
                             </includes>
