@@ -38,7 +38,7 @@ outputs = [
 @CompileStatic
 def exec(Connection connection, Map input) {
     connection = new ConnectionWrapper(connection)
-    Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling.webserver")
+    Logger logger = LoggerFactory.getLogger("Test_Config_Webserver.groovy")
 
     logger.info('Starting test configuration generation')
 

@@ -1,3 +1,14 @@
+/**
+ * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
+ *
+ * This version is developed by the DECIDE team from the Lab-STICC (CNRS) and by the Mixt Research Unit in Environmental Acoustics (Université Gustave Eiffel).
+ * <http://noise-planet.org/noisemodelling.html>
+ *
+ * NoiseModelling is distributed under GPL 3 license. You can read a copy of this License in the file LICENCE provided with this software.
+ *
+ * Contact: contact@noise-planet.org
+ *
+ */
 package org.noise_planet.plamade.webserver;
 
 import io.javalin.Javalin;
@@ -17,10 +28,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.stream.Stream;
 
 public class NoiseModellingServer {
-    private static final Logger LOGGER = LoggerFactory.getLogger(NoiseModellingServer.class);
+    private final Logger logger = LoggerFactory.getLogger(NoiseModellingServer.class);
     private Javalin app;
     private Future<?> scriptWatch;
     /**
@@ -30,6 +40,9 @@ public class NoiseModellingServer {
      * @throws IOException if an I/O error occurs during server initialization.
      */
     public static void main(String[] args) throws IOException {
+        PropertyConfigurator.configure(
+                Objects.requireNonNull(NoiseModellingServer.class.getResource("static/log4j.properties")));
+
         NoiseModellingServer noiseModellingServer = new NoiseModellingServer();
         noiseModellingServer.startServer(true);
     }
@@ -54,9 +67,6 @@ public class NoiseModellingServer {
     public Javalin startServer(boolean openBrowser) throws IOException {
         Path scriptsDir = WpsScriptWrapper.findScriptsDir();
 
-        PropertyConfigurator.configure(
-                Objects.requireNonNull(NoiseModellingServer.class.getResource("static/log4j.properties")));
-
         OwsController owsController = new OwsController();
 
         File htmlWpsBuilderPath;
@@ -73,7 +83,7 @@ public class NoiseModellingServer {
 
         int port = app.port();
         String url = "http://localhost:" + port + "/";
-        LOGGER.info("Start NoiseModelling: " + url);
+        logger.info("Start NoiseModelling: {}", url);
 
         if (openBrowser) {
             openBrowser(url);
@@ -90,7 +100,7 @@ public class NoiseModellingServer {
                 scriptWatch.cancel(true);
                 app.stop();
             } catch (Exception e) {
-                LOGGER.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
             }
         }));
 
@@ -108,62 +118,10 @@ public class NoiseModellingServer {
                 Desktop.getDesktop().browse(new URI(url));
             }
         } catch (Exception e) {
-            LOGGER.error("Unable to open the browser : {}", e.getMessage(), e);
+            logger.error("Unable to open the browser : {}", e.getMessage(), e);
         }
     }
 
-    /**
-     * Monitors a specified directory and its subdirectories for changes in files.
-     * Specifically watches for creation, deletion, and modification events of files with the `.groovy` extension
-     * and triggers a script reload using the provided OwsController.
-     */
-    public static final class ScriptFileWatchedProcess implements Callable<Boolean> {
-
-        private final Path scriptsDir;
-        private final OwsController owsController;
-
-        public ScriptFileWatchedProcess(Path scriptsDir, OwsController owsController) {
-            this.scriptsDir = scriptsDir;
-            this.owsController = owsController;
-        }
-        @Override
-        public Boolean call() throws Exception {
-            try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
-                try (Stream<Path> pathStream = Files.walk(scriptsDir)) {
-                    pathStream.filter(Files::isDirectory)
-                            .forEach(dir -> {
-                                try {
-                                    dir.register(watchService,
-                                            StandardWatchEventKinds.ENTRY_CREATE,
-                                            StandardWatchEventKinds.ENTRY_DELETE,
-                                            StandardWatchEventKinds.ENTRY_MODIFY);
-                                } catch (IOException e) {
-                                    LOGGER.error(e.getMessage(), e);
-                                }
-                            });
-                }
-                while (true) {
-                    try {
-                        WatchKey key = watchService.take();
-                        for (WatchEvent<?> event : key.pollEvents()) {
-                            Path fileName = (Path) event.context();
-                            if (fileName.toString().endsWith(".groovy")) {
-                                owsController.reloadScripts();
-                            }
-                        }
-                        boolean valid = key.reset();
-                        if (!valid) {
-                            break;
-                        }
-                    } catch (Exception e) {
-                        LOGGER.error(e.getMessage(), e);
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-    }
     /**
      * Monitors a specified directory and its subdirectories for changes in files.
      * Specifically watches for creation, deletion, and modification events of files with the `.groovy` extension

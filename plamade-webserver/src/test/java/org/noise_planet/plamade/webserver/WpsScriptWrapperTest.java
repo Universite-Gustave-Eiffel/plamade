@@ -1,6 +1,8 @@
 package org.noise_planet.plamade.webserver;
 
+import org.apache.log4j.PropertyConfigurator;
 import org.h2.jdbcx.JdbcConnectionPool;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.IOException;
@@ -13,6 +15,12 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WpsScriptWrapperTest {
+
+    @BeforeAll
+    static void setUp() throws SQLException, IOException, URISyntaxException {
+        PropertyConfigurator.configure(
+                Objects.requireNonNull(NoiseModellingServer.class.getResource("static/log4j.properties")));
+    }
 
     /**
      * Tests the ability to build script wrappers from a Groovy script resource
@@ -33,6 +41,8 @@ class WpsScriptWrapperTest {
      */
     @Test
     void testBuildScriptWrappersFromResource() throws IOException, URISyntaxException, SQLException {
+
+
         // Load the Groovy script from test resources
         Path scriptPath = Path.of(
                 Objects.requireNonNull(
@@ -84,8 +94,6 @@ class WpsScriptWrapperTest {
 
         // Assertions
         String message = (String) result;
-        System.out.println("message:" + message);
         assertEquals("Done! Table TEST_CONFIG has been created.", message);
-
     }
 }
