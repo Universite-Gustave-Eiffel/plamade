@@ -35,10 +35,6 @@
             <artifactId>noisemodelling-propagation</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.jfree</groupId>
-            <artifactId>jfreechart</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>5.10.2</version>
@@ -49,22 +45,6 @@
             <artifactId>mockito-core</artifactId>
             <version>5.11.0</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.openstreetmap.osmosis</groupId>
-            <artifactId>osmosis-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.openstreetmap.osmosis</groupId>
-            <artifactId>osmosis-areafilter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.openstreetmap.osmosis</groupId>
-            <artifactId>osmosis-pbf</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.openstreetmap.osmosis</groupId>
-            <artifactId>osmosis-xml</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.groovy</groupId>
@@ -136,7 +116,7 @@
         </dependency>
         <dependency>
             <groupId>io.javalin</groupId>
-            <artifactId>javalin</artifactId>
+            <artifactId>javalin-bundle</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.groovy</groupId>

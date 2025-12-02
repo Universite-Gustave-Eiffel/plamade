@@ -14,6 +14,8 @@ package org.noise_planet.plamade.webserver;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
 import org.apache.log4j.PropertyConfigurator;
+import org.noise_planet.plamade.webserver.secure.Auth;
+import org.noise_planet.plamade.webserver.secure.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +35,12 @@ public class NoiseModellingServer {
     private final Logger logger = LoggerFactory.getLogger(NoiseModellingServer.class);
     private Javalin app;
     private Future<?> scriptWatch;
+    private final OwsController owsController;
+
+    public NoiseModellingServer() throws IOException {
+        owsController  = new OwsController();
+    }
+
     /**
      * The entry point of the application. This method initializes and starts the server.
      *
@@ -60,14 +68,11 @@ public class NoiseModellingServer {
      * and optionally opens a browser pointing to the server's base URL.
      *
      * @param openBrowser indicates whether the default web browser should be opened
-     *                     pointing to the server's base URL.
-     * @return the initialized and started Javalin application instance.
+     *                    pointing to the server's base URL.
      * @throws IOException if an I/O error occurs during server initialization or script directory resolution.
      */
-    public Javalin startServer(boolean openBrowser) throws IOException {
+    public void startServer(boolean openBrowser) throws IOException {
         Path scriptsDir = WpsScriptWrapper.findScriptsDir();
-
-        OwsController owsController = new OwsController();
 
         File htmlWpsBuilderPath;
         try {
@@ -79,7 +84,9 @@ public class NoiseModellingServer {
         app = Javalin.create(config -> {
             config.staticFiles.add(htmlWpsBuilderPath.getAbsolutePath(),
                     Location.EXTERNAL);
-        }).start(8000);
+        });
+
+        app.beforeMatched(Auth::handleAccess);
 
         int port = app.port();
         String url = "http://localhost:" + port + "/";
@@ -89,7 +96,7 @@ public class NoiseModellingServer {
             openBrowser(url);
         }
 
-        app.get("/ows", owsController::handleGet);
+        app.get("/ows", owsController::handleGet, Role.ANYONE);
         app.post("/ows", owsController::handleWPSPost);
 
         scriptWatch = startWatcher(scriptsDir, owsController);
@@ -104,7 +111,7 @@ public class NoiseModellingServer {
             }
         }));
 
-        return app;
+        app.start(8000);
     }
 
     /**

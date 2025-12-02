@@ -17,6 +17,8 @@ import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Parser;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.plamade.scripts.Main;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -35,13 +37,15 @@ import java.util.Optional;
  */
 public class OwsController {
 
+    private final Logger logger = LoggerFactory.getLogger(OwsController.class);
+
     /**
      * Manages the database operations and configurations required for the web server.
-     *
+     * <p>
      * This instance is responsible for handling interactions with the database, such as
      * connecting to the database, initializing GIS-specific functions, and maintaining
      * the current database name and directory path.
-     *
+     * <p>
      * It ensures the proper setup and creation of directories for database storage during
      * its initialization. The {@code DataBaseManager} also facilitates the retrieval of
      * active database information, including the name and directory path, and supports
@@ -120,7 +124,7 @@ public class OwsController {
                 ctx.status(400).result("Unknown service");
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.err
             ctx.status(500).result("Server Error: " + e.getMessage());
         }
     }
