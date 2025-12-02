@@ -124,7 +124,7 @@ public class OwsController {
                 ctx.status(400).result("Unknown service");
             }
         } catch (Exception e) {
-            logger.err
+            logger.error("Error handling OWS GET request", e);
             ctx.status(500).result("Server Error: " + e.getMessage());
         }
     }
@@ -270,7 +270,7 @@ public class OwsController {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error processing WPS POST request", e);
             ctx.status(500).result("Error WPS : " + e.getMessage());
         }
     }
