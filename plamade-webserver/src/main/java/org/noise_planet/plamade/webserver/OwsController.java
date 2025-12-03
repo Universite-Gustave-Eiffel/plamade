@@ -41,19 +41,6 @@ public class OwsController {
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
 
     /**
-     * Manages the database operations and configurations required for the web server.
-     * <p>
-     * This instance is responsible for handling interactions with the database, such as
-     * connecting to the database, initializing GIS-specific functions, and maintaining
-     * the current database name and directory path.
-     * <p>
-     * It ensures the proper setup and creation of directories for database storage during
-     * its initialization. The {@code DataBaseManager} also facilitates the retrieval of
-     * active database information, including the name and directory path, and supports
-     * concurrent database access using H2's auto-server mode.
-     */
-    DataBaseManager dataBaseManager = new DataBaseManager();
-    /**
      * A static collection of {@link ScriptWrapper} objects representing the
      * scripts available for the Web Processing Service (WPS). Each script is wrapped
      * in a {@link ScriptWrapper}, which encapsulates its metadata, inputs, outputs,

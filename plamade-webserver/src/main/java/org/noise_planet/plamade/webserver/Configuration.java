@@ -11,17 +11,35 @@
  */
 package org.noise_planet.plamade.webserver;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.cli.*;
+import org.h2gis.functions.factory.H2GISDBFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
 
+/**
+ * Manage webserver configuration
+ * Generate datasource configuration from configuration files/args
+ */
 public class Configuration {
     String scriptPath = "plamade/scripts";
     boolean totpEnabled = false;
     boolean printVersion = false;
     String workingDirectory = System.getProperty("user.home") + "/.noisemodelling";
+    // secureBase is the h2 database that store web application critical data
+    // it is not associated with any noisemodelling data
+    String secureBaseEncryptionSecret = "";
+    String secureBaseAdminUser = "sa";
+    String secureBaseAdminPassword = "sa";
+    Map<String, Object> customConfiguration = new HashMap<String, Object>();
 
     /**
      * Creates a Configuration object from command-line arguments (backward compatible entry point).
@@ -53,11 +71,18 @@ public class Configuration {
         scriptPathOption.setArgName("script path");
         options.addOption(scriptPathOption);
 
-        Option printVersionOption = new Option("v", null, false, "Print version of all libraries");
+        Option printVersionOption = new Option("v", "print-version", false, "Print version of all libraries");
         options.addOption(printVersionOption);
 
         Option totpEnabledOption = new Option("t", "totp-enabled", false, "Enable TOTP");
         options.addOption(totpEnabledOption);
+
+        Option secureBaseEncryptionSecret = new Option("e", "encryption-secret", true,
+                "If provided will encrypt the webserver h2 database with this secret");
+        options.addOption(secureBaseEncryptionSecret);
+
+        Option secureBaseAdminPassword = new Option("p", "password-admin", true, "WebServer admin password");
+        options.addOption(secureBaseAdminPassword);
 
         return options;
     }
@@ -103,33 +128,29 @@ public class Configuration {
 
     /**
      * Creates a Configuration object from a JSON-like document represented as a Map.
-     * Keys can be either the long option name (when available) or the short option name.
+     * Keys must use the long option names only (short names are reserved for CLI parsing).
      * Required flags from the provided {@link Options} instance are enforced.
      *
      * Supported keys:
-     * - script / s: String
-     * - working-dir / w: String
-     * - totp-enabled / t: boolean
-     * - v: boolean (print version)
+     * - script: String
+     * - working-dir: String
+     * - totp-enabled: boolean
+     * - print-version: boolean
      *
      * @param values  map containing configuration values (e.g., result of JSON parsing)
      * @param options options definition specifying required fields
      * @return Configuration configured from provided values
      * @throws IllegalArgumentException if a required option is missing
      */
-    public static Configuration createConfigurationFromJson(java.util.Map<String, Object> values, Options options)
+    public static Configuration createConfigurationFromJson(Map<String, Object> values, Options options)
             throws IllegalArgumentException {
         Configuration config = new Configuration();
 
-        // Helper to read by long name first, then short name
+        // Helper to read by long name only (no short names for JSON)
         java.util.function.Function<Option, Object> getValue = (opt) -> {
             String longName = opt.getLongOpt();
-            String shortName = opt.getOpt();
             if (longName != null && values.containsKey(longName)) {
                 return values.get(longName);
-            }
-            if (shortName != null && values.containsKey(shortName)) {
-                return values.get(shortName);
             }
             return null;
         };
@@ -146,25 +167,35 @@ public class Configuration {
             }
         }
 
-        // Map known options
-        Object vScript = getValue.apply(options.getOption("s"));
+        // Map known options using long names only
+        Object vScript = values.get("script");
         if (vScript instanceof String) {
             config.scriptPath = (String) vScript;
         }
-        Object vWork = getValue.apply(options.getOption("w"));
+        Object vWork = values.get("working-dir");
         if (vWork instanceof String) {
             config.workingDirectory = (String) vWork;
         }
-        Object vTotp = getValue.apply(options.getOption("t"));
+        Object vTotp = values.get("totp-enabled");
         if (vTotp != null) {
             config.totpEnabled = parseBoolean(vTotp);
         }
-        // print version has only short opt 'v'
-        Object vPrint = getValue.apply(options.getOption("v"));
+        Object vPrint = values.get("print-version");
         if (vPrint != null) {
             config.printVersion = parseBoolean(vPrint);
         }
-
+        Object vSecureBaseEncryptionSecret = values.get("encryption-secret");
+        if (vSecureBaseEncryptionSecret != null) {
+            config.secureBaseEncryptionSecret = vSecureBaseEncryptionSecret.toString();
+        }
+        Object vSecureBaseAdminUser = values.get("secure-base-admin-user");
+        if (vSecureBaseAdminUser != null) {
+            config.secureBaseAdminUser = (String) vSecureBaseAdminUser;
+        }
+        Object vSecureBaseAdminPassword = values.get("secure-base-admin-password");
+        if (vSecureBaseAdminPassword != null) {
+            config.secureBaseAdminPassword = (String) vSecureBaseAdminPassword;
+        }
         return config;
     }
 
@@ -181,7 +212,37 @@ public class Configuration {
         return false;
     }
 
+    public HikariDataSource createWebServerDataSource() throws SQLException {
+        HikariConfig config = new HikariConfig();
 
+        StringBuilder connectionUrl = new StringBuilder();
+        connectionUrl.append(H2GISDBFactory.START_URL);
+        try {
+            connectionUrl.append(
+                    new File(workingDirectory, "webserver")
+                            .toURI()
+                            .toURL()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error building H2GIS JDBC URL", e);
+        }
+        if(!secureBaseEncryptionSecret.isEmpty()) {
+            connectionUrl.append(";CIPHER=AES");
+        }
+
+        Properties properties = new Properties();
+        properties.setProperty(H2GISDBFactory.JDBC_URL, connectionUrl.toString());
+        properties.setProperty(
+                H2GISDBFactory.JDBC_USER, secureBaseAdminUser);
+        properties.setProperty(
+                H2GISDBFactory.JDBC_PASSWORD, secureBaseEncryptionSecret.isEmpty() ?
+                        secureBaseAdminPassword : secureBaseEncryptionSecret+" "+secureBaseAdminUser);
+
+        javax.sql.DataSource h2DataSource =
+                H2GISDBFactory.createDataSource(properties);
+        config.setDataSource(h2DataSource);
+        return new HikariDataSource(config);
+    }
 
     /**
      * A Writer implementation that redirects output to an SLF4J Logger instance.
