@@ -24,6 +24,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +71,7 @@ public class OwsController {
      * to execute processes defined in scripts. It is responsible for script execution and handling inputs
      * and outputs for WPS processes.
      */
-    WpsScriptWrapper wpsScriptWrapper = new WpsScriptWrapper();
+    WpsScriptWrapper wpsScriptWrapper;
 
 
     /**
@@ -81,7 +82,8 @@ public class OwsController {
      *
      * @throws IOException if an error occurs while loading or processing the script files.
      */
-    public OwsController() throws IOException {
+    public OwsController(Path scriptDir) throws IOException {
+        wpsScriptWrapper = new WpsScriptWrapper(scriptDir);
         Map<String, List<File>> groupedScripts = wpsScriptWrapper.loadScripts();
         wpsScripts = WpsScriptWrapper.buildScriptWrappers(groupedScripts);
     }

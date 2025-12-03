@@ -1,11 +1,11 @@
 /**
  * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
- *
+ * <p>
  * This version is developed by the DECIDE team from the Lab-STICC (CNRS) and by the Mixt Research Unit in Environmental Acoustics (Université Gustave Eiffel).
  * <http://noise-planet.org/noisemodelling.html>
- *
+ * <p>
  * NoiseModelling is distributed under GPL 3 license. You can read a copy of this License in the file LICENCE provided with this software.
- *
+ * <p>
  * Contact: contact@noise-planet.org
  *
  */
@@ -36,9 +36,11 @@ public class NoiseModellingServer {
     private Javalin app;
     private Future<?> scriptWatch;
     private final OwsController owsController;
+    private final Configuration configuration;
 
-    public NoiseModellingServer() throws IOException {
-        owsController  = new OwsController();
+    public NoiseModellingServer(Configuration configuration) throws IOException {
+        this.configuration = configuration;
+        owsController  = new OwsController(Path.of(configuration.scriptPath));
     }
 
     /**
@@ -50,8 +52,8 @@ public class NoiseModellingServer {
     public static void main(String[] args) throws IOException {
         PropertyConfigurator.configure(
                 Objects.requireNonNull(NoiseModellingServer.class.getResource("static/log4j.properties")));
-
-        NoiseModellingServer noiseModellingServer = new NoiseModellingServer();
+        Configuration configuration = Configuration.createConfigurationFromArguments(args);
+        NoiseModellingServer noiseModellingServer = new NoiseModellingServer(configuration);
         noiseModellingServer.startServer(true);
     }
 
@@ -72,8 +74,6 @@ public class NoiseModellingServer {
      * @throws IOException if an I/O error occurs during server initialization or script directory resolution.
      */
     public void startServer(boolean openBrowser) throws IOException {
-        Path scriptsDir = WpsScriptWrapper.findScriptsDir();
-
         File htmlWpsBuilderPath;
         try {
             htmlWpsBuilderPath = new File(Objects.requireNonNull(NoiseModellingServer.class.getResource("static/wpsbuilder"))
@@ -99,7 +99,7 @@ public class NoiseModellingServer {
         app.get("/ows", owsController::handleGet, Role.ANYONE);
         app.post("/ows", owsController::handleWPSPost);
 
-        scriptWatch = startWatcher(scriptsDir, owsController);
+        scriptWatch = startWatcher(Path.of(configuration.scriptPath), owsController);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {

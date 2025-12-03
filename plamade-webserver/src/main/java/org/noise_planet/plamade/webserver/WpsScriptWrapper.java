@@ -50,37 +50,10 @@ public class WpsScriptWrapper {
      * directory of the application and is expected to exist at:
      * "noisemodelling-scripts/src/main/groovy/org/noise_planet/noisemodelling/scripts".
      */
-    public WpsScriptWrapper() {
-        this.scriptsRoot = findScriptsDir();
+    public WpsScriptWrapper(Path scriptDir) {
+        this.scriptsRoot = scriptDir;
     }
 
-    /**
-     * Resolves and returns the path to the directory containing the NoiseModelling scripts.
-     * The method first searches for the "plamade-webserver" directory by traversing
-     * upwards from the user's current working directory. It then determines whether it is
-     * in a development environment or a deployed (zipped) environment by checking for the
-     * existence of specific paths. If neither path is found, a RuntimeException is thrown.
-     *
-     * @return the {@code Path} to the directory containing NoiseModelling scripts, either in
-     *         the development or deployment structure.
-     * @throws RuntimeException if the script directory cannot be located in the expected paths.
-     */
-    public static Path findScriptsDir() {
-        Path scriptsDir = Paths.get(System.getProperty("user.dir"));
-        if (!Files.exists(scriptsDir.resolve("plamade-webserver")) && scriptsDir.getParent() != null) {
-            scriptsDir = scriptsDir.getParent();
-        }
-        Path devScripts = scriptsDir.resolve(Paths.get("plamade-webserver/src/main/groovy/org/noise_planet/plamade/scripts")).normalize();
-        Path zipScripts = scriptsDir.resolve("plamade/scripts");
-        if (Files.exists(devScripts)) {
-            return devScripts;
-        } else if (Files.exists(zipScripts)) {
-            return zipScripts;
-        } else {
-            throw new RuntimeException(String.format("Scripts not found in expected locations:\n%s\n%s ",
-                    devScripts, zipScripts));
-        }
-    }
 
     /**
      * Loads Groovy scripts from a predefined directory structure and organizes them into groups.
