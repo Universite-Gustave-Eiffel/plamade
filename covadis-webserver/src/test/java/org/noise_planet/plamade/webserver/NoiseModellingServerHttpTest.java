@@ -60,7 +60,7 @@ class NoiseModellingServerHttpTest {
      */
     @BeforeEach
     public void setUp() throws IOException {
-        app = new NoiseModellingServer();
+        app = new NoiseModellingServer(new Configuration());
         app.startServer(false);
     }
 

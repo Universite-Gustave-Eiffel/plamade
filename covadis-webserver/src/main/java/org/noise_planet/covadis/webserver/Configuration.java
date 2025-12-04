@@ -31,6 +31,8 @@ import java.util.UUID;
  * Generate datasource configuration from configuration files/args
  */
 public class Configuration {
+    public static final String DEFAULT_APPLICATION_URL = "nmcovadis";
+    String applicationRootUrl = DEFAULT_APPLICATION_URL;
     String scriptPath = "covadis/scripts";
     boolean totpEnabled = false;
     boolean printVersion = false;
@@ -84,6 +86,10 @@ public class Configuration {
 
         Option secureBaseAdminPassword = new Option("p", "password-admin", true, "WebServer admin password");
         options.addOption(secureBaseAdminPassword);
+
+        Option applicationRootUrlOption = new Option("r", "root-url", true, "Custom root URL for the web application (default " + DEFAULT_APPLICATION_URL+ " )");
+        applicationRootUrlOption.setRequired(false); // You can set this to be required if you want it
+        options.addOption(applicationRootUrlOption);
 
         return options;
     }
@@ -196,6 +202,10 @@ public class Configuration {
         Object vSecureBaseAdminPassword = values.get("secure-base-admin-password");
         if (vSecureBaseAdminPassword != null) {
             config.secureBaseAdminPassword = (String) vSecureBaseAdminPassword;
+        }
+        Object vApplicationRootUrl = values.get("root-url");
+        if (vApplicationRootUrl instanceof String) {
+            config.applicationRootUrl = (String) vApplicationRootUrl;
         }
         return config;
     }

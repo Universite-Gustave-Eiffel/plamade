@@ -30,8 +30,8 @@ public class Auth {
     }
 
     private static final Map<Pair, List<Role>> userRolesMap = Map.of(
-            new Pair("alice", "weak-1234"), List.of(Role.USER_READ),
-            new Pair("bob", "weak-123456"), List.of(Role.USER_READ, Role.USER_WRITE)
+            new Pair("alice", "weak-1234"), List.of(Role.RUNNER),
+            new Pair("bob", "weak-123456"), List.of(Role.RUNNER, Role.ADMINISTRATOR)
     );
 
 }

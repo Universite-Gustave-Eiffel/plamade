@@ -19,6 +19,7 @@ import org.noise_planet.covadis.webserver.secure.Auth;
 import org.noise_planet.covadis.webserver.secure.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.thymeleaf.TemplateEngine;
 
 import java.awt.*;
 import java.io.File;
@@ -27,6 +28,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -75,27 +77,22 @@ public class NoiseModellingServer {
      * @throws IOException if an I/O error occurs during server initialization or script directory resolution.
      */
     public void startServer(boolean openBrowser) throws IOException {
-        File htmlWpsBuilderPath;
-        try {
-            htmlWpsBuilderPath = new File(Objects.requireNonNull(NoiseModellingServer.class.getResource("static/wpsbuilder"))
-                    .toURI());
-        } catch (URISyntaxException ex) {
-            throw new IOException(ex);
-        }
         app = Javalin.create(config -> {
             config.staticFiles.add(staticFileConfig -> {
                         staticFileConfig.location = Location.EXTERNAL;
-                        staticFileConfig.hostedPath= "/builder";
-                        staticFileConfig.directory = htmlWpsBuilderPath.getAbsolutePath();
+                        staticFileConfig.hostedPath= configuration.applicationRootUrl + "/builder";
+                        staticFileConfig.directory = NoiseModellingServer.class.getResource("static/wpsbuilder/").getFile();
+                        staticFileConfig.roles = Set.of(Role.ANYONE);
                     });
-            config.fileRenderer(new JavalinThymeleaf());
+            config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
         app.beforeMatched(Auth::handleAccess);
 
-        app.get("/ows", owsController::handleGet, Role.ANYONE);
-        app.post("/ows", owsController::handleWPSPost, Role.USER_READ);
-        app.get("/", context -> {context.render(NoiseModellingServer.class.getResource("static/templates/index.html").getPath());}, Role.ANYONE);
+        app.get(configuration.applicationRootUrl + "/ows", owsController::handleGet, Role.ANYONE);
+        app.post(configuration.applicationRootUrl + "/ows", owsController::handleWPSPost, Role.RUNNER);
+        app.get(configuration.applicationRootUrl, context -> {context.render("blank.html");}, Role.ANYONE);
+        app.get("/", ctx -> {ctx.redirect(configuration.applicationRootUrl);});
 
         scriptWatch = startWatcher(Path.of(configuration.scriptPath), owsController);
 

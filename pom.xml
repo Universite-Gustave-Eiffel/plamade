@@ -22,7 +22,7 @@
         </license>
     </licenses>
     <modules>
-        <module></module>
+        <module>covadis-webserver</module>
     </modules>
     <scm>
         <connection>scm:git:https://github.com/Universite-Gustave-Eiffel/covadis.git</connection>
