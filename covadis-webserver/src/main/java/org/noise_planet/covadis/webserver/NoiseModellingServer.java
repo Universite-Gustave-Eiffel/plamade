@@ -12,6 +12,7 @@
 package org.noise_planet.covadis.webserver;
 
 import io.javalin.Javalin;
+import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
 import org.apache.log4j.PropertyConfigurator;
@@ -77,22 +78,29 @@ public class NoiseModellingServer {
      * @throws IOException if an I/O error occurs during server initialization or script directory resolution.
      */
     public void startServer(boolean openBrowser) throws IOException {
+        String rootPath = "/" + configuration.applicationRootUrl;
+
         app = Javalin.create(config -> {
             config.staticFiles.add(staticFileConfig -> {
                         staticFileConfig.location = Location.EXTERNAL;
-                        staticFileConfig.hostedPath= configuration.applicationRootUrl + "/builder";
+                        staticFileConfig.hostedPath= rootPath + "/builder";
                         staticFileConfig.directory = NoiseModellingServer.class.getResource("static/wpsbuilder/").getFile();
                         staticFileConfig.roles = Set.of(Role.ANYONE);
                     });
+            config.staticFiles.add(staticFileConfig -> {
+                staticFileConfig.location = Location.EXTERNAL;
+                staticFileConfig.hostedPath= rootPath;
+                staticFileConfig.directory = NoiseModellingServer.class.getResource("static/root/").getFile();
+                staticFileConfig.roles = Set.of(Role.ANYONE);
+            });
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
         app.beforeMatched(Auth::handleAccess);
 
-        app.get(configuration.applicationRootUrl + "/ows", owsController::handleGet, Role.ANYONE);
-        app.post(configuration.applicationRootUrl + "/ows", owsController::handleWPSPost, Role.RUNNER);
-        app.get(configuration.applicationRootUrl, context -> {context.render("blank.html");}, Role.ANYONE);
-        app.get("/", ctx -> {ctx.redirect(configuration.applicationRootUrl);});
+        app.get(rootPath + "/builder/ows", owsController::handleGet, Role.ANYONE);
+        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, Role.RUNNER);
+        app.get("/", ctx -> {ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);}, Role.ANYONE);
 
         scriptWatch = startWatcher(Path.of(configuration.scriptPath), owsController);
 
