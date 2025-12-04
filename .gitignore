@@ -15,3 +15,5 @@ plamade_test_dep*
 out/
 application.log
 target/
+.DS_Store
+
