@@ -13,6 +13,8 @@ package org.noise_planet.covadis.webserver;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -103,7 +105,19 @@ public class WpsScriptWrapper {
         Map<String, List<String>> grouped = new TreeMap<>();
         File baseDir = scriptsRoot.toFile();
         if (!baseDir.exists()) {
-            return grouped;
+            // The location may be stored into the jar not the local file system
+            try {
+                URL resourceUrl = getClass().getClassLoader().getResource(scriptsRoot.toString());
+                if (resourceUrl == null) {
+                    return grouped;
+                }
+                baseDir = new File(resourceUrl.toURI());
+            } catch (URISyntaxException e) {
+                return grouped;
+            }
+            if (!baseDir.exists()) {
+                return grouped;
+            }
         }
         scanRecursive(baseDir, "", grouped);
         return grouped;

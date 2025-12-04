@@ -495,7 +495,7 @@ Overall highlight.js currently supports 51 languages and 20 style themes.
 ## Version 6.2
 
 A lot of things happened in highlight.js since the last version! We've got nine
-new contributors, the discussion group came alive, and the noiseModellingServer branch on GitHub
+new contributors, the discussion group came alive, and the main branch on GitHub
 now counts more than 350 followers. Here are most significant results coming
 from all this activity:
 
@@ -614,7 +614,7 @@ Bug fixes:
 ### For developers
 
 The most significant change is the ability to include language submodes right
-under `contains` instead of defining explicit named submodes in the noiseModellingServer array:
+under `contains` instead of defining explicit named submodes in the main array:
 
     contains: [
       'string',
@@ -762,7 +762,7 @@ contributions!
 
 ## Version 5.0
 
-The noiseModellingServer change in the new major version of highlight.js is a mechanism for
+The main change in the new major version of highlight.js is a mechanism for
 packing several languages along with the library itself into a single compressed
 file. Now sites using several languages will load considerably faster because
 the library won't dynamically include additional files while loading.

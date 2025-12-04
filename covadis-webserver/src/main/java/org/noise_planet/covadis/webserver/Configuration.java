@@ -33,9 +33,8 @@ import java.util.UUID;
 public class Configuration {
     public static final String DEFAULT_APPLICATION_URL = "nmcovadis";
     String applicationRootUrl = DEFAULT_APPLICATION_URL;
-    String scriptPath = "covadis/scripts";
+    String scriptPath = "scripts";
     boolean totpEnabled = false;
-    boolean printVersion = false;
     String workingDirectory = System.getProperty("user.home") + "/.noisemodelling";
     // secureBase is the h2 database that store web application critical data
     // it is not associated with any noisemodelling data
@@ -73,9 +72,6 @@ public class Configuration {
         scriptPathOption.setRequired(true);
         scriptPathOption.setArgName("script path");
         options.addOption(scriptPathOption);
-
-        Option printVersionOption = new Option("v", "print-version", false, "Print version of all libraries");
-        options.addOption(printVersionOption);
 
         Option totpEnabledOption = new Option("t", "totp-enabled", false, "Enable TOTP");
         options.addOption(totpEnabledOption);
@@ -116,14 +112,20 @@ public class Configuration {
             if (commandLine.hasOption("s")) {
                 config.scriptPath = commandLine.getOptionValue("s");
             }
-            if (commandLine.hasOption("v")) {
-                config.printVersion = true;
-            }
             if (commandLine.hasOption("t")) {
                 config.totpEnabled = true;
             }
             if (commandLine.hasOption("w")) {
                 config.workingDirectory = commandLine.getOptionValue("w");
+            }
+            if (commandLine.hasOption("e")) {
+                config.secureBaseEncryptionSecret = commandLine.getOptionValue("e");
+            }
+            if (commandLine.hasOption("p")) {
+                config.secureBaseAdminPassword = commandLine.getOptionValue("p");
+            }
+            if (commandLine.hasOption("r")) {
+                config.applicationRootUrl = commandLine.getOptionValue("r");
             }
         } catch (ParseException ex) {
             logger.info(ex.getMessage());
@@ -175,38 +177,35 @@ public class Configuration {
         }
 
         // Map known options using long names only
-        Object vScript = values.get("script");
+        Object vScript = values.remove("script");
         if (vScript instanceof String) {
             config.scriptPath = (String) vScript;
         }
-        Object vWork = values.get("working-dir");
+        Object vWork = values.remove("working-dir");
         if (vWork instanceof String) {
             config.workingDirectory = (String) vWork;
         }
-        Object vTotp = values.get("totp-enabled");
+        Object vTotp = values.remove("totp-enabled");
         if (vTotp != null) {
             config.totpEnabled = parseBoolean(vTotp);
         }
-        Object vPrint = values.get("print-version");
-        if (vPrint != null) {
-            config.printVersion = parseBoolean(vPrint);
-        }
-        Object vSecureBaseEncryptionSecret = values.get("encryption-secret");
+        Object vSecureBaseEncryptionSecret = values.remove("encryption-secret");
         if (vSecureBaseEncryptionSecret != null) {
             config.secureBaseEncryptionSecret = vSecureBaseEncryptionSecret.toString();
         }
-        Object vSecureBaseAdminUser = values.get("secure-base-admin-user");
+        Object vSecureBaseAdminUser = values.remove("secure-base-admin-user");
         if (vSecureBaseAdminUser != null) {
             config.secureBaseAdminUser = (String) vSecureBaseAdminUser;
         }
-        Object vSecureBaseAdminPassword = values.get("secure-base-admin-password");
+        Object vSecureBaseAdminPassword = values.remove("secure-base-admin-password");
         if (vSecureBaseAdminPassword != null) {
             config.secureBaseAdminPassword = (String) vSecureBaseAdminPassword;
         }
-        Object vApplicationRootUrl = values.get("root-url");
+        Object vApplicationRootUrl = values.remove("root-url");
         if (vApplicationRootUrl instanceof String) {
             config.applicationRootUrl = (String) vApplicationRootUrl;
         }
+        config.customConfiguration = values;
         return config;
     }
 

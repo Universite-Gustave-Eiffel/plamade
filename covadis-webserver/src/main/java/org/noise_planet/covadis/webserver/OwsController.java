@@ -12,8 +12,16 @@
 package org.noise_planet.covadis.webserver;
 
 import io.javalin.http.Context;
+import net.opengis.ows11.ExceptionReportType;
+import net.opengis.ows11.ExceptionType;
+import net.opengis.ows11.Ows11Factory;
 import net.opengis.wps10.ExecuteType;
+import net.opengis.wps10.ProcessFailedType;
+import net.opengis.wps10.Wps10Factory;
+import org.geotools.ows.v1_1.OWS;
+import org.geotools.ows.v1_1.OWSConfiguration;
 import org.geotools.wps.WPSConfiguration;
+import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.scripts.Main;
@@ -28,6 +36,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -114,8 +123,40 @@ public class OwsController {
             }
         } catch (Exception e) {
             logger.error("Error handling OWS GET request", e);
-            ctx.status(500).result("Server Error: " + e.getMessage());
+            try {
+                returnExceptionDocument(ctx, e);
+            } catch (IOException ex) {
+                logger.error("Error generating error document", ex);
+            }
         }
+    }
+
+
+    public void returnExceptionDocument(Context ctx, Exception ex) throws IOException {
+        ExceptionReportType report = generateExceptionDocument(ex);
+
+        ProcessFailedType failedType = Wps10Factory.eINSTANCE.createProcessFailedType();
+        failedType.setExceptionReport(report);
+
+        Encoder encoder = new Encoder(new OWSConfiguration());
+        encoder.setIndenting(true);
+        encoder.setIndentSize(2);
+
+        // used to throw an exception here
+        ctx.status(500).result(encoder.encodeAsString(report, OWS.ExceptionReport));
+    }
+
+    public ExceptionReportType generateExceptionDocument(Exception ex) {
+        ExceptionType e = Ows11Factory.eINSTANCE.createExceptionType();
+        e.setExceptionCode(ex.getMessage());
+        e.setLocator(ex.getClass().getName());
+        for (StackTraceElement traceElement : ex.getStackTrace()) {
+            e.getExceptionText().add(traceElement.toString());
+        }
+        ExceptionReportType report = Ows11Factory.eINSTANCE.createExceptionReportType();
+        report.setVersion("2.0");
+        report.getException().add(e);
+        return report;
     }
 
     /**
@@ -172,8 +213,10 @@ public class OwsController {
     private void handleWFSGet(Context ctx) throws Exception {
         String request = ctx.queryParam("request");
         if ("GetCapabilities".equalsIgnoreCase(request)) {
-            try (InputStream xmlStream = Main.class.getResourceAsStream("static/xmlFiles/wfs.xml")){
-                ctx.result(xmlStream.readAllBytes());
+            try (InputStream xmlStream = getClass().getResourceAsStream("static/xmlFiles/wfs.xml")){
+                if (xmlStream != null) {
+                    ctx.result(xmlStream.readAllBytes());
+                }
             }
         } else {
             ctx.status(400).result("Unknown WFS request");
@@ -195,8 +238,10 @@ public class OwsController {
     private void handleWCSGet(Context ctx) throws Exception {
         String request = ctx.queryParam("request");
         if ("GetCapabilities".equalsIgnoreCase(request)) {
-            try (InputStream xmlStream = Main.class.getResourceAsStream("static/xmlFiles/wcs.xml")) {
-                ctx.result(xmlStream.readAllBytes());
+            try (InputStream xmlStream = getClass().getResourceAsStream("static/xmlFiles/wcs.xml")) {
+                if (xmlStream != null) {
+                    ctx.result(xmlStream.readAllBytes());
+                }
             }
         } else {
             ctx.status(400).result("Unknown WCS request");
