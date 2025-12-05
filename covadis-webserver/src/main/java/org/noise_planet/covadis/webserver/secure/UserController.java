@@ -6,7 +6,7 @@ import java.util.*;
 /**
  * Handle user storage
  * Adapted from tutorial material from
- * https://github.com/javalin/javalin-samples/tree/main/javalin6/javalin-auth-example
+ * <a href="https://github.com/javalin/javalin-samples/tree/main/javalin6/javalin-auth-example">javalin-auth-example</a>
  *
  */
 public class UserController {
