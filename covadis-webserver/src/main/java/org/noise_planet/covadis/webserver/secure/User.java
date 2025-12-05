@@ -10,6 +10,13 @@
 
 package org.noise_planet.covadis.webserver.secure;
 
-import io.javalin.security.RouteRole;
+public class User {
+    String name;
+    String email;
 
-public enum Role implements RouteRole {ANYONE, RUNNER, ADMINISTRATOR}
+    public User(String name, String email) {
+        this.name = name;
+        this.email = email;
+    }
+}
+

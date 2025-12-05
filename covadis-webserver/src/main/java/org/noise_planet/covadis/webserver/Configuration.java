@@ -1,14 +1,13 @@
 /**
- * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
- * <p>
- * This version is developed by the DECIDE team from the Lab-STICC (CNRS) and by the Mixt Research Unit in Environmental Acoustics (Université Gustave Eiffel).
- * <http://noise-planet.org/noisemodelling.html>
+ * NoiseModelling is a library capable of producing noise maps. It can be freely used either for research and education, as well as by experts in a professional use.
  * <p>
  * NoiseModelling is distributed under GPL 3 license. You can read a copy of this License in the file LICENCE provided with this software.
  * <p>
+ * Official webpage : http://noise-planet.org/noisemodelling.html
  * Contact: contact@noise-planet.org
- *
  */
+
+
 package org.noise_planet.covadis.webserver;
 
 import org.apache.commons.cli.*;
@@ -56,12 +55,10 @@ public class Configuration {
 
         Option workingDirOption = new Option("w", "working-dir", true,
                 "Path were the application have writing rights to store sessions data");
-        workingDirOption.setRequired(false);
         workingDirOption.setArgName("folder path");
         options.addOption(workingDirOption);
 
         Option scriptPathOption = new Option("s", "script", true, "Path and file name of the script");
-        scriptPathOption.setRequired(true);
         scriptPathOption.setArgName("script path");
         options.addOption(scriptPathOption);
 
@@ -114,10 +111,9 @@ public class Configuration {
                 config.applicationRootUrl = commandLine.getOptionValue("r");
             }
         } catch (ParseException ex) {
-            logger.info(ex.getMessage());
             helpFormatter.printHelp("NoiseModelling Script Runner", options);
+            throw new IllegalArgumentException(ex.getMessage());
         }
-
         return config;
     }
 
