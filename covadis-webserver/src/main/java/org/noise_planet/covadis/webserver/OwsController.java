@@ -24,7 +24,6 @@ import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
 import org.locationtech.jts.geom.Geometry;
-import org.noise_planet.covadis.scripts.Main;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +35,6 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -305,7 +303,11 @@ public class OwsController {
 
         } catch (Exception e) {
             logger.error("Error processing WPS POST request", e);
-            ctx.status(500).result("Error WPS : " + e.getMessage());
+            try {
+                returnExceptionDocument(ctx, e);
+            } catch (IOException ex) {
+                logger.error("Error generating error document", ex);
+            }
         }
     }
 }

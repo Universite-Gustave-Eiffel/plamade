@@ -69,23 +69,7 @@ public class WpsScriptWrapper {
      *         File objects corresponding to the scripts in each group
      */
     public  Map<String, List<File>> loadScripts(){
-        Map<String, List<String>> groupedScripts = scanScriptsGrouped();
-
-        Map<String, List<File>> scriptFiles = new HashMap<>();
-        for (Map.Entry<String, List<String>> entry : groupedScripts.entrySet()) {
-            String group = entry.getKey();
-            List<File> files = new ArrayList<>();
-
-            for (String scriptName : entry.getValue()) {
-                File f = findScript(group, scriptName);
-                if (f != null && f.exists()) {
-                    files.add(f);
-                }
-            }
-            scriptFiles.put(group, files);
-        }
-
-        return scriptFiles;
+        return scanScriptsGrouped(getClass().getClassLoader(), scriptsRoot);
     }
 
     /**
@@ -101,13 +85,13 @@ public class WpsScriptWrapper {
      * @return a map where the keys are group names (relative directory paths) and the values are lists
      *         of script names (without file extensions) belonging to each group
      */
-    public Map<String, List<String>> scanScriptsGrouped() {
-        Map<String, List<String>> grouped = new TreeMap<>();
-        File baseDir = scriptsRoot.toFile();
+    public static Map<String, List<File>> scanScriptsGrouped(ClassLoader loader, Path scriptDirectory) {
+        Map<String, List<File>> grouped = new TreeMap<>();
+        File baseDir = scriptDirectory.toFile();
         if (!baseDir.exists()) {
             // The location may be stored into the jar not the local file system
             try {
-                URL resourceUrl = getClass().getClassLoader().getResource(scriptsRoot.toString());
+                URL resourceUrl = loader.getResource(scriptDirectory.toString());
                 if (resourceUrl == null) {
                     return grouped;
                 }
@@ -150,9 +134,9 @@ public class WpsScriptWrapper {
      * @param dir the directory to scan for Groovy script files
      * @param currentGroup the current group name, representing the relative path from the root directory
      * @param grouped a map where keys are group names (relative directory paths) and values are lists
-     *        of script names (without file extensions) that belong to each group
+     *        of script files that belong to each group
      */
-    private void scanRecursive(File dir, String currentGroup, Map<String, List<String>> grouped) {
+    private static void scanRecursive(File dir, String currentGroup, Map<String, List<File>> grouped) {
         File[] files = dir.listFiles();
         if (files == null) return;
         for (File f : files) {
@@ -161,7 +145,7 @@ public class WpsScriptWrapper {
                 scanRecursive(f, newGroup, grouped);
             } else if (f.getName().endsWith(".groovy")) {
                 grouped.computeIfAbsent(currentGroup, k -> new ArrayList<>())
-                        .add(f.getName().replace(".groovy", ""));
+                        .add(f);
             }
         }
     }

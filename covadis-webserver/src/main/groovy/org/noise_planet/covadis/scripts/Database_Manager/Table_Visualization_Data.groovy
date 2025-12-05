@@ -16,7 +16,7 @@
  */
 
 
-package org.noise_planet.plamade.scripts.Database_Manager
+package org.noise_planet.covadis.scripts.Database_Manager
 
 import groovy.sql.Sql
 import org.h2gis.utilities.JDBCUtilities

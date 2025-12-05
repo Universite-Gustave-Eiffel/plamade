@@ -1,4 +1,4 @@
-package org.noise_planet.plamade.webserver.Test
+package org.noise_planet.covadis.webserver.Test
 
 import groovy.sql.Sql
 import groovy.sql.BatchingPreparedStatementWrapper

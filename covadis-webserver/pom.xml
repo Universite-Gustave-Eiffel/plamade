@@ -41,46 +41,16 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>5.11.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-templates</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-wps</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-xml</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.geotools.xsd</groupId>
-            <artifactId>gt-xsd-core</artifactId>
+            <groupId>org.geotools.ogc</groupId>
+            <artifactId>net.opengis.wps</artifactId>
         </dependency>
         <dependency>
             <groupId>org.geotools.xsd</groupId>
             <artifactId>gt-xsd-wps</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-jdbc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-referencing</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-metadata</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-epsg-hsql</artifactId>
         </dependency>
         <dependency>
             <groupId>org.orbisgis</groupId>
@@ -117,6 +87,12 @@
         <dependency>
             <groupId>io.javalin</groupId>
             <artifactId>javalin-bundle</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-classic</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.groovy</groupId>
@@ -152,6 +128,25 @@
         </dependency>
     </dependencies>
     <build>
+        <resources>
+            <!-- keep standard project resources -->
+            <resource>
+                <directory>${project.basedir}/src/main/resources</directory>
+                <includes>
+                    <include>**/*</include>
+                </includes>
+                <filtering>false</filtering>
+            </resource>
+            <!-- Add groovy script source code as project resources -->
+            <resource>
+                <directory>${project.basedir}/src/main/groovy/org/noise_planet/covadis/scripts</directory>
+                <includes>
+                    <include>**/*.groovy</include>
+                </includes>
+                <targetPath>scripts</targetPath>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
         <plugins>
             <!-- GMavenPlus plugin for compiling Groovy -->
             <plugin>

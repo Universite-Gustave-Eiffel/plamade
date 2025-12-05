@@ -16,7 +16,7 @@
  */
 
 
-package org.noise_planet.plamade.scripts.Database_Manager
+package org.noise_planet.covadis.scripts.Database_Manager
 
 import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.GeometryTableUtilities

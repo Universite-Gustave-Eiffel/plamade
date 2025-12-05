@@ -1,5 +1,6 @@
 package org.noise_planet.covadis.webserver;
 
+import org.apache.log4j.PropertyConfigurator;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.net.http.*;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -46,7 +48,7 @@ class NoiseModellingServerHttpTest {
      * the execution of the test suite and is primarily used for testing capabilities,
      * descriptions, and process execution of the WPS (Web Processing Service).
      */
-    private static final String BASE_URL = "http://localhost:" + PORT + "/ows";
+    private static final String BASE_URL = "http://localhost:" + PORT + "/"+Configuration.DEFAULT_APPLICATION_URL+"/builder/ows";
 
     /**
      * Sets up the test environment for the HTTP-based tests.
@@ -60,6 +62,8 @@ class NoiseModellingServerHttpTest {
      */
     @BeforeEach
     public void setUp() throws IOException {
+        PropertyConfigurator.configure(
+                Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("test/log4j.properties")));
         app = new NoiseModellingServer(new Configuration());
         app.startServer(false);
     }
