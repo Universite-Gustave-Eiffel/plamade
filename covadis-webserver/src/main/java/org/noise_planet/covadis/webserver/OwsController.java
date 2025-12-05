@@ -258,6 +258,18 @@ public class OwsController {
      *            response handling, and the ability to set status codes and send JSON responses
      */
     public void handleWPSPost(Context ctx) {
+        // TODO
+        // with H2GIS progress (isCanceled)
+        // app.post("/upload", ctx -> {
+        //     // Early check for client disconnect
+        //     if (ctx.req.isRemoteDone()) {
+        //         ctx.status(204); // No Content
+        //         return;
+        //     }
+        //
+        //     // Your long-running work here
+        //     // Periodically re-check ctx.req.isRemoteDone() in loops
+        // });
         try {
 
             Parser parser = new Parser(new WPSConfiguration());

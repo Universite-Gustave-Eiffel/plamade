@@ -35,9 +35,9 @@ public class Auth {
     }
 
     public static List<Role> userRoles(Context ctx) {
-        return Optional.ofNullable(ctx.basicAuthCredentials())
-                .map(credentials -> userRolesMap.getOrDefault(new Pair(credentials.getUsername(), credentials.getPassword()), List.of()))
-                .orElse(List.of());
+        // Find from the context what is the user roles
+        return Optional.ofNullable(ctx.basicAuthCredentials()).map(credentials -> userRolesMap.getOrDefault(
+                new Pair(credentials.getUsername(), credentials.getPassword()), List.of())).orElse(List.of());
     }
 
     private static final Map<Pair, List<Role>> userRolesMap = Map.of(

@@ -20,7 +20,7 @@ import org.noise_planet.covadis.webserver.secure.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.thymeleaf.TemplateEngine;
-
+import org.pac4j.javalin.SecurityHandler;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;

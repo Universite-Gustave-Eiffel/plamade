@@ -21,14 +21,14 @@ import java.util.*;
  */
 public class UserController {
 
-    private static final Map<String, User.User> users;
+    private static final Map<String, User> users;
 
     static {
         var tempMap = Map.of(
-                randomId(), new User.User("Alice", "alice@alice.kt"),
-                randomId(), new User.User("Bob", "bob@bob.kt"),
-                randomId(), new User.User("Carol", "carol@carol.kt"),
-                randomId(), new User.User("Dave", "dave@dave.kt")
+                randomId(), new User("Alice", "alice@alice.kt"),
+                randomId(), new User("Bob", "bob@bob.kt"),
+                randomId(), new User("Carol", "carol@carol.kt"),
+                randomId(), new User("Dave", "dave@dave.kt")
         );
         users = new HashMap<>(tempMap);
     }
@@ -38,7 +38,7 @@ public class UserController {
     }
 
     public static void createUser(Context ctx) {
-        users.put(randomId(), ctx.bodyAsClass(User.User.class));
+        users.put(randomId(), ctx.bodyAsClass(User.class));
     }
 
     public static void getUser(Context ctx) {
@@ -46,7 +46,7 @@ public class UserController {
     }
 
     public static void updateUser(Context ctx) {
-        users.put(ctx.pathParam("userId"), ctx.bodyAsClass(User.User.class));
+        users.put(ctx.pathParam("userId"), ctx.bodyAsClass(User.class));
     }
 
     public static void deleteUser(Context ctx) {
