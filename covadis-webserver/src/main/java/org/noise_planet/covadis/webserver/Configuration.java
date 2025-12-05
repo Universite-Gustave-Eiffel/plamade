@@ -11,30 +11,22 @@
  */
 package org.noise_planet.covadis.webserver;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.cli.*;
-import org.h2gis.functions.factory.H2GISDBFactory;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
-import java.util.UUID;
 
 /**
  * Manage webserver configuration
- * Generate datasource configuration from configuration files/args
  */
 public class Configuration {
     public static final String DEFAULT_APPLICATION_URL = "nmcovadis";
     String applicationRootUrl = DEFAULT_APPLICATION_URL;
     String scriptPath = "scripts";
-    boolean totpEnabled = false;
+    boolean unsecure = false;
     String workingDirectory = System.getProperty("user.home") + "/.noisemodelling";
     // secureBase is the h2 database that store web application critical data
     // it is not associated with any noisemodelling data
@@ -73,15 +65,12 @@ public class Configuration {
         scriptPathOption.setArgName("script path");
         options.addOption(scriptPathOption);
 
-        Option totpEnabledOption = new Option("t", "totp-enabled", false, "Enable TOTP");
-        options.addOption(totpEnabledOption);
+        Option unsecureOption = new Option("u", "unsecure", false, "Disable TOTP, visitors can run any process");
+        options.addOption(unsecureOption);
 
         Option secureBaseEncryptionSecret = new Option("e", "encryption-secret", true,
                 "If provided will encrypt the webserver h2 database with this secret");
         options.addOption(secureBaseEncryptionSecret);
-
-        Option secureBaseAdminPassword = new Option("p", "password-admin", true, "WebServer admin password");
-        options.addOption(secureBaseAdminPassword);
 
         Option applicationRootUrlOption = new Option("r", "root-url", true, "Custom root URL for the web application (default " + DEFAULT_APPLICATION_URL+ " )");
         applicationRootUrlOption.setRequired(false); // You can set this to be required if you want it
@@ -112,17 +101,14 @@ public class Configuration {
             if (commandLine.hasOption("s")) {
                 config.scriptPath = commandLine.getOptionValue("s");
             }
-            if (commandLine.hasOption("t")) {
-                config.totpEnabled = true;
+            if (commandLine.hasOption("u")) {
+                config.unsecure = true;
             }
             if (commandLine.hasOption("w")) {
                 config.workingDirectory = commandLine.getOptionValue("w");
             }
             if (commandLine.hasOption("e")) {
                 config.secureBaseEncryptionSecret = commandLine.getOptionValue("e");
-            }
-            if (commandLine.hasOption("p")) {
-                config.secureBaseAdminPassword = commandLine.getOptionValue("p");
             }
             if (commandLine.hasOption("r")) {
                 config.applicationRootUrl = commandLine.getOptionValue("r");
@@ -143,7 +129,7 @@ public class Configuration {
      * Supported keys:
      * - script: String
      * - working-dir: String
-     * - totp-enabled: boolean
+     * - unsecure: boolean
      * - print-version: boolean
      *
      * @param values  map containing configuration values (e.g., result of JSON parsing)
@@ -185,21 +171,13 @@ public class Configuration {
         if (vWork instanceof String) {
             config.workingDirectory = (String) vWork;
         }
-        Object vTotp = values.remove("totp-enabled");
-        if (vTotp != null) {
-            config.totpEnabled = parseBoolean(vTotp);
+        Object vUnsecure = values.remove("unsecure");
+        if (vUnsecure != null) {
+            config.unsecure = parseBoolean(vUnsecure);
         }
         Object vSecureBaseEncryptionSecret = values.remove("encryption-secret");
         if (vSecureBaseEncryptionSecret != null) {
             config.secureBaseEncryptionSecret = vSecureBaseEncryptionSecret.toString();
-        }
-        Object vSecureBaseAdminUser = values.remove("secure-base-admin-user");
-        if (vSecureBaseAdminUser != null) {
-            config.secureBaseAdminUser = (String) vSecureBaseAdminUser;
-        }
-        Object vSecureBaseAdminPassword = values.remove("secure-base-admin-password");
-        if (vSecureBaseAdminPassword != null) {
-            config.secureBaseAdminPassword = (String) vSecureBaseAdminPassword;
         }
         Object vApplicationRootUrl = values.remove("root-url");
         if (vApplicationRootUrl instanceof String) {
@@ -222,43 +200,6 @@ public class Configuration {
         return false;
     }
 
-    public HikariDataSource createWebServerDataSource() throws SQLException {
-        HikariConfig config = new HikariConfig();
-
-        StringBuilder connectionUrl = getConnectionUrl();
-
-        Properties properties = new Properties();
-        properties.setProperty(H2GISDBFactory.JDBC_URL, connectionUrl.toString());
-        properties.setProperty(
-                H2GISDBFactory.JDBC_USER, secureBaseAdminUser);
-        properties.setProperty(
-                H2GISDBFactory.JDBC_PASSWORD, secureBaseEncryptionSecret.isEmpty() ?
-                        secureBaseAdminPassword : secureBaseEncryptionSecret+" "+secureBaseAdminUser);
-
-        javax.sql.DataSource h2DataSource =
-                H2GISDBFactory.createDataSource(properties);
-        config.setDataSource(h2DataSource);
-        return new HikariDataSource(config);
-    }
-
-    @NotNull
-    private StringBuilder getConnectionUrl() {
-        StringBuilder connectionUrl = new StringBuilder();
-        connectionUrl.append(H2GISDBFactory.START_URL);
-        try {
-            connectionUrl.append(
-                    new File(workingDirectory, "webserver")
-                            .toURI()
-                            .toURL()
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error building H2GIS JDBC URL", e);
-        }
-        if(!secureBaseEncryptionSecret.isEmpty()) {
-            connectionUrl.append(";CIPHER=AES");
-        }
-        return connectionUrl;
-    }
 
     /**
      * A Writer implementation that redirects output to an SLF4J Logger instance.
@@ -322,5 +263,149 @@ public class Configuration {
         public void close() throws IOException {
             // do nothing
         }
+    }
+
+    /**
+     * Returns the application root URL.
+     *
+     * @return the application root URL
+     */
+    public String getApplicationRootUrl() {
+        return applicationRootUrl;
+    }
+
+    /**
+     * Sets the application root URL.
+     *
+     * @param applicationRootUrl the application root URL to set
+     */
+    public void setApplicationRootUrl(String applicationRootUrl) {
+        this.applicationRootUrl = applicationRootUrl;
+    }
+
+    /**
+     * Returns the script path.
+     *
+     * @return the script path
+     */
+    public String getScriptPath() {
+        return scriptPath;
+    }
+
+    /**
+     * Sets the script path.
+     *
+     * @param scriptPath the script path to set
+     */
+    public void setScriptPath(String scriptPath) {
+        this.scriptPath = scriptPath;
+    }
+
+    /**
+     * Returns whether the server is in unsecure mode.
+     *
+     * @return true if unsecure mode is enabled, false otherwise
+     */
+    public boolean isUnsecure() {
+        return unsecure;
+    }
+
+    /**
+     * Sets the unsecure mode flag.
+     *
+     * @param unsecure true to enable unsecure mode, false to disable
+     */
+    public void setUnsecure(boolean unsecure) {
+        this.unsecure = unsecure;
+    }
+
+    /**
+     * Returns the working directory path.
+     *
+     * @return the working directory
+     */
+    public String getWorkingDirectory() {
+        return workingDirectory;
+    }
+
+    /**
+     * Sets the working directory path.
+     *
+     * @param workingDirectory the working directory to set
+     */
+    public void setWorkingDirectory(String workingDirectory) {
+        this.workingDirectory = workingDirectory;
+    }
+
+    /**
+     * Returns the encryption secret for the secure base.
+     *
+     * @return the secure base encryption secret
+     */
+    public String getSecureBaseEncryptionSecret() {
+        return secureBaseEncryptionSecret;
+    }
+
+    /**
+     * Sets the encryption secret for the secure base.
+     *
+     * @param secureBaseEncryptionSecret the encryption secret to set
+     */
+    public void setSecureBaseEncryptionSecret(String secureBaseEncryptionSecret) {
+        this.secureBaseEncryptionSecret = secureBaseEncryptionSecret;
+    }
+
+    /**
+     * Returns the secure base admin user.
+     *
+     * @return the secure base admin user
+     */
+    public String getSecureBaseAdminUser() {
+        return secureBaseAdminUser;
+    }
+
+    /**
+     * Sets the secure base admin user.
+     *
+     * @param secureBaseAdminUser the admin user to set
+     */
+    public void setSecureBaseAdminUser(String secureBaseAdminUser) {
+        this.secureBaseAdminUser = secureBaseAdminUser;
+    }
+
+    /**
+     * Returns the secure base admin password.
+     *
+     * @return the secure base admin password
+     */
+    public String getSecureBaseAdminPassword() {
+        return secureBaseAdminPassword;
+    }
+
+    /**
+     * Sets the secure base admin password.
+     *
+     * @param secureBaseAdminPassword the admin password to set
+     */
+    public void setSecureBaseAdminPassword(String secureBaseAdminPassword) {
+        this.secureBaseAdminPassword = secureBaseAdminPassword;
+    }
+
+    /**
+     * Returns the custom configuration map.
+     *
+     * @return the custom configuration
+     */
+    public Map<String, Object> getCustomConfiguration() {
+        return customConfiguration;
+    }
+
+    /**
+     * Sets the custom configuration map.
+     *
+     * @param customConfiguration the custom configuration to set
+     */
+    public void setCustomConfiguration(Map<String, Object> customConfiguration) {
+        this.customConfiguration = customConfiguration;
     }
 }
