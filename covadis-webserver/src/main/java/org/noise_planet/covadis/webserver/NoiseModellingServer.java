@@ -15,13 +15,17 @@ import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
 import org.apache.log4j.PropertyConfigurator;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.secure.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
 import java.awt.*;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.*;
+import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -35,24 +39,39 @@ public class NoiseModellingServer {
     private Future<?> scriptWatch;
     private final OwsController owsController;
     private final Configuration configuration;
+    private final DataSource serverDataSource;
+    private final JWTProvider<User> provider;
+    private final UserController userController;
 
-    public NoiseModellingServer(Configuration configuration) throws IOException {
+    public NoiseModellingServer(Configuration configuration) throws IOException, SQLException {
         this.configuration = configuration;
         owsController  = new OwsController(Path.of(configuration.scriptPath));
+        serverDataSource = DatabaseManagement.createH2DataSource(configuration.workingDirectory, "server",
+                configuration.secureBaseAdminUser, configuration.secureBaseAdminPassword,
+                configuration.getSecureBaseEncryptionSecret(), false);
+        // Initialize server database
+        DatabaseManagement.initializeServerDatabaseStructure(serverDataSource);
+        // Initialize access right system
+        provider = JWTTokenProvider.createHMAC512(DatabaseManagement.getJWTSigningKey(serverDataSource));
+        userController = new UserController(serverDataSource);
     }
 
     /**
      * The entry point of the application. This method initializes and starts the server.
      *
      * @param args command-line arguments passed to the application. Not utilized currently.
-     * @throws IOException if an I/O error occurs during server initialization.
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         PropertyConfigurator.configure(
                 Objects.requireNonNull(NoiseModellingServer.class.getResource("static/log4j.properties")));
-        Configuration configuration = Configuration.createConfigurationFromArguments(args);
-        NoiseModellingServer noiseModellingServer = new NoiseModellingServer(configuration);
-        noiseModellingServer.startServer(true);
+        try {
+            Configuration configuration = Configuration.createConfigurationFromArguments(args);
+            NoiseModellingServer noiseModellingServer = new NoiseModellingServer(configuration);
+            noiseModellingServer.startServer(true);
+        } catch (Exception e) {
+            Logger logger = LoggerFactory.getLogger("Main");
+            logger.error("Can't start NoiseModelling", e);
+        }
     }
 
     /**
@@ -74,10 +93,6 @@ public class NoiseModellingServer {
     public void startServer(boolean openBrowser) throws IOException {
         String rootPath = "/" + configuration.applicationRootUrl;
 
-        JWTProvider<User> provider = JWTTokenProvider.createHMAC512("changeme");
-        UserController userController = new UserController();
-        Auth auth = new Auth(provider, userController);
-
         app = Javalin.create(config -> {
             config.staticFiles.add(staticFileConfig -> {
                         staticFileConfig.location = Location.EXTERNAL;
@@ -94,7 +109,7 @@ public class NoiseModellingServer {
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
-        app.beforeMatched(auth::handleAccess);
+        app.beforeMatched(new Auth(provider, userController)::handleAccess);
 
         app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
         app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);

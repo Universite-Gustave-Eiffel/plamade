@@ -13,14 +13,26 @@ import com.auth0.jwt.JWTCreator;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 
 /**
  * Generator of Json Web Token used when a user as validated its identity with another method
  * Java Web Token will manage the identification process for each secure web page
  */
 public class JWTTokenProvider {
+
+    /**
+     * @return Random secret token
+     */
+    public static String generateServerSecretToken() {
+        SecureRandom secureRandom = new SecureRandom();
+        byte[] keyBytes = new byte[32]; // 256-bit key for HS256
+        secureRandom.nextBytes(keyBytes);
+        return Base64.getEncoder().encodeToString(keyBytes);
+    }
 
     /**
      * Create the instance of the generator of Json Web Token

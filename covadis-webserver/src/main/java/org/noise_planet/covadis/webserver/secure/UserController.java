@@ -11,19 +11,23 @@
 package org.noise_planet.covadis.webserver.secure;
 
 import io.javalin.http.Context;
+
+import javax.sql.DataSource;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Handle user storage
+ * Handle users management
  * Adapted from tutorial material from
  * <a href="https://github.com/javalin/javalin-samples/tree/main/javalin6/javalin-auth-example">javalin-auth-example</a>
  *
  */
 public class UserController {
+    private final DataSource serverDataSource;
 
-    private static final Map<Integer, User> users = new HashMap<>();
-    private static final AtomicInteger userCount = new AtomicInteger(0);
+    public UserController(DataSource serverDataSource) {
+        this.serverDataSource = serverDataSource;
+    }
 
     public static void addUser(String email, Role... roles) {
         User user = new User(userCount.getAndAdd(1), email, Arrays.asList(roles));

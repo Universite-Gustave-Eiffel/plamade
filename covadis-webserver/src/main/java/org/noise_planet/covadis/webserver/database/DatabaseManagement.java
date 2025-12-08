@@ -14,18 +14,22 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.h2gis.functions.factory.H2GISDBFactory;
 import org.h2gis.functions.factory.H2GISFunctions;
+import org.h2gis.utilities.JDBCUtilities;
 import org.jetbrains.annotations.NotNull;
+import org.noise_planet.covadis.webserver.secure.JWTTokenProvider;
 
+import javax.sql.DataSource;
 import java.io.File;
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.security.SecureRandom;
+import java.sql.*;
+import java.util.Base64;
 import java.util.Properties;
 
 /**
  * Handle the creation of datasource according to application configuration
  */
-public class DataSourceFactory {
-
+public class DatabaseManagement {
+    private static final int DATABASE_VERSION = 1;
 
     /**
      * Create H2Database datasource
@@ -88,4 +92,72 @@ public class DataSourceFactory {
     }
 
 
+    public static void initializeServerDatabaseStructure(DataSource dataSource) throws SQLException {
+        try(Connection connection = dataSource.getConnection()) {
+            if(!JDBCUtilities.tableExists(connection, "ATTRIBUTES")) {
+                // First database
+                createServerDataBaseStructure(connection);
+            } else {
+                // Existing database, may need to update it if old version
+                int databaseVersion = DATABASE_VERSION;
+                Statement st = connection.createStatement();
+                ResultSet rs = st.executeQuery("SELECT * FROM ATTRIBUTES");
+                if (rs.next()) {
+                    databaseVersion = rs.getInt("DATABASE_VERSION");
+                }
+                // In the future check databaseVersion for database upgrades
+                if (databaseVersion != DATABASE_VERSION) {
+
+                }
+            }
+        }
+
+    }
+
+    private static void createServerDataBaseStructure(Connection connection) throws SQLException {
+        Statement st = connection.createStatement();
+        final String serverSecretToken = JWTTokenProvider.generateServerSecretToken();
+        st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS ATTRIBUTES(" +
+                        "DATABASE_VERSION INTEGER," +
+                        "SERVER_JWT_SIGNING_KEY VARCHAR" +
+                        ")");
+        PreparedStatement pst = connection.prepareStatement(
+                "INSERT INTO ATTRIBUTES(" +
+                        "DATABASE_VERSION," +
+                        "SERVER_JWT_SIGNING_KEY)" +
+                        " VALUES(?, ?);");
+        pst.setInt(1, DATABASE_VERSION);
+        pst.setString(2, serverSecretToken);
+        pst.execute();
+        st.executeUpdate(
+                "CREATE TABLE USERS(" +
+                        "  PK_USER SERIAL PRIMARY KEY," +
+                        "  EMAIL VARCHAR," +
+                        "  TOTP_TOKEN VARCHAR," +
+                        "  REGISTER_TOKEN VARCHAR" +
+                        ")"
+        );
+        st.executeUpdate(
+                "CREATE TABLE ROLES(" +
+                        "  PK_USER INTEGER," +
+                        "  ROLE VARCHAR," +
+                        "  CONSTRAINT FK_ROLES_USER " +
+                        "    FOREIGN KEY (PK_USER) " +
+                        "    REFERENCES USERS(PK_USER) " +
+                        "    ON DELETE CASCADE" +
+                        ")"
+        );
+
+    }
+
+    public static String getJWTSigningKey(DataSource serverDataSource) throws SQLException {
+        try(Connection connection = serverDataSource.getConnection()) {
+            Statement st = connection.createStatement();
+            ResultSet rs = st.executeQuery("SELECT * FROM ATTRIBUTES");
+            if (rs.next()) {
+                return rs.getString("SERVER_JWT_SIGNING_KEY");
+            }
+        }
+    }
 }

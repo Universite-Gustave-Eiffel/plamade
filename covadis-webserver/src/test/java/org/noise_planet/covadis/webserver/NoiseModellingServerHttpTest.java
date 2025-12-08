@@ -8,6 +8,7 @@ import java.net.http.*;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -61,7 +62,7 @@ class NoiseModellingServerHttpTest {
      * @throws IOException if an I/O error occurs while starting the server.
      */
     @BeforeEach
-    public void setUp() throws IOException {
+    public void setUp() throws IOException, SQLException {
         PropertyConfigurator.configure(
                 Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("test/log4j.properties")));
         app = new NoiseModellingServer(new Configuration());
