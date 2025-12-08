@@ -29,21 +29,16 @@ public class UserController {
         this.serverDataSource = serverDataSource;
     }
 
-    public static void addUser(String email, Role... roles) {
-        User user = new User(userCount.getAndAdd(1), email, Arrays.asList(roles));
-        users.put(user.identifier, user);
-    }
-
     public void getAllUsers(Context ctx) {
-        ctx.json(users.values());
+
     }
 
     public void createUser(Context ctx) {
-        addUser(ctx.pathParam("email"));
+
     }
 
     public void getUser(Context ctx) {
-        ctx.json(users.get(Integer.parseInt(ctx.pathParam("user_identifier"))));
+
     }
 
     public void updateUser(Context ctx) {
@@ -51,7 +46,8 @@ public class UserController {
     }
 
     public void deleteUser(Context ctx) {
-        users.remove(Integer.parseInt(ctx.pathParam("user_identifier")));
+
+
     }
 
 }

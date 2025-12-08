@@ -11,6 +11,7 @@ package org.noise_planet.covadis.webserver.secure;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.http.Context;
 import io.javalin.http.Header;
+import io.javalin.http.HttpStatus;
 import io.javalin.http.UnauthorizedResponse;
 import org.noise_planet.covadis.webserver.utilities.Pair;
 
@@ -30,6 +31,11 @@ public class Auth {
         this.userController = userController;
     }
 
+    /**
+     * Check visitor credentials using Json Web Token.
+     * Redirect user if non-authorized to the login page
+     * @param ctx Javalin Web context
+     */
     public void handleAccess(Context ctx) {
         var permittedRoles = ctx.routeRoles();
         if (permittedRoles.contains(Role.ANYONE)) {
@@ -38,7 +44,7 @@ public class Auth {
         if (userRoles(ctx).stream().anyMatch(permittedRoles::contains)) {
             return; // user has role required to access
         }
-        ctx.header(Header.WWW_AUTHENTICATE, "Basic");
+        ctx.redirect("login.html", HttpStatus.TEMPORARY_REDIRECT);
         throw new UnauthorizedResponse();
     }
 

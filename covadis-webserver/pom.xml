@@ -131,6 +131,10 @@
             <groupId>org.thymeleaf</groupId>
             <artifactId>thymeleaf</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.atlassian</groupId>
+            <artifactId>onetime</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <resources>

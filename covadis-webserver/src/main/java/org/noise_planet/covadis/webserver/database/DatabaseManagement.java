@@ -17,12 +17,18 @@ import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.utilities.JDBCUtilities;
 import org.jetbrains.annotations.NotNull;
 import org.noise_planet.covadis.webserver.secure.JWTTokenProvider;
+import org.noise_planet.covadis.webserver.secure.Role;
+import org.noise_planet.covadis.webserver.secure.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
 import java.security.SecureRandom;
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Properties;
 
 /**
@@ -157,7 +163,79 @@ public class DatabaseManagement {
             ResultSet rs = st.executeQuery("SELECT * FROM ATTRIBUTES");
             if (rs.next()) {
                 return rs.getString("SERVER_JWT_SIGNING_KEY");
+            } else {
+                throw new IllegalStateException();
             }
         }
     }
+
+    /**
+     * Get user roles
+     * @param serverDataSource Data source to the database
+     * @param userIdentifier User identifier in the database (e.g., primary key)
+     * @return List of roles associated with the user
+     * @throws SQLException If something wrong happened
+     */
+    public static List<String> getUserRoles(DataSource serverDataSource, int userIdentifier) throws SQLException {
+        try(Connection connection = serverDataSource.getConnection())  {
+            // Prepare statement to retrieve roles for a specific user
+            PreparedStatement pst = connection.prepareStatement("SELECT ROLE FROM ROLES WHERE PK_USER=?");
+
+            pst.setInt(1, userIdentifier);
+
+            ResultSet rs = pst.executeQuery();
+
+            // Store the roles in a list and return it
+            List<String> roles = new ArrayList<>();
+            while (rs.next()) {
+                roles.add(rs.getString("ROLE"));
+            }
+
+            return roles;
+        }
+    }
+
+    /**
+     * Get user from database
+     * @param serverDataSource Data source to the database
+     * @param userIdentifier User identifier in the database (e.g., primary key)
+     * @return User object with associated roles and details
+     * @throws SQLException If something wrong happened
+     */
+    public static User getUser(DataSource serverDataSource, int userIdentifier) throws SQLException {
+        Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
+
+        try(Connection connection = serverDataSource.getConnection())  {
+            // Prepare statement to retrieve the specific user and his roles
+            String sql = "SELECT * FROM USERS WHERE PK_USER=?";
+            PreparedStatement pstUser = connection.prepareStatement(sql);
+
+            pstUser.setInt(1, userIdentifier);
+
+            ResultSet rsUser = pstUser.executeQuery();
+
+            // If no user found with that identifier
+            if(!rsUser.next()) {
+                throw new IllegalArgumentException(String.format("User %d not found", userIdentifier));
+            }
+
+            String email = rsUser.getString("EMAIL");
+
+            List<String> rolesList = getUserRoles(serverDataSource, userIdentifier);  // Retrieve the user's roles
+            List<Role> roles = new ArrayList<>();
+
+            for (String roleName : rolesList) {
+                try {
+                    Role role = Role.valueOf(roleName);
+                    roles.add(role);
+                } catch (IllegalArgumentException ex ) {
+                    logger.error(ex.getLocalizedMessage(), ex);
+                }
+            }
+
+            // Create a User object and return it
+            return new User(userIdentifier, email, roles);
+        }
+    }
+
 }

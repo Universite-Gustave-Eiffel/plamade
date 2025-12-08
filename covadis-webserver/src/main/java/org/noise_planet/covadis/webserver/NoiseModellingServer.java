@@ -93,27 +93,7 @@ public class NoiseModellingServer {
     public void startServer(boolean openBrowser) throws IOException {
         String rootPath = "/" + configuration.applicationRootUrl;
 
-        app = Javalin.create(config -> {
-            config.staticFiles.add(staticFileConfig -> {
-                        staticFileConfig.location = Location.EXTERNAL;
-                        staticFileConfig.hostedPath= rootPath + "/builder";
-                        staticFileConfig.directory = NoiseModellingServer.class.getResource("static/wpsbuilder/").getFile();
-                        staticFileConfig.roles = Set.of(Role.ANYONE);
-                    });
-            config.staticFiles.add(staticFileConfig -> {
-                staticFileConfig.location = Location.EXTERNAL;
-                staticFileConfig.hostedPath= rootPath;
-                staticFileConfig.directory = NoiseModellingServer.class.getResource("static/root/").getFile();
-                staticFileConfig.roles = Set.of(Role.ANYONE);
-            });
-            config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
-        });
-
-        app.beforeMatched(new Auth(provider, userController)::handleAccess);
-
-        app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
-        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
-        app.get("/", ctx -> {ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);}, Role.ANYONE);
+        configureApp(rootPath);
 
         scriptWatch = startWatcher(Path.of(configuration.scriptPath), owsController);
 
@@ -136,6 +116,34 @@ public class NoiseModellingServer {
         if (openBrowser) {
             openBrowser(url);
         }
+    }
+
+    /**
+     * Configure Javalin routes
+     * @param rootPath Base url
+     */
+    private void configureApp(String rootPath) {
+        app = Javalin.create(config -> {
+            config.staticFiles.add(staticFileConfig -> {
+                staticFileConfig.location = Location.EXTERNAL;
+                staticFileConfig.hostedPath = rootPath + "/builder";
+                staticFileConfig.directory = Objects.requireNonNull(NoiseModellingServer.class.getResource("static/wpsbuilder/")).getFile();
+                staticFileConfig.roles = configuration.unsecure ? Set.of(Role.ANYONE) : Set.of(Role.RUNNER);
+            });
+            config.staticFiles.add(staticFileConfig -> {
+                staticFileConfig.location = Location.EXTERNAL;
+                staticFileConfig.hostedPath = rootPath;
+                staticFileConfig.directory = Objects.requireNonNull(NoiseModellingServer.class.getResource("static/root/")).getFile();
+                staticFileConfig.roles = Set.of(Role.ANYONE);
+            });
+            config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
+        });
+
+        app.beforeMatched(new Auth(provider, userController)::handleAccess);
+
+        app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.get("/", ctx -> {ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);}, Role.ANYONE);
     }
 
     /**
