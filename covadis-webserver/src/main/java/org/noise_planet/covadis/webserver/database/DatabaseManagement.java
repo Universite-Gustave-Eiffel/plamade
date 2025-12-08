@@ -129,11 +129,11 @@ public class DatabaseManagement {
                 // Create admin account
                 String key = addUser(connection, "admin");
                 Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
-                logger.info(String.format("First start of the server, register the Administrator account using this url:\n" +
-                        "http://localhost:%d/%s/register?token=%s",
+                logger.info("First start of the server, register the Administrator account using this url:\n" +
+                        "http://localhost:{}/{}/register/{}",
                         configuration.getPort(),
                         configuration.getApplicationRootUrl(),
-                        URLEncoder.encode(key, StandardCharsets.UTF_8)));
+                        URLEncoder.encode(key, StandardCharsets.UTF_8));
             }
         }
 
@@ -190,71 +190,67 @@ public class DatabaseManagement {
 
     /**
      * Get user roles
-     * @param serverDataSource Data source to the database
+     * @param connection Data source to the database
      * @param userIdentifier User identifier in the database (e.g., primary key)
      * @return List of roles associated with the user
      * @throws SQLException If something wrong happened
      */
-    public static List<String> getUserRoles(DataSource serverDataSource, int userIdentifier) throws SQLException {
-        try(Connection connection = serverDataSource.getConnection())  {
-            // Prepare statement to retrieve roles for a specific user
-            PreparedStatement pst = connection.prepareStatement("SELECT ROLE FROM ROLES WHERE PK_USER=?");
+    public static List<String> getUserRoles(Connection connection, int userIdentifier) throws SQLException {
+        // Prepare statement to retrieve roles for a specific user
+        PreparedStatement pst = connection.prepareStatement("SELECT ROLE FROM ROLES WHERE PK_USER=?");
 
-            pst.setInt(1, userIdentifier);
+        pst.setInt(1, userIdentifier);
 
-            ResultSet rs = pst.executeQuery();
+        ResultSet rs = pst.executeQuery();
 
-            // Store the roles in a list and return it
-            List<String> roles = new ArrayList<>();
-            while (rs.next()) {
-                roles.add(rs.getString("ROLE"));
-            }
-
-            return roles;
+        // Store the roles in a list and return it
+        List<String> roles = new ArrayList<>();
+        while (rs.next()) {
+            roles.add(rs.getString("ROLE"));
         }
+
+        return roles;
     }
 
     /**
      * Get user from database
-     * @param serverDataSource Data source to the database
+     * @param connection Data source to the database
      * @param userIdentifier User identifier in the database (e.g., primary key)
      * @return User object with associated roles and details
      * @throws SQLException If something wrong happened
      */
-    public static User getUser(DataSource serverDataSource, int userIdentifier) throws SQLException {
+    public static User getUser(Connection connection, int userIdentifier) throws SQLException {
         Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
 
-        try(Connection connection = serverDataSource.getConnection())  {
-            // Prepare statement to retrieve the specific user and his roles
-            String sql = "SELECT * FROM USERS WHERE PK_USER=?";
-            PreparedStatement pstUser = connection.prepareStatement(sql);
+        // Prepare statement to retrieve the specific user and his roles
+        String sql = "SELECT * FROM USERS WHERE PK_USER=?";
+        PreparedStatement pstUser = connection.prepareStatement(sql);
 
-            pstUser.setInt(1, userIdentifier);
+        pstUser.setInt(1, userIdentifier);
 
-            ResultSet rsUser = pstUser.executeQuery();
+        ResultSet rsUser = pstUser.executeQuery();
 
-            // If no user found with that identifier
-            if(!rsUser.next()) {
-                throw new IllegalArgumentException(String.format("User %d not found", userIdentifier));
-            }
-
-            String email = rsUser.getString("EMAIL");
-
-            List<String> rolesList = getUserRoles(serverDataSource, userIdentifier);  // Retrieve the user's roles
-            List<Role> roles = new ArrayList<>();
-
-            for (String roleName : rolesList) {
-                try {
-                    Role role = Role.valueOf(roleName);
-                    roles.add(role);
-                } catch (IllegalArgumentException ex ) {
-                    logger.error(ex.getLocalizedMessage(), ex);
-                }
-            }
-
-            // Create a User object and return it
-            return new User(userIdentifier, email, roles);
+        // If no user found with that identifier
+        if(!rsUser.next()) {
+            throw new IllegalArgumentException(String.format("User %d not found", userIdentifier));
         }
+
+        String email = rsUser.getString("EMAIL");
+
+        List<String> rolesList = getUserRoles(connection, userIdentifier);  // Retrieve the user's roles
+        List<Role> roles = new ArrayList<>();
+
+        for (String roleName : rolesList) {
+            try {
+                Role role = Role.valueOf(roleName);
+                roles.add(role);
+            } catch (IllegalArgumentException ex ) {
+                logger.error(ex.getLocalizedMessage(), ex);
+            }
+        }
+
+        // Create a User object and return it
+        return new User(userIdentifier, email, roles);
     }
 
     /**
@@ -287,4 +283,25 @@ public class DatabaseManagement {
         }
         return urlToken;
     }
+
+    /**
+     * Get user by register token
+     * @param connection The database Connection object
+     * @param registerToken The registration token from URL
+     * @return User identifier or -1 if not found
+     * @throws SQLException If database error occurs
+     */
+    public static int getUserByRegisterToken(Connection connection, String registerToken) throws SQLException {
+        String sql = "SELECT PK_USER FROM USERS WHERE REGISTER_TOKEN = ?";
+        try (PreparedStatement pst = connection.prepareStatement(sql)) {
+            pst.setString(1, registerToken);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("PK_USER");
+                }
+            }
+        }
+        return -1; // Token not found
+    }
+
 }

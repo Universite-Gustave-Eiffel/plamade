@@ -10,6 +10,11 @@
 
 package org.noise_planet.covadis.webserver.secure;
 
+import com.atlassian.onetime.core.TOTPGenerator;
+import com.atlassian.onetime.model.EmailAddress;
+import com.atlassian.onetime.model.Issuer;
+import com.atlassian.onetime.model.TOTPSecret;
+import com.atlassian.onetime.service.*;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
@@ -17,6 +22,8 @@ import io.javalin.http.util.NaiveRateLimit;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 
 import javax.sql.DataSource;
+import java.net.URI;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.*;
@@ -31,10 +38,20 @@ import java.util.concurrent.TimeUnit;
 public class UserController {
     private final DataSource serverDataSource;
     private final JWTProvider<User> provider;
+    private final TOTPService totpService;
+    private final TOTPGenerator totpGenerator;
+    private final TOTPConfiguration totpConfiguration;
+
 
     public UserController(DataSource serverDataSource, JWTProvider<User> provider) {
         this.serverDataSource = serverDataSource;
         this.provider = provider;
+        totpGenerator = new TOTPGenerator();
+        totpConfiguration = new TOTPConfiguration();
+        totpService = new DefaultTOTPService(
+                totpGenerator,
+                totpConfiguration
+        );
     }
 
     User getUser(int userIdentifier) throws SQLException {
@@ -52,7 +69,24 @@ public class UserController {
 
 
     public void register(Context ctx ) {
-        ctx.render("register.html", Map.of("messages", ctx.queryParams("messages")));
+        String token = ctx.pathParam("token");
+        TOTPSecret totpSecret = RandomSecretProvider.Companion.generateSecret();
+        try(Connection connection = serverDataSource.getConnection()) {
+            int userIdentifier = DatabaseManagement.getUserByRegisterToken(connection, token);
+            if(userIdentifier >= 0) {
+                User user = DatabaseManagement.getUser(connection, userIdentifier);
+                URI totpUri = totpService.generateTOTPUrl(
+                        totpSecret,
+                        new EmailAddress(user.email),
+                        new Issuer("NoiseModelling"));
+
+                ctx.render("register.html", Map.of("token", token, "totpUri", totpUri));
+            }  else {
+                ctx.render("register.html", Map.of("messages", List.of("Register/Reset token is no longer valid"), "token", token));
+            }
+        } catch (SQLException e) {
+            throw new InternalServerErrorResponse();
+        }
     }
 
     public void getAllUsers(Context ctx) {
