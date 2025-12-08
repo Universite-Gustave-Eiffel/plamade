@@ -22,6 +22,7 @@ import java.util.Map;
  * Manage webserver configuration
  */
 public class Configuration {
+    public static final int DEFAULT_PORT = 8000;
     public static final String DEFAULT_APPLICATION_URL = "nmcovadis";
     String applicationRootUrl = DEFAULT_APPLICATION_URL;
     String scriptPath = "scripts";
@@ -32,6 +33,7 @@ public class Configuration {
     String secureBaseEncryptionSecret = "";
     String secureBaseAdminUser = "sa";
     String secureBaseAdminPassword = "sa";
+    int port = DEFAULT_PORT;
     Map<String, Object> customConfiguration = new HashMap<String, Object>();
 
     /**
@@ -70,8 +72,11 @@ public class Configuration {
         options.addOption(secureBaseEncryptionSecret);
 
         Option applicationRootUrlOption = new Option("r", "root-url", true, "Custom root URL for the web application (default " + DEFAULT_APPLICATION_URL+ " )");
-        applicationRootUrlOption.setRequired(false); // You can set this to be required if you want it
         options.addOption(applicationRootUrlOption);
+
+        Option portOption = new Option("p", "port", true, "Server http serve port (default " + DEFAULT_PORT+ " )");
+        portOption.setType(Integer.class);
+        options.addOption(portOption);
 
         return options;
     }
@@ -109,6 +114,9 @@ public class Configuration {
             }
             if (commandLine.hasOption("r")) {
                 config.applicationRootUrl = commandLine.getOptionValue("r");
+            }
+            if (commandLine.hasOption("p")) {
+                config.port = Integer.parseInt(commandLine.getOptionValue("p"));
             }
         } catch (ParseException ex) {
             helpFormatter.printHelp("NoiseModelling Script Runner", options);
@@ -159,15 +167,15 @@ public class Configuration {
         }
 
         // Map known options using long names only
-        Object vScript = values.remove("script");
+        Object vScript = values.get("script");
         if (vScript instanceof String) {
             config.scriptPath = (String) vScript;
         }
-        Object vWork = values.remove("working-dir");
+        Object vWork = values.get("working-dir");
         if (vWork instanceof String) {
             config.workingDirectory = (String) vWork;
         }
-        Object vUnsecure = values.remove("unsecure");
+        Object vUnsecure = values.get("unsecure");
         if (vUnsecure != null) {
             config.unsecure = parseBoolean(vUnsecure);
         }
@@ -175,9 +183,13 @@ public class Configuration {
         if (vSecureBaseEncryptionSecret != null) {
             config.secureBaseEncryptionSecret = vSecureBaseEncryptionSecret.toString();
         }
-        Object vApplicationRootUrl = values.remove("root-url");
+        Object vApplicationRootUrl = values.get("root-url");
         if (vApplicationRootUrl instanceof String) {
             config.applicationRootUrl = (String) vApplicationRootUrl;
+        }
+        Object vPort = values.get("port");
+        if (vPort instanceof Integer || vPort instanceof Long) {
+            config.port = (int) vPort;
         }
         config.customConfiguration = values;
         return config;
@@ -403,5 +415,19 @@ public class Configuration {
      */
     public void setCustomConfiguration(Map<String, Object> customConfiguration) {
         this.customConfiguration = customConfiguration;
+    }
+
+    /**
+     * @return Server port
+     */
+    public int getPort() {
+        return port;
+    }
+
+    /**
+     * @param port Server port
+     */
+    public void setPort(int port) {
+        this.port = port;
     }
 }

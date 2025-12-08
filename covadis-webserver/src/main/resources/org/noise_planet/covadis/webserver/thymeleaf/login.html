@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width"/>
+    <title data-react-helmet="true">NoiseModelling Covadis</title>
+    <link rel="shortcut icon" href="favicon.ico" type="image/png"/>
+    <link rel="stylesheet" href="css/pure-min.css"/>
+    <link rel="stylesheet" href="css/custom.css"/>
+</head>
+<body>
+<div id="layout">
+    <div th:replace="~{menu :: menu}"></div>
+    <div id="main" class="content">
+        <div class="header"><h1>User authentification</h1>
+            <div class="l-box" id="message_div" th:if="${not #lists.isEmpty(messages)}">
+                <aside th:each="message : ${messages}"><p th:text="${message}"></p></aside>
+            </div>
+            <form class="pure-form pure-form-aligned" id="login" action="login" method="POST">
+                <fieldset>
+                    <legend>Open your one-time password manager and fill the generated code (ex: KeePassXC, FreeOTP)</legend>
+                    <div class="pure-control-group"><label for="EMAIL">E-mail</label>
+                        <input type="email" placeholder="user@domain.com" id="EMAIL" name="EMAIL"/>
+                    </div>
+                    <div class="pure-control-group"><label for="TOTP_CODE">Verification code</label>
+                        <input type="number" placeholder="123456" id="TOTP_CODE" name="TOTP_CODE"/>
+                    </div>
+                    <div class="pure-controls">
+                        <button id="addButton" type="submit" class="pure-button pure-button-primary">Login
+                        </button>
+                    </div>
+                </fieldset>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>

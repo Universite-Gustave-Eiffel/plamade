@@ -24,6 +24,8 @@ import javax.sql.DataSource;
 import java.awt.*;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.sql.SQLException;
 import java.util.Objects;
@@ -50,10 +52,10 @@ public class NoiseModellingServer {
                 configuration.secureBaseAdminUser, configuration.secureBaseAdminPassword,
                 configuration.getSecureBaseEncryptionSecret(), false);
         // Initialize server database
-        DatabaseManagement.initializeServerDatabaseStructure(serverDataSource);
+        DatabaseManagement.initializeServerDatabaseStructure(serverDataSource, configuration);
         // Initialize access right system
-        provider = JWTTokenProvider.createHMAC512(DatabaseManagement.getJWTSigningKey(serverDataSource));
-        userController = new UserController(serverDataSource);
+        provider = JWTProviderFactory.createHMAC512(DatabaseManagement.getJWTSigningKey(serverDataSource));
+        userController = new UserController(serverDataSource, provider);
     }
 
     /**
@@ -107,10 +109,9 @@ public class NoiseModellingServer {
             }
         }));
 
-        app.start(8000);
+        app.start(configuration.port);
 
-        int port = app.port();
-        String url = "http://localhost:" + port + "/";
+        String url = "http://localhost:" + configuration.port + "/";
         logger.info("Start NoiseModelling: {}", url);
 
         if (openBrowser) {
@@ -144,6 +145,12 @@ public class NoiseModellingServer {
         app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
         app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
         app.get("/", ctx -> {ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);}, Role.ANYONE);
+        app.get(rootPath + "/login", userController::login, Role.ANYONE);
+        app.post(rootPath + "/login", userController::doLogin, Role.ANYONE);
+        app.error(HttpStatus.UNAUTHORIZED, ctx -> {
+            String message = ctx.attributeMap().getOrDefault("message", "").toString();
+            ctx.redirect(rootPath + "/login?messages=" + URLEncoder.encode(message, StandardCharsets.UTF_8), HttpStatus.TEMPORARY_REDIRECT);
+        });
     }
 
     /**

@@ -8,16 +8,11 @@
  */
 package org.noise_planet.covadis.webserver.secure;
 
-import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.http.Context;
-import io.javalin.http.Header;
-import io.javalin.http.HttpStatus;
 import io.javalin.http.UnauthorizedResponse;
-import org.noise_planet.covadis.webserver.utilities.Pair;
 
-import java.util.List;
+import java.sql.SQLException;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Handle auth
@@ -41,21 +36,24 @@ public class Auth {
         if (permittedRoles.contains(Role.ANYONE)) {
             return; // anyone can access
         }
-        if (userRoles(ctx).stream().anyMatch(permittedRoles::contains)) {
-            return; // user has role required to access
-        }
-        ctx.redirect("login.html", HttpStatus.TEMPORARY_REDIRECT);
-        throw new UnauthorizedResponse();
-    }
-
-    public List<Role> userRoles(Context context) {
-        Optional<DecodedJWT> decodedJWT = JavalinJWT.getTokenFromHeader(context)
-                .flatMap(provider::validateToken);
-        if(decodedJWT.isPresent()) {
-
+        // Read visitor token
+        int userIdentifier = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
+        if(userIdentifier >= 0) {
+            try {
+                User user = userController.getUser(userIdentifier);
+                if (user.roles.stream().noneMatch(permittedRoles::contains)) {
+                    ctx.attribute("message", "You do not have the minimal authorization access to see this page");
+                    throw new UnauthorizedResponse();
+                }
+            } catch (SQLException e) {
+                ctx.attribute("message", "Exception while authenticating the user");
+                throw new UnauthorizedResponse();
+            }
         } else {
-
+            ctx.attribute("message",  "Unauthorized access please login before proceeding");
+            throw new UnauthorizedResponse();
         }
     }
+
 
 }

@@ -22,7 +22,7 @@ import java.util.Base64;
  * Generator of Json Web Token used when a user as validated its identity with another method
  * Java Web Token will manage the identification process for each secure web page
  */
-public class JWTTokenProvider {
+public class JWTProviderFactory {
 
     /**
      * @return Random secret token
@@ -54,4 +54,5 @@ public class JWTTokenProvider {
 
         return new JWTProvider<>(algorithm, generator, verifier);
     }
+
 }

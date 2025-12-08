@@ -16,7 +16,8 @@ import org.h2gis.functions.factory.H2GISDBFactory;
 import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.utilities.JDBCUtilities;
 import org.jetbrains.annotations.NotNull;
-import org.noise_planet.covadis.webserver.secure.JWTTokenProvider;
+import org.noise_planet.covadis.webserver.Configuration;
+import org.noise_planet.covadis.webserver.secure.JWTProviderFactory;
 import org.noise_planet.covadis.webserver.secure.Role;
 import org.noise_planet.covadis.webserver.secure.User;
 import org.slf4j.Logger;
@@ -24,10 +25,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
-import java.security.SecureRandom;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 
@@ -98,7 +99,7 @@ public class DatabaseManagement {
     }
 
 
-    public static void initializeServerDatabaseStructure(DataSource dataSource) throws SQLException {
+    public static void initializeServerDatabaseStructure(DataSource dataSource, Configuration configuration) throws SQLException {
         try(Connection connection = dataSource.getConnection()) {
             if(!JDBCUtilities.tableExists(connection, "ATTRIBUTES")) {
                 // First database
@@ -112,9 +113,27 @@ public class DatabaseManagement {
                     databaseVersion = rs.getInt("DATABASE_VERSION");
                 }
                 // In the future check databaseVersion for database upgrades
-                if (databaseVersion != DATABASE_VERSION) {
-
+                if (databaseVersion < DATABASE_VERSION) {
+                    // do upgrade
+                    st.executeUpdate("UPDATE ATTRIBUTES SET DATABASE_VERSION = " + databaseVersion);
+                } else if (databaseVersion > DATABASE_VERSION) {
+                    throw new IllegalStateException(
+                            String.format("Database more recent than application version %d > %d",
+                                    databaseVersion, DATABASE_VERSION));
                 }
+            }
+            // Check if the user database is empty
+            // There should be at least the admin account in the database
+            // if not create one and print the register url into the console
+            if(JDBCUtilities.getRowCount(connection, "USERS") == 0) {
+                // Create admin account
+                String key = addUser(connection, "admin");
+                Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
+                logger.info(String.format("First start of the server, register the Administrator account using this url:\n" +
+                        "http://localhost:%d/%s/register?token=%s",
+                        configuration.getPort(),
+                        configuration.getApplicationRootUrl(),
+                        URLEncoder.encode(key, StandardCharsets.UTF_8)));
             }
         }
 
@@ -122,7 +141,7 @@ public class DatabaseManagement {
 
     private static void createServerDataBaseStructure(Connection connection) throws SQLException {
         Statement st = connection.createStatement();
-        final String serverSecretToken = JWTTokenProvider.generateServerSecretToken();
+        final String serverSecretToken = JWTProviderFactory.generateServerSecretToken();
         st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS ATTRIBUTES(" +
                         "DATABASE_VERSION INTEGER," +
@@ -139,7 +158,7 @@ public class DatabaseManagement {
         st.executeUpdate(
                 "CREATE TABLE USERS(" +
                         "  PK_USER SERIAL PRIMARY KEY," +
-                        "  EMAIL VARCHAR," +
+                        "  EMAIL VARCHAR UNIQUE," +
                         "  TOTP_TOKEN VARCHAR," +
                         "  REGISTER_TOKEN VARCHAR" +
                         ")"
@@ -238,4 +257,34 @@ public class DatabaseManagement {
         }
     }
 
+    /**
+     * This method adds a new user with the provided email.
+     * <p>
+     * It generates an expected token that would be provided in the url when associating to a TOTP generator
+     * This token is provided to the user with the server url by mail or other communication method.
+     *
+     * @param connection The database Connection object used to execute the query.
+     * @param email The email of the user to be added.
+     * @return The token generated for this new user.
+     * @throws SQLException If the operation fails to add a user (i.e., no rows are affected in the "USERS" table).
+     */
+    public static String addUser(Connection connection, String email) throws SQLException {
+        String sql = "INSERT INTO USERS (EMAIL, REGISTER_TOKEN) VALUES (?, ?)";
+        PreparedStatement pstUser = connection.prepareStatement(sql);
+
+        // Set the parameters of the SQL statement
+
+        String urlToken = JWTProviderFactory.generateServerSecretToken();
+
+        pstUser.setString(1, email);
+        pstUser.setString(2, urlToken);
+
+        // Execute the statement and get the result
+        int rowsAffected = pstUser.executeUpdate();
+
+        if (rowsAffected == 0) {
+            throw new SQLException("Failed to add admin user.");
+        }
+        return urlToken;
+    }
 }

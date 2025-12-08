@@ -75,4 +75,22 @@ public class JavalinJWT {
                 .flatMap(jwtProvider::validateToken)
                 .ifPresent(jwt -> JavalinJWT.addDecodedToContext(context, jwt));
     }
+
+
+    /**
+     * Return the user identifier from the web context (extracted from verified Json Web Token)
+     * @param ctx Web context
+     * @param provider Json Web Token verifier
+     * @return User identifier or -1 if token is invalid
+     */
+    public static int getUserIdentifierFromContext(Context ctx, JWTProvider<User> provider) {
+        // Read visitor token
+        Optional<DecodedJWT> decodedJWT = JavalinJWT.getTokenFromHeader(ctx)
+                .flatMap(provider::validateToken);
+        if(decodedJWT.isPresent()) {
+            return decodedJWT.get().getClaim("user_identifier").asInt();
+        } else {
+            return -1;
+        }
+    }
 }
