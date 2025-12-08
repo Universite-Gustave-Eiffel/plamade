@@ -12,7 +12,7 @@ import com.auth0.jwt.algorithms.Algorithm;
 
 /**
  * Derived from
- * <a href="https://github.com/kmehrunes/javalin-jwt">...</a>
+ * <a href="https://github.com/kmehrunes/javalin-jwt">javalin-jwt</a>
  */
 @FunctionalInterface
 public interface JWTGenerator <T> {

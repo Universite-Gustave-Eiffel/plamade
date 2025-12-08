@@ -12,6 +12,7 @@ package org.noise_planet.covadis.webserver.secure;
 
 import io.javalin.http.Context;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Handle user storage
@@ -21,39 +22,32 @@ import java.util.*;
  */
 public class UserController {
 
-    private static final Map<String, User> users;
+    private static final Map<Integer, User> users = new HashMap<>();
+    private static final AtomicInteger userCount = new AtomicInteger(0);
 
-    static {
-        var tempMap = Map.of(
-                randomId(), new User("Alice", "alice@alice.kt"),
-                randomId(), new User("Bob", "bob@bob.kt"),
-                randomId(), new User("Carol", "carol@carol.kt"),
-                randomId(), new User("Dave", "dave@dave.kt")
-        );
-        users = new HashMap<>(tempMap);
+    public static void addUser(String email, Role... roles) {
+        User user = new User(userCount.getAndAdd(1), email, Arrays.asList(roles));
+        users.put(user.identifier, user);
     }
 
-    public static void getAllUserIds(Context ctx) {
-        ctx.json(users.keySet());
+    public void getAllUsers(Context ctx) {
+        ctx.json(users.values());
     }
 
-    public static void createUser(Context ctx) {
-        users.put(randomId(), ctx.bodyAsClass(User.class));
+    public void createUser(Context ctx) {
+        addUser(ctx.pathParam("email"));
     }
 
-    public static void getUser(Context ctx) {
-        ctx.json(users.get(ctx.pathParam("userId")));
+    public void getUser(Context ctx) {
+        ctx.json(users.get(Integer.parseInt(ctx.pathParam("user_identifier"))));
     }
 
-    public static void updateUser(Context ctx) {
-        users.put(ctx.pathParam("userId"), ctx.bodyAsClass(User.class));
+    public void updateUser(Context ctx) {
+        // TODO
     }
 
-    public static void deleteUser(Context ctx) {
-        users.remove(ctx.pathParam("userId"));
+    public void deleteUser(Context ctx) {
+        users.remove(Integer.parseInt(ctx.pathParam("user_identifier")));
     }
 
-    private static String randomId() {
-        return UUID.randomUUID().toString();
-    }
 }

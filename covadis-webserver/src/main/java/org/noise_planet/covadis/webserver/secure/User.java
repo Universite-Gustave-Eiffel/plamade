@@ -10,13 +10,24 @@
 
 package org.noise_planet.covadis.webserver.secure;
 
-public class User {
-    String name;
-    String email;
+import java.util.List;
 
-    public User(String name, String email) {
-        this.name = name;
+public class User {
+
+    public User(int identifier, String email, List<Role> roles) {
+        this.identifier = identifier;
         this.email = email;
+        this.roles = roles;
     }
+
+    /** Database identifier for this user */
+    int identifier;
+    /** User email or name */
+    String email;
+    /** User roles/rights */
+    List<Role> roles;
+    /** User TOTP secret token */
+    String secretToken;
+
 }
 

@@ -15,17 +15,12 @@ import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
 import org.apache.log4j.PropertyConfigurator;
-import org.noise_planet.covadis.webserver.secure.Auth;
-import org.noise_planet.covadis.webserver.secure.Role;
+import org.noise_planet.covadis.webserver.secure.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.thymeleaf.TemplateEngine;
-import org.pac4j.javalin.SecurityHandler;
 import java.awt.*;
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.Objects;
 import java.util.Set;
@@ -79,6 +74,10 @@ public class NoiseModellingServer {
     public void startServer(boolean openBrowser) throws IOException {
         String rootPath = "/" + configuration.applicationRootUrl;
 
+        JWTProvider<User> provider = JWTTokenProvider.createHMAC512("changeme");
+        UserController userController = new UserController();
+        Auth auth = new Auth(provider, userController);
+
         app = Javalin.create(config -> {
             config.staticFiles.add(staticFileConfig -> {
                         staticFileConfig.location = Location.EXTERNAL;
@@ -95,10 +94,10 @@ public class NoiseModellingServer {
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
-        app.beforeMatched(Auth::handleAccess);
+        app.beforeMatched(auth::handleAccess);
 
-        app.get(rootPath + "/builder/ows", owsController::handleGet, Role.ANYONE);
-        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, Role.RUNNER);
+        app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
         app.get("/", ctx -> {ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);}, Role.ANYONE);
 
         scriptWatch = startWatcher(Path.of(configuration.scriptPath), owsController);

@@ -20,7 +20,7 @@ public class ThymeleafConfig {
         ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver(ThymeleafConfig.class.getClassLoader());
         // HTML is the default mode
         templateResolver.setTemplateMode(TemplateMode.HTML);
-        // This will convert "index.html" to "/WEB-INF/templates/home.html"
+        // context.serve("myresource.html") will look into this package
         templateResolver.setPrefix("/org/noise_planet/covadis/webserver/thymeleaf/");
         templateResolver.setSuffix(".html");
         // Set template cache TTL to 1 hour. If not set, entries would live in cache until expelled by LRU

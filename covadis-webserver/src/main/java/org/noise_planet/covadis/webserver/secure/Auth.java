@@ -8,6 +8,7 @@
  */
 package org.noise_planet.covadis.webserver.secure;
 
+import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.http.Context;
 import io.javalin.http.Header;
 import io.javalin.http.UnauthorizedResponse;
@@ -21,8 +22,15 @@ import java.util.Optional;
  * Handle auth
  */
 public class Auth {
+    JWTProvider<User> provider;
+    UserController userController;
 
-    public static void handleAccess(Context ctx) {
+    public Auth(JWTProvider<User> provider, UserController userController) {
+        this.provider = provider;
+        this.userController = userController;
+    }
+
+    public void handleAccess(Context ctx) {
         var permittedRoles = ctx.routeRoles();
         if (permittedRoles.contains(Role.ANYONE)) {
             return; // anyone can access
@@ -34,15 +42,14 @@ public class Auth {
         throw new UnauthorizedResponse();
     }
 
-    public static List<Role> userRoles(Context ctx) {
-        // Find from the context what is the user roles
-        return Optional.ofNullable(ctx.basicAuthCredentials()).map(credentials -> userRolesMap.getOrDefault(
-                new Pair(credentials.getUsername(), credentials.getPassword()), List.of())).orElse(List.of());
-    }
+    public List<Role> userRoles(Context context) {
+        Optional<DecodedJWT> decodedJWT = JavalinJWT.getTokenFromHeader(context)
+                .flatMap(provider::validateToken);
+        if(decodedJWT.isPresent()) {
 
-    private static final Map<Pair, List<Role>> userRolesMap = Map.of(
-            new Pair("alice", "weak-1234"), List.of(Role.RUNNER),
-            new Pair("bob", "weak-123456"), List.of(Role.RUNNER, Role.ADMINISTRATOR)
-    );
+        } else {
+
+        }
+    }
 
 }
