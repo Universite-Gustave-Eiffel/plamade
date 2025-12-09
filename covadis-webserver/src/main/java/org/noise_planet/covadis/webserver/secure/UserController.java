@@ -16,16 +16,16 @@ import com.atlassian.onetime.model.EmailAddress;
 import com.atlassian.onetime.model.Issuer;
 import com.atlassian.onetime.model.TOTPSecret;
 import com.atlassian.onetime.service.*;
-import com.auth0.jwt.interfaces.DecodedJWT;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 import io.javalin.http.InternalServerErrorResponse;
 import io.javalin.http.util.NaiveRateLimit;
-import org.noise_planet.covadis.webserver.NoiseModellingServer;
+import org.noise_planet.covadis.webserver.Configuration;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,11 +38,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Handle users management
@@ -55,7 +52,6 @@ public class UserController {
     private final DataSource serverDataSource;
     private final JWTProvider<User> provider;
     private final TOTPService totpService;
-
 
     public UserController(DataSource serverDataSource, JWTProvider<User> provider) {
         this.serverDataSource = serverDataSource;
@@ -102,6 +98,36 @@ public class UserController {
     public void doLogin(Context ctx ) {
         // brute force protection
         NaiveRateLimit.requestPerTimeUnit(ctx, 5, TimeUnit.MINUTES);
+        String totpCode = Optional.ofNullable(ctx.formParam("TOTP_CODE")).orElse("");
+        String email = Optional.ofNullable(ctx.formParam("EMAIL")).orElse("");
+
+        try(Connection connection = serverDataSource.getConnection()) {
+            String totpSecret = DatabaseManagement.getTotpSecretByUserEmail(connection, email);
+            if(totpSecret.isEmpty()) {
+                ctx.attribute("messages", "Invalid email or TOTP code");
+                login(ctx);
+            } else {
+                TOTPVerificationResult result = totpService.verify(new TOTP(totpCode),
+                        TOTPSecret.Companion.fromBase32EncodedString(totpSecret));
+                if (result.isSuccess()) {
+                    // Fetch user
+                    int userId = DatabaseManagement.getUserIdByUserEmail(connection, email);
+                    User user = DatabaseManagement.getUser(connection, userId);
+                    String token = provider.generateToken(user);
+                    // Register the JWT token in cookie
+                    JavalinJWT.addTokenToCookie(ctx, token);
+                    logger.info("User {} has logged into the system", email);
+                    // redirect the user to the page
+                    ctx.redirect(ctx.attribute("baseUrl")+"/builder", HttpStatus.TEMPORARY_REDIRECT);
+                } else {
+                    ctx.attribute("messages", "Invalid email or TOTP code");
+                    login(ctx);
+                }
+            }
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
     }
 
 

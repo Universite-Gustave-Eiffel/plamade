@@ -11,6 +11,7 @@
 package org.noise_planet.covadis.webserver;
 
 import io.javalin.Javalin;
+import io.javalin.http.Handler;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
@@ -55,7 +56,7 @@ public class NoiseModellingServer {
                 configuration.getSecureBaseEncryptionSecret(), false);
         // Initialize server database
         DatabaseManagement.initializeServerDatabaseStructure(serverDataSource, configuration);
-        // Initialize access right system
+        // Initialize an access right system
         provider = JWTProviderFactory.createHMAC512(DatabaseManagement.getJWTSigningKey(serverDataSource));
         userController = new UserController(serverDataSource, provider);
     }
@@ -141,6 +142,15 @@ public class NoiseModellingServer {
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
+        /*
+         * A decode handler which captures the value of a JWT from an
+         * authorization header in the form of "Bearer {jwt}". The handler
+         * decodes and verifies the JWT then puts the decoded object as
+         * a context attribute for future handlers to access directly.
+         */
+        Handler decodeHandler = JavalinJWT.createCookieDecodeHandler(provider);
+
+        app.before(decodeHandler);
         // Provide the application path to all thymeleaf templates
         app.before(ctx -> {ctx.attribute("baseUrl", rootPath);});
         app.beforeMatched(new Auth(provider, userController)::handleAccess);

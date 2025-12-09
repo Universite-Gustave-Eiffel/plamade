@@ -85,7 +85,7 @@ public class JavalinJWT {
      */
     public static int getUserIdentifierFromContext(Context ctx, JWTProvider<User> provider) {
         // Read visitor token
-        Optional<DecodedJWT> decodedJWT = JavalinJWT.getTokenFromHeader(ctx)
+        Optional<DecodedJWT> decodedJWT = JavalinJWT.getTokenFromCookie(ctx)
                 .flatMap(provider::validateToken);
         if(decodedJWT.isPresent()) {
             return decodedJWT.get().getClaim("user_identifier").asInt();

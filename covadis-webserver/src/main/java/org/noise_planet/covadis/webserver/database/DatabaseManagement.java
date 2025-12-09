@@ -127,8 +127,8 @@ public class DatabaseManagement {
             // There should be at least the admin account in the database
             // if not create one and print the register url into the console
             if(JDBCUtilities.getRowCount(connection, "USERS") == 0) {
-                // Create admin account
-                String key = addUser(connection, ADMIN_EMAIL);
+                // Create an admin account
+                String key = addUser(connection, ADMIN_EMAIL, Role.ADMINISTRATOR, Role.RUNNER);
                 Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
                 logger.info("First start of the server, register the Administrator account using this url:\n" +
                         "http://localhost:{}/{}/register/{}",
@@ -177,6 +177,14 @@ public class DatabaseManagement {
 
     }
 
+    /**
+     * Retrieve the generated signing key of the server
+     * That key is used to sign the JWT tokens provided to the users
+     * If a malicious user tries to change the payload (ex. user identifier), then the token will not be valid
+     * @param serverDataSource data source
+     * @return JWTSigningKey
+     * @throws SQLException Something went wrong
+     */
     public static String getJWTSigningKey(DataSource serverDataSource) throws SQLException {
         try(Connection connection = serverDataSource.getConnection()) {
             Statement st = connection.createStatement();
@@ -265,9 +273,10 @@ public class DatabaseManagement {
      * @return The token generated for this new user.
      * @throws SQLException If the operation fails to add a user (i.e., no rows are affected in the "USERS" table).
      */
-    public static String addUser(Connection connection, String email) throws SQLException {
+    public static String addUser(Connection connection, String email, Role... roles) throws SQLException {
         String sql = "INSERT INTO USERS (EMAIL, REGISTER_TOKEN) VALUES (?, ?)";
-        PreparedStatement pstUser = connection.prepareStatement(sql);
+        PreparedStatement pstUser = connection.prepareStatement(sql,
+                Statement.RETURN_GENERATED_KEYS);
 
         // Set the parameters of the SQL statement
 
@@ -280,8 +289,27 @@ public class DatabaseManagement {
         int rowsAffected = pstUser.executeUpdate();
 
         if (rowsAffected == 0) {
-            throw new SQLException("Failed to add admin user.");
+            throw new SQLException("Failed to add user.");
         }
+
+        ResultSet rs = pstUser.getGeneratedKeys();
+        if (!rs.next()) {
+            throw new SQLException("Failed to get user primary key.");
+        }
+
+        int userPk = rs.getInt(1);
+
+        sql = "INSERT INTO ROLES (PK_USER, ROLE) VALUES (?, ?)";
+        pstUser = connection.prepareStatement(sql);
+        for(Role role : roles) {
+            pstUser.setInt(1, userPk);
+            pstUser.setString(2, role.toString());
+            rowsAffected = pstUser.executeUpdate();
+            if (rowsAffected == 0) {
+                throw new SQLException("Failed to add roles.");
+            }
+        }
+
         return urlToken;
     }
 
@@ -329,5 +357,51 @@ public class DatabaseManagement {
         if (rowsAffected == 0) {
             throw new SQLException("Failed to update TOTP token for user with PK_USER: " + userIdentifier);
         }
+    }
+
+    /**
+     * Get user by register token
+     * @param connection The database Connection object
+     * @param email User email
+     * @return User TOTP_TOKEN or empty if not found
+     * @throws SQLException If database error occurs
+     */
+    public static String getTotpSecretByUserEmail(Connection connection, String email) throws SQLException {
+        if(email == null || email.isEmpty()) {
+            return "";
+        }
+        String sql = "SELECT TOTP_TOKEN FROM USERS WHERE EMAIL = ?";
+        try (PreparedStatement pst = connection.prepareStatement(sql)) {
+            pst.setString(1, email);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("TOTP_TOKEN");
+                }
+            }
+        }
+        return ""; // email not found
+    }
+
+    /**
+     * Get user id by using email
+     * @param connection The database Connection object
+     * @param email User email
+     * @return User identifier or -1 if not found
+     * @throws SQLException If database error occurs
+     */
+    public static int getUserIdByUserEmail(Connection connection, String email) throws SQLException {
+        if(email == null || email.isEmpty()) {
+            return -1;
+        }
+        String sql = "SELECT PK_USER FROM USERS WHERE EMAIL = ?";
+        try (PreparedStatement pst = connection.prepareStatement(sql)) {
+            pst.setString(1, email);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("PK_USER");
+                }
+            }
+        }
+        return -1; // email not found
     }
 }
