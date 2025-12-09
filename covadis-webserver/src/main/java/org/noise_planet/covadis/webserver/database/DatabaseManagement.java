@@ -246,6 +246,8 @@ public class DatabaseManagement {
 
         String email = rsUser.getString("EMAIL");
 
+        String registerToken = rsUser.getString("REGISTER_TOKEN");
+
         List<String> rolesList = getUserRoles(connection, userIdentifier);  // Retrieve the user's roles
         List<Role> roles = new ArrayList<>();
 
@@ -259,7 +261,7 @@ public class DatabaseManagement {
         }
 
         // Create a User object and return it
-        return new User(userIdentifier, email, roles);
+        return new User(userIdentifier, email, roles, registerToken);
     }
 
     /**

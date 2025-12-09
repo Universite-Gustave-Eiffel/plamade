@@ -40,6 +40,12 @@ public class Auth {
         if(userIdentifier >= 0) {
             try {
                 User user = userController.getUser(userIdentifier);
+                if(!user.registerToken.isEmpty()) {
+                    // The administrator has reset the TOTP code
+                    // User must validate the new TOTP code to be able to log in
+                    ctx.attribute("messages",  "Unauthorized access please login before proceeding");
+                    throw new UnauthorizedResponse();
+                }
                 if (user.roles.stream().noneMatch(permittedRoles::contains)) {
                     ctx.attribute("messages", "You do not have the minimal authorization access to see this page");
                     throw new UnauthorizedResponse();

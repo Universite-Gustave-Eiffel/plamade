@@ -14,10 +14,11 @@ import java.util.List;
 
 public class User {
 
-    public User(int identifier, String email, List<Role> roles) {
+    public User(int identifier, String email, List<Role> roles, String registerToken) {
         this.identifier = identifier;
         this.email = email;
         this.roles = roles;
+        this.registerToken = registerToken;
     }
 
     /** Database identifier for this user */
@@ -26,8 +27,23 @@ public class User {
     String email;
     /** User roles/rights */
     List<Role> roles;
-    /** User TOTP secret token */
-    String secretToken;
+    /** User register link token, user cannot be authenticated if it is not empty */
+    String registerToken;
 
+    public String getRegisterToken() {
+        return registerToken;
+    }
+
+    public List<Role> getRoles() {
+        return roles;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public int getIdentifier() {
+        return identifier;
+    }
 }
 
