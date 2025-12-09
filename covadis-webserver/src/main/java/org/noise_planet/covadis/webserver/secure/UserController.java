@@ -64,7 +64,7 @@ public class UserController {
         );
     }
 
-    User getUser(int userIdentifier) throws SQLException {
+    public User getUser(int userIdentifier) throws SQLException {
         try(Connection connection = serverDataSource.getConnection()) {
             return DatabaseManagement.getUser(connection, userIdentifier);
         }
@@ -75,7 +75,7 @@ public class UserController {
      * @param context Javalin web context
      * @return User or not if not connected
      */
-    User getUser(Context context) {
+    public User getUser(Context context) {
         int userIdentifier = JavalinJWT.getUserIdentifierFromContext(context, provider);
         if(userIdentifier >= 0) {
             try {

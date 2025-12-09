@@ -10,6 +10,7 @@
 
 package org.noise_planet.covadis.webserver;
 
+import com.zaxxer.hikari.HikariDataSource;
 import io.javalin.http.Context;
 import net.opengis.ows11.ExceptionReportType;
 import net.opengis.ows11.ExceptionType;
@@ -23,9 +24,13 @@ import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
 import org.locationtech.jts.geom.Geometry;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
+import org.noise_planet.covadis.webserver.secure.User;
+import org.noise_planet.covadis.webserver.secure.UserController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -45,6 +50,8 @@ import java.util.Optional;
 public class OwsController {
 
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
+    UserController userController;
+    Configuration configuration;
 
     /**
      * A static collection of {@link ScriptWrapper} objects representing the
@@ -75,10 +82,12 @@ public class OwsController {
      *
      * @throws IOException if an error occurs while loading or processing the script files.
      */
-    public OwsController(Path scriptDir) throws IOException {
-        wpsScriptWrapper = new WpsScriptWrapper(scriptDir);
+    public OwsController(UserController userController, Configuration configuration) throws IOException {
+        wpsScriptWrapper = new WpsScriptWrapper(Path.of(configuration.scriptPath));
         Map<String, List<File>> groupedScripts = wpsScriptWrapper.loadScripts();
         wpsScripts = WpsScriptWrapper.buildScriptWrappers(groupedScripts);
+        this.userController = userController;
+        this.configuration = configuration;
     }
     /**
      * Reloads the WPS (Web Processing Service) scripts by reloading them from the file system
@@ -271,7 +280,7 @@ public class OwsController {
         //     // Periodically re-check ctx.req.isRemoteDone() in loops
         // });
         try {
-
+            User user = userController.getUser(ctx);
             Parser parser = new Parser(new WPSConfiguration());
             Object parsed = parser.parse(new ByteArrayInputStream(ctx.bodyAsBytes()));
 
@@ -302,16 +311,27 @@ public class OwsController {
             }
             ScriptWrapper wrapper = wrapperOpt.get();
             Map<String, Object> inputs = ScriptWrapper.extractInputs(execute);
-            Connection connection = null;//dataBaseManager.openDatabaseConnection();
-            Object result = wrapper.execute(connection, inputs);
-
-            if (result instanceof Geometry) {
-                ctx.contentType("application/wkt");
-                ctx.result(result.toString());
-            } else {
-                ctx.json(Map.of("result", result));
+            String databaseName = "noisemodelling";
+            if(user != null) {
+                databaseName = String.format("user_%03d", user.getIdentifier());
             }
-
+            try(HikariDataSource noisemodellingDataSource = DatabaseManagement.createH2DataSource(
+                    configuration.workingDirectory,
+                    databaseName,
+                    "sa",
+                    "sa",
+                    "",
+                    true)) {
+                try (Connection connection = noisemodellingDataSource.getConnection()) {
+                    Object result = wrapper.execute(connection, inputs);
+                    if (result instanceof Geometry) {
+                        ctx.contentType("application/wkt");
+                        ctx.result(result.toString());
+                    } else {
+                        ctx.json(Map.of("result", result));
+                    }
+                }
+            }
         } catch (Exception e) {
             logger.error("Error processing WPS POST request", e);
             try {

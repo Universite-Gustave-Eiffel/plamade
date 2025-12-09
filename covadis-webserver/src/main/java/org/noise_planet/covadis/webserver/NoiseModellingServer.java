@@ -50,7 +50,6 @@ public class NoiseModellingServer {
 
     public NoiseModellingServer(Configuration configuration) throws IOException, SQLException {
         this.configuration = configuration;
-        owsController  = new OwsController(Path.of(configuration.scriptPath));
         serverDataSource = DatabaseManagement.createH2DataSource(configuration.workingDirectory, "server",
                 configuration.secureBaseAdminUser, configuration.secureBaseAdminPassword,
                 configuration.getSecureBaseEncryptionSecret(), false);
@@ -59,6 +58,7 @@ public class NoiseModellingServer {
         // Initialize an access right system
         provider = JWTProviderFactory.createHMAC512(DatabaseManagement.getJWTSigningKey(serverDataSource));
         userController = new UserController(serverDataSource, provider);
+        owsController  = new OwsController(userController, configuration);
     }
 
     /**
