@@ -50,6 +50,7 @@ public class Auth {
                     ctx.attribute("messages", "You do not have the minimal authorization access to see this page");
                     throw new UnauthorizedResponse();
                 }
+                ctx.attribute("user", user);
             } catch (SQLException e) {
                 ctx.attribute("messages", "Exception while authenticating the user");
                 throw new UnauthorizedResponse();

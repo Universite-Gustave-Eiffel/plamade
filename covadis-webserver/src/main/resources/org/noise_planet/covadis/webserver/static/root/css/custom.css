@@ -181,3 +181,8 @@ div.hidden {
     font-weight: bold;                 /* Make the text bolder */
     margin-left: 10px;                /* Added space to the left of QR code text */
 }
+
+.gdpr-text {
+    font-size: 14px; /* You can adjust this as needed */
+    line-height: 1.5; /* This will make the text look more visually appealing */
+}

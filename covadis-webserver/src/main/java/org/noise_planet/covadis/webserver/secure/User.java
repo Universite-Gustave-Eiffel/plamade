@@ -45,5 +45,9 @@ public class User {
     public int getIdentifier() {
         return identifier;
     }
+
+    public boolean isAdministrator() {
+        return roles.contains(Role.ADMINISTRATOR);
+    }
 }
 

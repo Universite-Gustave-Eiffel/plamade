@@ -36,6 +36,8 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
@@ -95,6 +97,10 @@ public class UserController {
         ctx.render("login.html", Map.of("messages", messages));
     }
 
+    private static String getBaseURL(Context context) {
+        return Optional.ofNullable((String) context.attribute("baseUrl")).orElse("");
+    }
+
     public void doLogin(Context ctx ) {
         // brute force protection
         NaiveRateLimit.requestPerTimeUnit(ctx, 5, TimeUnit.MINUTES);
@@ -118,7 +124,9 @@ public class UserController {
                     JavalinJWT.addTokenToCookie(ctx, token);
                     logger.info("User {} has logged into the system", email);
                     // redirect the user to the page
-                    ctx.redirect(ctx.attribute("baseUrl")+"/builder", HttpStatus.TEMPORARY_REDIRECT);
+                    ctx.render("blank", Map.of(
+                            "redirectUrl", getBaseURL(ctx),
+                            "message", "Login successful, you will be redirected to the application"));
                 } else {
                     ctx.attribute("messages", "Invalid email or TOTP code");
                     login(ctx);
@@ -148,8 +156,8 @@ public class UserController {
                         TOTPSecret.Companion.fromBase32EncodedString(totpSecret));
                 if(result.isSuccess()) {
                     DatabaseManagement.updateUserTotpToken(connection, user.identifier, totpSecret);
-                    ctx.attribute("messages", "Account successfully created please enter your credentials");
-                    login(ctx);
+                    String message = "Account successfully created please enter your credentials";
+                    ctx.redirect(getBaseURL(ctx) + "/login?messages=" + URLEncoder.encode(message, StandardCharsets.UTF_8), HttpStatus.TEMPORARY_REDIRECT);
                 } else {
                     ctx.attribute("messages", "Invalid TOTP code");
                     register(ctx);

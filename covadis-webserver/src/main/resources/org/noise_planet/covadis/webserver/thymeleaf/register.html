@@ -2,33 +2,29 @@
 <html>
 <head th:replace="~{header :: customHead('Validate register user')}">
 <body>
-<div id="layout">
-    <div th:replace="~{menu :: menu}"></div>
-    <div id="main" class="content">
-        <div class="header"><h1>User register</h1>
-            <div class="l-box" id="message_div" th:if="${not #lists.isEmpty(messages)}">
-                <aside th:each="message : ${messages}"><p th:text="${message}"></p></aside>
-            </div>
-            <form class="pure-form pure-form-aligned" id="register" action="" method="POST">
-                <input type="hidden" th:value="${token}" name="TOKEN">
-                <input type="hidden" th:value="${totpSecret}" name="TOTP_SECRET">
-                <fieldset>
-                    <legend>You can use any one-time password manager (ex: KeePassXC, FreeOTP) to finalize the registration and login here later</legend>
-                    <img th:src="'data:image/png;base64,' + ${qrCodeBytes}" alt="QR Code"/>
-                    <legend>Scan the QRCode or write down these codes</legend>
-                    <label th:text="${totpSecret}" class="qrCodeText"></label>
-                    <legend>Enter the generated one-time password to finalize your account creation</legend>
-                    <div class="pure-control-group"><label for="TOTP_CODE">Verification code</label>
-                        <input type="number" placeholder="123456" id="TOTP_CODE" name="TOTP_CODE"/>
-                    </div>
-                    <div class="pure-controls">
-                        <button id="addButton" type="submit" class="pure-button pure-button-primary">Register
-                        </button>
-                    </div>
-                 </fieldset>
-            </form>
+    <div class="header"><h1>User register</h1>
+        <div class="l-box" id="message_div" th:if="${not #lists.isEmpty(messages)}">
+            <aside th:each="message : ${messages}"><p th:text="${message}"></p></aside>
         </div>
+        <form class="pure-form pure-form-aligned" id="register" action="" method="POST">
+            <input type="hidden" th:value="${token}" name="TOKEN">
+            <input type="hidden" th:value="${totpSecret}" name="TOTP_SECRET">
+            <fieldset>
+                <legend>You can use any one-time password manager (ex: KeePassXC, FreeOTP) to finalize the registration and login here later</legend>
+                <img th:src="'data:image/png;base64,' + ${qrCodeBytes}" alt="QR Code"/>
+            </fieldset>
+            <fieldset>
+                <legend>Scan the QRCode or write down these codes</legend>
+                <label th:text="${totpSecret}" class="qrCodeText"></label>
+            </fieldset>
+            <fieldset>
+                <legend>Enter the generated one-time password to finalize your account creation</legend>
+                <div class="pure-control-group"><label for="TOTP_CODE">Verification code</label>
+                    <input type="number" placeholder="123456" id="TOTP_CODE" name="TOTP_CODE"/>
+                    <button id="addButton" type="submit" class="pure-button pure-button-primary">Register</button>
+                </div>
+             </fieldset>
+        </form>
     </div>
-</div>
 </body>
 </html>
