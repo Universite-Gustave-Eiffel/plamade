@@ -151,9 +151,9 @@ public class NoiseModellingServer {
         app.get(rootPath + "/login", userController::login, Role.ANYONE);
         app.post(rootPath + "/login", userController::doLogin, Role.ANYONE);
         app.get(rootPath + "/register/{token}", userController::register, Role.ANYONE);
-        app.post(rootPath + "/register", userController::doRegister, Role.ANYONE);
+        app.post(rootPath + "/register/{token}", userController::doRegister, Role.ANYONE);
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {
-            String message = ctx.attributeMap().getOrDefault("message", "").toString();
+            String message = ctx.attributeMap().getOrDefault("messages", "").toString();
             ctx.redirect(rootPath + "/login?messages=" + URLEncoder.encode(message, StandardCharsets.UTF_8), HttpStatus.TEMPORARY_REDIRECT);
         });
     }

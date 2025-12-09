@@ -41,15 +41,15 @@ public class Auth {
             try {
                 User user = userController.getUser(userIdentifier);
                 if (user.roles.stream().noneMatch(permittedRoles::contains)) {
-                    ctx.attribute("message", "You do not have the minimal authorization access to see this page");
+                    ctx.attribute("messages", "You do not have the minimal authorization access to see this page");
                     throw new UnauthorizedResponse();
                 }
             } catch (SQLException e) {
-                ctx.attribute("message", "Exception while authenticating the user");
+                ctx.attribute("messages", "Exception while authenticating the user");
                 throw new UnauthorizedResponse();
             }
         } else {
-            ctx.attribute("message",  "Unauthorized access please login before proceeding");
+            ctx.attribute("messages",  "Unauthorized access please login before proceeding");
             throw new UnauthorizedResponse();
         }
     }

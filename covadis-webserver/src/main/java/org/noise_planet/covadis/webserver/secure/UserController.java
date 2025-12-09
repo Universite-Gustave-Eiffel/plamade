@@ -10,6 +10,7 @@
 
 package org.noise_planet.covadis.webserver.secure;
 
+import com.atlassian.onetime.core.TOTP;
 import com.atlassian.onetime.core.TOTPGenerator;
 import com.atlassian.onetime.model.EmailAddress;
 import com.atlassian.onetime.model.Issuer;
@@ -54,18 +55,14 @@ public class UserController {
     private final DataSource serverDataSource;
     private final JWTProvider<User> provider;
     private final TOTPService totpService;
-    private final TOTPGenerator totpGenerator;
-    private final TOTPConfiguration totpConfiguration;
 
 
     public UserController(DataSource serverDataSource, JWTProvider<User> provider) {
         this.serverDataSource = serverDataSource;
         this.provider = provider;
-        totpGenerator = new TOTPGenerator();
-        totpConfiguration = new TOTPConfiguration();
-        totpService = new DefaultTOTPService(
-                totpGenerator,
-                totpConfiguration
+        TOTPGenerator totpGenerator = new TOTPGenerator();
+        TOTPConfiguration totpConfiguration = new TOTPConfiguration();
+        totpService = new DefaultTOTPService(totpGenerator, totpConfiguration
         );
     }
 
@@ -95,7 +92,11 @@ public class UserController {
     }
 
     public void login(Context ctx ) {
-        ctx.render("login.html", Map.of("messages", ctx.queryParams("messages")));
+        List<String> messages = readMessagesArg(ctx);
+        if(messages.isEmpty()) {
+            messages = ctx.queryParams("messages");
+        }
+        ctx.render("login.html", Map.of("messages", messages));
     }
 
     public void doLogin(Context ctx ) {
@@ -109,7 +110,32 @@ public class UserController {
      * @param ctx Context
      */
     public void doRegister(Context ctx ) {
+        String totpCode = ctx.formParam("TOTP_CODE");
+        String totpSecret = ctx.formParam("TOTP_SECRET");
+        String userToken = ctx.formParam("TOKEN");
 
+        try(Connection connection = serverDataSource.getConnection()) {
+            int userIdentifier = DatabaseManagement.getUserByRegisterToken(connection, userToken);
+            if (totpCode != null && totpSecret != null && userToken != null && userIdentifier >= 0) {
+                User user = DatabaseManagement.getUser(connection, userIdentifier);
+                TOTPVerificationResult result = totpService.verify(new TOTP(totpCode),
+                        TOTPSecret.Companion.fromBase32EncodedString(totpSecret));
+                if(result.isSuccess()) {
+                    DatabaseManagement.updateUserTotpToken(connection, user.identifier, totpSecret);
+                    ctx.attribute("messages", "Account successfully created please enter your credentials");
+                    login(ctx);
+                } else {
+                    ctx.attribute("messages", "Invalid TOTP code");
+                    register(ctx);
+                }
+            } else {
+                ctx.attribute("messages", "Invalid register page url, ask your administrator for a new link.");
+                register(ctx);
+            }
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
     }
 
 
@@ -142,11 +168,20 @@ public class UserController {
         return formatted.toString();
     }
 
+    private List<String> readMessagesArg(Context ctx) {
+        String message = ctx.attributeMap().getOrDefault("messages", "").toString();
+        if(message.isEmpty()) {
+            return Collections.emptyList();
+        } else {
+            return Collections.singletonList(message);
+        }
+    }
+
     /**
      * Display register page
      * @param ctx Context
      */
-    public void register(Context ctx ) {
+    public void register(Context ctx) {
         // brute force protection
         NaiveRateLimit.requestPerTimeUnit(ctx, 5, TimeUnit.MINUTES);
         String token = ctx.pathParam("token");
@@ -161,13 +196,14 @@ public class UserController {
                         new Issuer("NoiseModelling"));
                 String qrCodeBytes = createQRCodeImage(totpUri);
                 ctx.render("register.html", Map.of(
+                        "messages", readMessagesArg(ctx),
                         "token", token,
                         "totpUri", totpUri,
                         "totpSecret", formatTotpSecret(totpSecret.getBase32Encoded()),
                         "qrCodeBytes", qrCodeBytes));
             }  else {
                 ctx.render("login.html", Map.of(
-                        "messages", List.of("Register/Reset token is no longer valid")));
+                        "messages", List.of("Register/Reset token is no longer valid, ask your administrator for a new link.")));
             }
         } catch (SQLException | IOException e) {
             logger.error(e.getLocalizedMessage(), e);

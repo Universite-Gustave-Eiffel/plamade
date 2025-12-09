@@ -37,6 +37,7 @@ import java.util.Properties;
  */
 public class DatabaseManagement {
     private static final int DATABASE_VERSION = 1;
+    public static final String ADMIN_EMAIL = "admin@localhost";
 
     /**
      * Create H2Database datasource
@@ -127,7 +128,7 @@ public class DatabaseManagement {
             // if not create one and print the register url into the console
             if(JDBCUtilities.getRowCount(connection, "USERS") == 0) {
                 // Create admin account
-                String key = addUser(connection, "admin");
+                String key = addUser(connection, ADMIN_EMAIL);
                 Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
                 logger.info("First start of the server, register the Administrator account using this url:\n" +
                         "http://localhost:{}/{}/register/{}",
@@ -304,4 +305,29 @@ public class DatabaseManagement {
         return -1; // Token not found
     }
 
+    /**
+     * Updates the TOTP token for a user and clears their registerToken field.
+     *
+     * @param connection The database connection object.
+     * @param userIdentifier The unique identifier of the user in the database.
+     * @param totpToken The new Time-Based One-Time Password (TOTP) token to be assigned to the user.
+     * @throws SQLException If there's an error executing the SQL update or if no rows were affected,
+     * indicating that no user with the given identifier was found in the database.
+     */
+    public static void updateUserTotpToken(Connection connection, int userIdentifier, String totpToken) throws SQLException {
+        // Use an UPDATE query to set the new TOTP token and clear the registerToken field for the specified user.
+        String sql = "UPDATE USERS SET TOTP_TOKEN = ?, REGISTER_TOKEN = '' WHERE PK_USER = ?";
+        PreparedStatement pstUser = connection.prepareStatement(sql);
+
+        // Set the parameters of the SQL statement
+        pstUser.setString(1, totpToken);
+        pstUser.setInt(2, userIdentifier);
+
+        // Execute the statement and get the result
+        int rowsAffected = pstUser.executeUpdate();
+
+        if (rowsAffected == 0) {
+            throw new SQLException("Failed to update TOTP token for user with PK_USER: " + userIdentifier);
+        }
+    }
 }
