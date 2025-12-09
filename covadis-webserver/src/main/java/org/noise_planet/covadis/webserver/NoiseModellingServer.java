@@ -28,6 +28,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -112,7 +114,6 @@ public class NoiseModellingServer {
         app.start(configuration.port);
 
         String url = "http://localhost:" + configuration.port + "/";
-        logger.info("Start NoiseModelling: {}", url);
 
         if (openBrowser) {
             openBrowser(url);
@@ -140,6 +141,8 @@ public class NoiseModellingServer {
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
+        // Provide the application path to all thymeleaf templates
+        app.before(ctx -> {ctx.attribute("baseUrl", rootPath);});
         app.beforeMatched(new Auth(provider, userController)::handleAccess);
 
         app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
@@ -147,7 +150,7 @@ public class NoiseModellingServer {
         app.get("/", ctx -> {ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);}, Role.ANYONE);
         app.get(rootPath + "/login", userController::login, Role.ANYONE);
         app.post(rootPath + "/login", userController::doLogin, Role.ANYONE);
-        app.get(rootPath + "/register/:token", userController::register, Role.ANYONE);
+        app.get(rootPath + "/register/{token}", userController::register, Role.ANYONE);
         app.post(rootPath + "/register", userController::doRegister, Role.ANYONE);
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {
             String message = ctx.attributeMap().getOrDefault("message", "").toString();

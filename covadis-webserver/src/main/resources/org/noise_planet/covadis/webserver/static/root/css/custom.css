@@ -175,3 +175,16 @@ div.hidden {
 .console-text {
     font-family: "Multi-size, regular Misc-Fixed", serif;
 }
+
+p {
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    color: #333;
+    margin-bottom: 5px;               /* Decreased space below paragraph */
+}
+
+.qrCodeText {
+    letter-spacing: 4px;               /* Increase the spacing between letters */
+    font-weight: bold;                 /* Make the text bolder */
+    margin-left: 10px;                /* Added space to the left of QR code text */
+}

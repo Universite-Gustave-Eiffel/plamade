@@ -12,7 +12,6 @@ import io.javalin.http.Context;
 import io.javalin.http.UnauthorizedResponse;
 
 import java.sql.SQLException;
-import java.util.Map;
 
 /**
  * Handle auth
@@ -54,6 +53,4 @@ public class Auth {
             throw new UnauthorizedResponse();
         }
     }
-
-
 }

@@ -58,7 +58,7 @@ public class Configuration {
         Option workingDirOption = new Option("w", "working-dir", true,
                 "Path were the application have writing rights to store sessions data");
         workingDirOption.setArgName("folder path");
-        workingDirOption.setOptionalArg(false);
+        workingDirOption.setRequired(true);
         options.addOption(workingDirOption);
 
         Option scriptPathOption = new Option("s", "script", true, "Path and file name of the script");
