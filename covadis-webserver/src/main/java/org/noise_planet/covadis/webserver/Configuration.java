@@ -27,6 +27,7 @@ public class Configuration {
     String applicationRootUrl = DEFAULT_APPLICATION_URL;
     String scriptPath = "scripts";
     boolean unsecure = false;
+    boolean skipOpenBrowser = false;
     String workingDirectory = System.getProperty("user.home") + "/.noisemodelling";
     // secureBase is the h2 database that store web application critical data
     // it is not associated with any noisemodelling data
@@ -79,6 +80,9 @@ public class Configuration {
         portOption.setType(Integer.class);
         options.addOption(portOption);
 
+        Option browserNotOpenOption = new Option("b", "browser-skip", false, "Disable open the browser page on startup");
+        options.addOption(browserNotOpenOption);
+
         return options;
     }
 
@@ -118,6 +122,9 @@ public class Configuration {
             }
             if (commandLine.hasOption("p")) {
                 config.port = Integer.parseInt(commandLine.getOptionValue("p"));
+            }
+            if (commandLine.hasOption("b")) {
+                config.skipOpenBrowser = true;
             }
         } catch (ParseException ex) {
             helpFormatter.printHelp("NoiseModelling Script Runner", options);
@@ -191,6 +198,10 @@ public class Configuration {
         Object vPort = values.get("port");
         if (vPort instanceof Integer || vPort instanceof Long) {
             config.port = (int) vPort;
+        }
+        Object vSkipBrowser = values.get("browser-skip");
+        if (vUnsecure != null) {
+            config.skipOpenBrowser = parseBoolean(vSkipBrowser);
         }
         config.customConfiguration = values;
         return config;

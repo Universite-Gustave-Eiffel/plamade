@@ -30,6 +30,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -75,7 +76,7 @@ public class NoiseModellingServer {
             Logging.configureFileLogger(configuration.workingDirectory, "webserver.log");
             // Create WebServer instance
             NoiseModellingServer noiseModellingServer = new NoiseModellingServer(configuration);
-            noiseModellingServer.startServer(true);
+            noiseModellingServer.startServer(!configuration.skipOpenBrowser);
         } catch (Exception e) {
             Logger logger = LoggerFactory.getLogger("Main");
             logger.error("Can't start NoiseModelling", e);
@@ -160,14 +161,21 @@ public class NoiseModellingServer {
 
         app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
         app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
-        app.get("/", ctx -> {ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);}, Role.ANYONE);
+        if(!rootPath.equals("/")) {
+            app.get("/", ctx -> {
+                ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);
+            }, Role.ANYONE);
+        }
         app.get(rootPath + "/login", userController::login, Role.ANYONE);
-        app.post(rootPath + "/login", userController::doLogin, Role.ANYONE);
+        app.post(rootPath + "/do_login", userController::doLogin, Role.ANYONE);
         app.get(rootPath + "/register/{token}", userController::register, Role.ANYONE);
-        app.post(rootPath + "/register/{token}", userController::doRegister, Role.ANYONE);
+        app.post(rootPath + "/do_register/{token}", userController::doRegister, Role.ANYONE);
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {
             String message = ctx.attributeMap().getOrDefault("messages", "").toString();
-            ctx.redirect(rootPath + "/login?messages=" + URLEncoder.encode(message, StandardCharsets.UTF_8), HttpStatus.TEMPORARY_REDIRECT);
+            // redirect the user to the login page
+            ctx.render("blank", Map.of(
+                    "redirectUrl", rootPath + "/login",
+                    "message", message));
         });
     }
 

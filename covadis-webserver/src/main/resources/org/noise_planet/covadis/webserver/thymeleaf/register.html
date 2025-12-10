@@ -1,12 +1,13 @@
 <!doctype html>
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{header :: customHead('Validate register user')}">
 <body>
     <div class="header"><h1>User register</h1>
         <div class="l-box" id="message_div" th:if="${not #lists.isEmpty(messages)}">
             <aside th:each="message : ${messages}"><p th:text="${message}"></p></aside>
         </div>
-        <form class="pure-form pure-form-aligned" id="register" action="" method="POST">
+        <form class="pure-form pure-form-aligned" th:action="${baseUrl}+'/do_register/'+${token}" method="POST">
             <input type="hidden" th:value="${token}" name="TOKEN">
             <input type="hidden" th:value="${totpSecret}" name="TOTP_SECRET">
             <fieldset>

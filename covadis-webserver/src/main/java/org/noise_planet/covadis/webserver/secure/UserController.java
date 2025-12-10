@@ -91,9 +91,6 @@ public class UserController {
 
     public void login(Context ctx ) {
         List<String> messages = readMessagesArg(ctx);
-        if(messages.isEmpty()) {
-            messages = ctx.queryParams("messages");
-        }
         ctx.render("login.html", Map.of("messages", messages));
     }
 
@@ -129,6 +126,7 @@ public class UserController {
                             "message", "Login successful, you will be redirected to the application"));
                 } else {
                     ctx.attribute("messages", "Invalid email or TOTP code");
+                    logger.info("Visitor with email {} failed to login {}", email, ctx.attribute("messages"));
                     login(ctx);
                 }
             }
@@ -156,14 +154,19 @@ public class UserController {
                         TOTPSecret.Companion.fromBase32EncodedString(totpSecret));
                 if(result.isSuccess()) {
                     DatabaseManagement.updateUserTotpToken(connection, user.identifier, totpSecret);
-                    String message = "Account successfully created please enter your credentials";
-                    ctx.redirect(getBaseURL(ctx) + "/login?messages=" + URLEncoder.encode(message, StandardCharsets.UTF_8), HttpStatus.TEMPORARY_REDIRECT);
+                    String message = "Account successfully created ! You will be directed to the login page to enter your credentials";
+                    // redirect the user to the page
+                    ctx.render("blank", Map.of(
+                            "redirectUrl", getBaseURL(ctx) + "/login",
+                            "message", message));
                 } else {
                     ctx.attribute("messages", "Invalid TOTP code");
+                    logger.info("User {} failed to register {}", user.email, ctx.attribute("messages"));
                     register(ctx);
                 }
             } else {
                 ctx.attribute("messages", "Invalid register page url, ask your administrator for a new link.");
+                logger.info("User with token {} failed to register {}", userToken, ctx.attribute("messages"));
                 register(ctx);
             }
         } catch (SQLException e) {
