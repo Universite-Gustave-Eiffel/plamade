@@ -46,7 +46,7 @@ class WpsScriptWrapperTest {
         // Load the Groovy script from test resources
         Path scriptPath = Path.of(
                 Objects.requireNonNull(
-                        WpsScriptWrapperTest.class.getResource("Test/Test_Config_Webserver.groovy")
+                        WpsScriptWrapperTest.class.getResource("test/Test_Config_Webserver.groovy")
                 ).toURI()
         );
         File scriptFile = scriptPath.toFile();
