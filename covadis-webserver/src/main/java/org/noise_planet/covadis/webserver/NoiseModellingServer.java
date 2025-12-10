@@ -18,6 +18,7 @@ import io.javalin.rendering.template.JavalinThymeleaf;
 import org.apache.log4j.PropertyConfigurator;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.secure.*;
+import org.noise_planet.covadis.webserver.utilities.Logging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,8 +30,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -70,7 +69,11 @@ public class NoiseModellingServer {
         PropertyConfigurator.configure(
                 Objects.requireNonNull(NoiseModellingServer.class.getResource("static/log4j.properties")));
         try {
+            // Read configuration from command line
             Configuration configuration = Configuration.createConfigurationFromArguments(args);
+            // Initialize additional loggers
+            Logging.configureFileLogger(configuration.workingDirectory, "webserver.log");
+            // Create WebServer instance
             NoiseModellingServer noiseModellingServer = new NoiseModellingServer(configuration);
             noiseModellingServer.startServer(true);
         } catch (Exception e) {

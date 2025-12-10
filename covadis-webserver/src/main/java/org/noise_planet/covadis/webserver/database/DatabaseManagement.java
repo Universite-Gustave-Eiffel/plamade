@@ -135,6 +135,18 @@ public class DatabaseManagement {
                         configuration.getPort(),
                         configuration.getApplicationRootUrl(),
                         URLEncoder.encode(key, StandardCharsets.UTF_8));
+            } else {
+                // Check if Admin user(id:1) have not yet activating is account
+                User firstAdmin = DatabaseManagement.getUser(connection, 1);
+                if(firstAdmin.isAdministrator() && !firstAdmin.getRegisterToken().isEmpty()) {
+                    Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
+                    logger.warn("The Administrator account has not been registered yet," +
+                                    " please use this url to create the account:\n" +
+                                    "http://localhost:{}/{}/register/{}",
+                            configuration.getPort(),
+                            configuration.getApplicationRootUrl(),
+                            URLEncoder.encode(firstAdmin.getRegisterToken(), StandardCharsets.UTF_8));
+                }
             }
         }
 
