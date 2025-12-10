@@ -28,7 +28,7 @@ public class Configuration {
     String scriptPath = "scripts";
     boolean unsecure = false;
     boolean skipOpenBrowser = false;
-    String workingDirectory = System.getProperty("user.home") + "/.noisemodelling";
+    String workingDirectory;
     // secureBase is the h2 database that store web application critical data
     // it is not associated with any noisemodelling data
     String secureBaseEncryptionSecret = "";
