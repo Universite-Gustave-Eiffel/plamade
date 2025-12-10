@@ -2,12 +2,14 @@ package org.noise_planet.covadis.webserver;
 
 import org.apache.log4j.PropertyConfigurator;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.net.http.*;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.Objects;
 
@@ -62,10 +64,13 @@ class NoiseModellingServerHttpTest {
      * @throws IOException if an I/O error occurs while starting the server.
      */
     @BeforeEach
-    public void setUp() throws IOException, SQLException {
+    public void setUp(@TempDir Path temporaryDirectory) throws IOException, SQLException {
         PropertyConfigurator.configure(
                 Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("test/log4j.properties")));
-        app = new NoiseModellingServer(new Configuration());
+        Configuration configuration = new Configuration();
+        configuration.setUnsecure(true);
+        configuration.setWorkingDirectory(temporaryDirectory.toString());
+        app = new NoiseModellingServer(configuration);
         app.startServer(false);
     }
 
