@@ -11,6 +11,8 @@
 package org.noise_planet.covadis.webserver;
 
 import com.zaxxer.hikari.HikariDataSource;
+import groovy.lang.GroovyShell;
+import groovy.lang.Script;
 import io.javalin.http.Context;
 import net.opengis.ows11.ExceptionReportType;
 import net.opengis.ows11.ExceptionType;
@@ -25,12 +27,13 @@ import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
+import org.noise_planet.covadis.webserver.script.ScriptMetadata;
+import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
 import org.noise_planet.covadis.webserver.secure.User;
 import org.noise_planet.covadis.webserver.secure.UserController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -54,17 +57,17 @@ public class OwsController {
     Configuration configuration;
 
     /**
-     * A static collection of {@link ScriptWrapper} objects representing the
+     * A static collection of {@link ScriptMetadata} objects representing the
      * scripts available for the Web Processing Service (WPS). Each script is wrapped
-     * in a {@link ScriptWrapper}, which encapsulates its metadata, inputs, outputs,
+     * in a {@link ScriptMetadata}, which encapsulates its metadata, inputs, outputs,
      * and logic to facilitate execution.
-     *
+     * <p>
      * This list serves as a central repository of scripts that can be dynamically
      * reloaded and used to process WPS requests. It plays a crucial role in
      * handling WPS operations by mapping process identifiers to their corresponding
      * Groovy script implementations.
      */
-    static List<ScriptWrapper> wpsScripts;
+    static List<ScriptMetadata> wpsScripts;
     /**
      * An instance of WpsScriptWrapper used to manage the execution of WPS (Web Processing Service) scripts.
      * This wrapper facilitates the interaction between the application and the underlying scripting engine
@@ -191,7 +194,7 @@ public class OwsController {
                 return;
             }
 
-            Optional<ScriptWrapper> target = wpsScripts.stream()
+            Optional<ScriptMetadata> target = wpsScripts.stream()
                     .filter(w -> w.id.equals(identifier))
                     .findFirst();
 
@@ -256,6 +259,22 @@ public class OwsController {
 
 
     /**
+     * Executes a Groovy script with the provided connection and inputs.
+     *
+     * @param connection an active database connection used in the script execution context.
+     * @param inputs a map of key-value pairs representing the inputs required by the script.
+     * @return the result of the script execution, which can be of any type.
+     * @throws IOException if there is an issue reading or processing the script file.
+     */
+    public Object execute(Connection connection, ScriptMetadata scriptMetadata, Map<String, Object> inputs) throws IOException {
+        File scriptFile = scriptMetadata.path.toFile();
+        GroovyShell shell = new GroovyShell();
+        Script script = shell.parse(scriptFile);
+
+        return script.invokeMethod("exec", new Object[]{connection, inputs});
+    }
+
+    /**
      * Handles an HTTP POST request for a Web Processing Service (WPS) operation.
      * This method parses the request body, validates the WPS Execute Request, identifies
      * the target script to execute based on its process identifier, and executes the script.
@@ -301,7 +320,7 @@ public class OwsController {
             String group = parts[0];
             String scriptName = parts[1];
 
-            Optional<ScriptWrapper> wrapperOpt = wpsScripts.stream()
+            Optional<ScriptMetadata> wrapperOpt = wpsScripts.stream()
                     .filter(sw -> sw.id.equals(group + ":" + scriptName))
                     .findFirst();
 
@@ -309,8 +328,8 @@ public class OwsController {
                 ctx.status(404).result("Script not found");
                 return;
             }
-            ScriptWrapper wrapper = wrapperOpt.get();
-            Map<String, Object> inputs = ScriptWrapper.extractInputs(execute);
+            ScriptMetadata wrapper = wrapperOpt.get();
+            Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
             String databaseName = "noisemodelling";
             if(user != null) {
                 databaseName = String.format("user_%03d", user.getIdentifier());

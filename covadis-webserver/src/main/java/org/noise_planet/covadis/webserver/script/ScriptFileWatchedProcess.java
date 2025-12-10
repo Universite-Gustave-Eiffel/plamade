@@ -8,9 +8,10 @@
  */
 
 
-package org.noise_planet.covadis.webserver;
+package org.noise_planet.covadis.webserver.script;
 
 
+import org.noise_planet.covadis.webserver.OwsController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

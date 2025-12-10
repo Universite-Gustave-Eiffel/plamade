@@ -4,6 +4,11 @@ import org.apache.log4j.PropertyConfigurator;
 import org.h2.jdbcx.JdbcConnectionPool;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.noise_planet.covadis.webserver.script.ScriptInput;
+import org.noise_planet.covadis.webserver.script.ScriptOutput;
+import org.noise_planet.covadis.webserver.script.ScriptMetadata;
+import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -14,7 +19,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class WpsScriptWrapperTest {
+class WpsScriptMetadataTest {
 
     @BeforeAll
     static void setUp() throws SQLException, IOException, URISyntaxException {
@@ -25,7 +30,7 @@ class WpsScriptWrapperTest {
     /**
      * Tests the ability to build script wrappers from a Groovy script resource
      * and perform various operations including XML generation and script execution.
-     *
+     * <p>
      * This method verifies the following functionalities:
      * - Loading a test Groovy script from the resources folder.
      * - Grouping scripts in a simulated map structure.
@@ -46,7 +51,7 @@ class WpsScriptWrapperTest {
         // Load the Groovy script from test resources
         Path scriptPath = Path.of(
                 Objects.requireNonNull(
-                        WpsScriptWrapperTest.class.getResource("test/Test_Config_Webserver.groovy")
+                        WpsScriptMetadataTest.class.getResource("test/Test_Config_Webserver.groovy")
                 ).toURI()
         );
         File scriptFile = scriptPath.toFile();
@@ -57,10 +62,10 @@ class WpsScriptWrapperTest {
         grouped.put("TestGroup", List.of(scriptFile));
 
         // Build ScriptWrapper
-        List<ScriptWrapper> wrappers = WpsScriptWrapper.buildScriptWrappers(grouped);
+        List<ScriptMetadata> wrappers = WpsScriptWrapper.buildScriptWrappers(grouped);
         assertEquals(1, wrappers.size());
 
-        ScriptWrapper sw = wrappers.get(0);
+        ScriptMetadata sw = wrappers.get(0);
 
         // Test XML generation for GetCapabilities
         String capabilitiesXml = WpsScriptWrapper.generateCapabilitiesXML(wrappers);
@@ -73,11 +78,11 @@ class WpsScriptWrapperTest {
         String describeXml = WpsScriptWrapper.generateDescribeProcessXML(sw);
         assertNotNull(describeXml);
 
-        for (ScriptWrapper.ScriptInput input : sw.inputs.values()) {
+        for (ScriptInput input : sw.inputs.values()) {
             assertTrue(describeXml.contains(input.id));
             assertTrue(describeXml.contains(input.title));
         }
-        for (ScriptWrapper.ScriptOutput output : sw.outputs.values()) {
+        for (ScriptOutput output : sw.outputs.values()) {
             assertTrue(describeXml.contains(output.id));
             assertTrue(describeXml.contains(output.title));
         }
