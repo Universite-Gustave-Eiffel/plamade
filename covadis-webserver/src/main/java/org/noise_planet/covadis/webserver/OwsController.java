@@ -30,6 +30,7 @@ import org.noise_planet.covadis.webserver.script.ScriptMetadata;
 import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
 import org.noise_planet.covadis.webserver.secure.User;
 import org.noise_planet.covadis.webserver.secure.UserController;
+import org.noise_planet.covadis.webserver.utilities.Logging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.text.MessageFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -301,18 +303,6 @@ public class OwsController {
      *            response handling, and the ability to set status codes and send JSON responses
      */
     public void handleWPSPost(Context ctx) {
-        // TODO
-        // with H2GIS progress (isCanceled)
-        // app.post("/upload", ctx -> {
-        //     // Early check for client disconnect
-        //     if (ctx.req.isRemoteDone()) {
-        //         ctx.status(204); // No Content
-        //         return;
-        //     }
-        //
-        //     // Your long-running work here
-        //     // Periodically re-check ctx.req.isRemoteDone() in loops
-        // });
         try {
             User user = userController.getUser(ctx);
             Parser parser = new Parser(new WPSConfiguration());
@@ -346,143 +336,27 @@ public class OwsController {
             }
             ScriptMetadata scriptMetadata = optionalScriptMetadata.get();
             Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
-            Job job = new Job(user, scriptMetadata, serverDataSource, inputs, configuration);
+            Job<Object> job = new Job<>(user, scriptMetadata, serverDataSource, inputs, configuration);
             Future<Object> result = jobExecutorService.submit(job);
             Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (jobResult == null) {
-                ctx.json(Map.of("result", "Long running processing, please look at the job output in the table"));
+                ctx.json(Map.of("result", "Long running process, please look at the job output in the table"));
             }
-
-//
-//            String databaseName = "noisemodelling";
-//            if(user != null) {
-//                databaseName = String.format("user_%03d", user.getIdentifier());
-//            }
-//            try(HikariDataSource noisemodellingDataSource = DatabaseManagement.createH2DataSource(
-//                    configuration.workingDirectory,
-//                    databaseName,
-//                    "sa",
-//                    "sa",
-//                    "",
-//                    true)) {
-//                try (Connection connection = noisemodellingDataSource.getConnection()) {
-//                    Object result = execute(connection,wrapper, inputs);
-//                    if (result instanceof Geometry) {
-//                        ctx.contentType("application/wkt");
-//                        ctx.result(result.toString());
-//                    } else {
-//                        ctx.json(Map.of("result", result));
-//                    }
-//                }
-//            }
         } catch (Exception e) {
             // If error occurred inside the future, unwrap the ExecutionException
-            String stackTrace = formatThrowableAsHtml(e);
-            String errorMsg = e.getMessage() != null ? e.getMessage().replace("<", "&lt;") : "Unknown error";
-            String html =
-                    "<html>" +
-                            "<head>" +
-                            "    <style>" +
-                            "        body { font-family: Arial; margin: 20px; }" +
-                            "        .section { margin-bottom: 20px; }" +
-                            "        .title { font-size: 20px; font-weight: bold; margin-bottom: 5px; color:#b30000; }" +
-                            "        .box { border: 1px solid #ccc; padding: 10px; background:#fafafa; }" +
-                            "        .error { color: #b30000; font-weight: bold; }" +
-                            "    </style>" +
-                            "</head>" +
-                            "<body>" +
-
-                            "    <div class='section'>" +
-                            "        <div class='title'>Error: </div>" +
-                            "        <div class='box'><span class='error'>" + errorMsg + "</span></div>" +
-                            "    </div>" +
-
-                            "    <div class='section'>" +
-                            "        <div class='title'>Inputs Data</div>" +
-                            "        <div class='box'>" + escapeHtml(ctx.body()) + "</div>" +
-                            "    </div>" +
-
-                            "    <div class='section'>" +
-                            "        <div class='title'>Stacktrace</div>" +
-                            "        <div class='box'>" + stackTrace + "</div>" +
-                            "    </div>" +
-
-                            "</body>" +
-                            "</html>";
+            String stackTrace = Logging.formatThrowableAsHtml(e);
+            String html = MessageFormat.format("<html><head>    <style>        body '{' font-family: Arial; margin: " +
+                    "20px; '}'        .section '{' margin-bottom: 20px; '}'        .title '{' font-size: 20px; " +
+                    "font-weight: bold; margin-bottom: 5px; color:#b30000; '}'        .box '{' border: 1px solid " +
+                    "#ccc; padding: 10px; background:#fafafa; '}'        .error '{' color: #b30000; font-weight: " +
+                    "bold; '}'    </style></head><body>    <div class=''section''>        <div class=''title''>Error:" +
+                    " </div>        <div class=''box''><span class=''error''>{0}</span></div>    </div>    <div " +
+                    "class=''section''>        <div class=''title''>Inputs Data</div>        <div " +
+                    "class=''box''>{1}</div>    </div></body></html>", stackTrace, escapeHtml(ctx.body()));
 
             ctx.contentType("text/html; charset=UTF-8");
             ctx.result(html);
         }
     }
 
-    /**
-     * Build an HTML-friendly stack trace string similar to what SLF4J would print,
-     * including the exception type, message, stack frames, causes, and suppressed exceptions.
-     */
-    private static String formatThrowableAsHtml(Throwable throwable) {
-        if (throwable == null) return "";
-        StringBuilder sb = new StringBuilder();
-
-        // Detect circular references
-        java.util.IdentityHashMap<Throwable, Boolean> seen = new java.util.IdentityHashMap<>();
-
-        Throwable t = throwable;
-        String prefix = "";
-        while (t != null && !seen.containsKey(t)) {
-            seen.put(t, Boolean.TRUE);
-
-            // Exception header (class: message)
-            String header = t.getClass().getName();
-            String msg = t.getMessage();
-            if (msg != null && !msg.isEmpty()) {
-                header += ": " + msg;
-            }
-            sb.append(escapeHtmlSimple(prefix + header)).append("<br>");
-
-            // Stack frames
-            for (StackTraceElement el : t.getStackTrace()) {
-                sb.append(escapeHtmlSimple(prefix + "\tat " + el)).append("<br>");
-            }
-
-            // Suppressed exceptions
-            for (Throwable sup : t.getSuppressed()) {
-                appendSuppressed(sb, sup, seen, prefix + "\t");
-            }
-
-            // Move to cause
-            t = t.getCause();
-            if (t != null && !seen.containsKey(t)) {
-                sb.append(escapeHtmlSimple(prefix + "Caused by: ")).append("<br>");
-            }
-        }
-
-        return sb.toString();
-    }
-
-    private static void appendSuppressed(StringBuilder sb, Throwable sup, java.util.IdentityHashMap<Throwable, Boolean> seen, String prefix) {
-        if (sup == null || seen.containsKey(sup)) return;
-        seen.put(sup, Boolean.TRUE);
-
-        String header = sup.getClass().getName();
-        String msg = sup.getMessage();
-        if (msg != null && !msg.isEmpty()) {
-            header += ": " + msg;
-        }
-        sb.append(escapeHtmlSimple(prefix + "Suppressed: " + header)).append("<br>");
-        for (StackTraceElement el : sup.getStackTrace()) {
-            sb.append(escapeHtmlSimple(prefix + "\tat " + el)).append("<br>");
-        }
-        for (Throwable nested : sup.getSuppressed()) {
-            appendSuppressed(sb, nested, seen, prefix + "\t");
-        }
-        if (sup.getCause() != null) {
-            sb.append(escapeHtmlSimple(prefix + "Caused by: ")).append("<br>");
-            appendSuppressed(sb, sup.getCause(), seen, prefix + "\t");
-        }
-    }
-
-    private static String escapeHtmlSimple(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
 }

@@ -10,51 +10,31 @@ package org.noise_planet.covadis.webserver.script;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.*;
 
 /**
  * Manage pool of Job Threads.
  */
 public class JobExecutorService extends ThreadPoolExecutor {
-    private ConcurrentLinkedDeque<Job> instances = new ConcurrentLinkedDeque<>();
+    private final Map<Integer, Future<?>> jobs = new ConcurrentHashMap<>();
 
     public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit, @NotNull BlockingQueue<Runnable> workQueue) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue);
     }
 
-    public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit, @NotNull BlockingQueue<Runnable> workQueue, @NotNull ThreadFactory threadFactory) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
-    }
-
-    public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit, @NotNull BlockingQueue<Runnable> workQueue, @NotNull RejectedExecutionHandler handler) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, handler);
-    }
-
-    public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit, @NotNull BlockingQueue<Runnable> workQueue, @NotNull ThreadFactory threadFactory, @NotNull RejectedExecutionHandler handler) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
-    }
-
+    @NotNull
     @Override
-    public Future<?> submit(Runnable task) {
+    public <T> Future<T> submit(@NotNull Callable<T> task) {
+        Future<T> future = super.submit(task);
         if(task instanceof Job) {
-            Job job = (Job) task;
-            instances.add(job);
+            Job<T> job = (Job<T>) task;
+            job.setFuture(future);
+            jobs.put(job.getId(), (Job<Object>) job);
         }
-        return super.submit(task);
+        return future;
     }
-
-    /**
-     * @return Return a copy of jobs
-     */
-    public List<Job> getJobInstances() {
-        return List.copyOf(instances);
-    }
-
-    @Override
-    public void shutdown() {
-        super.shutdown();
-    }
-
 
 }

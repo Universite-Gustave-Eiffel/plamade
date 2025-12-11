@@ -24,11 +24,12 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 
 /**
  * Manage the execution of a Groovy Script
  */
-public class Job implements Callable<Object> {
+public class Job<T> implements Callable<T> {
     private static final Logger logger = LoggerFactory.getLogger(Job.class);
     private ScriptMetadata scriptMetadata;
     /** NoiseModelling DataBase for the user */
@@ -39,6 +40,7 @@ public class Job implements Callable<Object> {
     private User user;
     private int jobId;
     private Configuration configuration;
+    private Future<T> future;
 
 
     public Job(User user, ScriptMetadata scriptMetadata,
@@ -68,8 +70,16 @@ public class Job implements Callable<Object> {
         }
     }
 
+    public Future<T> getFuture() {
+        return future;
+    }
+
+    public void setFuture(Future<T> future) {
+        this.future = future;
+    }
+
     @Override
-    public Object call() throws Exception {
+    public T call() throws Exception {
         // Change the Thread name in order to classify the logging messages to this job
         Thread.currentThread().setName("JOB_" + jobId);
         // Open the connection to the database
@@ -81,9 +91,16 @@ public class Job implements Callable<Object> {
             Script script = shell.parse(scriptFile);
             Object returnData = script.invokeMethod("exec", new Object[]{connection, inputs});
             setJobState(JobStates.COMPLETED);
-            return returnData;
+            return (T) returnData;
         } finally {
             isRunning = false;
         }
+    }
+
+    /**
+     * @return Job id
+     */
+    public int getId() {
+        return jobId;
     }
 }
