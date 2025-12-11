@@ -18,23 +18,23 @@ import java.util.concurrent.*;
 /**
  * Manage pool of Job Threads.
  */
-public class JobExecutorService extends ThreadPoolExecutor {
-    private final Map<Integer, Future<?>> jobs = new ConcurrentHashMap<>();
+public class JobExecutorService {
+    private final Map<Integer, Job<?>> jobs = new ConcurrentHashMap<>();
+    private final ExecutorService executorService;
 
-    public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit, @NotNull BlockingQueue<Runnable> workQueue) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue);
+    public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit) {
+        this.executorService = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit,
+                new SynchronousQueue<>(), Executors.defaultThreadFactory());
     }
 
-    @NotNull
-    @Override
-    public <T> Future<T> submit(@NotNull Callable<T> task) {
-        Future<T> future = super.submit(task);
-        if(task instanceof Job) {
-            Job<T> job = (Job<T>) task;
-            job.setFuture(future);
-            jobs.put(job.getId(), (Job<Object>) job);
+    public <T> Future<T> submitJob(Job<T> job) {
+        if (jobs.containsKey(job.getId())) {
+            throw new IllegalArgumentException(String.format("Job with ID %d already exists.", job.getId()));
         }
-        return future;
+        jobs.put(job.getId(), job);
+        Future<T> futureTask = executorService.submit(job);
+        job.setFuture(futureTask);
+        return futureTask;
     }
 
 }

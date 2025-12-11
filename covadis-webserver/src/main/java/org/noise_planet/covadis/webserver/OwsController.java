@@ -70,7 +70,7 @@ public class OwsController {
      * Handle threads
      */
     final JobExecutorService jobExecutorService = new JobExecutorService(CORE_POOL_SIZE, MAXIMUM_POOL_SIZE,
-            KEEP_ALIVE_TIME, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+            KEEP_ALIVE_TIME, TimeUnit.MILLISECONDS);
 
     /**
      * A static collection of {@link ScriptMetadata} objects representing the
@@ -337,7 +337,7 @@ public class OwsController {
             ScriptMetadata scriptMetadata = optionalScriptMetadata.get();
             Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
             Job<Object> job = new Job<>(user, scriptMetadata, serverDataSource, inputs, configuration);
-            Future<Object> result = jobExecutorService.submit(job);
+            Future<Object> result = jobExecutorService.submitJob(job);
             Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (jobResult == null) {
                 ctx.json(Map.of("result", "Long running process, please look at the job output in the table"));
