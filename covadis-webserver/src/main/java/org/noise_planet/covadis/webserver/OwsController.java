@@ -266,7 +266,7 @@ public class OwsController {
      * @return the result of the script execution, which can be of any type.
      * @throws IOException if there is an issue reading or processing the script file.
      */
-    public Object execute(Connection connection, ScriptMetadata scriptMetadata, Map<String, Object> inputs) throws IOException {
+    public static Object execute(Connection connection, ScriptMetadata scriptMetadata, Map<String, Object> inputs) throws IOException {
         File scriptFile = scriptMetadata.path.toFile();
         GroovyShell shell = new GroovyShell();
         Script script = shell.parse(scriptFile);
@@ -342,7 +342,7 @@ public class OwsController {
                     "",
                     true)) {
                 try (Connection connection = noisemodellingDataSource.getConnection()) {
-                    Object result = wrapper.execute(connection, inputs);
+                    Object result = execute(connection,wrapper, inputs);
                     if (result instanceof Geometry) {
                         ctx.contentType("application/wkt");
                         ctx.result(result.toString());

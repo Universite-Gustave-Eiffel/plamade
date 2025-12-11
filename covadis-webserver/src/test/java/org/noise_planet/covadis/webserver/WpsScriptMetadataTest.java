@@ -95,7 +95,7 @@ class WpsScriptMetadataTest {
         inputs.put("numbers", "1, 2, 3, 4");
         inputs.put("multiplier", 2.0);
 
-        Object result = sw.execute(connection, inputs);
+        Object result = OwsController.execute(connection, sw, inputs);
 
         // Assertions
         String message = (String) result;

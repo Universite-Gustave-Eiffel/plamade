@@ -68,10 +68,12 @@ public class ScriptMetadata {
 
         Object outputsValue = metadata.get("outputs");
         if(outputsValue instanceof Map) {
-            for (Map.Entry<String, Map<String, Object>> output : (Map) outputsValue.entrySet()) {
+            for (Map.Entry output : ((Map<String, Object>) outputsValue).entrySet()) {
                 ScriptOutput si = new ScriptOutput();
-                si.id = output.getKey();
-                si.title = output.getValue().getOrDefault("title", output.getKey()).toString();
+                si.id = output.getKey().toString();
+                if(output.getValue() instanceof Map) {
+                    si.title = ((Map)output.getValue()).getOrDefault("title", output.getKey()).toString();
+                }
                 outputs.put(si.id, si);
             }
         }
