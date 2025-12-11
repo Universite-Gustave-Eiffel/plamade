@@ -80,7 +80,7 @@ public class Job<T> implements Callable<T> {
 
     @Override
     public T call() throws Exception {
-        // Change the Thread name in order to classify the logging messages to this job
+        // Change the Thread name in order to allocate the logging messages of this job
         Thread.currentThread().setName("JOB_" + jobId);
         // Open the connection to the database
         try(Connection connection = userDataSource.getConnection()) {

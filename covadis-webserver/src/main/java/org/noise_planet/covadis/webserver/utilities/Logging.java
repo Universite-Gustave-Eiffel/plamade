@@ -13,9 +13,18 @@ import org.apache.log4j.PatternLayout;
 import org.apache.log4j.RollingFileAppender;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.BufferedReader;
 import java.io.File;
 
 import static org.h2.server.web.PageParser.escapeHtml;
+
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Utility functions related to logging features
@@ -120,4 +129,99 @@ public class Logging {
             appendSuppressed(sb, sup.getCause(), seen, prefix + "\t");
         }
     }
+
+
+    public static List<String> getAllLines(String jobId, int numberOfLines) throws IOException {
+        List<File> logFiles = new ArrayList<>();
+        logFiles.add(new File("application.log"));
+        int logCounter = 1;
+        while(true) {
+            File oldLogFile = new File("application.log." + (logCounter++));
+            if(oldLogFile.exists()) {
+                logFiles.add(oldLogFile);
+            } else {
+                break;
+            }
+        }
+        List<String> rows = new ArrayList<>(numberOfLines == -1 ? 1000 : numberOfLines);
+        for(File logFile : logFiles) {
+            rows.addAll(0, NoiseModellingRunner.getLastLines(logFile,
+                    numberOfLines == -1 ? -1 : numberOfLines - rows.size(),
+                    String.format("JOB_%s", jobId)));
+            if(numberOfLines != -1 && rows.size() >= numberOfLines) {
+                break;
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
+     * @param logFile
+     * @param numberOfLines
+     * @return
+     * @throws IOException
+     */
+    public static List<String> getLastLines(File logFile, int numberOfLines, String threadId) throws IOException {
+        boolean match = threadId.isEmpty();
+        StringBuilder sbMatch = new StringBuilder();
+        ArrayList<String> lastLines = new ArrayList<>(Math.max(20, numberOfLines));
+        final int buffer = 8192;
+        long fileSize = Files.size(logFile.toPath());
+        long read = 0;
+        long lastCursor = fileSize;
+        StringBuilder sb = new StringBuilder(buffer);
+        try(RandomAccessFile f = new RandomAccessFile(logFile.getAbsoluteFile(), "r")) {
+            while((numberOfLines == -1 || lastLines.size() < numberOfLines) && read < fileSize) {
+                long cursor = Math.max(0, fileSize - read - buffer);
+                read += buffer;
+                f.seek(cursor);
+                byte[] b = new byte[(int)(lastCursor - cursor)];
+                lastCursor = cursor;
+                f.readFully(b);
+                sb.insert(0, new String(b));
+                // Reverse search of end of line into the string buffer
+                int lastEndOfLine = sb.lastIndexOf("\n");
+                while (lastEndOfLine != -1 && (numberOfLines == -1 || lastLines.size() < numberOfLines)) {
+                    if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
+                        String line = sb.substring(lastEndOfLine + 1, sb.length()).trim();
+                        if(!threadId.isEmpty()) {
+                            int firstHook = line.indexOf("[");
+                            int lastHook = line.indexOf("]");
+                            if (firstHook == 0 && firstHook < lastHook) {
+                                String thread = line.substring(firstHook + 1, lastHook);
+                                match = thread.equals(threadId);
+                            }
+                        }
+                        if (match && sbMatch.length() > 0) {
+                            lastLines.add(0, sbMatch.toString());
+                            sbMatch = new StringBuilder();
+                        }
+                        if(match) {
+                            sbMatch.append(line);
+                        }
+                    }
+                    sb.delete(lastEndOfLine, sb.length());
+                    lastEndOfLine = sb.lastIndexOf("\n");
+                }
+            }
+        }
+        return lastLines;
+    }
+
+    private static boolean matchesThreadId(String line, String threadId) {
+        if (threadId.isEmpty()) {
+            return true;
+        } else {
+            int firstHook = line.indexOf("[");
+            int lastHook = line.indexOf("]");
+            if (firstHook == 0 && firstHook < lastHook) {
+                String thread = line.substring(firstHook + 1, lastHook);
+                return thread.equals(threadId);
+            } else {
+                return false;
+            }
+        }
+    }
+
 }

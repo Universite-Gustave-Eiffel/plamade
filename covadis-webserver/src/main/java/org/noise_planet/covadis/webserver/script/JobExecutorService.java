@@ -10,8 +10,6 @@ package org.noise_planet.covadis.webserver.script;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.*;
 

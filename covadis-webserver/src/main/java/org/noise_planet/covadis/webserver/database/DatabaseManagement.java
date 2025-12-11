@@ -192,6 +192,8 @@ public class DatabaseManagement {
                         "  PK_JOB INTEGER AUTO_INCREMENT PRIMARY KEY," +
                         "  PK_USER INTEGER," +
                         "  STATUS VARCHAR DEFAULT '"+ JobStates.QUEUED.name() +"'," +
+                        "  BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                        "  END_DATE TIMESTAMP WITHOUT TIME ZONE," +
                         "  FOREIGN KEY (PK_USER) " +
                         "    REFERENCES USERS(PK_USER) " +
                         "    ON DELETE CASCADE" +
@@ -473,5 +475,19 @@ public class DatabaseManagement {
         if (affectedRows == 0) {
             throw new SQLException("Failed to set job state.");
         }
+    }
+
+    public static void setJobProgression(Connection connection, int jobId, int progression) throws SQLException {
+        PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET PROGRESSION = ? WHERE PK_JOB = ?");
+        st.setInt(1, progression);
+        st.setInt(2, jobId);
+        st.execute();
+    }
+
+    public void setJobEndTime(Connection connection, int jobId) throws SQLException {
+        PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET END_DATE = ? WHERE PK_JOB = ?");
+        st.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        st.setInt(2, jobId);
+        st.execute();
     }
 }
