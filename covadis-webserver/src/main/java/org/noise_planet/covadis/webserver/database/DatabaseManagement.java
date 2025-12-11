@@ -17,12 +17,14 @@ import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.utilities.JDBCUtilities;
 import org.jetbrains.annotations.NotNull;
 import org.noise_planet.covadis.webserver.Configuration;
+import org.noise_planet.covadis.webserver.script.JobStates;
 import org.noise_planet.covadis.webserver.secure.JWTProviderFactory;
 import org.noise_planet.covadis.webserver.secure.Role;
 import org.noise_planet.covadis.webserver.secure.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.print.attribute.standard.JobState;
 import javax.sql.DataSource;
 import java.io.File;
 import java.net.URLEncoder;
@@ -180,8 +182,17 @@ public class DatabaseManagement {
                 "CREATE TABLE ROLES(" +
                         "  PK_USER INTEGER," +
                         "  ROLE VARCHAR," +
-                        "  CONSTRAINT FK_ROLES_USER " +
-                        "    FOREIGN KEY (PK_USER) " +
+                        "  FOREIGN KEY (PK_USER) " +
+                        "    REFERENCES USERS(PK_USER) " +
+                        "    ON DELETE CASCADE" +
+                        ")"
+        );
+        st.executeUpdate(
+                "CREATE TABLE JOBS(" +
+                        "  PK_JOB INTEGER AUTO_INCREMENT PRIMARY KEY," +
+                        "  PK_USER INTEGER," +
+                        "  STATUS VARCHAR DEFAULT '"+ JobStates.QUEUED.name() +"'," +
+                        "  FOREIGN KEY (PK_USER) " +
                         "    REFERENCES USERS(PK_USER) " +
                         "    ON DELETE CASCADE" +
                         ")"
@@ -417,5 +428,50 @@ public class DatabaseManagement {
             }
         }
         return -1; // email not found
+    }
+
+    /**
+     * Create a new job with the specified user and return the job identifier
+     * @param connection SQL Connection
+     * @param userIdentifier User identifier
+     * @return Job identifier
+     * @throws SQLException Error
+     */
+    public static int createJob(Connection connection, int userIdentifier) throws SQLException {
+        PreparedStatement st = connection.prepareStatement("INSERT INTO JOBS (PK_USER) VALUES (?)", Statement.RETURN_GENERATED_KEYS);
+        st.setInt(1, userIdentifier);
+        int affectedRows = st.executeUpdate();
+        if (affectedRows == 0) {
+            throw new SQLException("Failed to create job.");
+        }
+        ResultSet rs = st.getGeneratedKeys();
+        if (rs.next()) {
+            return rs.getInt(1);
+        } else  {
+            throw new SQLException("Failed to create job.");
+        }
+    }
+
+    /**
+     * Update the state of an existing Job record.
+     * <p>
+     * Persists the given state in table {@code JOBS} for the row identified by {@code PK_JOB}.
+     * The {@code jobState} is expected to be the name of a value from
+     * {@link org.noise_planet.covadis.webserver.script.JobStates} (e.g. {@code QUEUED}, {@code RUNNING}, etc.).
+     * </p>
+     *
+     * @param connection The open JDBC {@link Connection} to use; must not be {@code null}.
+     * @param jobId The identifier of the job to update (value of column {@code PK_JOB}).
+     * @param jobState The new state to set for the job (typically {@code JobStates.name()}).
+     * @throws SQLException If a database access error occurs, or if no row was updated (job not found).
+     */
+    public static void setJobState(Connection connection, int jobId, String jobState) throws SQLException {
+        PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET STATE = ? WHERE PK_JOB = ?");
+        st.setString(1, jobState);
+        st.setInt(2, jobId);
+        int affectedRows = st.executeUpdate();
+        if (affectedRows == 0) {
+            throw new SQLException("Failed to set job state.");
+        }
     }
 }

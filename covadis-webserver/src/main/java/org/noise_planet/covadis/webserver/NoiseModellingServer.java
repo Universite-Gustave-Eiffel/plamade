@@ -57,7 +57,7 @@ public class NoiseModellingServer {
         // Initialize an access right system
         provider = JWTProviderFactory.createHMAC512(DatabaseManagement.getJWTSigningKey(serverDataSource));
         userController = new UserController(serverDataSource, provider);
-        owsController  = new OwsController(userController, configuration);
+        owsController  = new OwsController(userController, configuration, serverDataSource);
     }
 
     /**
