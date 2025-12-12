@@ -15,38 +15,70 @@ import org.noise_planet.covadis.webserver.utilities.Logging;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestJobLogs {
 
-    @Test
-    public void testExtractLogs() throws IOException {
-        List<String> lastLine = Logging.getLastLines(
-                new File(TestJobLogs.class.getResource("application.log").getFile()),
-                10, "");
-        assertEquals(10, lastLine.size());
-        assertEquals("2021-08-03 17:00:56,628 DEBUG [e", lastLine.remove(0).substring(0, 32));
-        assertEquals("2021-08-03 17:00:56,628 DEBUG [e", lastLine.remove(0).substring(0, 32));
-        assertEquals("2021-08-03 17:00:56,628 TRACE [u", lastLine.remove(0).substring(0, 32));
-        assertEquals("2021-08-03 17:00:56,628 TRACE [u", lastLine.remove(0).substring(0, 32));
-        assertEquals("2021-08-03 17:00:56,686 INFO [re", lastLine.remove(0).substring(0, 32));
+    /**
+     * Asserts that the actual string contains in expected full string.
+     * This method is intended for use with JUnit 5 and its assertions,
+     * and it uses the JUnit 5's assertTrue() to perform the assertion.
+     *
+     * @param expectedFullString The expected full string that should contain actualContainTest.
+     * @param actualContainTest The string to check for in the expectedFullString.
+     */
+    public static void assertContains(String expectedFullString, String actualContainTest) {
+        Assertions.assertTrue(expectedFullString.contains(actualContainTest),
+                () -> "The actual contain test: '" + actualContainTest
+                        + "' is not found in the expected full string: '" + expectedFullString + "'");
     }
 
+    /**
+     * Check if the most recent logging rows have been fetched by this method
+     * @throws IOException
+     */
     @Test
-    public void testFilter() throws IOException {
-        List<String> lastLine = Logging.getLastLines(
-                new File(TestJobLogs.class.getResource("test.log").getFile()),
-                10, "JOB_4");
-        assertEquals(10, lastLine.size());
-        String line = lastLine.remove(lastLine.size() - 1);
-        assertEquals(" - Begin processing of cell 354 / 625", line.substring(line.lastIndexOf(" - "), line.length()));
-        line = lastLine.remove(lastLine.size() - 1);
-        assertEquals(" - Compute... 56.480 % (4728 receivers in this cell)",  line.substring(line.lastIndexOf(" - "), line.length()));
-        line = lastLine.remove(lastLine.size() - 1);
-        assertEquals(" - This computation area contains 4757 receivers 0 sound sources and 0 buildings",  line.substring(line.lastIndexOf(" - "), line.length()));
-
+    public void testFilter() throws IOException, URISyntaxException {
+        AtomicInteger fetchedLines = new AtomicInteger(0);
+        URL resourceFile = TestJobLogs.class.getResource("test.log");
+        assertNotNull(resourceFile);
+        String lastLines = Logging.getLastLines(
+                new File(resourceFile.toURI()),
+                -1, "JOB_4", fetchedLines);
+        assertEquals(32, fetchedLines.get());
+        assertLinesMatch(Arrays.asList("[JOB_4] INFO  org.noise_planet.noisemodelling.jdbc.PointNoiseMap  - Begin " +
+                "processing of cell 354 / 625", "[JOB_4] INFO  org.noise_planet.noisemodelling  - Compute... 56.480 %" +
+                " (4728 receivers in this cell)", "[JOB_4] INFO  org.noise_planet.noisemodelling  - This computation " +
+                "area contains 4757 receivers 0 sound sources and 0 buildings", "[JOB_4] INFO  org.noise_planet" +
+                ".noisemodelling.jdbc.PointNoiseMap  - This computation area contains 4757 receivers 0 sound sources " +
+                "and 0 buildings"), Arrays.asList(Arrays.copyOfRange(lastLines.split("\n"), 0, 4)));
     }
 
+    /**
+     * Check if the most recent logging rows have been fetched by this method
+     * @throws IOException
+     */
+    @Test
+    public void testFilterLimited() throws IOException, URISyntaxException {
+        AtomicInteger fetchedLines = new AtomicInteger(0);
+        URL resourceFile = TestJobLogs.class.getResource("test.log");
+        assertNotNull(resourceFile);
+        String lastLines = Logging.getLastLines(
+                new File(resourceFile.toURI()),
+                4, "JOB_4", fetchedLines);
+        assertEquals(4, fetchedLines.get());
+        assertLinesMatch(Arrays.asList("[JOB_4] INFO  org.noise_planet.noisemodelling.jdbc.PointNoiseMap  - Begin " +
+                "processing of cell 354 / 625", "[JOB_4] INFO  org.noise_planet.noisemodelling  - Compute... 56.480 %" +
+                " (4728 receivers in this cell)", "[JOB_4] INFO  org.noise_planet.noisemodelling  - This computation " +
+                "area contains 4757 receivers 0 sound sources and 0 buildings", "[JOB_4] INFO  org.noise_planet" +
+                ".noisemodelling.jdbc.PointNoiseMap  - This computation area contains 4757 receivers 0 sound sources " +
+                "and 0 buildings"), Arrays.asList(lastLines.split("\n")));
+    }
 }

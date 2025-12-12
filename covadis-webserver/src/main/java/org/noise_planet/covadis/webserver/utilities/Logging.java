@@ -12,6 +12,7 @@ package org.noise_planet.covadis.webserver.utilities;
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.RollingFileAppender;
 import org.jetbrains.annotations.NotNull;
+import org.thymeleaf.util.ListUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -20,9 +21,11 @@ import static org.h2.server.web.PageParser.escapeHtml;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -131,7 +134,14 @@ public class Logging {
     }
 
 
-    public static List<String> getAllLines(String jobId, int numberOfLines) throws IOException {
+    /**
+     * Return lines from the most recent to the old ones
+     * @param jobId
+     * @param numberOfLines
+     * @return
+     * @throws IOException
+     */
+    public static String getAllLines(String jobId, int numberOfLines) throws IOException {
         List<File> logFiles = new ArrayList<>();
         logFiles.add(new File("application.log"));
         int logCounter = 1;
@@ -143,85 +153,78 @@ public class Logging {
                 break;
             }
         }
-        List<String> rows = new ArrayList<>(numberOfLines == -1 ? 1000 : numberOfLines);
+        StringBuilder rows = new StringBuilder();
+        AtomicInteger fetchLines = new AtomicInteger(0);
         for(File logFile : logFiles) {
-            rows.addAll(0, NoiseModellingRunner.getLastLines(logFile,
-                    numberOfLines == -1 ? -1 : numberOfLines - rows.size(),
-                    String.format("JOB_%s", jobId)));
-            if(numberOfLines != -1 && rows.size() >= numberOfLines) {
+            rows.append(getLastLines(logFile,
+                    numberOfLines == -1 ? -1 : numberOfLines - fetchLines.get(),
+                    String.format("JOB_%s", jobId), fetchLines));
+            if(numberOfLines != -1 && fetchLines.get() >= numberOfLines) {
                 break;
             }
         }
-        return rows;
+        return rows.toString();
     }
 
     /**
      * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
      * @param logFile
-     * @param numberOfLines
+     * @param maximumLinesToFetch
      * @return
      * @throws IOException
      */
-    public static List<String> getLastLines(File logFile, int numberOfLines, String threadId) throws IOException {
+    public static String getLastLines(File logFile, int maximumLinesToFetch, String threadId, AtomicInteger fetchedLines) throws IOException {
         boolean match = threadId.isEmpty();
+        int pushedLines = 0;
         StringBuilder sbMatch = new StringBuilder();
-        ArrayList<String> lastLines = new ArrayList<>(Math.max(20, numberOfLines));
         final int buffer = 8192;
         long fileSize = Files.size(logFile.toPath());
         long read = 0;
         long lastCursor = fileSize;
-        StringBuilder sb = new StringBuilder(buffer);
+        String tailCache = "";
+        int lastEndOfLine=0;
         try(RandomAccessFile f = new RandomAccessFile(logFile.getAbsoluteFile(), "r")) {
-            while((numberOfLines == -1 || lastLines.size() < numberOfLines) && read < fileSize) {
+            while((maximumLinesToFetch == -1 || pushedLines < maximumLinesToFetch) && read < fileSize) {
                 long cursor = Math.max(0, fileSize - read - buffer);
                 read += buffer;
                 f.seek(cursor);
                 byte[] b = new byte[(int)(lastCursor - cursor)];
-                lastCursor = cursor;
                 f.readFully(b);
-                sb.insert(0, new String(b));
+                lastCursor = cursor;
+                String remainingLines = "";
+                if(!tailCache.isEmpty() && lastEndOfLine > 0) {
+                    remainingLines = tailCache.substring(0, Math.min(tailCache.length(), lastEndOfLine + 1));
+                }
+                tailCache = new String(b, StandardCharsets.UTF_8);
+                if(!remainingLines.isEmpty()) {
+                    tailCache = tailCache + remainingLines;
+                }
                 // Reverse search of end of line into the string buffer
-                int lastEndOfLine = sb.lastIndexOf("\n");
-                while (lastEndOfLine != -1 && (numberOfLines == -1 || lastLines.size() < numberOfLines)) {
-                    if(sb.length() - lastEndOfLine > 1) { // if more data than just line return
-                        String line = sb.substring(lastEndOfLine + 1, sb.length()).trim();
-                        if(!threadId.isEmpty()) {
-                            int firstHook = line.indexOf("[");
-                            int lastHook = line.indexOf("]");
-                            if (firstHook == 0 && firstHook < lastHook) {
-                                String thread = line.substring(firstHook + 1, lastHook);
-                                match = thread.equals(threadId);
-                            }
-                        }
-                        if (match && sbMatch.length() > 0) {
-                            lastLines.add(0, sbMatch.toString());
-                            sbMatch = new StringBuilder();
-                        }
-                        if(match) {
-                            sbMatch.append(line);
+                lastEndOfLine = tailCache.lastIndexOf("\n");
+                while (lastEndOfLine != -1 && (maximumLinesToFetch == -1 || pushedLines < maximumLinesToFetch)) {
+                    int nextEndOfLine = tailCache.lastIndexOf("\n", Math.max(0, lastEndOfLine - 1));
+                    if(nextEndOfLine == -1) {
+                        break;
+                    }
+                    String line = tailCache.substring(nextEndOfLine, lastEndOfLine).trim();
+                    if(!threadId.isEmpty()) {
+                        int firstHook = line.indexOf("[");
+                        int lastHook = line.indexOf("]");
+                        if (firstHook == 0 && firstHook < lastHook) {
+                            String thread = line.substring(firstHook + 1, lastHook);
+                            match = thread.equals(threadId);
                         }
                     }
-                    sb.delete(lastEndOfLine, sb.length());
-                    lastEndOfLine = sb.lastIndexOf("\n");
+                    if(match) {
+                        sbMatch.append(line);
+                        sbMatch.append("\n");
+                        pushedLines++;
+                    }
+                    lastEndOfLine = nextEndOfLine;
                 }
             }
         }
-        return lastLines;
+        fetchedLines.addAndGet(pushedLines);
+        return sbMatch.toString();
     }
-
-    private static boolean matchesThreadId(String line, String threadId) {
-        if (threadId.isEmpty()) {
-            return true;
-        } else {
-            int firstHook = line.indexOf("[");
-            int lastHook = line.indexOf("]");
-            if (firstHook == 0 && firstHook < lastHook) {
-                String thread = line.substring(firstHook + 1, lastHook);
-                return thread.equals(threadId);
-            } else {
-                return false;
-            }
-        }
-    }
-
 }
