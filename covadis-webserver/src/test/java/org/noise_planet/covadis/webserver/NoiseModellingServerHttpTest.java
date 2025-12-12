@@ -13,6 +13,7 @@ import org.apache.log4j.PropertyConfigurator;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
+import org.noise_planet.covadis.webserver.script.JobStates;
 
 import java.io.IOException;
 import java.net.http.*;
@@ -208,6 +209,7 @@ class NoiseModellingServerHttpTest {
             List<Map<String, Object>> jobs = DatabaseManagement.getJobs(connection, -1);
             assertEquals(1, jobs.size());
             assertEquals("Database_Manager:Clean_Database", jobs.get(0).get("script").toString());
+            assertEquals(JobStates.COMPLETED.name(), jobs.get(0).get("status").toString());
         }
     }
 }

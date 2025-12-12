@@ -46,7 +46,9 @@ public class Auth {
                 if(!user.registerToken.isEmpty()) {
                     // The administrator has reset the TOTP code
                     // User must validate the new TOTP code to be able to log in
-                    ctx.attribute("messages",  "Unauthorized access please login before proceeding");
+                    ctx.attribute("messages",
+                            String.format("Unauthorized access <a href=\"%s\">please login</a> before proceeding",
+                                    ctx.attribute("baseUrl")+"/login"));
                     throw new UnauthorizedResponse();
                 }
                 if (user.roles.stream().noneMatch(permittedRoles::contains)) {
@@ -59,7 +61,9 @@ public class Auth {
                 throw new UnauthorizedResponse();
             }
         } else {
-            ctx.attribute("messages",  "Unauthorized access please login before proceeding");
+            ctx.attribute("messages",
+                    String.format("Unauthorized access <a href=\"%s\">please login</a> before proceeding",
+                            ctx.attribute("baseUrl")+"/login"));
             throw new UnauthorizedResponse();
         }
     }

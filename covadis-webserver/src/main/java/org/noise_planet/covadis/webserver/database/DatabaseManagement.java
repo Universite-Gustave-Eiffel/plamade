@@ -536,7 +536,7 @@ public class DatabaseManagement {
             while (rs.next()) {
                 Map<String, Object> row = new HashMap<>();
                 Integer pkJob = rs.getInt("pk_job");
-                row.put("pk_job", pkJob);
+                row.put("id", pkJob);
                 row.put("script", rs.getString("SCRIPT_ID"));
                 row.put("email", rs.getString("email"));
                 Timestamp bDate = rs.getTimestamp("BEGIN_DATE");

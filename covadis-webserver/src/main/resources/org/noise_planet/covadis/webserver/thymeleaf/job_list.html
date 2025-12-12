@@ -36,7 +36,7 @@
                             <td th:text="${job.duration}">-</td>
                             <td th:text="${job.progression}">15 %</td>
                             <td th:text="${job.status}">Queued</td>
-                            <td><a th:href="${baseUrl}/job_logs/${job.id}" target="_blank">Result Logs</a></td>
+                            <td><a th:href="${baseUrl}+'/job_logs/'+${job.id}" target="_blank">Result Logs</a></td>
                             <td><input th:disabled="${job.status=='RUNNING' || job.status=='QUEUED'}" th:value="${job.id}" type="checkbox" value="-1" name="cancel"/></td>
                             <td><input th:disabled="${!job.status}" th:value="${job.id}"  type="checkbox" value="-1" name="delete"/></td>
                         </tr>

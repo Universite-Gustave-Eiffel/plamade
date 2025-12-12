@@ -15,6 +15,7 @@ import io.javalin.http.Handler;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
+import io.javalin.security.RouteRole;
 import org.apache.log4j.PropertyConfigurator;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.ScriptFileWatchedProcess;
@@ -161,13 +162,17 @@ public class NoiseModellingServer {
          */
         Handler decodeHandler = JavalinJWT.createCookieDecodeHandler(provider);
 
+        RouteRole[] secureRunnerRouteRoles = new RouteRole[]{configuration.unsecure ? Role.ANYONE : Role.RUNNER};
+
         app.before(decodeHandler);
         // Provide the application path to all thymeleaf templates
         app.before(ctx -> {ctx.attribute("baseUrl", rootPath);});
         app.beforeMatched(new Auth(provider, serverDataSource)::handleAccess);
 
-        app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
-        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.get(rootPath + "/builder/ows", owsController::handleGet, secureRunnerRouteRoles);
+        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, secureRunnerRouteRoles);
+        app.get(rootPath + "/job_list", owsController::jobList, secureRunnerRouteRoles);
+
         if(!rootPath.equals("/")) {
             app.get("/", ctx -> {
                 ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);
@@ -177,6 +182,10 @@ public class NoiseModellingServer {
         app.post(rootPath + "/do_login", userController::doLogin, Role.ANYONE);
         app.get(rootPath + "/register/{token}", userController::register, Role.ANYONE);
         app.post(rootPath + "/do_register/{token}", userController::doRegister, Role.ANYONE);
+
+
+
+        // Exception rendering Handling
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {
             String message = ctx.attributeMap().getOrDefault("messages", "").toString();
             // redirect the user to the login page

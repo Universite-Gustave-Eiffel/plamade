@@ -13,6 +13,7 @@ package org.noise_planet.covadis.webserver;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import io.javalin.http.Context;
+import io.javalin.http.InternalServerErrorResponse;
 import net.opengis.ows11.ExceptionReportType;
 import net.opengis.ows11.ExceptionType;
 import net.opengis.ows11.Ows11Factory;
@@ -24,6 +25,7 @@ import org.geotools.ows.v1_1.OWSConfiguration;
 import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.Job;
 import org.noise_planet.covadis.webserver.script.JobExecutorService;
 import org.noise_planet.covadis.webserver.script.ScriptMetadata;
@@ -42,12 +44,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.text.MessageFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.h2.server.web.PageParser.escapeHtml;
 
@@ -292,6 +296,39 @@ public class OwsController {
     }
 
     /**
+     *
+     * @param ctx
+     * @param serverConnection
+     * @return User or null if not connected
+     * @throws SQLException
+     */
+    private User getUserFromContext(Context ctx, Connection serverConnection) throws SQLException {
+        int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
+        if(userId > 0) {
+            return DatabaseManagement.getUser(serverConnection, userId);
+        }
+        return null;
+    }
+
+    /**
+     * Render job list HTML page
+     * @param ctx web context
+     */
+    public void jobList(Context ctx) {
+        try(Connection connection = serverDataSource.getConnection()) {
+            int userIdFilter = -1;
+            User user = getUserFromContext(ctx, connection);
+            if(user != null && !user.isAdministrator()) {
+                userIdFilter = user.getIdentifier();
+            }
+            ctx.render("job_list", Map.of("jobs", DatabaseManagement.getJobs(connection, userIdFilter)));
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
+
+    /**
      * Handles an HTTP POST request for a Web Processing Service (WPS) operation.
      * This method parses the request body, validates the WPS Execute Request, identifies
      * the target script to execute based on its process identifier, and executes the script.
@@ -338,17 +375,17 @@ public class OwsController {
             Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
             Job<Object> job = new Job<>(userId > 0 ? userId : 1, scriptMetadata, serverDataSource, inputs, configuration);
             Future<Object> result = jobExecutorService.submitJob(job);
-            Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            if (jobResult == null) {
-                ctx.result(String.format(
-                                "Long running process, please look at the job (id: %d) output in the table",
-                                job.getId()));
-            } else {
+            try {
+                Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                 if(jobResult instanceof Map<?, ?> && ((Map<?, ?>) jobResult).containsKey("result")) {
                     ctx.result(((Map<?, ?>) jobResult).get("result").toString());
                 } else {
                     ctx.result(jobResult.toString());
                 }
+            } catch (TimeoutException e) {
+                ctx.result(String.format(
+                        "Long running process, please look at the job (id: %d) output in the table",
+                        job.getId()));
             }
         } catch (Exception e) {
             logger.error("Error executing WPS {}", ctx.body(), e);

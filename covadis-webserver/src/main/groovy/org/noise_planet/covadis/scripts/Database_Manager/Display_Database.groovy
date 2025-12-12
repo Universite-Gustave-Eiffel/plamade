@@ -51,9 +51,6 @@ outputs = [
 
 def exec(Connection connection, input) {
 
-    // output string, the information given back to the user
-    String resultString = null
-
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
@@ -75,10 +72,12 @@ def exec(Connection connection, input) {
 
     // Get every table names
     List<String> tables = JDBCUtilities.getTableNames(connection, null, "PUBLIC", "%", null)
+    int printedTables = 0
     // Loop over the tables
     tables.each { t ->
         TableLocation tab = TableLocation.parse(t)
         if (!ignorelst.contains(tab.getTable())) {
+            printedTables++
             sb.append(tab.getTable())
             sb.append("</br>")
             if (showColumnName) {
@@ -98,7 +97,9 @@ def exec(Connection connection, input) {
             sb.append("</br>")
         }
     }
-
+    if(printedTables == 0) {
+        sb.append("Empty database")
+    }
     // print to command window
     logger.info('End : Display database')
 
