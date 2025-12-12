@@ -38,6 +38,7 @@ import java.util.*;
 
 /**
  * Handle the creation of datasource according to application configuration
+ * The Model of the Web Server
  */
 public class DatabaseManagement {
     private static final int DATABASE_VERSION = 1;
@@ -193,6 +194,8 @@ public class DatabaseManagement {
                 "CREATE TABLE JOBS(" +
                         "  PK_JOB INTEGER AUTO_INCREMENT PRIMARY KEY," +
                         "  PK_USER INTEGER," +
+                        "  SCRIPT_ID VARCHAR," +
+                        "  PROGRESSION REAL," +
                         "  STATUS VARCHAR DEFAULT '"+ JobStates.QUEUED.name() +"'," +
                         "  BEGIN_DATE TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                         "  END_DATE TIMESTAMP WITHOUT TIME ZONE," +
@@ -246,6 +249,19 @@ public class DatabaseManagement {
         }
 
         return roles;
+    }
+
+    /**
+     * Get user from database
+     * @param serverDataSource Data source to the database
+     * @param userIdentifier User identifier in the database (e.g., primary key)
+     * @return User object with associated roles and details
+     * @throws SQLException If something wrong happened
+     */
+    public static User getUser(DataSource serverDataSource, int userIdentifier) throws SQLException {
+        try(Connection connection = serverDataSource.getConnection()) {
+            return getUser(connection, userIdentifier);
+        }
     }
 
     /**
@@ -441,9 +457,10 @@ public class DatabaseManagement {
      * @return Job identifier
      * @throws SQLException Error
      */
-    public static int createJob(Connection connection, int userIdentifier) throws SQLException {
-        PreparedStatement st = connection.prepareStatement("INSERT INTO JOBS (PK_USER) VALUES (?)", Statement.RETURN_GENERATED_KEYS);
+    public static int createJob(Connection connection, int userIdentifier, String jobScript) throws SQLException {
+        PreparedStatement st = connection.prepareStatement("INSERT INTO JOBS (PK_USER, SCRIPT_ID) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS);
         st.setInt(1, userIdentifier);
+        st.setString(2, jobScript);
         int affectedRows = st.executeUpdate();
         if (affectedRows == 0) {
             throw new SQLException("Failed to create job.");
@@ -470,7 +487,7 @@ public class DatabaseManagement {
      * @throws SQLException If a database access error occurs, or if no row was updated (job not found).
      */
     public static void setJobState(Connection connection, int jobId, String jobState) throws SQLException {
-        PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET STATE = ? WHERE PK_JOB = ?");
+        PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET STATUS = ? WHERE PK_JOB = ?");
         st.setString(1, jobState);
         st.setInt(2, jobId);
         int affectedRows = st.executeUpdate();
@@ -496,18 +513,18 @@ public class DatabaseManagement {
     /**
      * Fetch the content of the JOB table
      * @param connection
-     * @param filterByUserIdentifier
-     * @return
+     * @param filterByUserIdentifier If > 0, will filter the job for a specific user. Administrator see all jobs.
+     * @return Job list
      * @throws SQLException
      */
     public static List<Map<String, Object>> getJobs(Connection connection, int filterByUserIdentifier) throws SQLException {
         List<Map<String, Object>> table = new ArrayList<>();
-        String filterQuery  = "";
+        StringBuilder sql = new StringBuilder("SELECT JOBS.*, USERS.EMAIL FROM JOBS INNER JOIN USERS ON JOBS.PK_USER = USERS.PK_USER ");
         if(filterByUserIdentifier > 0) {
-            filterQuery = "WHERE PK_USER = ? ";
+            sql.append("WHERE PK_USER = ? ");
         }
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS " + filterQuery +
-                "ORDER BY BEGIN_DATE DESC");
+        sql.append("ORDER BY BEGIN_DATE DESC");
+        PreparedStatement statement = connection.prepareStatement(sql.toString());
         if(filterByUserIdentifier > 0) {
             statement.setInt(1, filterByUserIdentifier);
         }
@@ -520,6 +537,8 @@ public class DatabaseManagement {
                 Map<String, Object> row = new HashMap<>();
                 Integer pkJob = rs.getInt("pk_job");
                 row.put("pk_job", pkJob);
+                row.put("script", rs.getString("SCRIPT_ID"));
+                row.put("email", rs.getString("email"));
                 Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
                 row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
                 Timestamp eDate = rs.getTimestamp("END_DATE");
@@ -539,7 +558,7 @@ public class DatabaseManagement {
                 }
                 row.put("endDate", endDate);
                 row.put("duration", duration);
-                row.put("status", rs.getString("STATE"));
+                row.put("status", rs.getString("STATUS"));
                 row.put("progression", f.format(rs.getDouble("PROGRESSION")));
                 table.add(row);
             }

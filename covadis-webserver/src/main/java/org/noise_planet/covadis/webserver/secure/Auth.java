@@ -11,7 +11,9 @@ package org.noise_planet.covadis.webserver.secure;
 import io.javalin.http.Context;
 import io.javalin.http.UnauthorizedResponse;
 import org.noise_planet.covadis.webserver.UserController;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 
+import javax.sql.DataSource;
 import java.sql.SQLException;
 
 /**
@@ -19,11 +21,11 @@ import java.sql.SQLException;
  */
 public class Auth {
     JWTProvider<User> provider;
-    UserController userController;
+    DataSource serverDataSource;
 
-    public Auth(JWTProvider<User> provider, UserController userController) {
+    public Auth(JWTProvider<User> provider, DataSource serverDataSource) {
         this.provider = provider;
-        this.userController = userController;
+        this.serverDataSource = serverDataSource;
     }
 
     /**
@@ -40,7 +42,7 @@ public class Auth {
         int userIdentifier = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
         if(userIdentifier >= 0) {
             try {
-                User user = userController.getUser(userIdentifier);
+                User user = DatabaseManagement.getUser(serverDataSource, userIdentifier);
                 if(!user.registerToken.isEmpty()) {
                     // The administrator has reset the TOTP code
                     // User must validate the new TOTP code to be able to log in

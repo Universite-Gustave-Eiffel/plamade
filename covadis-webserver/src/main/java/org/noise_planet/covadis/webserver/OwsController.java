@@ -28,6 +28,8 @@ import org.noise_planet.covadis.webserver.script.Job;
 import org.noise_planet.covadis.webserver.script.JobExecutorService;
 import org.noise_planet.covadis.webserver.script.ScriptMetadata;
 import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
+import org.noise_planet.covadis.webserver.secure.JWTProvider;
+import org.noise_planet.covadis.webserver.secure.JavalinJWT;
 import org.noise_planet.covadis.webserver.secure.User;
 import org.noise_planet.covadis.webserver.utilities.Logging;
 import org.slf4j.Logger;
@@ -61,7 +63,7 @@ public class OwsController {
     public static final int MAXIMUM_POOL_SIZE = 5;
     public static final long KEEP_ALIVE_TIME = 0L;
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
-    UserController userController;
+    private final JWTProvider<User> provider;
     Configuration configuration;
     DataSource serverDataSource;
     /**
@@ -99,11 +101,11 @@ public class OwsController {
      *
      * @throws IOException if an error occurs while loading or processing the script files.
      */
-    public OwsController(UserController userController, Configuration configuration, DataSource serverDataSource) throws IOException {
+    public OwsController(DataSource serverDataSource, JWTProvider<User> provider, Configuration configuration) throws IOException {
         wpsScriptWrapper = new WpsScriptWrapper(Path.of(configuration.scriptPath));
         Map<String, List<File>> groupedScripts = wpsScriptWrapper.loadScripts();
         wpsScripts = WpsScriptWrapper.buildScriptWrappers(groupedScripts);
-        this.userController = userController;
+        this.provider = provider;
         this.configuration = configuration;
         this.serverDataSource = serverDataSource;
     }
@@ -302,7 +304,7 @@ public class OwsController {
      */
     public void handleWPSPost(Context ctx) {
         try {
-            User user = userController.getUser(ctx);
+            int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
             Parser parser = new Parser(new WPSConfiguration());
             Object parsed = parser.parse(new ByteArrayInputStream(ctx.bodyAsBytes()));
 
@@ -334,13 +336,22 @@ public class OwsController {
             }
             ScriptMetadata scriptMetadata = optionalScriptMetadata.get();
             Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
-            Job<Object> job = new Job<>(user, scriptMetadata, serverDataSource, inputs, configuration);
+            Job<Object> job = new Job<>(userId > 0 ? userId : 1, scriptMetadata, serverDataSource, inputs, configuration);
             Future<Object> result = jobExecutorService.submitJob(job);
             Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (jobResult == null) {
-                ctx.json(Map.of("result", "Long running process, please look at the job output in the table"));
+                ctx.result(String.format(
+                                "Long running process, please look at the job (id: %d) output in the table",
+                                job.getId()));
+            } else {
+                if(jobResult instanceof Map<?, ?> && ((Map<?, ?>) jobResult).containsKey("result")) {
+                    ctx.result(((Map<?, ?>) jobResult).get("result").toString());
+                } else {
+                    ctx.result(jobResult.toString());
+                }
             }
         } catch (Exception e) {
+            logger.error("Error executing WPS {}", ctx.body(), e);
             // If error occurred inside the future, unwrap the ExecutionException
             String stackTrace = Logging.formatThrowableAsHtml(e);
             String html = MessageFormat.format("<html><head>    <style>        body '{' font-family: Arial; margin: " +

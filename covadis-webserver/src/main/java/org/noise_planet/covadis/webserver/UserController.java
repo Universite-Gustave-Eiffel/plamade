@@ -63,31 +63,6 @@ public class UserController {
         );
     }
 
-    public User getUser(int userIdentifier) throws SQLException {
-        try(Connection connection = serverDataSource.getConnection()) {
-            return DatabaseManagement.getUser(connection, userIdentifier);
-        }
-    }
-
-    /**
-     * Retrieve a connected user using web context
-     * @param context Javalin web context
-     * @return User or not if not connected
-     */
-    public User getUser(Context context) {
-        int userIdentifier = JavalinJWT.getUserIdentifierFromContext(context, provider);
-        if(userIdentifier >= 0) {
-            try {
-                return getUser(userIdentifier);
-            } catch (SQLException e) {
-                logger.error(e.getLocalizedMessage(), e);
-                throw new InternalServerErrorResponse();
-            }
-        } else {
-            return null;
-        }
-    }
-
     public void login(Context ctx ) {
         List<String> messages = readMessagesArg(ctx);
         ctx.render("login.html", Map.of("messages", messages));

@@ -39,20 +39,20 @@ public class Job<T> implements Callable<T> {
     private DataSource serverDataSource;
     private Map<String, Object> inputs;
     private boolean isRunning = false;
-    private User user;
+    private int userId;
     private int jobId;
     private Configuration configuration;
     private Future<T> future;
     private ProgressVisitor progressVisitor;
 
-    public Job(User user, ScriptMetadata scriptMetadata,
+    public Job(int userId, ScriptMetadata scriptMetadata,
                DataSource serverDataSource, Map<String, Object> inputs, Configuration configuration) throws SQLException {
-        this.user = user;
+        this.userId = userId;
         this.scriptMetadata = scriptMetadata;
         this.configuration = configuration;
         this.userDataSource = DatabaseManagement.createH2DataSource(
                 configuration.getWorkingDirectory(),
-                String.format("user_%03d", user.getIdentifier()),
+                String.format("user_%03d", userId),
                 "sa",
                 "sa",
                 "",
@@ -61,7 +61,7 @@ public class Job<T> implements Callable<T> {
         this.inputs = inputs;
         progressVisitor = new RootProgressVisitor(1, false, 0);
         try (Connection connection = serverDataSource.getConnection()) {
-            this.jobId = DatabaseManagement.createJob(connection, user.getIdentifier());
+            this.jobId = DatabaseManagement.createJob(connection, userId, scriptMetadata.id);
             progressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(serverDataSource, jobId));
         }
     }
@@ -101,6 +101,11 @@ public class Job<T> implements Callable<T> {
             GroovyShell shell = new GroovyShell();
             File scriptFile = scriptMetadata.path.toFile();
             Script script = shell.parse(scriptFile);
+            // Provide system inputs
+            inputs.put("_progression", progressVisitor);
+            // The script is not sandboxed so it have the same read/write access as the application
+            // it is useless to try to limit access to the server configuration
+            inputs.put("_configuration", configuration);
             Object returnData = script.invokeMethod("exec", new Object[]{connection, inputs});
             setJobState(JobStates.COMPLETED);
             return (T) returnData;

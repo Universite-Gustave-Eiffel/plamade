@@ -57,7 +57,15 @@ public class NoiseModellingServer {
         // Initialize an access right system
         provider = JWTProviderFactory.createHMAC512(DatabaseManagement.getJWTSigningKey(serverDataSource));
         userController = new UserController(serverDataSource, provider);
-        owsController  = new OwsController(userController, configuration, serverDataSource);
+        owsController  = new OwsController(serverDataSource, provider, configuration);
+    }
+
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
+    public DataSource getServerDataSource() {
+        return serverDataSource;
     }
 
     /**
@@ -156,7 +164,7 @@ public class NoiseModellingServer {
         app.before(decodeHandler);
         // Provide the application path to all thymeleaf templates
         app.before(ctx -> {ctx.attribute("baseUrl", rootPath);});
-        app.beforeMatched(new Auth(provider, userController)::handleAccess);
+        app.beforeMatched(new Auth(provider, serverDataSource)::handleAccess);
 
         app.get(rootPath + "/builder/ows", owsController::handleGet, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
         app.post(rootPath + "/builder/ows", owsController::handleWPSPost, configuration.unsecure ? Role.ANYONE : Role.RUNNER);

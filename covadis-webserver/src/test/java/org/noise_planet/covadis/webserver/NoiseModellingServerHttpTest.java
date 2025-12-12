@@ -12,6 +12,7 @@ package org.noise_planet.covadis.webserver;
 import org.apache.log4j.PropertyConfigurator;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 
 import java.io.IOException;
 import java.net.http.*;
@@ -19,7 +20,11 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -197,6 +202,12 @@ class NoiseModellingServerHttpTest {
 
         assertEquals(200, response.statusCode());
         assertNotNull(response.body());
-        assertTrue(response.body().contains("result"));
+        assertTrue(response.body().contains("dropped"));
+
+        try(Connection connection = app.getServerDataSource().getConnection()) {
+            List<Map<String, Object>> jobs = DatabaseManagement.getJobs(connection, -1);
+            assertEquals(1, jobs.size());
+            assertEquals("Database_Manager:Clean_Database", jobs.get(0).get("script").toString());
+        }
     }
 }

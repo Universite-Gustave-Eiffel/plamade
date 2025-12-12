@@ -15,6 +15,7 @@
                     <tr>
                         <th>job ID</th>
                         <th>User</th>
+                        <th>Script</th>
                         <th>Start Date</th>
                         <th>End Date</th>
                         <th>Duration</th>
@@ -26,18 +27,19 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="job : ${jobs}">
-                        <td th:text="${job.id}">1</td>
-                        <td th:text="${job.email}">john@localhost</td>
-                        <td th:text="${job.startDate}">Monday, July 19, 2021 11:39 AM</td>
-                        <td th:text="${job.endDate}">-</td>
-                        <td th:text="${job.duration}">-</td>
-                        <td th:text="${job.progression}">15 %</td>
-                        <td th:text="${job.status}">Queued</td>
-                        <td><a th:href="${baseUrl}/job_logs/${job.id}" target="_blank">Result Logs</a></td>
-                        <td><input th:disabled="${job.status=='RUNNING' || job.status=='QUEUED'}" th:value="${job.id}" type="checkbox" value="-1" name="cancel"/></td>
-                        <td><input th:disabled="${!job.status}" th:value="${job.id}"  type="checkbox" value="-1" name="delete"/></td>
-                    </tr>
+                        <tr th:each="job : ${jobs}">
+                            <td th:text="${job.id}">1</td>
+                            <td th:text="${job.email}">john@localhost</td>
+                            <td th:text="${job.script}">ProcessGroup:process</td>
+                            <td th:text="${job.startDate}">Monday, July 19, 2021 11:39 AM</td>
+                            <td th:text="${job.endDate}">-</td>
+                            <td th:text="${job.duration}">-</td>
+                            <td th:text="${job.progression}">15 %</td>
+                            <td th:text="${job.status}">Queued</td>
+                            <td><a th:href="${baseUrl}/job_logs/${job.id}" target="_blank">Result Logs</a></td>
+                            <td><input th:disabled="${job.status=='RUNNING' || job.status=='QUEUED'}" th:value="${job.id}" type="checkbox" value="-1" name="cancel"/></td>
+                            <td><input th:disabled="${!job.status}" th:value="${job.id}"  type="checkbox" value="-1" name="delete"/></td>
+                        </tr>
                     </tbody>
                 </table>
                 <div class="pure-controls"><button id="apply_button" type="submit" class="pure-button pure-button-primary">Apply</button></div>
