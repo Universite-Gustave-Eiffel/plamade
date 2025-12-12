@@ -10,6 +10,7 @@ package org.noise_planet.covadis.webserver.secure;
 
 import io.javalin.http.Context;
 import io.javalin.http.UnauthorizedResponse;
+import org.noise_planet.covadis.webserver.UserController;
 
 import java.sql.SQLException;
 

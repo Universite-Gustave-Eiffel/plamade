@@ -12,9 +12,11 @@ package org.noise_planet.covadis.webserver.script;
 import com.zaxxer.hikari.HikariDataSource;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import org.h2gis.api.ProgressVisitor;
 import org.noise_planet.covadis.webserver.Configuration;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.secure.User;
+import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +43,7 @@ public class Job<T> implements Callable<T> {
     private int jobId;
     private Configuration configuration;
     private Future<T> future;
+    private ProgressVisitor progressVisitor;
 
     public Job(User user, ScriptMetadata scriptMetadata,
                DataSource serverDataSource, Map<String, Object> inputs, Configuration configuration) throws SQLException {
@@ -56,14 +59,24 @@ public class Job<T> implements Callable<T> {
                 true);
         this.serverDataSource = serverDataSource;
         this.inputs = inputs;
+        progressVisitor = new RootProgressVisitor(1, false, 0);
         try (Connection connection = serverDataSource.getConnection()) {
             this.jobId = DatabaseManagement.createJob(connection, user.getIdentifier());
+            progressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(serverDataSource, jobId));
         }
     }
 
     void setJobState(JobStates newState) {
         try (Connection connection = serverDataSource.getConnection()) {
             DatabaseManagement.setJobState(connection, jobId, newState.name());
+        } catch (SQLException | SecurityException ex) {
+            logger.error(ex.getLocalizedMessage(), ex);
+        }
+    }
+
+    void onJobEnd() throws SQLException {
+        try (Connection connection = serverDataSource.getConnection()) {
+            DatabaseManagement.setJobEndTime(connection, jobId);
         } catch (SQLException | SecurityException ex) {
             logger.error(ex.getLocalizedMessage(), ex);
         }
@@ -93,6 +106,7 @@ public class Job<T> implements Callable<T> {
             return (T) returnData;
         } finally {
             isRunning = false;
+            onJobEnd();
         }
     }
 

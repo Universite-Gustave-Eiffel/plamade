@@ -479,20 +479,27 @@ public class DatabaseManagement {
         }
     }
 
-    public static void setJobProgression(Connection connection, int jobId, int progression) throws SQLException {
+    public static void setJobProgression(Connection connection, int jobId, double progression) throws SQLException {
         PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET PROGRESSION = ? WHERE PK_JOB = ?");
-        st.setInt(1, progression);
+        st.setDouble(1, progression);
         st.setInt(2, jobId);
         st.execute();
     }
 
-    public void setJobEndTime(Connection connection, int jobId) throws SQLException {
+    public static void setJobEndTime(Connection connection, int jobId) throws SQLException {
         PreparedStatement st = connection.prepareStatement("UPDATE JOBS SET END_DATE = ? WHERE PK_JOB = ?");
         st.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
         st.setInt(2, jobId);
         st.execute();
     }
 
+    /**
+     * Fetch the content of the JOB table
+     * @param connection
+     * @param filterByUserIdentifier
+     * @return
+     * @throws SQLException
+     */
     public static List<Map<String, Object>> getJobs(Connection connection, int filterByUserIdentifier) throws SQLException {
         List<Map<String, Object>> table = new ArrayList<>();
         String filterQuery  = "";
@@ -506,11 +513,11 @@ public class DatabaseManagement {
         }
         DecimalFormat f = (DecimalFormat)(DecimalFormat.getInstance(Locale.ROOT));
         f.applyPattern("#.### '%'");
+        DateFormat mediumDateFormatEN =
+                new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
         try (ResultSet rs = statement.executeQuery()) {
             while (rs.next()) {
                 Map<String, Object> row = new HashMap<>();
-                DateFormat mediumDateFormatEN =
-                        new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
                 Integer pkJob = rs.getInt("pk_job");
                 row.put("pk_job", pkJob);
                 Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
@@ -534,8 +541,6 @@ public class DatabaseManagement {
                 row.put("duration", duration);
                 row.put("status", rs.getString("STATE"));
                 row.put("progression", f.format(rs.getDouble("PROGRESSION")));
-                row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
-                row.put("conf_id", rs.getInt("CONF_ID"));
                 table.add(row);
             }
         }

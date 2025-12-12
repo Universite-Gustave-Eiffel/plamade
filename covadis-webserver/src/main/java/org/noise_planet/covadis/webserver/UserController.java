@@ -8,7 +8,7 @@
  */
 
 
-package org.noise_planet.covadis.webserver.secure;
+package org.noise_planet.covadis.webserver;
 
 import com.atlassian.onetime.core.TOTP;
 import com.atlassian.onetime.core.TOTPGenerator;
@@ -22,11 +22,12 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import io.javalin.http.Context;
-import io.javalin.http.HttpStatus;
 import io.javalin.http.InternalServerErrorResponse;
 import io.javalin.http.util.NaiveRateLimit;
-import org.noise_planet.covadis.webserver.Configuration;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
+import org.noise_planet.covadis.webserver.secure.JWTProvider;
+import org.noise_planet.covadis.webserver.secure.JavalinJWT;
+import org.noise_planet.covadis.webserver.secure.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +37,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
@@ -153,7 +152,7 @@ public class UserController {
                 TOTPVerificationResult result = totpService.verify(new TOTP(totpCode),
                         TOTPSecret.Companion.fromBase32EncodedString(totpSecret));
                 if(result.isSuccess()) {
-                    DatabaseManagement.updateUserTotpToken(connection, user.identifier, totpSecret);
+                    DatabaseManagement.updateUserTotpToken(connection, user.getIdentifier(), totpSecret);
                     String message = "Account successfully created ! You will be directed to the login page to enter your credentials";
                     // redirect the user to the page
                     ctx.render("blank", Map.of(
@@ -161,7 +160,7 @@ public class UserController {
                             "message", message));
                 } else {
                     ctx.attribute("messages", "Invalid TOTP code");
-                    logger.info("User {} failed to register {}", user.email, ctx.attribute("messages"));
+                    logger.info("User {} failed to register {}", user.getEmail(), ctx.attribute("messages"));
                     register(ctx);
                 }
             } else {
@@ -229,7 +228,7 @@ public class UserController {
                 User user = DatabaseManagement.getUser(connection, userIdentifier);
                 URI totpUri = totpService.generateTOTPUrl(
                         totpSecret,
-                        new EmailAddress(user.email),
+                        new EmailAddress(user.getEmail()),
                         new Issuer("NoiseModelling"));
                 String qrCodeBytes = createQRCodeImage(totpUri);
                 ctx.render("register.html", Map.of(

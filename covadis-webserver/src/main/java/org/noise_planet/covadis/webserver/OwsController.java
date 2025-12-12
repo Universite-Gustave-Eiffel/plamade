@@ -29,7 +29,6 @@ import org.noise_planet.covadis.webserver.script.JobExecutorService;
 import org.noise_planet.covadis.webserver.script.ScriptMetadata;
 import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
 import org.noise_planet.covadis.webserver.secure.User;
-import org.noise_planet.covadis.webserver.secure.UserController;
 import org.noise_planet.covadis.webserver.utilities.Logging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.h2.server.web.PageParser.escapeHtml;
