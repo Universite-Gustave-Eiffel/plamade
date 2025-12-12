@@ -141,12 +141,13 @@ public class Logging {
      * @return
      * @throws IOException
      */
-    public static String getAllLines(String jobId, int numberOfLines) throws IOException {
+    public static String getAllLines(String jobId, File loggingFile, int numberOfLines) throws IOException {
         List<File> logFiles = new ArrayList<>();
-        logFiles.add(new File("application.log"));
+        logFiles.add(loggingFile);
         int logCounter = 1;
+        // Add rotating log files
         while(true) {
-            File oldLogFile = new File("application.log." + (logCounter++));
+            File oldLogFile = new File(loggingFile + "." + (logCounter++));
             if(oldLogFile.exists()) {
                 logFiles.add(oldLogFile);
             } else {
@@ -167,7 +168,8 @@ public class Logging {
     }
 
     /**
-     * Equivalent to "tail -n x file" linux command. Retrieve the n last lines from a file
+     * Equivalent to "tail -n x file" linux command.
+     * Retrieve the n last lines from a file but from the most recent to the oldest one.
      * @param logFile
      * @param maximumLinesToFetch
      * @return

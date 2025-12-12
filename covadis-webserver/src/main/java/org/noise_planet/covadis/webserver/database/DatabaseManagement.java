@@ -21,18 +21,20 @@ import org.noise_planet.covadis.webserver.script.JobStates;
 import org.noise_planet.covadis.webserver.secure.JWTProviderFactory;
 import org.noise_planet.covadis.webserver.secure.Role;
 import org.noise_planet.covadis.webserver.secure.User;
+import org.noise_planet.covadis.webserver.utilities.StringUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.print.attribute.standard.JobState;
 import javax.sql.DataSource;
 import java.io.File;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.text.DateFormat;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.util.*;
 
 /**
  * Handle the creation of datasource according to application configuration
@@ -489,5 +491,54 @@ public class DatabaseManagement {
         st.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
         st.setInt(2, jobId);
         st.execute();
+    }
+
+    public static List<Map<String, Object>> getJobs(Connection connection, int filterByUserIdentifier) throws SQLException {
+        List<Map<String, Object>> table = new ArrayList<>();
+        String filterQuery  = "";
+        if(filterByUserIdentifier > 0) {
+            filterQuery = "WHERE PK_USER = ? ";
+        }
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM JOBS " + filterQuery +
+                "ORDER BY BEGIN_DATE DESC");
+        if(filterByUserIdentifier > 0) {
+            statement.setInt(1, filterByUserIdentifier);
+        }
+        DecimalFormat f = (DecimalFormat)(DecimalFormat.getInstance(Locale.ROOT));
+        f.applyPattern("#.### '%'");
+        try (ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                DateFormat mediumDateFormatEN =
+                        new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
+                Integer pkJob = rs.getInt("pk_job");
+                row.put("pk_job", pkJob);
+                Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
+                row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
+                Timestamp eDate = rs.getTimestamp("END_DATE");
+                String endDate = "-";
+                String duration = "-";
+                Duration computationTime = null;
+                if(!rs.wasNull()) {
+                    endDate = mediumDateFormatEN.format(eDate);
+                    computationTime = Duration.ofMillis(
+                            eDate.getTime()  - bDate.getTime());
+                } else if(bDate != null){
+                    computationTime = Duration.ofMillis(
+                            System.currentTimeMillis() - bDate.getTime());
+                }
+                if(computationTime != null) {
+                    duration = StringUtilities.durationToString(computationTime);
+                }
+                row.put("endDate", endDate);
+                row.put("duration", duration);
+                row.put("status", rs.getString("STATE"));
+                row.put("progression", f.format(rs.getDouble("PROGRESSION")));
+                row.put("inseeDepartment", rs.getString("INSEE_DEPARTMENT"));
+                row.put("conf_id", rs.getInt("CONF_ID"));
+                table.add(row);
+            }
+        }
+        return table;
     }
 }

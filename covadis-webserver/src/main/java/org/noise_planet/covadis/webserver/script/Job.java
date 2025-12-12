@@ -42,7 +42,6 @@ public class Job<T> implements Callable<T> {
     private Configuration configuration;
     private Future<T> future;
 
-
     public Job(User user, ScriptMetadata scriptMetadata,
                DataSource serverDataSource, Map<String, Object> inputs, Configuration configuration) throws SQLException {
         this.user = user;
