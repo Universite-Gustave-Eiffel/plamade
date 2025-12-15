@@ -46,9 +46,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.MessageFormat;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -68,8 +66,10 @@ public class OwsController {
     public static final long KEEP_ALIVE_TIME = 0L;
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
+    private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
     Configuration configuration;
     DataSource serverDataSource;
+
     /**
      * Handle threads
      */
@@ -373,7 +373,9 @@ public class OwsController {
             }
             ScriptMetadata scriptMetadata = optionalScriptMetadata.get();
             Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
-            Job<Object> job = new Job<>(userId > 0 ? userId : 1, scriptMetadata, serverDataSource, inputs, configuration);
+            int jobUserId = userId > 0 ? userId : 1; // user may not be logged in
+            Job<Object> job = new Job<>(jobUserId, scriptMetadata, serverDataSource,
+                    fetchUserDataSource(jobUserId), inputs, configuration);
             Future<Object> result = jobExecutorService.submitJob(job);
             try {
                 Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
@@ -403,6 +405,27 @@ public class OwsController {
             ctx.contentType("text/html; charset=UTF-8");
             ctx.result(html);
         }
+    }
+
+    /**
+     * The datasource instance contain the hikari connection pool so we must keep it between transactions
+     * @param userId User identifier
+     * @return
+     * @throws SQLException
+     */
+    private DataSource fetchUserDataSource(int userId) throws SQLException {
+        DataSource dataSource = userDataSources.get(userId);
+        if (dataSource == null) {
+            dataSource = DatabaseManagement.createH2DataSource(
+                configuration.getWorkingDirectory(),
+                String.format("user_%03d", userId),
+                "sa",
+                "sa",
+                "",
+                true);
+            userDataSources.put(userId, dataSource);
+        }
+        return dataSource;
     }
 
 }

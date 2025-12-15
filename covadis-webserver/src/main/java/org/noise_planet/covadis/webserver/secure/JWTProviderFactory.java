@@ -31,7 +31,7 @@ public class JWTProviderFactory {
         SecureRandom secureRandom = new SecureRandom();
         byte[] keyBytes = new byte[32]; // 256-bit key for HS256
         secureRandom.nextBytes(keyBytes);
-        return Base64.getEncoder().encodeToString(keyBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(keyBytes);
     }
 
     /**

@@ -7,7 +7,7 @@
         <div class="l-box" id="message_div" th:if="${not #lists.isEmpty(messages)}">
             <aside th:each="message : ${messages}"><p th:text="${message}"></p></aside>
         </div>
-        <form class="pure-form pure-form-aligned" th:action="${baseUrl}+'/do_register/'+${token}" method="POST">
+        <form class="pure-form pure-form-aligned" th:action="@{|${baseUrl}/do_register/${token}|}" method="POST">
             <input type="hidden" th:value="${token}" name="TOKEN">
             <input type="hidden" th:value="${totpSecret}" name="TOTP_SECRET">
             <fieldset>

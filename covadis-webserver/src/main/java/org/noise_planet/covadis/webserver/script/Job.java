@@ -35,7 +35,7 @@ public class Job<T> implements Callable<T> {
     private static final Logger logger = LoggerFactory.getLogger(Job.class);
     private ScriptMetadata scriptMetadata;
     /** NoiseModelling DataBase for the user */
-    private HikariDataSource userDataSource;
+    private DataSource userDataSource;
     private DataSource serverDataSource;
     private Map<String, Object> inputs;
     private boolean isRunning = false;
@@ -46,17 +46,11 @@ public class Job<T> implements Callable<T> {
     private ProgressVisitor progressVisitor;
 
     public Job(int userId, ScriptMetadata scriptMetadata,
-               DataSource serverDataSource, Map<String, Object> inputs, Configuration configuration) throws SQLException {
+               DataSource serverDataSource, DataSource userDataSource, Map<String, Object> inputs, Configuration configuration) throws SQLException {
         this.userId = userId;
         this.scriptMetadata = scriptMetadata;
         this.configuration = configuration;
-        this.userDataSource = DatabaseManagement.createH2DataSource(
-                configuration.getWorkingDirectory(),
-                String.format("user_%03d", userId),
-                "sa",
-                "sa",
-                "",
-                true);
+        this.userDataSource = userDataSource;
         this.serverDataSource = serverDataSource;
         this.inputs = inputs;
         progressVisitor = new RootProgressVisitor(1, false, 0);

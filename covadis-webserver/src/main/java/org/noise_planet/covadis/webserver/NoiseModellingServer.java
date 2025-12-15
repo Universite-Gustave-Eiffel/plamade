@@ -193,6 +193,13 @@ public class NoiseModellingServer {
                     "redirectUrl", rootPath + "/login",
                     "message", message));
         });
+        app.error(HttpStatus.NOT_FOUND, ctx -> {
+            logger.info("404 not found on {}", ctx.req().getRequestURI());
+            // redirect the user to the login page
+            ctx.render("blank", Map.of(
+                    "redirectUrl", rootPath,
+                    "message", "This page does not exists, redirecting to home.."));
+        });
     }
 
     /**
