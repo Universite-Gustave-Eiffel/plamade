@@ -19,3 +19,8 @@
     font-size: 14px; /* You can adjust this as needed */
     line-height: 1.5; /* This will make the text look more visually appealing */
 }
+
+.clickable-header {
+    cursor: pointer;
+    text-decoration: underline;
+}

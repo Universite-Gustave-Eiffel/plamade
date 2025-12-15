@@ -9,7 +9,7 @@
     <div id="main" class="content">
         <div class="header"><h1>Manage jobs</h1>
             <h2>Processing job management</h2>
-            <form  class="pure-form pure-form-aligned" th:action="${baseUrl}+'/job_list'" method="POST">
+            <form  class="pure-form pure-form-aligned" action="" method="POST">
                 <table class="pure-table pure-table-bordered">
                     <thead>
                     <tr>
@@ -22,8 +22,8 @@
                         <th>Progression</th>
                         <th>Status</th>
                         <th>Logs</th>
-                        <th>Cancel</th>
-                        <th>Delete</th>
+                        <th id="cancelHeader" class="clickable-header">Cancel</th>
+                        <th id="deleteHeader" class="clickable-header">Delete</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -36,9 +36,9 @@
                             <td th:text="${job.duration}">-</td>
                             <td th:text="${job.progression}">15 %</td>
                             <td th:text="${job.status}">Queued</td>
-                            <td><a th:href="${baseUrl}+'/job_logs/'+${job.id}" target="_blank">Result Logs</a></td>
-                            <td><input th:disabled="${job.status=='RUNNING' || job.status=='QUEUED'}" th:value="${job.id}" type="checkbox" value="-1" name="cancel"/></td>
-                            <td><input th:disabled="${!job.status}" th:value="${job.id}"  type="checkbox" value="-1" name="delete"/></td>
+                            <td><a th:href="@{|${baseUrl}/job_logs/${job.id}|}" target="_blank">Logs</a></td>
+                            <td><input th:disabled="${!job.cancelable}" th:value="${job.id}" type="checkbox" value="-1" name="cancel" id="cancelCheckbox"/></td>
+                            <td><input th:disabled="${!job.deletable}" th:value="${job.id}"  type="checkbox" value="-1" name="delete" id="deleteCheckbox"/></td>
                         </tr>
                     </tbody>
                 </table>
@@ -47,5 +47,12 @@
         </div>
     </div>
 </div>
+<script type="module">
+    import initCheckboxToggle from './js/job_list.js'; // Adjust the path as needed
+
+    document.addEventListener("DOMContentLoaded", function() {
+        initCheckboxToggle();
+    });
+</script>
 </body>
 </html>

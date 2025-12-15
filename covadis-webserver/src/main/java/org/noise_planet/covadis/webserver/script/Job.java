@@ -68,6 +68,15 @@ public class Job<T> implements Callable<T> {
         }
     }
 
+
+    void setJobProgression(int progression) {
+        try (Connection connection = serverDataSource.getConnection()) {
+            DatabaseManagement.setJobProgression(connection, jobId, progression);
+        } catch (SQLException | SecurityException ex) {
+            logger.error(ex.getLocalizedMessage(), ex);
+        }
+    }
+
     void onJobEnd() throws SQLException {
         try (Connection connection = serverDataSource.getConnection()) {
             DatabaseManagement.setJobEndTime(connection, jobId);
@@ -102,7 +111,12 @@ public class Job<T> implements Callable<T> {
             inputs.put("_configuration", configuration);
             Object returnData = script.invokeMethod("exec", new Object[]{connection, inputs});
             setJobState(JobStates.COMPLETED);
+            setJobProgression(100);
             return (T) returnData;
+        } catch (Exception ex) {
+            setJobState(JobStates.FAILED);
+            logger.error("Job failed", ex);
+            throw new RuntimeException(ex);
         } finally {
             isRunning = false;
             onJobEnd();

@@ -538,6 +538,10 @@ public class DatabaseManagement {
                 Integer pkJob = rs.getInt("pk_job");
                 row.put("id", pkJob);
                 row.put("script", rs.getString("SCRIPT_ID"));
+                row.put("deletable", Objects.equals(rs.getString("STATUS"), JobStates.COMPLETED.name()) ||
+                        Objects.equals(rs.getString("STATUS"), JobStates.FAILED.name()));
+                row.put("cancelable", Objects.equals(rs.getString("STATUS"), JobStates.QUEUED.name()) ||
+                        Objects.equals(rs.getString("STATUS"), JobStates.RUNNING.name()));
                 row.put("email", rs.getString("email"));
                 Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
                 row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
