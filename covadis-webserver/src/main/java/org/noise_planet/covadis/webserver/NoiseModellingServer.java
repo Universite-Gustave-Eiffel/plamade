@@ -39,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class NoiseModellingServer {
+    public static final String LOGGING_FILE_NAME = "webserver.log";
     private final Logger logger = LoggerFactory.getLogger(NoiseModellingServer.class);
     private Javalin app;
     private Future<?> scriptWatch;
@@ -81,7 +82,7 @@ public class NoiseModellingServer {
             // Read configuration from command line
             Configuration configuration = Configuration.createConfigurationFromArguments(args);
             // Initialize additional loggers
-            Logging.configureFileLogger(configuration.workingDirectory, "webserver.log");
+            Logging.configureFileLogger(configuration.workingDirectory, LOGGING_FILE_NAME);
             // Create WebServer instance
             NoiseModellingServer noiseModellingServer = new NoiseModellingServer(configuration);
             noiseModellingServer.startServer(!configuration.skipOpenBrowser);
@@ -172,6 +173,7 @@ public class NoiseModellingServer {
         app.get(rootPath + "/builder/ows", owsController::handleGet, secureRunnerRouteRoles);
         app.post(rootPath + "/builder/ows", owsController::handleWPSPost, secureRunnerRouteRoles);
         app.get(rootPath + "/job_list", owsController::jobList, secureRunnerRouteRoles);
+        app.get(rootPath + "/job_logs/{job_id}", owsController::jobLogs, secureRunnerRouteRoles);
 
         if(!rootPath.equals("/")) {
             app.get("/", ctx -> {

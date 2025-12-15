@@ -2,11 +2,15 @@
     /* http://underpop.online.fr/l/linux-console-fonts-for-windows-in-ttf-and-fon/ */
     /* GNU GPL Version 2 license.  */
     font-family: "Multi-size, regular Misc-Fixed";
-    src: url("/fonts/misc-fixed.ttf") format("truetype");
+    src: url("../fonts/misc-fixed.ttf") format("truetype");
 }
 
 .console-text {
     font-family: "Multi-size, regular Misc-Fixed", serif;
+}
+
+.code {
+    padding: 0.6em 0 0.6em 0.6em;
 }
 
 .qrCodeText {
@@ -24,3 +28,4 @@
     cursor: pointer;
     text-decoration: underline;
 }
+

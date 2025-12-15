@@ -9,13 +9,12 @@
 
 package org.noise_planet.covadis.webserver.script;
 
-import com.zaxxer.hikari.HikariDataSource;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import org.h2gis.api.ProgressVisitor;
+import org.jetbrains.annotations.NotNull;
 import org.noise_planet.covadis.webserver.Configuration;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
-import org.noise_planet.covadis.webserver.secure.User;
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,7 +95,7 @@ public class Job<T> implements Callable<T> {
     @Override
     public T call() throws Exception {
         // Change the Thread name in order to allocate the logging messages of this job
-        Thread.currentThread().setName("JOB_" + jobId);
+        Thread.currentThread().setName(getThreadName(jobId));
         // Open the connection to the database
         try(Connection connection = userDataSource.getConnection()) {
             isRunning = true;
@@ -121,6 +120,11 @@ public class Job<T> implements Callable<T> {
             isRunning = false;
             onJobEnd();
         }
+    }
+
+    @NotNull
+    public static String getThreadName(int jobId) {
+        return String.format("JOB_%d", jobId);
     }
 
     /**

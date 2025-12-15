@@ -205,10 +205,10 @@ public class Logging {
                 lastEndOfLine = tailCache.lastIndexOf("\n");
                 while (lastEndOfLine != -1 && (maximumLinesToFetch == -1 || pushedLines < maximumLinesToFetch)) {
                     int nextEndOfLine = tailCache.lastIndexOf("\n", Math.max(0, lastEndOfLine - 1));
-                    if(nextEndOfLine == -1) {
+                    if(nextEndOfLine <= 0) {
                         break;
                     }
-                    String line = tailCache.substring(nextEndOfLine, lastEndOfLine).trim();
+                    String line = tailCache.substring(nextEndOfLine + 1, lastEndOfLine);
                     if(!threadId.isEmpty()) {
                         int firstHook = line.indexOf("[");
                         int lastHook = line.indexOf("]");

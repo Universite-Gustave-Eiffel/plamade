@@ -534,39 +534,69 @@ public class DatabaseManagement {
                 new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
         try (ResultSet rs = statement.executeQuery()) {
             while (rs.next()) {
-                Map<String, Object> row = new HashMap<>();
-                Integer pkJob = rs.getInt("pk_job");
-                row.put("id", pkJob);
-                row.put("script", rs.getString("SCRIPT_ID"));
-                row.put("deletable", Objects.equals(rs.getString("STATUS"), JobStates.COMPLETED.name()) ||
-                        Objects.equals(rs.getString("STATUS"), JobStates.FAILED.name()));
-                row.put("cancelable", Objects.equals(rs.getString("STATUS"), JobStates.QUEUED.name()) ||
-                        Objects.equals(rs.getString("STATUS"), JobStates.RUNNING.name()));
-                row.put("email", rs.getString("email"));
-                Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
-                row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
-                Timestamp eDate = rs.getTimestamp("END_DATE");
-                String endDate = "-";
-                String duration = "-";
-                Duration computationTime = null;
-                if(!rs.wasNull()) {
-                    endDate = mediumDateFormatEN.format(eDate);
-                    computationTime = Duration.ofMillis(
-                            eDate.getTime()  - bDate.getTime());
-                } else if(bDate != null){
-                    computationTime = Duration.ofMillis(
-                            System.currentTimeMillis() - bDate.getTime());
-                }
-                if(computationTime != null) {
-                    duration = StringUtilities.durationToString(computationTime);
-                }
-                row.put("endDate", endDate);
-                row.put("duration", duration);
-                row.put("status", rs.getString("STATUS"));
-                row.put("progression", f.format(rs.getDouble("PROGRESSION")));
-                table.add(row);
+                table.add(parseJob(rs, mediumDateFormatEN, f));
             }
         }
         return table;
     }
+
+
+    /**
+     * Fetch the content of the JOB table
+     * @param connection
+     * @param filterByUserIdentifier If > 0, will filter the job for a specific user. Administrator see all jobs.
+     * @return Job list
+     * @throws SQLException
+     */
+    public static Map<String, Object> getJob(Connection connection, int jobId) throws SQLException {
+        PreparedStatement statement = connection.prepareStatement("SELECT JOBS.*, USERS.EMAIL FROM JOBS INNER JOIN USERS ON JOBS.PK_USER = USERS.PK_USER WHERE PK_JOB = ?");
+        statement.setInt(1, jobId);
+        DecimalFormat f = (DecimalFormat)(DecimalFormat.getInstance(Locale.ROOT));
+        f.applyPattern("#.### '%'");
+        DateFormat mediumDateFormatEN =
+                new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
+        try (ResultSet rs = statement.executeQuery()) {
+            if (rs.next()) {
+                return parseJob(rs, mediumDateFormatEN, f);
+            }
+        }
+        return Collections.emptyMap();
+    }
+
+    @NotNull
+    private static Map<String, Object> parseJob(ResultSet rs, DateFormat mediumDateFormatEN, DecimalFormat f) throws SQLException {
+        Map<String, Object> row = new HashMap<>();
+        Integer pkJob = rs.getInt("pk_job");
+        row.put("id", pkJob);
+        row.put("script", rs.getString("SCRIPT_ID"));
+        row.put("deletable", Objects.equals(rs.getString("STATUS"), JobStates.COMPLETED.name()) ||
+                Objects.equals(rs.getString("STATUS"), JobStates.FAILED.name()));
+        row.put("cancelable", Objects.equals(rs.getString("STATUS"), JobStates.QUEUED.name()) ||
+                Objects.equals(rs.getString("STATUS"), JobStates.RUNNING.name()));
+        row.put("email", rs.getString("email"));
+        Timestamp bDate = rs.getTimestamp("BEGIN_DATE");
+        row.put("startDate", !rs.wasNull() ? mediumDateFormatEN.format(bDate) : "-");
+        Timestamp eDate = rs.getTimestamp("END_DATE");
+        String endDate = "-";
+        String duration = "-";
+        Duration computationTime = null;
+        if(!rs.wasNull()) {
+            endDate = mediumDateFormatEN.format(eDate);
+            computationTime = Duration.ofMillis(
+                    eDate.getTime()  - bDate.getTime());
+        } else if(bDate != null){
+            computationTime = Duration.ofMillis(
+                    System.currentTimeMillis() - bDate.getTime());
+        }
+        if(computationTime != null) {
+            duration = StringUtilities.durationToString(computationTime);
+        }
+        row.put("endDate", endDate);
+        row.put("duration", duration);
+        row.put("userId", rs.getInt("PK_USER"));
+        row.put("status", rs.getString("STATUS"));
+        row.put("progression", f.format(rs.getDouble("PROGRESSION")));
+        return row;
+    }
+
 }

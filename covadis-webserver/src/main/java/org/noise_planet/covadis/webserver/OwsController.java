@@ -14,6 +14,7 @@ import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
+import io.javalin.http.UnauthorizedResponse;
 import net.opengis.ows11.ExceptionReportType;
 import net.opengis.ows11.ExceptionType;
 import net.opengis.ows11.Ows11Factory;
@@ -25,6 +26,7 @@ import org.geotools.ows.v1_1.OWSConfiguration;
 import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
+import org.jetbrains.annotations.NotNull;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.Job;
 import org.noise_planet.covadis.webserver.script.JobExecutorService;
@@ -50,6 +52,7 @@ import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.h2.server.web.PageParser.escapeHtml;
 
@@ -64,6 +67,7 @@ public class OwsController {
     public static final int CORE_POOL_SIZE = 5;
     public static final int MAXIMUM_POOL_SIZE = 5;
     public static final long KEEP_ALIVE_TIME = 0L;
+    public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -126,6 +130,10 @@ public class OwsController {
     public void reloadScripts() throws IOException {
         Map<String, List<File>> groupedScripts = wpsScriptWrapper.loadScripts();
         wpsScripts = WpsScriptWrapper.buildScriptWrappers(groupedScripts);
+    }
+
+    private static String getBaseURL(Context context) {
+        return Optional.ofNullable((String) context.attribute("baseUrl")).orElse("");
     }
 
     /**
@@ -428,4 +436,31 @@ public class OwsController {
         return dataSource;
     }
 
+    public void jobLogs(@NotNull Context ctx) {
+        try (Connection connection = serverDataSource.getConnection()) {
+            User user = getUserFromContext(ctx, connection);
+            try {
+                int jobId = Integer.parseInt(ctx.pathParam("job_id"));
+                // Parse the current server logs
+                // we could store the logs into the database when the job complete or failed, maybe another time..
+                Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
+                if (user != null && !user.isAdministrator() && Integer.valueOf(user.getIdentifier()) != jobData.get("userId")) {
+                    ctx.render("blank", Map.of(
+                            "redirectUrl", getBaseURL(ctx) + "/job_list",
+                            "message", "Unauthorized access this job id does not belong to you"));
+                }
+                String lastLines = Logging.getLastLines(new File(configuration.workingDirectory,
+                        NoiseModellingServer.LOGGING_FILE_NAME), MAXIMUM_LINES_TO_FETCH, Job.getThreadName(jobId), new AtomicInteger());
+                ctx.render("job_logs", Map.of("jobId", jobId, "rows", lastLines));
+            } catch (NumberFormatException ex) {
+                logger.error("Invalid job id {}", ctx.body(), ex);
+                ctx.render("blank", Map.of(
+                        "redirectUrl", getBaseURL(ctx) + "/job_list",
+                        "message", "Wrong job id parameter"));
+            }
+        } catch (SQLException | IOException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
 }
