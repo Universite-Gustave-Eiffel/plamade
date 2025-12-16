@@ -7,7 +7,7 @@
     <div class="l-box" id="message_div" th:if="${not #lists.isEmpty(messages)}">
         <aside th:each="message : ${messages}"><p th:text="${message}"></p></aside>
     </div>
-    <form class="pure-form pure-form-aligned" th:action="${baseUrl}+'/do_login'" method="POST">
+    <form class="pure-form pure-form-aligned" th:action="@{|/do_login|}" method="POST">
         <fieldset>
             <legend>Open your one-time password manager and fill the generated code (ex: KeePassXC, FreeOTP)</legend>
             <div class="pure-control-group"><label for="EMAIL">E-mail</label>

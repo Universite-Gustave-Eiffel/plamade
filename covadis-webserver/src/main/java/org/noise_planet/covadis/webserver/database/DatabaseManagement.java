@@ -279,7 +279,7 @@ public class DatabaseManagement {
 
         // If no user found with that identifier
         if(!rsUser.next()) {
-            throw new IllegalArgumentException(String.format("User %d not found", userIdentifier));
+            return null;
         }
 
         return getUser(connection, rsUser);

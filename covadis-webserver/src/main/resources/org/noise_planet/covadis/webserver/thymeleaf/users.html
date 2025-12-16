@@ -8,7 +8,7 @@
     <div th:replace="~{menu :: menu}"></div>
     <div id="main" class="content">
         <div class="header"><h1>Manage users</h1>
-            <h2>Create new users and modify existing ones</h2>
+            <h2>Create new users and modify existing ones</h2></div>
             <table class="pure-table pure-table-bordered">
                 <thead>
                 <tr>
@@ -25,7 +25,7 @@
                     <td th:text="${user.dbSize}">15.8 Mb</td>
                     <td th:text="${user.registerUrl}"></td>
                     <td th:text="${user.groups}"></td>
-                    <td><a th:href="@{|${baseUrl}/edit_user/${user.id}|}">Edit</a></td>
+                    <td><a th:href="@{|/edit_user/${user.id}|}">Edit</a></td>
                 </tr>
                 </tbody>
             </table>

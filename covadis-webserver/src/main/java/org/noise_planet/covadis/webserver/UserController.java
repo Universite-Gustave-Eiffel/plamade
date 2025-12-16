@@ -28,6 +28,7 @@ import org.apache.commons.io.FileUtils;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.secure.JWTProvider;
 import org.noise_planet.covadis.webserver.secure.JavalinJWT;
+import org.noise_planet.covadis.webserver.secure.Role;
 import org.noise_planet.covadis.webserver.secure.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -248,6 +249,40 @@ public class UserController {
                 table.add(row);
             }
             ctx.render("users", Map.of("users", table));
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
+
+
+    /**
+     * Render user edit HTML page
+     * @param ctx web context
+     */
+    public void userEdit(Context ctx) {
+        try(Connection connection = serverDataSource.getConnection()) {
+            int userId = Integer.parseInt(ctx.pathParam("userId"));
+            User user = DatabaseManagement.getUser(connection, userId);
+            if(user == null) {
+                String message = "This user does not exist";
+                // redirect the user to the page
+                ctx.render("blank", Map.of(
+                        "redirectUrl", ctx.contextPath() + "/user_list",
+                        "message", message));
+                return;
+            }
+            Map<String, Object> userFields = new HashMap<>();
+            userFields.put("email", user.getEmail());
+            Map<String, Boolean> groups = new HashMap<>();
+            List<Role> userRoles = user.getRoles();
+            for (Role role : Role.values()) {
+                if(role.ordinal() > 0) { // skip anyone
+                    groups.put(role.name(), userRoles.contains(role));
+                }
+            }
+            userFields.put("groups", groups);
+            ctx.render("user_edit", userFields);
         } catch (SQLException e) {
             logger.error(e.getLocalizedMessage(), e);
             throw new InternalServerErrorResponse();

@@ -1,0 +1,37 @@
+<!doctype html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{header :: customHead('Edit registered user')}">
+<body>
+<div id="layout">
+    <div th:replace="~{menu :: menu}"></div>
+    <div id="main" class="content">
+        <div class="header"><h1>Edit user</h1></div>
+        <div class="l-box" id="message_div" th:if="${not #lists.isEmpty(messages)}">
+            <aside th:each="message : ${messages}"><p th:text="${message}"></p></aside>
+        </div>
+        <form class="pure-form pure-form-aligned" action="" method="POST">
+            <fieldset>
+                <legend>User attributes</legend>
+                <div class="pure-control-group">
+                    <label for="USER_EMAIL">E-mail</label>
+                    <input type="text" id="USER_EMAIL" name="USER_EMAIL" th:value="${user.email}"/>
+                </div>
+                <div th:each="entry : ${groups}">
+                    <input type="checkbox"
+                           th:name="${entry.key}"
+                           th:value="${entry.key}"
+                           th:checked="${entry.value}"
+                           id="group-${entry.key}"/>
+                    <span th:text="${entry.key}"></span>
+                </div>
+                <div class="pure-controls">
+                    <button id="addButton" type="submit" class="pure-button pure-button-primary">Update</button>
+                </div>
+            </fieldset>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>
