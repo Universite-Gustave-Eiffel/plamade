@@ -176,7 +176,6 @@ public class Logging {
      * @throws IOException
      */
     public static String getLastLines(File logFile, int maximumLinesToFetch, String threadId, AtomicInteger fetchedLines) throws IOException {
-        boolean match = threadId.isEmpty();
         int pushedLines = 0;
         StringBuilder sbMatch = new StringBuilder();
         final int buffer = 8192;
@@ -201,6 +200,7 @@ public class Logging {
                 if(!remainingLines.isEmpty()) {
                     tailCache = tailCache + remainingLines;
                 }
+                int previousHookLocation = tailCache.length();
                 // Reverse search of end of line into the string buffer
                 lastEndOfLine = tailCache.lastIndexOf("\n");
                 while (lastEndOfLine != -1 && (maximumLinesToFetch == -1 || pushedLines < maximumLinesToFetch)) {
@@ -213,11 +213,17 @@ public class Logging {
                         int firstHook = line.indexOf("[");
                         int lastHook = line.indexOf("]");
                         if (firstHook == 0 && firstHook < lastHook) {
+                            // The line is starting with [xxx]
                             String thread = line.substring(firstHook + 1, lastHook);
-                            match = thread.equals(threadId);
+                            if(thread.equals(threadId) && lastEndOfLine < previousHookLocation) {
+                                // push other lines of this log
+                                String logLines = tailCache.substring(nextEndOfLine + 1, previousHookLocation);
+                                pushedLines += (int) logLines.lines().count();
+                                sbMatch.append(logLines);
+                            }
+                            previousHookLocation = nextEndOfLine + 1;
                         }
-                    }
-                    if(match) {
+                    } else {
                         sbMatch.append(line);
                         sbMatch.append("\n");
                         pushedLines++;
