@@ -10,6 +10,8 @@
 
 package org.noise_planet.covadis.webserver.secure;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class User {
@@ -48,6 +50,22 @@ public class User {
 
     public boolean isAdministrator() {
         return roles.contains(Role.ADMINISTRATOR);
+    }
+
+    public String getRegisterUrl(String protocol, String host, int port, String baseUrl) {
+        return getRegisterUrl(protocol,
+                host,
+                port,
+                baseUrl,
+                URLEncoder.encode(getRegisterToken(), StandardCharsets.UTF_8));
+    }
+    public static String getRegisterUrl(String protocol, String host, int port, String baseUrl, String registerToken) {
+        return String.format("%s://%s:%d/%s/register/%s",
+                protocol,
+                host,
+                port,
+                baseUrl,
+                URLEncoder.encode(registerToken, StandardCharsets.UTF_8));
     }
 }
 

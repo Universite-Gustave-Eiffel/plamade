@@ -24,6 +24,7 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
 import io.javalin.http.util.NaiveRateLimit;
+import org.apache.commons.io.FileUtils;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.secure.JWTProvider;
 import org.noise_planet.covadis.webserver.secure.JavalinJWT;
@@ -35,12 +36,14 @@ import javax.imageio.ImageIO;
 import javax.sql.DataSource;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Handle users management
@@ -53,10 +56,12 @@ public class UserController {
     private final DataSource serverDataSource;
     private final JWTProvider<User> provider;
     private final TOTPService totpService;
+    private final Configuration configuration;
 
-    public UserController(DataSource serverDataSource, JWTProvider<User> provider) {
+    public UserController(DataSource serverDataSource, JWTProvider<User> provider, Configuration configuration) {
         this.serverDataSource = serverDataSource;
         this.provider = provider;
+        this.configuration = configuration;
         TOTPGenerator totpGenerator = new TOTPGenerator();
         TOTPConfiguration totpConfiguration = new TOTPConfiguration();
         totpService = new DefaultTOTPService(totpGenerator, totpConfiguration
@@ -222,4 +227,34 @@ public class UserController {
         }
     }
 
+    /**
+     * Render user list HTML page
+     * @param ctx web context
+     */
+    public void users(Context ctx) {
+        try(Connection connection = serverDataSource.getConnection()) {
+            List<Map<String, Object>> table = new ArrayList<>();
+            List<User> users = DatabaseManagement.getUsers(connection);
+            for(User user : users) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("id", user.getIdentifier());
+                row.put("email", user.getEmail());
+                long size = 0;
+                File databaseFile = new File(configuration.workingDirectory,
+                        OwsController.getDatabaseName(user.getIdentifier()) + ".mv.db");
+                if(databaseFile.exists()) {
+                    size = databaseFile.length();
+                }
+                row.put("dbSize", FileUtils.byteCountToDisplaySize(size));
+                row.put("registerUrl", user.getRegisterUrl("http", "localhost", configuration.getPort(),
+                        configuration.getApplicationRootUrl()));
+                row.put("groups", user.getRoles().stream().map(Enum::name).collect(Collectors.joining(", ")));
+                table.add(row);
+            }
+            ctx.render("users", Map.of("users", table));
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
 }

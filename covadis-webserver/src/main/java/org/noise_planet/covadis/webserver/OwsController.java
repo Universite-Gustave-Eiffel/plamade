@@ -425,8 +425,7 @@ public class OwsController {
         DataSource dataSource = userDataSources.get(userId);
         if (dataSource == null) {
             dataSource = DatabaseManagement.createH2DataSource(
-                configuration.getWorkingDirectory(),
-                String.format("user_%03d", userId),
+                configuration.getWorkingDirectory(), getDatabaseName(userId),
                 "sa",
                 "sa",
                 "",
@@ -434,6 +433,11 @@ public class OwsController {
             userDataSources.put(userId, dataSource);
         }
         return dataSource;
+    }
+
+    @NotNull
+    public static String getDatabaseName(int userId) {
+        return String.format("user_%03d", userId);
     }
 
     public void jobLogs(@NotNull Context ctx) {

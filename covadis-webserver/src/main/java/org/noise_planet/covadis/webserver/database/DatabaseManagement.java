@@ -133,24 +133,21 @@ public class DatabaseManagement {
             // if not create one and print the register url into the console
             if(JDBCUtilities.getRowCount(connection, "USERS") == 0) {
                 // Create an admin account
-                String key = addUser(connection, ADMIN_EMAIL, Role.ADMINISTRATOR, Role.RUNNER);
+                int pkUser = addUser(connection, ADMIN_EMAIL, Role.ADMINISTRATOR, Role.RUNNER);
+                User firstAdmin = DatabaseManagement.getUser(connection, pkUser);
                 Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
-                logger.info("First start of the server, register the Administrator account using this url:\n" +
-                        "http://localhost:{}/{}/register/{}",
-                        configuration.getPort(),
-                        configuration.getApplicationRootUrl(),
-                        URLEncoder.encode(key, StandardCharsets.UTF_8));
+                logger.info("First start of the server, register the Administrator account using this url:\n {}",
+                        firstAdmin.getRegisterUrl("http", "localhost", configuration.getPort(),
+                                configuration.getApplicationRootUrl()));
             } else {
                 // Check if Admin user(id:1) have not yet activating is account
                 User firstAdmin = DatabaseManagement.getUser(connection, 1);
                 if(firstAdmin.isAdministrator() && !firstAdmin.getRegisterToken().isEmpty()) {
                     Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
                     logger.warn("The Administrator account has not been registered yet," +
-                                    " please use this url to create the account:\n" +
-                                    "http://localhost:{}/{}/register/{}",
-                            configuration.getPort(),
-                            configuration.getApplicationRootUrl(),
-                            URLEncoder.encode(firstAdmin.getRegisterToken(), StandardCharsets.UTF_8));
+                                    " please use this url to create the account:\n {}",
+                            firstAdmin.getRegisterUrl("http", "localhost", configuration.getPort(),
+                            configuration.getApplicationRootUrl()));
                 }
             }
         }
@@ -272,8 +269,6 @@ public class DatabaseManagement {
      * @throws SQLException If something wrong happened
      */
     public static User getUser(Connection connection, int userIdentifier) throws SQLException {
-        Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
-
         // Prepare statement to retrieve the specific user and his roles
         String sql = "SELECT * FROM USERS WHERE PK_USER=?";
         PreparedStatement pstUser = connection.prepareStatement(sql);
@@ -287,10 +282,14 @@ public class DatabaseManagement {
             throw new IllegalArgumentException(String.format("User %d not found", userIdentifier));
         }
 
+        return getUser(connection, rsUser);
+    }
+
+    @NotNull
+    private static User getUser(Connection connection, ResultSet rsUser) throws SQLException {
         String email = rsUser.getString("EMAIL");
-
         String registerToken = rsUser.getString("REGISTER_TOKEN");
-
+        int userIdentifier = rsUser.getInt("PK_USER");
         List<String> rolesList = getUserRoles(connection, userIdentifier);  // Retrieve the user's roles
         List<Role> roles = new ArrayList<>();
 
@@ -299,6 +298,7 @@ public class DatabaseManagement {
                 Role role = Role.valueOf(roleName);
                 roles.add(role);
             } catch (IllegalArgumentException ex ) {
+                Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
                 logger.error(ex.getLocalizedMessage(), ex);
             }
         }
@@ -318,7 +318,7 @@ public class DatabaseManagement {
      * @return The token generated for this new user.
      * @throws SQLException If the operation fails to add a user (i.e., no rows are affected in the "USERS" table).
      */
-    public static String addUser(Connection connection, String email, Role... roles) throws SQLException {
+    public static int addUser(Connection connection, String email, Role... roles) throws SQLException {
         String sql = "INSERT INTO USERS (EMAIL, REGISTER_TOKEN) VALUES (?, ?)";
         PreparedStatement pstUser = connection.prepareStatement(sql,
                 Statement.RETURN_GENERATED_KEYS);
@@ -355,7 +355,7 @@ public class DatabaseManagement {
             }
         }
 
-        return urlToken;
+        return userPk;
     }
 
     /**
@@ -544,7 +544,7 @@ public class DatabaseManagement {
     /**
      * Fetch the content of the JOB table
      * @param connection
-     * @param filterByUserIdentifier If > 0, will filter the job for a specific user. Administrator see all jobs.
+     * @param jobId If > 0, will filter the job for a specific user. Administrator see all jobs.
      * @return Job list
      * @throws SQLException
      */
@@ -599,4 +599,13 @@ public class DatabaseManagement {
         return row;
     }
 
+    public static List<User> getUsers(Connection connection) throws SQLException {
+        List<User> table = new ArrayList<>();
+        try(ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM USERS ORDER BY PK_USER")) {
+            while (rs.next()) {
+                table.add(getUser(connection, rs));
+            }
+        }
+        return table;
+    }
 }
