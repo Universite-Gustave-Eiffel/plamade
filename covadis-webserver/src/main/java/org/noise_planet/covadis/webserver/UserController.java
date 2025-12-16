@@ -73,10 +73,6 @@ public class UserController {
         ctx.render("login.html", Map.of("messages", messages));
     }
 
-    private static String getBaseURL(Context context) {
-        return Optional.ofNullable((String) context.attribute("baseUrl")).orElse("");
-    }
-
     public void doLogin(Context ctx ) {
         // brute force protection
         NaiveRateLimit.requestPerTimeUnit(ctx, 5, TimeUnit.MINUTES);
@@ -101,7 +97,7 @@ public class UserController {
                     logger.info("User {} has logged into the system", email);
                     // redirect the user to the page
                     ctx.render("blank", Map.of(
-                            "redirectUrl", getBaseURL(ctx),
+                            "redirectUrl", ctx.contextPath(),
                             "message", "Login successful, you will be redirected to the application"));
                 } else {
                     ctx.attribute("messages", "Invalid email or TOTP code");
@@ -136,7 +132,7 @@ public class UserController {
                     String message = "Account successfully created ! You will be directed to the login page to enter your credentials";
                     // redirect the user to the page
                     ctx.render("blank", Map.of(
-                            "redirectUrl", getBaseURL(ctx) + "/login",
+                            "redirectUrl", ctx.contextPath() + "/login",
                             "message", message));
                 } else {
                     ctx.attribute("messages", "Invalid TOTP code");
@@ -241,7 +237,7 @@ public class UserController {
                 row.put("email", user.getEmail());
                 long size = 0;
                 File databaseFile = new File(configuration.workingDirectory,
-                        OwsController.getDatabaseName(user.getIdentifier()) + ".mv.db");
+                        OwsController.getUserDatabaseName(user.getIdentifier()) + ".mv.db");
                 if(databaseFile.exists()) {
                     size = databaseFile.length();
                 }

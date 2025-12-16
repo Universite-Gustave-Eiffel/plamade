@@ -14,7 +14,6 @@ import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
-import io.javalin.http.UnauthorizedResponse;
 import net.opengis.ows11.ExceptionReportType;
 import net.opengis.ows11.ExceptionType;
 import net.opengis.ows11.Ows11Factory;
@@ -130,10 +129,6 @@ public class OwsController {
     public void reloadScripts() throws IOException {
         Map<String, List<File>> groupedScripts = wpsScriptWrapper.loadScripts();
         wpsScripts = WpsScriptWrapper.buildScriptWrappers(groupedScripts);
-    }
-
-    private static String getBaseURL(Context context) {
-        return Optional.ofNullable((String) context.attribute("baseUrl")).orElse("");
     }
 
     /**
@@ -425,7 +420,7 @@ public class OwsController {
         DataSource dataSource = userDataSources.get(userId);
         if (dataSource == null) {
             dataSource = DatabaseManagement.createH2DataSource(
-                configuration.getWorkingDirectory(), getDatabaseName(userId),
+                configuration.getWorkingDirectory(), getUserDatabaseName(userId),
                 "sa",
                 "sa",
                 "",
@@ -436,7 +431,7 @@ public class OwsController {
     }
 
     @NotNull
-    public static String getDatabaseName(int userId) {
+    public static String getUserDatabaseName(int userId) {
         return String.format("user_%03d", userId);
     }
 
@@ -450,7 +445,7 @@ public class OwsController {
                 Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
                 if (user != null && !user.isAdministrator() && Integer.valueOf(user.getIdentifier()) != jobData.get("userId")) {
                     ctx.render("blank", Map.of(
-                            "redirectUrl", getBaseURL(ctx) + "/job_list",
+                            "redirectUrl", ctx.contextPath() + "/job_list",
                             "message", "Unauthorized access this job id does not belong to you"));
                 }
                 String lastLines = Logging.getLastLines(new File(configuration.workingDirectory,
@@ -459,7 +454,7 @@ public class OwsController {
             } catch (NumberFormatException ex) {
                 logger.error("Invalid job id {}", ctx.body(), ex);
                 ctx.render("blank", Map.of(
-                        "redirectUrl", getBaseURL(ctx) + "/job_list",
+                        "redirectUrl", ctx.contextPath() + "/job_list",
                         "message", "Wrong job id parameter"));
             }
         } catch (SQLException | IOException e) {

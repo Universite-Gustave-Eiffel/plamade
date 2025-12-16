@@ -2,21 +2,21 @@
     <span class="pure-menu-heading">Jobs</span>
     <ul class="pure-menu-list">
         <li class="pure-menu-item">
-            <a th:href="${baseUrl}+'/builder'" class="pure-menu-link">Builder</a>
-            <a th:href="${baseUrl}+'/job_list'" class="pure-menu-link">Job list</a>
+            <a th:href="@{|/builder|}" class="pure-menu-link">Builder</a>
+            <a th:href="@{|/job_list|}" class="pure-menu-link">Job list</a>
         </li>
     </ul>
     <div th:if="${user.isAdministrator()}">
         <span class="pure-menu-heading">Administration</span>
         <ul class="pure-menu-list">
             <li class="pure-menu-item">
-                <a th:href="${baseUrl}+'/user_list'" class="pure-menu-link">Manage users</a>
+                <a th:href="@{|/users|}" class="pure-menu-link">Manage users</a>
             </li>
         </ul>
     </div>
     <ul class="pure-menu-list">
         <li class="pure-menu-item">
-            <a th:href="${baseUrl}+'/logout'" class="pure-menu-link">Logout</a>
+            <a th:href="@{|/logout|}" class="pure-menu-link">Logout</a>
         </li>
     </ul>
 </div>

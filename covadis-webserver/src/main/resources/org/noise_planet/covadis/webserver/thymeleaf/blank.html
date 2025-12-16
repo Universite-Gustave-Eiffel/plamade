@@ -3,11 +3,12 @@
     <head>
         <meta charset="UTF-8"/>
         <meta name="viewport" content="width=device-width"/>
-        <meta http-equiv="refresh"  th:if="${redirectUrl}" th:content="'3; URL=' + @{${redirectUrl}}"/>
+        <meta http-equiv="refresh"  th:if="${redirectUrl}" th:content="@{|3;url=${redirectUrl}|}"/>
         <title data-react-helmet="true">Plamade computation platform</title>
         <link rel="shortcut icon" th:href="@{|${baseUrl}/favicon.ico|}" type="image/png"/>
-        <link rel="stylesheet" th:href="@{|${baseUrl}/css/pure-min.css|}"/>
-        <link rel="stylesheet" th:href="@{|${baseUrl}/css/pure-custom.css|}"/>
+        <link rel="stylesheet" th:href="@{|/css/pure-min.css|}"/>
+        <link rel="stylesheet" th:href="@{|/css/pure-custom.css|}"/>
+        <link rel="stylesheet" th:href="@{|/css/app.css|}"/>
     </head>
     <body>
         <div class="header"><h1>Notification</h1>

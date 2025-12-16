@@ -53,6 +53,8 @@ public class User {
     }
 
     public String getRegisterUrl(String protocol, String host, int port, String baseUrl) {
+        if(registerToken.isEmpty())
+            return "";
         return getRegisterUrl(protocol,
                 host,
                 port,

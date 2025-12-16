@@ -140,15 +140,16 @@ public class NoiseModellingServer {
      */
     private void configureApp(String rootPath) {
         app = Javalin.create(config -> {
+            config.router.contextPath = rootPath;
             config.staticFiles.add(staticFileConfig -> {
                 staticFileConfig.location = Location.EXTERNAL;
-                staticFileConfig.hostedPath = rootPath + "/builder";
+                staticFileConfig.hostedPath = "/builder";
                 staticFileConfig.directory = Objects.requireNonNull(NoiseModellingServer.class.getResource("static/wpsbuilder/")).getFile();
                 staticFileConfig.roles = configuration.unsecure ? Set.of(Role.ANYONE) : Set.of(Role.RUNNER);
             });
             config.staticFiles.add(staticFileConfig -> {
                 staticFileConfig.location = Location.EXTERNAL;
-                staticFileConfig.hostedPath = rootPath;
+                staticFileConfig.hostedPath = "/";
                 staticFileConfig.directory = Objects.requireNonNull(NoiseModellingServer.class.getResource("static/root/")).getFile();
                 staticFileConfig.roles = Set.of(Role.ANYONE);
             });
@@ -166,40 +167,32 @@ public class NoiseModellingServer {
         RouteRole[] secureRunnerRouteRoles = new RouteRole[]{configuration.unsecure ? Role.ANYONE : Role.RUNNER};
 
         app.before(decodeHandler);
-        // Provide the application path to all thymeleaf templates
-        app.before(ctx -> {ctx.attribute("baseUrl", rootPath);});
         app.beforeMatched(new Auth(provider, serverDataSource)::handleAccess);
 
-        app.get(rootPath + "/builder/ows", owsController::handleGet, secureRunnerRouteRoles);
-        app.post(rootPath + "/builder/ows", owsController::handleWPSPost, secureRunnerRouteRoles);
-        app.get(rootPath + "/job_list", owsController::jobList, secureRunnerRouteRoles);
-        app.get(rootPath + "/job_logs/{job_id}", owsController::jobLogs, secureRunnerRouteRoles);
+        app.get("/builder/ows", owsController::handleGet, secureRunnerRouteRoles);
+        app.post("/builder/ows", owsController::handleWPSPost, secureRunnerRouteRoles);
+        app.get("/job_list", owsController::jobList, secureRunnerRouteRoles);
+        app.get("/job_logs/{job_id}", owsController::jobLogs, secureRunnerRouteRoles);
 
-        if(!rootPath.equals("/")) {
-            app.get("/", ctx -> {
-                ctx.redirect(rootPath, HttpStatus.PERMANENT_REDIRECT);
-            }, Role.ANYONE);
-        }
-        app.get(rootPath + "/login", userController::login, Role.ANYONE);
-        app.post(rootPath + "/do_login", userController::doLogin, Role.ANYONE);
-        app.get(rootPath + "/register/{token}", userController::register, Role.ANYONE);
-        app.post(rootPath + "/do_register/{token}", userController::doRegister, Role.ANYONE);
-
-
+        app.get("/login", userController::login, Role.ANYONE);
+        app.post("/do_login", userController::doLogin, Role.ANYONE);
+        app.get("/register/{token}", userController::register, Role.ANYONE);
+        app.post("/do_register/{token}", userController::doRegister, Role.ANYONE);
+        app.get("/users", userController::users, Role.ADMINISTRATOR);
 
         // Exception rendering Handling
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {
             String message = ctx.attributeMap().getOrDefault("messages", "").toString();
             // redirect the user to the login page
             ctx.render("blank", Map.of(
-                    "redirectUrl", rootPath + "/login",
+                    "redirectUrl", ctx.contextPath()+"/login",
                     "message", message));
         });
         app.error(HttpStatus.NOT_FOUND, ctx -> {
             logger.info("404 not found on {}", ctx.req().getRequestURI());
             // redirect the user to the login page
             ctx.render("blank", Map.of(
-                    "redirectUrl", rootPath,
+                    "redirectUrl", ctx.contextPath(),
                     "message", "This page does not exists, redirecting to home.."));
         });
     }

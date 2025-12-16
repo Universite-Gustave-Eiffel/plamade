@@ -24,7 +24,7 @@
                     <td th:text="'👤 '+${user.email}"><a th:href=""></a></td>
                     <td th:text="${user.dbSize}">15.8 Mb</td>
                     <td th:text="${user.registerUrl}"></td>
-                    <td th:text="${user.groups)"></td>
+                    <td th:text="${user.groups}"></td>
                     <td><a th:href="@{|${baseUrl}/edit_user/${user.id}|}">Edit</a></td>
                 </tr>
                 </tbody>
