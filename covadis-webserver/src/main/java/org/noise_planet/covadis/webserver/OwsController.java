@@ -430,7 +430,7 @@ public class OwsController {
                 Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
                 if (user != null && !user.isAdministrator() && Integer.valueOf(user.getIdentifier()) != jobData.get("userId")) {
                     ctx.render("blank", Map.of(
-                            "redirectUrl", ctx.contextPath() + "/job_list",
+                            "redirectUrl", ctx.contextPath() + "/jobs",
                             "message", "Unauthorized access this job id does not belong to you"));
                 }
                 String lastLines = Logging.getLastLines(new File(configuration.workingDirectory,
@@ -439,7 +439,7 @@ public class OwsController {
             } catch (NumberFormatException ex) {
                 logger.error("Invalid job id {}", ctx.body(), ex);
                 ctx.render("blank", Map.of(
-                        "redirectUrl", ctx.contextPath() + "/job_list",
+                        "redirectUrl", ctx.contextPath() + "/jobs",
                         "message", "Wrong job id parameter"));
             }
         } catch (SQLException | IOException e) {

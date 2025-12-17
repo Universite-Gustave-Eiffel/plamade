@@ -61,28 +61,24 @@
                 </tr>
                 </tbody>
             </table>
-            <form class="pure-form pure-g" action="" method="POST">
+            <div class="pure-g">
                 <div class="pure-u-1-2 centered">
-                    <button th:disabled="${!job.cancelable}" type="submit" class="pure-button pure-button-primary">
-                        Cancel
-                    </button>
+                    <form class="pure-form" th:action="@{|/jobs/cancel/{$job.id}|}" method="POST">
+                        <button th:disabled="${!job.cancelable}" type="submit" class="pure-button pure-button-primary">
+                            Cancel
+                        </button>
+                    </form>
                 </div>
                 <div class="pure-u-1-2 centered">
-                    <button th:disabled="${!job.deletable}" type="submit" class="pure-button pure-button-primary">
-                        Delete
-                    </button>
+                    <form class="pure-form" th:action="@{|/jobs/delete/{$job.id}|}" method="POST">
+                        <button th:disabled="${!job.deletable}" type="submit" class="pure-button pure-button-primary">
+                            Delete
+                        </button>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
-
-<script type="module">
-    import initCheckboxToggle from './js/job_list.js'; // Adjust the path as needed
-
-    document.addEventListener("DOMContentLoaded", function () {
-        initCheckboxToggle();
-    });
-</script>
 </body>
 </html>

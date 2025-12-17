@@ -311,7 +311,7 @@ Hides the menu at `48em`, but modify this based on your app's needs.
     }
 }
 
-.pure-form .centered {
+.pure-g .centered {
     text-align: center;
     margin-top: 1em;
     margin-bottom: 0.5em;

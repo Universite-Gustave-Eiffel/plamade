@@ -3,7 +3,7 @@
     <ul class="pure-menu-list">
         <li class="pure-menu-item">
             <a th:href="@{|/builder|}" class="pure-menu-link">Builder</a>
-            <a th:href="@{|/job_list|}" class="pure-menu-link">Job list</a>
+            <a th:href="@{|/jobs|}" class="pure-menu-link">Job list</a>
         </li>
     </ul>
     <div th:if="${user != null && user.isAdministrator()}">
