@@ -34,3 +34,9 @@ pre {
     word-wrap: break-word;       /* Internet Explorer 5.5+ */
 }
 
+.job-table-container {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 0.5em;
+    background: #fafafa;
+}
