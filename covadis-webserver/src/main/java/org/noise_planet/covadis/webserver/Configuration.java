@@ -24,9 +24,10 @@ import java.util.Map;
 public class Configuration {
     public static final int DEFAULT_PORT = 8000;
     public static final String DEFAULT_APPLICATION_URL = "nmcovadis";
+    /** Application context url */
     String applicationRootUrl = DEFAULT_APPLICATION_URL;
     String scriptPath = "scripts";
-    boolean unsecure = false;
+    final boolean unsecure;
     boolean skipOpenBrowser = false;
     String workingDirectory;
     // secureBase is the h2 database that store web application critical data
@@ -36,6 +37,11 @@ public class Configuration {
     String secureBaseAdminPassword = "sa";
     int port = DEFAULT_PORT;
     Map<String, Object> customConfiguration = new HashMap<String, Object>();
+
+
+    public Configuration(boolean unsecure) {
+        this.unsecure = unsecure;
+    }
 
     /**
      * Creates a Configuration object from command-line arguments (backward compatible entry point).
@@ -96,7 +102,6 @@ public class Configuration {
      */
     public static Configuration createConfigurationFromCommandLine(String[] args, Options options)
             throws IllegalArgumentException {
-        Configuration config = new Configuration();
 
         Logger logger = LoggerFactory.getLogger(Configuration.class.getName());
         CommandLineParser commandLineParser = new DefaultParser();
@@ -104,12 +109,10 @@ public class Configuration {
                 .setPrintWriter(new PrintWriter(new LoggerWriter(logger))).get();
         try {
             CommandLine commandLine = commandLineParser.parse(options, args, true);
+            Configuration config = new Configuration(commandLine.hasOption("u"));
             // Map options to fields
             if (commandLine.hasOption("s")) {
                 config.scriptPath = commandLine.getOptionValue("s");
-            }
-            if (commandLine.hasOption("u")) {
-                config.unsecure = true;
             }
             if (commandLine.hasOption("w")) {
                 config.workingDirectory = commandLine.getOptionValue("w");
@@ -126,100 +129,12 @@ public class Configuration {
             if (commandLine.hasOption("b")) {
                 config.skipOpenBrowser = true;
             }
+            return config;
         } catch (ParseException ex) {
             helpFormatter.printHelp("NoiseModelling Script Runner", options);
             throw new IllegalArgumentException(ex.getMessage());
         }
-        return config;
     }
-
-    /**
-     * Creates a Configuration object from a JSON-like document represented as a Map.
-     * Keys must use the long option names only (short names are reserved for CLI parsing).
-     * Required flags from the provided {@link Options} instance are enforced.
-     *
-     * Supported keys:
-     * - script: String
-     * - working-dir: String
-     * - unsecure: boolean
-     * - print-version: boolean
-     *
-     * @param values  map containing configuration values (e.g., result of JSON parsing)
-     * @param options options definition specifying required fields
-     * @return Configuration configured from provided values
-     * @throws IllegalArgumentException if a required option is missing
-     */
-    public static Configuration createConfigurationFromJson(Map<String, Object> values, Options options)
-            throws IllegalArgumentException {
-        Configuration config = new Configuration();
-
-        // Helper to read by long name only (no short names for JSON)
-        java.util.function.Function<Option, Object> getValue = (opt) -> {
-            String longName = opt.getLongOpt();
-            if (longName != null && values.containsKey(longName)) {
-                return values.get(longName);
-            }
-            return null;
-        };
-
-        // Enforce required options
-        for (Object o : options.getOptions()) {
-            Option opt = (Option) o;
-            if (opt.isRequired()) {
-                Object v = getValue.apply(opt);
-                if (v == null) {
-                    String name = opt.getLongOpt() != null ? opt.getLongOpt() : opt.getOpt();
-                    throw new IllegalArgumentException("Missing required configuration option: " + name);
-                }
-            }
-        }
-
-        // Map known options using long names only
-        Object vScript = values.get("script");
-        if (vScript instanceof String) {
-            config.scriptPath = (String) vScript;
-        }
-        Object vWork = values.get("working-dir");
-        if (vWork instanceof String) {
-            config.workingDirectory = (String) vWork;
-        }
-        Object vUnsecure = values.get("unsecure");
-        if (vUnsecure != null) {
-            config.unsecure = parseBoolean(vUnsecure);
-        }
-        Object vSecureBaseEncryptionSecret = values.remove("encryption-secret");
-        if (vSecureBaseEncryptionSecret != null) {
-            config.secureBaseEncryptionSecret = vSecureBaseEncryptionSecret.toString();
-        }
-        Object vApplicationRootUrl = values.get("root-url");
-        if (vApplicationRootUrl instanceof String) {
-            config.applicationRootUrl = (String) vApplicationRootUrl;
-        }
-        Object vPort = values.get("port");
-        if (vPort instanceof Integer || vPort instanceof Long) {
-            config.port = (int) vPort;
-        }
-        Object vSkipBrowser = values.get("browser-skip");
-        if (vUnsecure != null) {
-            config.skipOpenBrowser = parseBoolean(vSkipBrowser);
-        }
-        config.customConfiguration = values;
-        return config;
-    }
-
-    private static boolean parseBoolean(Object value) {
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        }
-        if (value instanceof String) {
-            return Boolean.parseBoolean((String) value);
-        }
-        if (value instanceof Number) {
-            return ((Number) value).intValue() != 0;
-        }
-        return false;
-    }
-
 
     /**
      * A Writer implementation that redirects output to an SLF4J Logger instance.
@@ -328,15 +243,6 @@ public class Configuration {
      */
     public boolean isUnsecure() {
         return unsecure;
-    }
-
-    /**
-     * Sets the unsecure mode flag.
-     *
-     * @param unsecure true to enable unsecure mode, false to disable
-     */
-    public void setUnsecure(boolean unsecure) {
-        this.unsecure = unsecure;
     }
 
     /**

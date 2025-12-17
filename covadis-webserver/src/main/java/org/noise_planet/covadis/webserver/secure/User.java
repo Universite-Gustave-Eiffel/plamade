@@ -13,10 +13,11 @@ package org.noise_planet.covadis.webserver.secure;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 
 public class User {
 
-    public User(int identifier, String email, List<Role> roles, String registerToken) {
+    public User(int identifier, String email, Set<Role> roles, String registerToken) {
         this.identifier = identifier;
         this.email = email;
         this.roles = roles;
@@ -28,7 +29,7 @@ public class User {
     /** User email or name */
     String email;
     /** User roles/rights */
-    List<Role> roles;
+    Set<Role> roles;
     /** User register link token, user cannot be authenticated if it is not empty */
     String registerToken;
 
@@ -36,7 +37,7 @@ public class User {
         return registerToken;
     }
 
-    public List<Role> getRoles() {
+    public Set<Role> getRoles() {
         return roles;
     }
 

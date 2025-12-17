@@ -82,8 +82,7 @@ class NoiseModellingServerHttpTest {
     public void setUp(@TempDir Path temporaryDirectory) throws IOException, SQLException {
         PropertyConfigurator.configure(
                 Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("test/log4j.properties")));
-        Configuration configuration = new Configuration();
-        configuration.setUnsecure(true);
+        Configuration configuration = new Configuration(true);
         configuration.setWorkingDirectory(temporaryDirectory.toString());
         app = new NoiseModellingServer(configuration);
         app.startServer(false);

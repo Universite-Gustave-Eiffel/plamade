@@ -26,10 +26,7 @@ import io.javalin.http.InternalServerErrorResponse;
 import io.javalin.http.util.NaiveRateLimit;
 import org.apache.commons.io.FileUtils;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
-import org.noise_planet.covadis.webserver.secure.JWTProvider;
-import org.noise_planet.covadis.webserver.secure.JavalinJWT;
-import org.noise_planet.covadis.webserver.secure.Role;
-import org.noise_planet.covadis.webserver.secure.User;
+import org.noise_planet.covadis.webserver.secure.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +69,16 @@ public class UserController {
     public void login(Context ctx ) {
         List<String> messages = readMessagesArg(ctx);
         ctx.render("login.html", Map.of("messages", messages));
+    }
+
+    public void index(Context ctx ) throws SQLException {
+        Map<String, Object> data = new HashMap<>();
+        // not a restricted area so we do not have access to the user in the attributes
+        User user = Auth.getUserFromContext(ctx, serverDataSource, provider);
+        if(user != null) {
+            data.put("user", user);
+        }
+        ctx.render("index.html", data);
     }
 
     public void doLogin(Context ctx ) {
@@ -248,7 +255,7 @@ public class UserController {
                 row.put("groups", user.getRoles().stream().map(Enum::name).collect(Collectors.joining(", ")));
                 table.add(row);
             }
-            ctx.render("users", Map.of("users", table));
+            ctx.render("users", Map.of("accounts", table));
         } catch (SQLException e) {
             logger.error(e.getLocalizedMessage(), e);
             throw new InternalServerErrorResponse();
@@ -275,7 +282,7 @@ public class UserController {
             Map<String, Object> userFields = new HashMap<>();
             userFields.put("email", user.getEmail());
             Map<String, Boolean> groups = new HashMap<>();
-            List<Role> userRoles = user.getRoles();
+            Set<Role> userRoles = user.getRoles();
             for (Role role : Role.values()) {
                 if(role.ordinal() > 0) { // skip anyone
                     groups.put(role.name(), userRoles.contains(role));

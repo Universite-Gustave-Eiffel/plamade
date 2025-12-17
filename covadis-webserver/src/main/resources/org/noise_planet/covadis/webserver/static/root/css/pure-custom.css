@@ -271,7 +271,7 @@ Hides the menu at `48em`, but modify this based on your app's needs.
 
 .splash {
     /* absolute center .splash within .splash-container */
-    width: 80%;
+    width: 60%;
     height: 50%;
     margin: auto;
     position: absolute;

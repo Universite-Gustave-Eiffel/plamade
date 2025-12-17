@@ -291,7 +291,7 @@ public class DatabaseManagement {
         String registerToken = rsUser.getString("REGISTER_TOKEN");
         int userIdentifier = rsUser.getInt("PK_USER");
         List<String> rolesList = getUserRoles(connection, userIdentifier);  // Retrieve the user's roles
-        List<Role> roles = new ArrayList<>();
+        Set<Role> roles = new HashSet<>();
 
         for (String roleName : rolesList) {
             try {
@@ -607,5 +607,50 @@ public class DatabaseManagement {
             }
         }
         return table;
+    }
+
+    /**
+     * Updates the user attributes (email, totp token) in the database.
+     *
+     * @param connection The database connection object.
+     * @param user New attributes for the user.
+     * @throws SQLException If there's an error executing the SQL update or if no rows were affected,
+     * indicating that no user with the given identifier was found in the database.
+     */
+    public static void updateUserAttributes(Connection connection, User user) throws SQLException {
+        // Use an UPDATE query to set the new TOTP token and clear the registerToken field for the specified user.
+        String sql = "UPDATE USERS SET EMAIL = ?, REGISTER_TOKEN = ? WHERE PK_USER = ?";
+
+        try(PreparedStatement pstUser = connection.prepareStatement(sql)) {
+            // Set the parameters of the SQL statement
+            pstUser.setString(1, user.getEmail());
+            pstUser.setString(2, user.getRegisterToken());
+            pstUser.setInt(3, user.getIdentifier());
+
+            // Execute the statement and get the result
+            int rowsAffected = pstUser.executeUpdate();
+
+            if (rowsAffected == 0) {
+                throw new SQLException("Failed to update user with PK_USER: " + user.getIdentifier());
+            }
+        }
+        // Update groups
+
+        sql = "DELETE FROM ROLES WHERE PK_USER = ?";
+        try(PreparedStatement pstUser = connection.prepareStatement(sql)) {
+            pstUser.setInt(1, user.getIdentifier());
+            pstUser.executeUpdate();
+        }
+
+        sql = "INSERT INTO ROLES (PK_USER, ROLE) VALUES (?, ?)";
+        try(PreparedStatement pstUser = connection.prepareStatement(sql)) {
+            for (Role role : user.getRoles()) {
+                pstUser.setInt(1, user.getIdentifier());
+                pstUser.setString(2, role.toString());
+                pstUser.addBatch();
+            }
+            pstUser.executeUpdate();
+        }
+
     }
 }

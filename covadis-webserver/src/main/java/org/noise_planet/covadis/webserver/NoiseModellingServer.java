@@ -127,7 +127,7 @@ public class NoiseModellingServer {
 
         app.start(configuration.port);
 
-        String url = "http://localhost:" + configuration.port + "/";
+        String url = "http://localhost:" + configuration.port + "/" + configuration.applicationRootUrl;
 
         if (openBrowser) {
             openBrowser(url);
@@ -164,22 +164,22 @@ public class NoiseModellingServer {
          */
         Handler decodeHandler = JavalinJWT.createCookieDecodeHandler(provider);
 
-        RouteRole[] secureRunnerRouteRoles = new RouteRole[]{configuration.unsecure ? Role.ANYONE : Role.RUNNER};
-
         app.before(decodeHandler);
-        app.beforeMatched(new Auth(provider, serverDataSource)::handleAccess);
+        app.beforeMatched(new Auth(provider, serverDataSource, configuration)::handleAccess);
 
-        app.get("/builder/ows", owsController::handleGet, secureRunnerRouteRoles);
-        app.post("/builder/ows", owsController::handleWPSPost, secureRunnerRouteRoles);
-        app.get("/job_list", owsController::jobList, secureRunnerRouteRoles);
-        app.get("/job_logs/{job_id}", owsController::jobLogs, secureRunnerRouteRoles);
+        app.get("/builder/ows", owsController::handleGet, Role.RUNNER);
+        app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
+        app.get("/job_list", owsController::jobList, Role.RUNNER);
+        app.get("/job_logs/{job_id}", owsController::jobLogs, Role.RUNNER);
 
+        app.get("/", userController::index, Role.ANYONE);
         app.get("/login", userController::login, Role.ANYONE);
         app.post("/do_login", userController::doLogin, Role.ANYONE);
         app.get("/register/{token}", userController::register, Role.ANYONE);
         app.post("/do_register/{token}", userController::doRegister, Role.ANYONE);
         app.get("/users", userController::users, Role.ADMINISTRATOR);
-        app.get("/edit_user/{userId}", userController::userEdit, Role.ADMINISTRATOR);
+        app.get("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
+        app.post("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
 
         // Exception rendering Handling
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {

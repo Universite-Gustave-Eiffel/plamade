@@ -299,28 +299,13 @@ public class OwsController {
     }
 
     /**
-     *
-     * @param ctx
-     * @param serverConnection
-     * @return User or null if not connected
-     * @throws SQLException
-     */
-    private User getUserFromContext(Context ctx, Connection serverConnection) throws SQLException {
-        int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
-        if(userId > 0) {
-            return DatabaseManagement.getUser(serverConnection, userId);
-        }
-        return null;
-    }
-
-    /**
      * Render job list HTML page
      * @param ctx web context
      */
     public void jobList(Context ctx) {
         try(Connection connection = serverDataSource.getConnection()) {
             int userIdFilter = -1;
-            User user = getUserFromContext(ctx, connection);
+            User user = ctx.attribute("user");
             if(user != null && !user.isAdministrator()) {
                 userIdFilter = user.getIdentifier();
             }
@@ -437,7 +422,7 @@ public class OwsController {
 
     public void jobLogs(@NotNull Context ctx) {
         try (Connection connection = serverDataSource.getConnection()) {
-            User user = getUserFromContext(ctx, connection);
+            User user = ctx.attribute("user");
             try {
                 int jobId = Integer.parseInt(ctx.pathParam("job_id"));
                 // Parse the current server logs

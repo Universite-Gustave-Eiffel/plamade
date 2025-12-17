@@ -6,7 +6,7 @@
             <a th:href="@{|/job_list|}" class="pure-menu-link">Job list</a>
         </li>
     </ul>
-    <div th:if="${user.isAdministrator()}">
+    <div th:if="${user != null && user.isAdministrator()}">
         <span class="pure-menu-heading">Administration</span>
         <ul class="pure-menu-list">
             <li class="pure-menu-item">

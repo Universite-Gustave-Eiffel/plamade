@@ -10,11 +10,18 @@ package org.noise_planet.covadis.webserver.secure;
 
 import io.javalin.http.Context;
 import io.javalin.http.UnauthorizedResponse;
+import org.noise_planet.covadis.webserver.Configuration;
 import org.noise_planet.covadis.webserver.UserController;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 
 /**
  * Handle auth
@@ -22,10 +29,29 @@ import java.sql.SQLException;
 public class Auth {
     JWTProvider<User> provider;
     DataSource serverDataSource;
+    Configuration configuration;
+    Logger logger = LoggerFactory.getLogger(Auth.class);
 
-    public Auth(JWTProvider<User> provider, DataSource serverDataSource) {
+    public Auth(JWTProvider<User> provider, DataSource serverDataSource, Configuration configuration) {
         this.provider = provider;
         this.serverDataSource = serverDataSource;
+        this.configuration = configuration;
+    }
+
+    /**
+     *
+     * @param ctx Javalin Web context
+     * @param serverDataSource server database connection
+     * @return User or null if not connected
+     * @throws SQLException JDBC exception
+     */
+    public static User getUserFromContext(Context ctx, DataSource serverDataSource,
+                                          JWTProvider<User> provider) throws SQLException {
+        int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
+        if(userId > 0) {
+            return DatabaseManagement.getUser(serverDataSource, userId);
+        }
+        return null;
     }
 
     /**
@@ -35,6 +61,11 @@ public class Auth {
      */
     public void handleAccess(Context ctx) {
         var permittedRoles = ctx.routeRoles();
+        if(configuration.isUnsecure()) {
+            ctx.attribute("user", new User(1, DatabaseManagement.ADMIN_EMAIL,
+                    new HashSet<>(Arrays.asList(Role.values())), ""));
+            return; // anyone can access
+        }
         if (permittedRoles.contains(Role.ANYONE)) {
             return; // anyone can access
         }
@@ -48,13 +79,14 @@ public class Auth {
                     // User must validate the new TOTP code to be able to log in
                     ctx.attribute("messages",
                             String.format("Unauthorized access <a href=\"%s\">please login</a> before proceeding",
-                                    ctx.attribute("baseUrl")+"/login"));
+                                    ctx.contextPath()+"/login"));
                     throw new UnauthorizedResponse();
                 }
                 if (user.roles.stream().noneMatch(permittedRoles::contains)) {
                     ctx.attribute("messages", "You do not have the minimal authorization access to see this page");
                     throw new UnauthorizedResponse();
                 }
+                // Give access to the user to thymeleaf and controllers
                 ctx.attribute("user", user);
             } catch (SQLException e) {
                 ctx.attribute("messages", "Exception while authenticating the user");
@@ -63,7 +95,7 @@ public class Auth {
         } else {
             ctx.attribute("messages",
                     String.format("Unauthorized access <a href=\"%s\">please login</a> before proceeding",
-                            ctx.attribute("baseUrl")+"/login"));
+                            ctx.contextPath()+"/login"));
             throw new UnauthorizedResponse();
         }
     }
