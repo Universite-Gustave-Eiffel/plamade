@@ -178,6 +178,7 @@ public class NoiseModellingServer {
         app.get("/register/{token}", userController::register, Role.ANYONE);
         app.post("/do_register/{token}", userController::doRegister, Role.ANYONE);
         app.get("/users", userController::users, Role.ADMINISTRATOR);
+        app.post("/users", userController::users, Role.ADMINISTRATOR);
         app.get("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
         app.post("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
 

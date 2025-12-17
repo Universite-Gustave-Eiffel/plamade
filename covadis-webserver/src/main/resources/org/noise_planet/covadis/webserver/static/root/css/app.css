@@ -40,3 +40,12 @@ pre {
     padding: 0.5em;
     background: #fafafa;
 }
+
+figcaption {
+    font-size: 0.8em;
+    margin: 0;
+    line-height: 0;
+    text-align: center;
+    color: #777;
+    white-space: nowrap;
+}

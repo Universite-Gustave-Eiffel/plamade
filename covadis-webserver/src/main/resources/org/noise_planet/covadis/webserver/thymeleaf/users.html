@@ -8,7 +8,11 @@
     <div th:replace="~{menu :: menu}"></div>
     <div id="main" class="content">
         <div class="header"><h1>Manage accounts</h1>
-            <h2>Create new accounts and modify existing ones</h2></div>
+            <h2>Create new accounts and modify existing ones</h2>
+        </div>
+        <div class="l-box" id="message_div" th:if="${not #strings.isEmpty(message)}">
+            <aside><div th:remove="tag" th:utext="${message}"></div></aside>
+        </div>
             <table class="pure-table pure-table-bordered">
                 <thead>
                 <tr>
@@ -29,6 +33,19 @@
                 </tr>
                 </tbody>
             </table>
+        <div class="pure-u-1"></div>
+            <form class="pure-form" method="POST" action="">
+                <fieldset class="centered">
+                    <legend>Create a new user</legend>
+                    <input type="email" placeholder="Email" name="USER_EMAIL" required/>
+                        <label th:each="entry : ${groups}"  th:for="'ROLE_'+${entry.key}" >
+                        <input type="checkbox"
+                               th:name="'ROLE_'+${entry.key}"
+                               th:checked="${entry.value}"
+                               th:id="'ROLE_'+${entry.key}" th:text="${entry.key}"/></label>
+                    <button type="submit" class="pure-button pure-button-primary">Add</button>
+                </fieldset>
+            </form>
         </div>
     </div>
 </div>

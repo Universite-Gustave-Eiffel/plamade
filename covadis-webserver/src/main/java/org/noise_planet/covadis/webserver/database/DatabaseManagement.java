@@ -649,8 +649,21 @@ public class DatabaseManagement {
                 pstUser.setString(2, role.toString());
                 pstUser.addBatch();
             }
-            pstUser.executeUpdate();
+            if(!user.getRoles().isEmpty()) {
+                pstUser.executeBatch();
+            }
         }
 
+    }
+
+    public static void deleteUser(Connection connection, int userIdentifier) throws SQLException{
+        if(userIdentifier > 1) {
+            // delete user by cascading to deletion
+            String sql = "DELETE FROM USERS WHERE PK_USER = ?";
+            try(PreparedStatement pstUser = connection.prepareStatement(sql)) {
+                pstUser.setInt(1, userIdentifier);
+                pstUser.executeUpdate();
+            }
+        }
     }
 }

@@ -23,10 +23,9 @@
                 <div th:each="entry : ${groups}" class="pure-control-group">
                     <label th:for="${entry.key}" th:text="${entry.key}"></label>
                     <input type="checkbox"
-                           th:name="${entry.key}"
-                           th:value="${entry.key}"
+                           th:name="'ROLE_'+${entry.key}"
                            th:checked="${entry.value}"
-                           th:id="${entry.key}"/>
+                           th:id="'ROLE_'+${entry.key}"/>
                 </div>
             </fieldset>
             <fieldset>
@@ -35,9 +34,14 @@
                     <label for="RESET_TOTP">Reset the TOTP</label>
                     <input type="checkbox" id="RESET_TOTP" name="RESET_TOTP"/>
                 </div>
+                <div class="pure-control-group">
+                    <label for="DELETE_USER">Delete</label>
+                    <input th:enabled="${deletable}" type="checkbox" id="DELETE_USER" name="DELETE_USER"/>
+                </div>
                 <div class="pure-controls">
                     <button id="addButton" type="submit" class="pure-button pure-button-primary">Update</button>
                 </div>
+            </fieldset>
         </form>
     </div>
 </div>

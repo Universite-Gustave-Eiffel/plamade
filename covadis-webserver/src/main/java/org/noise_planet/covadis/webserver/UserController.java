@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
  * Do not add SQL queries in this class
  */
 public class UserController {
+    public static final String ROLE_FIELD_PREPEND = "ROLE_";
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final DataSource serverDataSource;
     private final JWTProvider<User> provider;
@@ -219,6 +220,7 @@ public class UserController {
                         "messages", readMessagesArg(ctx),
                         "token", token,
                         "totpUri", totpUri,
+                        "totpSettings", totpUri,
                         "totpSecret", formatTotpSecret(totpSecret.getBase32Encoded()),
                         "qrCodeBytes", qrCodeBytes));
             }  else {
@@ -237,6 +239,24 @@ public class UserController {
      */
     public void users(Context ctx) {
         try(Connection connection = serverDataSource.getConnection()) {
+            String message = "";
+            String email = ctx.formParam("USER_EMAIL");
+            if (email != null) {
+                // Administrator add a new user
+                Set<Role> roles = new HashSet<>();
+                for (Role role : Role.values()) {
+                    boolean selected = ctx.formParam(ROLE_FIELD_PREPEND + role.name()) != null;
+                    if (selected) {
+                        roles.add(role);
+                    }
+                }
+                try {
+                    DatabaseManagement.addUser(connection, email, roles.toArray(new Role[0]));
+                    message = "User " + email + " successfully added";
+                } catch (SQLException e) {
+                    message = "User " + email + " already exists";
+                }
+            }
             List<Map<String, Object>> table = new ArrayList<>();
             List<User> users = DatabaseManagement.getUsers(connection);
             for(User user : users) {
@@ -255,7 +275,9 @@ public class UserController {
                 row.put("groups", user.getRoles().stream().map(Enum::name).collect(Collectors.joining(", ")));
                 table.add(row);
             }
-            ctx.render("users", Map.of("accounts", table));
+            Map<String, Boolean> groups = Map.of(Role.RUNNER.name(), true,
+                    Role.ADMINISTRATOR.name(), false);
+            ctx.render("users", Map.of("accounts", table, "groups", groups, "message", message));
         } catch (SQLException e) {
             logger.error(e.getLocalizedMessage(), e);
             throw new InternalServerErrorResponse();
@@ -269,6 +291,7 @@ public class UserController {
      */
     public void userEdit(Context ctx) {
         try(Connection connection = serverDataSource.getConnection()) {
+            List<String> messages = new ArrayList<>();
             int userId = Integer.parseInt(ctx.pathParam("userId"));
             User user = DatabaseManagement.getUser(connection, userId);
             if(user == null) {
@@ -279,6 +302,40 @@ public class UserController {
                         "message", message));
                 return;
             }
+            // Read post data
+            boolean delete = ctx.formParam("DELETE_USER") != null;
+            if(delete) {
+                DatabaseManagement.deleteUser(connection, user.getIdentifier());
+                messages.add("User " + user.getEmail() + " successfully deleted");
+                logger.info("User {} successfully deleted", user.getEmail());
+            } else {
+                String email = ctx.formParam("USER_EMAIL");
+                if (email != null) {
+                    // Administrator update the user attributes
+                    Set<Role> roles = new HashSet<>();
+                    for (Role role : Role.values()) {
+                        boolean selected = ctx.formParam(ROLE_FIELD_PREPEND + role.name()) != null;
+                        if (selected) {
+                            roles.add(role);
+                        }
+                    }
+                    if (user.getIdentifier() == 1 && user.isAdministrator()) {
+                        // Avoid removing the administrator role of the first account
+                        roles.add(Role.ADMINISTRATOR);
+                    }
+                    // read RESET_TOTP checkbox value
+                    boolean resetTotp = ctx.formParam("RESET_TOTP") != null;
+                    String token = user.getRegisterToken();
+                    if (resetTotp) {
+                        token = JWTProviderFactory.generateServerSecretToken();
+                    }
+                    User updatedUser = new User(user.getIdentifier(), email, roles, token);
+                    DatabaseManagement.updateUserAttributes(connection, updatedUser);
+                    messages.add("User " + email + " successfully updated");
+                    user = updatedUser;
+                }
+            }
+            // Rendering of the form
             Map<String, Object> userFields = new HashMap<>();
             userFields.put("email", user.getEmail());
             Map<String, Boolean> groups = new HashMap<>();
@@ -289,6 +346,8 @@ public class UserController {
                 }
             }
             userFields.put("groups", groups);
+            userFields.put("messages", messages);
+            userFields.put("deletable", user.getIdentifier() > 1);
             ctx.render("user_edit", userFields);
         } catch (SQLException e) {
             logger.error(e.getLocalizedMessage(), e);

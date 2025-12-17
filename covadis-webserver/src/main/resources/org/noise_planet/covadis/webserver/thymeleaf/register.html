@@ -12,7 +12,10 @@
             <input type="hidden" th:value="${totpSecret}" name="TOTP_SECRET">
             <fieldset>
                 <legend>You can use any one-time password manager (ex: KeePassXC, FreeOTP) to finalize the registration and login here later</legend>
-                <img th:src="'data:image/png;base64,' + ${qrCodeBytes}" alt="QR Code"/>
+                <figure>
+                    <img th:src="'data:image/png;base64,' + ${qrCodeBytes}" alt="QR Code"/>
+                    <figcaption th:text="${totpSettings}"></figcaption>
+                </figure>
             </fieldset>
             <fieldset>
                 <legend>Scan the QRCode or write down these codes</legend>
