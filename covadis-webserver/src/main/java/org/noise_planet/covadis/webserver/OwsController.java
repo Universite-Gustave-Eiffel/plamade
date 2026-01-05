@@ -422,15 +422,29 @@ public class OwsController {
     }
 
 
-    private boolean checkJobAccess(@NotNull Context ctx, User user,
-                                   Map<String, Object> jobData) {
+    /**
+     * Checks if the given user has unauthorized access to the specified job data.
+     * If the user is not an administrator and the job data's user ID does not match
+     * the user's identifier, the method renders an "unauthorized access" message and
+     * redirects the user to the jobs page.
+     *
+     * @param ctx the context of the current HTTP request, providing access to request parameters,
+     *            response handling, and other request-related features
+     * @param user the user requesting access to the job; may be null if no user is authenticated
+     * @param jobData a map containing job data, including the key "userId" which identifies the
+     *                owner of the job
+     * @return true if the user has unauthorized access to the job and the method handles it by
+     *         rendering a response; false if the access is authorized
+     */
+    private boolean hasUnauthorizedJobAccess(@NotNull Context ctx, User user,
+                                             Map<String, Object> jobData) {
         if (user != null && !user.isAdministrator() && Integer.valueOf(user.getIdentifier()) != jobData.get("userId")) {
             ctx.render("blank", Map.of(
                     "redirectUrl", ctx.contextPath() + "/jobs",
-                    "message", "Unauthorized access this job id does not belong to you"));
-            return false;
+                    "message", "Unauthorized access, this job does not belong to you"));
+            return true;
         }
-        return true;
+        return false;
     }
 
 
@@ -440,7 +454,7 @@ public class OwsController {
             try {
                 int jobId = Integer.parseInt(ctx.pathParam("job_id"));
                 Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
-                if(!checkJobAccess(ctx, user, jobData)) {
+                if(hasUnauthorizedJobAccess(ctx, user, jobData)) {
                     return;
                 }
                 // Parse the current server logs
@@ -466,7 +480,7 @@ public class OwsController {
             try {
                 int jobId = Integer.parseInt(ctx.pathParam("job_id"));
                 Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
-                if(!checkJobAccess(ctx, user, jobData)) {
+                if(hasUnauthorizedJobAccess(ctx, user, jobData)) {
                     return;
                 }
                 DatabaseManagement.deleteJob(connection, jobId);
@@ -489,7 +503,7 @@ public class OwsController {
             try {
                 int jobId = Integer.parseInt(ctx.pathParam("job_id"));
                 Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
-                if(!checkJobAccess(ctx, user, jobData)) {
+                if(hasUnauthorizedJobAccess(ctx, user, jobData)) {
                     return;
                 }
                 jobExecutorService.cancelJob(jobId, DEFAULT_ABORT_JOB_DELAY);
