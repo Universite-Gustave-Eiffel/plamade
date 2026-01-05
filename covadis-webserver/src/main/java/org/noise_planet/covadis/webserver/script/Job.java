@@ -96,6 +96,7 @@ public class Job<T> implements Callable<T> {
     public T call() throws Exception {
         // Change the Thread name in order to allocate the logging messages of this job
         Thread.currentThread().setName(getThreadName(jobId));
+        
         // Open the connection to the database
         try(Connection connection = userDataSource.getConnection()) {
             isRunning = true;
@@ -120,6 +121,14 @@ public class Job<T> implements Callable<T> {
             isRunning = false;
             onJobEnd();
         }
+    }
+
+    public void cancel() {
+        progressVisitor.cancel();
+    }
+
+    public boolean isRunning() {
+        return isRunning;
     }
 
     @NotNull

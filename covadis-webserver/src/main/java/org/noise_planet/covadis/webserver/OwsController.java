@@ -67,6 +67,7 @@ public class OwsController {
     public static final int MAXIMUM_POOL_SIZE = 5;
     public static final long KEEP_ALIVE_TIME = 0L;
     public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
+    private static final int DEFAULT_ABORT_JOB_DELAY = 5;
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -420,19 +421,30 @@ public class OwsController {
         return String.format("user_%03d", userId);
     }
 
+
+    private boolean checkJobAccess(@NotNull Context ctx, User user,
+                                   Map<String, Object> jobData) {
+        if (user != null && !user.isAdministrator() && Integer.valueOf(user.getIdentifier()) != jobData.get("userId")) {
+            ctx.render("blank", Map.of(
+                    "redirectUrl", ctx.contextPath() + "/jobs",
+                    "message", "Unauthorized access this job id does not belong to you"));
+            return false;
+        }
+        return true;
+    }
+
+
     public void jobLogs(@NotNull Context ctx) {
         try (Connection connection = serverDataSource.getConnection()) {
             User user = ctx.attribute("user");
             try {
                 int jobId = Integer.parseInt(ctx.pathParam("job_id"));
-                // Parse the current server logs
-                // we could store the logs into the database when the job complete or failed, maybe another time..
                 Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
-                if (user != null && !user.isAdministrator() && Integer.valueOf(user.getIdentifier()) != jobData.get("userId")) {
-                    ctx.render("blank", Map.of(
-                            "redirectUrl", ctx.contextPath() + "/jobs",
-                            "message", "Unauthorized access this job id does not belong to you"));
+                if(!checkJobAccess(ctx, user, jobData)) {
+                    return;
                 }
+                // Parse the current server logs
+                // we could store the logs into the database when the job complete or failed, maybe another time.
                 String lastLines = Logging.getLastLines(new File(configuration.workingDirectory,
                         NoiseModellingServer.LOGGING_FILE_NAME), MAXIMUM_LINES_TO_FETCH, Job.getThreadName(jobId), new AtomicInteger());
                 ctx.render("job_logs", Map.of("jobId", jobId, "rows", lastLines));
@@ -443,6 +455,51 @@ public class OwsController {
                         "message", "Wrong job id parameter"));
             }
         } catch (SQLException | IOException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
+
+    public void jobDelete(@NotNull Context ctx) {
+        try (Connection connection = serverDataSource.getConnection()) {
+            User user = ctx.attribute("user");
+            try {
+                int jobId = Integer.parseInt(ctx.pathParam("job_id"));
+                Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
+                if(!checkJobAccess(ctx, user, jobData)) {
+                    return;
+                }
+                DatabaseManagement.deleteJob(connection, jobId);
+                jobList(ctx);
+            } catch (NumberFormatException ex) {
+                logger.error("Invalid job id {}", ctx.body(), ex);
+                ctx.render("blank", Map.of(
+                        "redirectUrl", ctx.contextPath() + "/jobs",
+                        "message", "Wrong job id parameter"));
+            }
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
+
+    public void jobCancel(@NotNull Context ctx) {
+        try (Connection connection = serverDataSource.getConnection()) {
+            User user = ctx.attribute("user");
+            try {
+                int jobId = Integer.parseInt(ctx.pathParam("job_id"));
+                Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
+                if(!checkJobAccess(ctx, user, jobData)) {
+                    return;
+                }
+                jobExecutorService.cancelJob(jobId, DEFAULT_ABORT_JOB_DELAY);
+            } catch (NumberFormatException ex) {
+                logger.error("Invalid job id {}", ctx.body(), ex);
+                ctx.render("blank", Map.of(
+                        "redirectUrl", ctx.contextPath() + "/jobs",
+                        "message", "Wrong job id parameter"));
+            }
+        } catch (SQLException e) {
             logger.error(e.getLocalizedMessage(), e);
             throw new InternalServerErrorResponse();
         }

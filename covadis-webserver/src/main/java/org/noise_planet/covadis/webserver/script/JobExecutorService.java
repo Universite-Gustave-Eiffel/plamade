@@ -19,10 +19,12 @@ import java.util.concurrent.*;
 public class JobExecutorService {
     private final Map<Integer, Job<?>> jobs = new ConcurrentHashMap<>();
     private final ExecutorService executorService;
+    private final ScheduledExecutorService scheduledExecutorService;
 
     public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit) {
         this.executorService = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit,
                 new SynchronousQueue<>(), Executors.defaultThreadFactory());
+        this.scheduledExecutorService = Executors.newScheduledThreadPool(1);
     }
 
     public <T> Future<T> submitJob(Job<T> job) {
@@ -33,6 +35,25 @@ public class JobExecutorService {
         Future<T> futureTask = executorService.submit(job);
         job.setFuture(futureTask);
         return futureTask;
+    }
+
+    public void cancelJob(int jobId, int abortDelay) {
+        Job<?> job = jobs.get(jobId);
+        if (job != null) {
+            job.cancel();
+            // After a specified delay, abort the process if it can't handle the progress monitor cancel
+            scheduledExecutorService.schedule(() -> {
+                if (job.isRunning() && job.getFuture() != null) {
+                    job.getFuture().cancel(true);
+                }
+            }, abortDelay, TimeUnit.SECONDS);
+        }
+        jobs.remove(jobId);
+    }
+
+    public void shutdown() {
+        executorService.shutdown();
+        scheduledExecutorService.shutdown();
     }
 
 }

@@ -666,4 +666,19 @@ public class DatabaseManagement {
             }
         }
     }
+
+    /**
+     * Deletes a job record from the JOBS table based on the specified job ID.
+     *
+     * @param connection The database connection to be used for executing the query.
+     * @param jobId The ID of the job to be deleted.
+     * @throws SQLException If a database access error occurs or the SQL statement fails to execute.
+     */
+    public static void deleteJob(Connection connection, int jobId) throws SQLException {
+        String sql = "DELETE FROM JOBS WHERE PK_JOB = ?";
+        try (PreparedStatement pstUser = connection.prepareStatement(sql)) {
+            pstUser.setInt(1, jobId);
+            pstUser.executeUpdate();
+        }
+    }
 }

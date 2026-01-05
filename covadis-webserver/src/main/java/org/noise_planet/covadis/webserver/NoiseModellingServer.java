@@ -171,6 +171,8 @@ public class NoiseModellingServer {
         app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
         app.get("/jobs", owsController::jobList, Role.RUNNER);
         app.get("/job_logs/{job_id}", owsController::jobLogs, Role.RUNNER);
+        app.get("/jobs/delete/{job_id}", owsController::jobDelete, Role.RUNNER);
+        app.get("/jobs/cancel/{job_id}", owsController::jobCancel, Role.RUNNER);
 
         app.get("/", userController::index, Role.ANYONE);
         app.get("/login", userController::login, Role.ANYONE);
