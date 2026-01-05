@@ -52,7 +52,7 @@ public class Job<T> implements Callable<T> {
         this.userDataSource = userDataSource;
         this.serverDataSource = serverDataSource;
         this.inputs = inputs;
-        progressVisitor = new RootProgressVisitor(1, false, 0);
+        progressVisitor = new RootProgressVisitor(1, true, 5);
         try (Connection connection = serverDataSource.getConnection()) {
             this.jobId = DatabaseManagement.createJob(connection, userId, scriptMetadata.id);
             progressVisitor.addPropertyChangeListener("PROGRESS" , new ProgressionTracker(serverDataSource, jobId));

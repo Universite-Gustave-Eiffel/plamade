@@ -16,6 +16,7 @@
 
 package org.noise_planet.covadis.scripts.Database_Manager
 
+import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.slf4j.Logger
@@ -82,12 +83,21 @@ def exec(Connection connection, input) {
             sb.append("</br>")
             if (showColumnName) {
                 List<String> fields = JDBCUtilities.getColumnNames(connection, t)
+                def geometryColumnNames = GeometryTableUtilities.getGeometryColumnNames(connection, tab)
                 Integer keyColumnIndex = JDBCUtilities.getIntegerPrimaryKey(connection, tab)
                 int columnIndex = 1;
                 fields.each {
                     f ->
                         if (columnIndex == keyColumnIndex) {
                             sb.append(String.format("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%s&nbsp;&#128273;</br>", f))
+                        } else if(geometryColumnNames.contains(f)) {
+                            int epsg = 0;
+                            try {
+                                epsg = GeometryTableUtilities.getSRID(connection, tab, f)
+                            } catch (Exception ex) {
+                                //ignore
+                            }
+                            sb.append(String.format("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%s&nbsp;&#127760; (srid: %d)</br>", f, epsg))
                         } else {
                             sb.append(String.format("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%s</br>", f))
                         }
