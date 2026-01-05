@@ -181,6 +181,7 @@ public class NoiseModellingServer {
         app.post("/users", userController::users, Role.ADMINISTRATOR);
         app.get("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
         app.post("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
+        app.get("/logout", userController::logout, Role.ANYONE);
 
         // Exception rendering Handling
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {

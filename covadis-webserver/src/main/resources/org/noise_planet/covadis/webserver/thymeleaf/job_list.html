@@ -63,14 +63,14 @@
             </table>
             <div class="pure-g">
                 <div class="pure-u-1-2 centered">
-                    <form class="pure-form" th:action="@{|/jobs/cancel/{$job.id}|}" method="POST">
+                    <form class="pure-form" th:action="@{|/jobs/cancel/${job.id}|}" method="POST">
                         <button th:disabled="${!job.cancelable}" type="submit" class="pure-button pure-button-primary">
                             Cancel
                         </button>
                     </form>
                 </div>
                 <div class="pure-u-1-2 centered">
-                    <form class="pure-form" th:action="@{|/jobs/delete/{$job.id}|}" method="POST">
+                    <form class="pure-form" th:action="@{|/jobs/delete/${job.id}|}" method="POST">
                         <button th:disabled="${!job.deletable}" type="submit" class="pure-button pure-button-primary">
                             Delete
                         </button>

@@ -82,6 +82,14 @@ public class UserController {
         ctx.render("index.html", data);
     }
 
+    public void logout(Context ctx ) {
+        JavalinJWT.addTokenToCookie(ctx, "");
+        // redirect the user to the page
+        ctx.render("blank", Map.of(
+                "redirectUrl", ctx.contextPath(),
+                "message", "Logout successful, you will be redirected to the application"));
+    }
+
     public void doLogin(Context ctx ) {
         // brute force protection
         NaiveRateLimit.requestPerTimeUnit(ctx, 5, TimeUnit.MINUTES);
