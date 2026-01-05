@@ -447,7 +447,14 @@ public class OwsController {
         return false;
     }
 
-
+    /**
+     * Retrieves and displays the logs of a specific job based on the job ID.
+     * This method retrieves the job data from the database, checks access permissions,
+     * and fetches the corresponding log entries, rendering them in the response context.
+     *
+     * @param ctx the context of the current request, containing job-related parameters,
+     *            request attributes, and response handling methods.
+     */
     public void jobLogs(@NotNull Context ctx) {
         try (Connection connection = serverDataSource.getConnection()) {
             User user = ctx.attribute("user");
@@ -474,6 +481,14 @@ public class OwsController {
         }
     }
 
+    /**
+     * Deletes a job based on the job ID provided in the request context.
+     * Ensures user authorization before deleting the job and updates the job list
+     * upon successful deletion. Handles errors for invalid job IDs and database issues.
+     *
+     * @param ctx The context of the request containing user information and
+     *            job ID path parameter.
+     */
     public void jobDelete(@NotNull Context ctx) {
         try (Connection connection = serverDataSource.getConnection()) {
             User user = ctx.attribute("user");
@@ -497,6 +512,14 @@ public class OwsController {
         }
     }
 
+    /**
+     * Cancels the job specified by the job ID in the request context.
+     * The method validates user access to the job, retrieves the job data,
+     * and triggers the cancellation of the job with a default delay.
+     *
+     * @param ctx the context of the HTTP request, containing information such as path parameters,
+     *            user attributes, and other relevant data required for the operation
+     */
     public void jobCancel(@NotNull Context ctx) {
         try (Connection connection = serverDataSource.getConnection()) {
             User user = ctx.attribute("user");
