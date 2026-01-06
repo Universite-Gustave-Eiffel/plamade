@@ -27,8 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
@@ -678,6 +676,21 @@ public class DatabaseManagement {
         String sql = "DELETE FROM JOBS WHERE PK_JOB = ?";
         try (PreparedStatement pstUser = connection.prepareStatement(sql)) {
             pstUser.setInt(1, jobId);
+            pstUser.executeUpdate();
+        }
+    }
+
+    /**
+     * Deletes all jobs from the JOBS table that are not in the 'QUEUED' or 'RUNNING' status.
+     *
+     * @param connection the active database connection to use for executing the deletion query
+     * @param identifier User identifier
+     * @throws SQLException if a database access error occurs or the SQL statement fails
+     */
+    public static void deleteAllFinalizedJobs(Connection connection, int identifier) throws SQLException {
+        String sql = "DELETE FROM JOBS WHERE STATUS NOT IN ('QUEUED', 'RUNNING') AND PK_USER = ?";
+        try (PreparedStatement pstUser = connection.prepareStatement(sql)) {
+            pstUser.setInt(1, identifier);
             pstUser.executeUpdate();
         }
     }

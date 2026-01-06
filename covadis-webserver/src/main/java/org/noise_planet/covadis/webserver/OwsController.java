@@ -518,6 +518,33 @@ public class OwsController {
     }
 
     /**
+     * Deletes a job based on the job ID provided in the request context.
+     * Ensures user authorization before deleting the job and updates the job list
+     * upon successful deletion. Handles errors for invalid job IDs and database issues.
+     *
+     * @param ctx The context of the request containing user information and
+     *            job ID path parameter.
+     */
+    public void jobDeleteAll(@NotNull Context ctx) {
+        try (Connection connection = serverDataSource.getConnection()) {
+            User user = ctx.attribute("user");
+            if(user != null) {
+                try {
+                    DatabaseManagement.deleteAllFinalizedJobs(connection, user.getIdentifier());
+                    jobList(ctx);
+                } catch (NumberFormatException ex) {
+                    logger.error("Invalid job id {}", ctx.body(), ex);
+                    ctx.render("blank",
+                            Map.of("redirectUrl", ctx.contextPath() + "/jobs", "message", "Wrong job id parameter"));
+                }
+            }
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
+
+    /**
      * Cancels the job specified by the job ID in the request context.
      * The method validates user access to the job, retrieves the job data,
      * and triggers the cancellation of the job with a default delay.
@@ -535,6 +562,7 @@ public class OwsController {
                     return;
                 }
                 jobExecutorService.cancelJob(jobId, DEFAULT_ABORT_JOB_DELAY);
+                jobList(ctx);
             } catch (NumberFormatException ex) {
                 logger.error("Invalid job id {}", ctx.body(), ex);
                 ctx.render("blank", Map.of(

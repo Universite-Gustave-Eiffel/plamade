@@ -10,7 +10,7 @@
         <div class="header"><h1>Manage jobs</h1>
             <h2>Processing job management</h2>
         </div>
-        <form class="pure-form pure-g" action="" method="POST">
+        <form class="pure-form pure-g" th:action="@{|/jobs/delete_all|}" method="POST">
             <div class="pure-u-1 centered">
                 <button type="submit" class="pure-button pure-button-primary">
                     Delete All

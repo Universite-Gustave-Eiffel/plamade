@@ -174,11 +174,12 @@ public class NoiseModellingServer {
 
         app.get("/builder/ows", owsController::handleGet, Role.RUNNER);
         app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
-        app.get("/jobs", owsController::jobList, Role.RUNNER);
         app.get("/job_logs/{job_id}", owsController::jobLogs, Role.RUNNER);
         app.ws("/job_logs_stream/{job_id}", this::manageLogsWebSocket, Role.RUNNER);
-        app.get("/jobs/delete/{job_id}", owsController::jobDelete, Role.RUNNER);
-        app.get("/jobs/cancel/{job_id}", owsController::jobCancel, Role.RUNNER);
+        app.post("/jobs/delete/{job_id}", owsController::jobDelete, Role.RUNNER);
+        app.post("/jobs/delete_all", owsController::jobDeleteAll, Role.RUNNER);
+        app.post("/jobs/cancel/{job_id}", owsController::jobCancel, Role.RUNNER);
+        app.get("/jobs", owsController::jobList, Role.RUNNER);
         
 
         app.get("/", userController::index, Role.ANYONE);

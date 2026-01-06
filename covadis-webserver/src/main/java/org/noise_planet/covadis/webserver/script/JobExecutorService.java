@@ -9,6 +9,8 @@
 package org.noise_planet.covadis.webserver.script;
 
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.*;
@@ -20,6 +22,7 @@ public class JobExecutorService {
     private final Map<Integer, Job<?>> jobs = new ConcurrentHashMap<>();
     private final ExecutorService executorService;
     private final ScheduledExecutorService scheduledExecutorService;
+    private final Logger logger = LoggerFactory.getLogger(JobExecutorService.class);
 
     public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit) {
         this.executorService = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit,
@@ -44,11 +47,14 @@ public class JobExecutorService {
             // After a specified delay, abort the process if it can't handle the progress monitor cancel
             scheduledExecutorService.schedule(() -> {
                 if (job.isRunning() && job.getFuture() != null) {
+                    logger.warn("Aborting job {} after {} seconds.", jobId, abortDelay);
                     job.getFuture().cancel(true);
                 }
             }, abortDelay, TimeUnit.SECONDS);
+            jobs.remove(jobId);
+        } else {
+            logger.error("Job with ID {} not found.", jobId);
         }
-        jobs.remove(jobId);
     }
 
     public void shutdown() {
