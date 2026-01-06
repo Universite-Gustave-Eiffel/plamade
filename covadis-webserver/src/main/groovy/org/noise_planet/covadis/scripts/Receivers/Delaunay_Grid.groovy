@@ -190,7 +190,7 @@ def exec(Connection connection, Map input) {
     building_table_name = building_table_name.toUpperCase()
 
     boolean isoSurfaceInBuildings = false;
-    if(input['isoSurfaceInBuildings)']) {
+    if(input['isoSurfaceInBuildings']) {
         isoSurfaceInBuildings = input['isoSurfaceInBuildings'] as Boolean
     }
 

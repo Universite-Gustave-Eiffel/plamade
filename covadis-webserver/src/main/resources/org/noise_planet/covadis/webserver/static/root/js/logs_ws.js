@@ -5,8 +5,8 @@ function openJobLogsStream(url) {
     console.log("Opening WebSocket connection to " + url);
     //Establish the WebSocket connection and set up event handlers
     let ws = new WebSocket(url);
-    ws.onmessage = msg => addLogline(msg);
-    ws.onclose = () => alert("WebSocket connection closed");
+    ws.onmessage = msg => addLogline(msg)
+    ws.onerror = () => console.error("WebSocket error: " + ws.readyState);
 }
 
 function addLogline(msg) { // Add log line to html

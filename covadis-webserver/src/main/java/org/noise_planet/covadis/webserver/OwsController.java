@@ -645,6 +645,9 @@ public class OwsController {
             org.apache.log4j.Logger rootLogger = org.apache.log4j.Logger.getRootLogger();
             rootLogger.removeAppender(appender);
             websocketLoggers.remove(wsCloseContext);
+            logger.info("Removed WebSocket appender {} for job logs", wsCloseContext);
+        } else {
+            logger.info("Could not find WebSocket appender for job logs");
         }
     }
 }
