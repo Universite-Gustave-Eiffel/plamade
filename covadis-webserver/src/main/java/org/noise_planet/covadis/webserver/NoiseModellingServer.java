@@ -15,7 +15,7 @@ import io.javalin.http.Handler;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
-import io.javalin.security.RouteRole;
+import io.javalin.websocket.WsConfig;
 import org.apache.log4j.PropertyConfigurator;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.ScriptFileWatchedProcess;
@@ -171,8 +171,10 @@ public class NoiseModellingServer {
         app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
         app.get("/jobs", owsController::jobList, Role.RUNNER);
         app.get("/job_logs/{job_id}", owsController::jobLogs, Role.RUNNER);
+        app.ws("/job_logs_stream/{job_id}", this::manageLogsWebSocket, Role.RUNNER);
         app.get("/jobs/delete/{job_id}", owsController::jobDelete, Role.RUNNER);
         app.get("/jobs/cancel/{job_id}", owsController::jobCancel, Role.RUNNER);
+        
 
         app.get("/", userController::index, Role.ANYONE);
         app.get("/login", userController::login, Role.ANYONE);
@@ -230,5 +232,10 @@ public class NoiseModellingServer {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Callable<Boolean> task = new ScriptFileWatchedProcess(scriptsDir, owsController);
         return executor.submit(task);
+    }
+
+    private void manageLogsWebSocket(WsConfig ws) {
+        ws.onConnect(owsController::jobLogsStreamOnConnect);
+        ws.onClose(owsController::jobLogsStreamOnClose);
     }
 }

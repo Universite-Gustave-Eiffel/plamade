@@ -12,9 +12,7 @@ package org.noise_planet.covadis.webserver.utilities;
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.RollingFileAppender;
 import org.jetbrains.annotations.NotNull;
-import org.thymeleaf.util.ListUtils;
 
-import java.io.BufferedReader;
 import java.io.File;
 
 import static org.h2.server.web.PageParser.escapeHtml;
@@ -23,16 +21,15 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Utility functions related to logging features
  */
 public class Logging {
+
+    public static final String DEFAULT_LOG_FORMAT = "[%t] %-5p %d{dd MMM HH:mm:ss} - %m%n";
 
     public static void configureFileLogger(String workingDirectory, String loggingFileName) {
         try {
@@ -61,8 +58,8 @@ public class Logging {
         rollingAppender.setMaxBackupIndex(5);
         rollingAppender.setMaximumFileSize(10_000_000);
 
-        // Create and set pattern layout
-        PatternLayout layout = new PatternLayout("[%t] %-5p %d{dd MMM HH:mm:ss} - %m%n");
+        // Create and set a pattern layout
+        PatternLayout layout = new PatternLayout(DEFAULT_LOG_FORMAT);
         rollingAppender.setLayout(layout);
         return rollingAppender;
     }

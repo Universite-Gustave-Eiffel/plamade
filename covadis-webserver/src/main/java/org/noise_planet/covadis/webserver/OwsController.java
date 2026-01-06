@@ -14,12 +14,19 @@ import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
+import io.javalin.http.UnauthorizedResponse;
+import io.javalin.websocket.WsCloseContext;
+import io.javalin.websocket.WsConnectContext;
+import io.javalin.websocket.WsContext;
 import net.opengis.ows11.ExceptionReportType;
 import net.opengis.ows11.ExceptionType;
 import net.opengis.ows11.Ows11Factory;
 import net.opengis.wps10.ExecuteType;
 import net.opengis.wps10.ProcessFailedType;
 import net.opengis.wps10.Wps10Factory;
+import org.apache.log4j.*;
+import org.apache.log4j.spi.Filter;
+import org.apache.log4j.spi.LoggingEvent;
 import org.geotools.ows.v1_1.OWS;
 import org.geotools.ows.v1_1.OWSConfiguration;
 import org.geotools.wps.WPSConfiguration;
@@ -71,6 +78,7 @@ public class OwsController {
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
+    private Map<WsContext, WriterAppender> websocketLoggers = Collections.synchronizedMap(new HashMap<>());
     Configuration configuration;
     DataSource serverDataSource;
 
@@ -539,6 +547,104 @@ public class OwsController {
         } catch (SQLException e) {
             logger.error(e.getLocalizedMessage(), e);
             throw new InternalServerErrorResponse();
+        }
+    }
+
+    /**
+     * Establishes a WebSocket stream to send logs associated with a specific job to the client upon connection.
+     * The method retrieves job details, validates user access, and creates a custom log appender that captures logs
+     * for the specified job thread. Logs are filtered and streamed through the WebSocket connection.
+     *
+     * @param ctx the WebSocket connection context that contains the connection details and user session data.
+     */
+    public void jobLogsStreamOnConnect(WsConnectContext ctx) {
+        try (Connection connection = serverDataSource.getConnection()) {
+            User user = ctx.attribute("user");
+            int jobId = Integer.parseInt(ctx.pathParam("job_id"));
+            Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
+            if(hasUnauthorizedJobAccess(ctx.getUpgradeCtx$javalin(), user, jobData)) {
+                return;
+            }
+            logger.info("WebSocket connection established for job {}", jobId);
+            String threadName = Job.getThreadName(jobId);
+
+            // Create a custom appender that sends logs to WebSocket
+            WriterAppender wsAppender = getWriterAppender(ctx, jobId);
+
+            websocketLoggers.put(ctx, wsAppender);
+
+            // Filter to only capture logs from this job's thread
+            wsAppender.addFilter(new Filter() {
+                @Override
+                public int decide(LoggingEvent event) {
+                    if (event.getThreadName().equals(threadName)) {
+                        return Filter.ACCEPT;
+                    }
+                    return Filter.DENY;
+                }
+            });
+
+            wsAppender.activateOptions();
+            org.apache.log4j.Logger rootLogger = org.apache.log4j.Logger.getRootLogger();
+            rootLogger.addAppender(wsAppender);
+
+        } catch (NumberFormatException ex) {
+            logger.error("Invalid job id in WebSocket connection", ex);
+            ctx.closeSession();
+        } catch (SQLException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            ctx.closeSession();
+            throw new InternalServerErrorResponse();
+        }
+    }
+
+    /**
+     * Creates and configures a WriterAppender that sends log messages through a WebSocket connection.
+     *
+     * @param ctx the WebSocket context, which contains the session information and allows sending messages
+     * @param jobId the identifier for the job, used to assign a unique name to the appender
+     * @return a configured WriterAppender instance that writes log messages to the WebSocket session
+     */
+    @NotNull
+    private static WriterAppender getWriterAppender(WsConnectContext ctx, int jobId) {
+        Layout layout = new PatternLayout(Logging.DEFAULT_LOG_FORMAT);
+        WriterAppender wsAppender = new WriterAppender();
+        wsAppender.setLayout(layout);
+        wsAppender.setWriter(new java.io.Writer() {
+            @Override
+            public void write(char[] cbuf, int off, int len) {
+                String message = new String(cbuf, off, len);
+                if(ctx.session.isOpen()) {
+                    ctx.send(message);
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        });
+        wsAppender.setName("WebSocketAppender-" + jobId);
+        wsAppender.setLayout(layout);
+        return wsAppender;
+    }
+
+    /**
+     * Handles the closure of a job log stream associated with a WebSocket context.
+     * This method removes the corresponding appender from the logger and cleans up
+     * the association within the internal tracking map.
+     *
+     * @param wsCloseContext the WebSocket close context representing the closed connection
+     */
+    public void jobLogsStreamOnClose(WsCloseContext wsCloseContext) {
+        WriterAppender appender = websocketLoggers.get(wsCloseContext);
+        if(appender != null) {
+            org.apache.log4j.Logger rootLogger = org.apache.log4j.Logger.getRootLogger();
+            rootLogger.removeAppender(appender);
+            websocketLoggers.remove(wsCloseContext);
         }
     }
 }

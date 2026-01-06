@@ -10,9 +10,16 @@
             <h2>Job latest logs</h2>
         </div>
         <div class="code">
-            <pre class="console-text" th:text="${rows}">blah blah</pre>
+            <pre class="console-text" id="logs" th:text="${rows}">blah blah</pre>
         </div>
     </div>
-</div>
+    <script th:src="@{|/js/logs_ws.js|}"></script>
+    <script th:inline="javascript">
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const path = "[(@{/job_logs_stream/})]";
+        const jobId = [(${jobId})];
+        openJobLogsStream(`${protocol}//${window.location.host}${path}${jobId}`);
+    </script>
+    </div>
 </body>
 </html>
