@@ -46,10 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -649,5 +646,17 @@ public class OwsController {
         } else {
             logger.info("Could not find WebSocket appender for job logs");
         }
+    }
+
+    public void closeDataBaseDataSources() {
+        userDataSources.forEach((userId, dataSource) -> {
+            if(dataSource instanceof AutoCloseable) {
+                try {
+                    ((AutoCloseable) dataSource).close();
+                } catch (Exception e) {
+                    logger.error("Error closing database datasource for user {}", userId, e);
+                }
+            }
+        });
     }
 }

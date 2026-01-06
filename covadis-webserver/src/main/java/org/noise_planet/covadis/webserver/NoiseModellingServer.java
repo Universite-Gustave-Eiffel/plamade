@@ -120,6 +120,11 @@ public class NoiseModellingServer {
                 // Stop watching for script changes
                 scriptWatch.cancel(true);
                 app.stop();
+                // Close all datasource connections
+                owsController.closeDataBaseDataSources();
+                if (serverDataSource instanceof AutoCloseable) {
+                    ((AutoCloseable) serverDataSource).close();
+                }
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
             }
