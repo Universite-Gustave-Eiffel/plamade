@@ -7,6 +7,11 @@ function openJobLogsStream(url) {
     let ws = new WebSocket(url);
     ws.onmessage = msg => addLogline(msg)
     ws.onerror = () => console.error("WebSocket error: " + ws.readyState);
+    ws.onclose = () => {
+        console.log("WebSocket closed. Attempting to reconnect in 5 seconds...");
+        setTimeout(() => openJobLogsStream(url), 5000);
+    };
+
 }
 
 function addLogline(msg) { // Add log line to html
