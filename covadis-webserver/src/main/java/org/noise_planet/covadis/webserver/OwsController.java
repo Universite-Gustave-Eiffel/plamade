@@ -34,10 +34,7 @@ import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
 import org.jetbrains.annotations.NotNull;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
-import org.noise_planet.covadis.webserver.script.Job;
-import org.noise_planet.covadis.webserver.script.JobExecutorService;
-import org.noise_planet.covadis.webserver.script.ScriptMetadata;
-import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
+import org.noise_planet.covadis.webserver.script.*;
 import org.noise_planet.covadis.webserver.secure.JWTProvider;
 import org.noise_planet.covadis.webserver.secure.JavalinJWT;
 import org.noise_planet.covadis.webserver.secure.User;
@@ -561,7 +558,10 @@ public class OwsController {
                 if(hasUnauthorizedJobAccess(ctx, user, jobData)) {
                     return;
                 }
-                jobExecutorService.cancelJob(jobId, DEFAULT_ABORT_JOB_DELAY);
+                if(!jobExecutorService.cancelJob(jobId, DEFAULT_ABORT_JOB_DELAY)) {
+                    // Can't find the job, set it in error to be able to remove it
+                    DatabaseManagement.setJobState(connection, jobId, JobStates.FAILED.name());
+                }
                 jobList(ctx);
             } catch (NumberFormatException ex) {
                 logger.error("Invalid job id {}", ctx.body(), ex);

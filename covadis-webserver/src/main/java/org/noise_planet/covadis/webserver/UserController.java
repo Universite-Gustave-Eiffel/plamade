@@ -25,6 +25,7 @@ import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
 import io.javalin.http.util.NaiveRateLimit;
 import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.secure.*;
 import org.slf4j.Logger;
@@ -272,8 +273,7 @@ public class UserController {
                 row.put("id", user.getIdentifier());
                 row.put("email", user.getEmail());
                 long size = 0;
-                File databaseFile = new File(configuration.workingDirectory,
-                        OwsController.getUserDatabaseName(user.getIdentifier()) + ".mv.db");
+                File databaseFile = getDatabaseFile(user);
                 if(databaseFile.exists()) {
                     size = databaseFile.length();
                 }
@@ -312,10 +312,16 @@ public class UserController {
             }
             // Read post data
             boolean delete = ctx.formParam("DELETE_USER") != null;
+            boolean deleteDatabase = ctx.formParam("DELETE_DATABASE") != null;
             if(delete) {
                 DatabaseManagement.deleteUser(connection, user.getIdentifier());
                 messages.add("User " + user.getEmail() + " successfully deleted");
                 logger.info("User {} successfully deleted", user.getEmail());
+            } else if(deleteDatabase) {
+                File databaseFile = getDatabaseFile(user);
+                FileUtils.deleteQuietly(databaseFile);
+                messages.add("Database for user " + user.getEmail() + " successfully deleted");
+                logger.info("Database for user {} successfully deleted", user.getEmail());
             } else {
                 String email = ctx.formParam("USER_EMAIL");
                 if (email != null) {
@@ -361,5 +367,17 @@ public class UserController {
             logger.error(e.getLocalizedMessage(), e);
             throw new InternalServerErrorResponse();
         }
+    }
+
+    /**
+     * Retrieves the database file associated with the specified user.
+     *
+     * @param user The user for whom the database file is being retrieved.
+     * @return A File instance representing the user's database file.
+     */
+    @NotNull
+    private File getDatabaseFile(User user) {
+        return new File(configuration.workingDirectory,
+                OwsController.getUserDatabaseName(user.getIdentifier()) + ".mv.db");
     }
 }

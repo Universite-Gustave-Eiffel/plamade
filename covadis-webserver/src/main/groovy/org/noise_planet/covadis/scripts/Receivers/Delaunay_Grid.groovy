@@ -301,9 +301,10 @@ def exec(Connection connection, Map input) {
     sql.execute("Create spatial index on " + receivers_table_name + "(the_geom);")
 
     int nbReceivers = sql.firstRow("SELECT COUNT(*) FROM " + receivers_table_name)[0] as Integer
+    int nbTriangles= sql.firstRow("SELECT COUNT(*) FROM TRIANGLES")[0] as Integer
 
     // Process Done
-    resultString = "Process done. " + receivers_table_name + " (" + nbReceivers + " receivers) and TRIANGLES tables created. "
+    resultString = "Process done. " + receivers_table_name + " (" + nbReceivers + " receivers) and TRIANGLES (" + nbTriangles +" triangles) tables created. "
 
     // print to command window
     logger.info('Result : ' + resultString)

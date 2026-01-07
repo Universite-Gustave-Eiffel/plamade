@@ -94,6 +94,9 @@ appears on the left side of the page.
     z-index: 1000; /* so the menu or its navicon stays above all content */
     background: #191818;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
 }
 /*
 All anchors inside the menu should be styled like this.
@@ -319,4 +322,8 @@ Hides the menu at `48em`, but modify this based on your app's needs.
 
 .pure-table .pure-table-greyed {
     background-color:#f2f2f2
+}
+
+#filler {
+    flex-grow: 1;
 }

@@ -9,6 +9,7 @@
 package org.noise_planet.covadis.webserver.script;
 
 import org.jetbrains.annotations.NotNull;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,7 @@ public class JobExecutorService {
         return futureTask;
     }
 
-    public void cancelJob(int jobId, int abortDelay) {
+    public boolean cancelJob(int jobId, int abortDelay) {
         Job<?> job = jobs.get(jobId);
         if (job != null) {
             job.cancel();
@@ -52,8 +53,10 @@ public class JobExecutorService {
                 }
             }, abortDelay, TimeUnit.SECONDS);
             jobs.remove(jobId);
+            return true;
         } else {
             logger.error("Job with ID {} not found.", jobId);
+            return false;
         }
     }
 

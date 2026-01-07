@@ -35,8 +35,12 @@
                     <input type="checkbox" id="RESET_TOTP" name="RESET_TOTP"/>
                 </div>
                 <div class="pure-control-group">
-                    <label for="DELETE_USER">Delete</label>
+                    <label for="DELETE_USER">Delete the user</label>
                     <input th:enabled="${deletable}" type="checkbox" id="DELETE_USER" name="DELETE_USER"/>
+                </div>
+                <div class="pure-control-group">
+                    <label for="DELETE_DATABASE">Delete the database</label>
+                    <input type="checkbox" id="DELETE_DATABASE" name="DELETE_DATABASE"/>
                 </div>
                 <div class="pure-controls">
                     <button id="addButton" type="submit" class="pure-button pure-button-primary">Update</button>
