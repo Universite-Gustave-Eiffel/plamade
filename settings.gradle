@@ -1,4 +1,0 @@
-rootProject.name = 'plamade'
-include 'platform'
-include 'computation_core'
-include 'script_runner'

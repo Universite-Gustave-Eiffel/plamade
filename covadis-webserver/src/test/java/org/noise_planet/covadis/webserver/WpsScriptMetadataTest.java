@@ -1,0 +1,113 @@
+/**
+ * NoiseModelling is a library capable of producing noise maps. It can be freely used either for research and education, as well as by experts in a professional use.
+ * <p>
+ * NoiseModelling is distributed under GPL 3 license. You can read a copy of this License in the file LICENCE provided with this software.
+ * <p>
+ * Official webpage : http://noise-planet.org/noisemodelling.html
+ * Contact: contact@noise-planet.org
+ */
+
+package org.noise_planet.covadis.webserver;
+
+import org.apache.log4j.PropertyConfigurator;
+import org.h2.jdbcx.JdbcConnectionPool;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.noise_planet.covadis.webserver.script.ScriptInput;
+import org.noise_planet.covadis.webserver.script.ScriptOutput;
+import org.noise_planet.covadis.webserver.script.ScriptMetadata;
+import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class WpsScriptMetadataTest {
+
+    @BeforeAll
+    static void setUp() throws SQLException, IOException, URISyntaxException {
+        PropertyConfigurator.configure(
+                Objects.requireNonNull(NoiseModellingServer.class.getResource("static/log4j.properties")));
+    }
+
+    /**
+     * Tests the ability to build script wrappers from a Groovy script resource
+     * and perform various operations including XML generation and script execution.
+     * <p>
+     * This method verifies the following functionalities:
+     * - Loading a test Groovy script from the resources folder.
+     * - Grouping scripts in a simulated map structure.
+     * - Building {@code ScriptWrapper} instances using {@code WpsScriptWrapper#buildScriptWrappers}.
+     * - Generating GetCapabilities XML and DescribeProcess XML.
+     * - Validating that the generated XML includes script inputs and outputs.
+     * - Executing the script with provided input parameters.
+     * - Verifying the execution result and output messages.
+     *
+     * @throws IOException if there is an issue reading the script file.
+     * @throws URISyntaxException if the resource URI is malformed.
+     * @throws SQLException if there is a database-related error during execution.
+     */
+    @Test
+    void testBuildScriptWrappersFromResource() throws IOException, URISyntaxException, SQLException {
+
+
+        // Load the Groovy script from test resources
+        Path scriptPath = Path.of(
+                Objects.requireNonNull(
+                        WpsScriptMetadataTest.class.getResource("test/Test_Config_Webserver.groovy")
+                ).toURI()
+        );
+        File scriptFile = scriptPath.toFile();
+        assertTrue(scriptFile.exists());
+
+        // Simulate grouped map like loadScripts() would return
+        Map<String, List<File>> grouped = new HashMap<>();
+        grouped.put("TestGroup", List.of(scriptFile));
+
+        // Build ScriptWrapper
+        List<ScriptMetadata> wrappers = WpsScriptWrapper.buildScriptWrappers(grouped);
+        assertEquals(1, wrappers.size());
+
+        ScriptMetadata sw = wrappers.get(0);
+
+        // Test XML generation for GetCapabilities
+        String capabilitiesXml = WpsScriptWrapper.generateCapabilitiesXML(wrappers);
+        assertNotNull(capabilitiesXml);
+        assertEquals("TestGroup:Test_Config_Webserver", sw.id);
+        assertEquals("Test Configuration Generator", sw.title);
+        assertEquals("A simple test script that simulates generating a configuration table.", sw.description);
+
+        //DescribeProcess
+        String describeXml = WpsScriptWrapper.generateDescribeProcessXML(sw);
+        assertNotNull(describeXml);
+
+        for (ScriptInput input : sw.inputs.values()) {
+            assertTrue(describeXml.contains(input.id));
+            assertTrue(describeXml.contains(input.title));
+        }
+        for (ScriptOutput output : sw.outputs.values()) {
+            assertTrue(describeXml.contains(output.id));
+            assertTrue(describeXml.contains(output.title));
+        }
+
+        // Test execution
+        JdbcConnectionPool cp = JdbcConnectionPool.create("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", "sa", "");
+        Connection connection = cp.getConnection();
+
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("numbers", "1, 2, 3, 4");
+        inputs.put("multiplier", 2.0);
+
+        Object result = OwsController.execute(connection, sw, inputs);
+
+        // Assertions
+        String message = (String) result;
+        assertEquals("Done! Table TEST_CONFIG has been created.", message);
+    }
+}

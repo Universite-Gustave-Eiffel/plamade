@@ -1,0 +1,51 @@
+@font-face {
+    /* http://underpop.online.fr/l/linux-console-fonts-for-windows-in-ttf-and-fon/ */
+    /* GNU GPL Version 2 license.  */
+    font-family: "Multi-size, regular Misc-Fixed";
+    src: url("../fonts/misc-fixed.ttf") format("truetype");
+}
+
+.console-text {
+    font-family: "Multi-size, regular Misc-Fixed", serif;
+}
+
+.code {
+    padding: 0.6em 0 0.6em 0.6em;
+}
+
+.qrCodeText {
+    letter-spacing: 4px;               /* Increase the spacing between letters */
+    font-weight: bold;                 /* Make the text bolder */
+    margin-left: 10px;                /* Added space to the left of QR code text */
+}
+
+.gdpr-text {
+    font-size: 14px; /* You can adjust this as needed */
+    line-height: 1.5; /* This will make the text look more visually appealing */
+}
+
+.clickable-header {
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+pre {
+    white-space: pre-wrap;       /* Since CSS 2.1 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+}
+
+.job-table-container {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 0.5em;
+    background: #fafafa;
+}
+
+figcaption {
+    font-size: 0.8em;
+    margin: 0;
+    line-height: 0;
+    text-align: center;
+    color: #777;
+    white-space: nowrap;
+}
