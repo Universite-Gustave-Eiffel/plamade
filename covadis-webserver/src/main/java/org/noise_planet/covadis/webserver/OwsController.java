@@ -376,8 +376,10 @@ public class OwsController {
                     ctx.result(jobResult.toString());
                 }
             } catch (TimeoutException e) {
+                String url = ctx.contextPath() + "/job_logs/" + job.getId();
                 ctx.result(String.format(
-                        "Long running process, please look at the job (id: %d) output in the table",
+                        "Long running process, <a href=\"%s\" target=\"_blank\">please look at the job (id: %d)</a> output logs",
+                        url,
                         job.getId()));
             }
         } catch (Exception e) {
