@@ -22,7 +22,7 @@
         </fileSet>
 
         <fileSet>
-            <directory>${project.basedir}/src/main/groovy/org/noise_planet/scripts/</directory>
+            <directory>${project.basedir}/src/main/groovy/org/noise_planet/covadis/scripts</directory>
             <outputDirectory>scripts</outputDirectory>
         </fileSet>
         <fileSet>

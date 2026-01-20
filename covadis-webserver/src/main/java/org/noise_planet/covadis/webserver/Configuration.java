@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,7 +30,7 @@ public class Configuration {
     String scriptPath = "scripts";
     final boolean unsecure;
     boolean skipOpenBrowser = false;
-    String workingDirectory;
+    String workingDirectory = Path.of(System.getProperty("user.home"), ".nmcovadis").toString();
     // secureBase is the h2 database that store web application critical data
     // it is not associated with any noisemodelling data
     String secureBaseEncryptionSecret = "";
@@ -65,7 +66,6 @@ public class Configuration {
         Option workingDirOption = new Option("w", "working-dir", true,
                 "Path were the application have writing rights to store sessions data");
         workingDirOption.setArgName("folder path");
-        workingDirOption.setRequired(true);
         options.addOption(workingDirOption);
 
         Option scriptPathOption = new Option("s", "script", true, "Path and file name of the script");

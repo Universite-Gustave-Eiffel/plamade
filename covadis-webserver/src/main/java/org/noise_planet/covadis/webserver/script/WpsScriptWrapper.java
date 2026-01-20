@@ -12,6 +12,8 @@ package org.noise_planet.covadis.webserver.script;
 
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -88,6 +90,8 @@ public class WpsScriptWrapper {
     public static Map<String, List<File>> scanScriptsGrouped(ClassLoader loader, Path scriptDirectory) {
         Map<String, List<File>> grouped = new TreeMap<>();
         File baseDir = scriptDirectory.toFile();
+        Logger logger = LoggerFactory.getLogger(WpsScriptWrapper.class.getName());
+        logger.info("Scanning scripts in directory: " + scriptDirectory);
         if (!baseDir.exists()) {
             // The location may be stored into the jar not the local file system
             try {

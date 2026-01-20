@@ -147,15 +147,15 @@ public class NoiseModellingServer {
         app = Javalin.create(config -> {
             config.router.contextPath = rootPath;
             config.staticFiles.add(staticFileConfig -> {
-                staticFileConfig.location = Location.EXTERNAL;
+                staticFileConfig.location = Location.CLASSPATH;
                 staticFileConfig.hostedPath = "/builder";
-                staticFileConfig.directory = Objects.requireNonNull(NoiseModellingServer.class.getResource("static/wpsbuilder/")).getFile();
+                staticFileConfig.directory = "org/noise_planet/covadis/webserver/static/wpsbuilder/";
                 staticFileConfig.roles = configuration.unsecure ? Set.of(Role.ANYONE) : Set.of(Role.RUNNER);
             });
             config.staticFiles.add(staticFileConfig -> {
-                staticFileConfig.location = Location.EXTERNAL;
+                staticFileConfig.location = Location.CLASSPATH;
                 staticFileConfig.hostedPath = "/";
-                staticFileConfig.directory = Objects.requireNonNull(NoiseModellingServer.class.getResource("static/root/")).getFile();
+                staticFileConfig.directory = "org/noise_planet/covadis/webserver/static/root/";
                 staticFileConfig.roles = Set.of(Role.ANYONE);
             });
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));

@@ -134,7 +134,7 @@ public class DatabaseManagement {
                 int pkUser = addUser(connection, ADMIN_EMAIL, Role.ADMINISTRATOR, Role.RUNNER);
                 User firstAdmin = DatabaseManagement.getUser(connection, pkUser);
                 Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
-                logger.info("First start of the server, register the Administrator account using this url:\n {}",
+                logger.info("First start of the server, register the Administrator account using this url (or run with -u option):\n {}",
                         firstAdmin.getRegisterUrl("http", "localhost", configuration.getPort(),
                                 configuration.getApplicationRootUrl()));
             } else {
@@ -143,7 +143,7 @@ public class DatabaseManagement {
                 if(firstAdmin.isAdministrator() && !firstAdmin.getRegisterToken().isEmpty()) {
                     Logger logger = LoggerFactory.getLogger(DatabaseManagement.class);
                     logger.warn("The Administrator account has not been registered yet," +
-                                    " please use this url to create the account:\n {}",
+                                    " please use this url to create the account (or run with -u option):\n {}",
                             firstAdmin.getRegisterUrl("http", "localhost", configuration.getPort(),
                             configuration.getApplicationRootUrl()));
                 }

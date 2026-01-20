@@ -216,7 +216,7 @@
                 <configuration>
                     <programs>
                         <program>
-                            <mainClass>org.noise_planet.noisemodelling.covadis.webserver.Main</mainClass>
+                            <mainClass>org.noise_planet.covadis.webserver.NoiseModellingServer</mainClass>
                             <id>WebServer</id>
                         </program>
                     </programs>
