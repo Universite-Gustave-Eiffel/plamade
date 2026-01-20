@@ -42,7 +42,10 @@ jobs:
       - name: Package
         run: mvn package
       - name: Unzip production artifacts
-        run: mkdir NoiseModellingCovadis && tar xvf covadis-webserver/target/*.zip --strip-components=1 -C NoiseModellingCovadis
+        run: |
+          mkdir NoiseModellingCovadis
+          # bsdtar handles .zip and supports --strip-components
+          bsdtar -xvf covadis-webserver/target/*.zip --strip-components=1 -C NoiseModellingCovadis
       - name: Generate Sanitized Artifact Name
         id: sanitize
         run: |
