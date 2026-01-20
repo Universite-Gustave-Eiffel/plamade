@@ -1,6 +1,10 @@
 name: CI
 
-on: [ push, pull_request, workflow_dispatch ]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -35,4 +39,15 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Building
         run: mvn test -B
+      - name: Package
+        run: mvn package
+      - name: Unzip production artifacts
+        run: mkdir NoiseModellingCovadis && tar xvf covadis-webserver/target/*.zip --strip-components=1 -C NoiseModellingCovadis
+      - name: Upload distribution file
+        uses: actions/upload-artifact@v4
+        with:
+          name: NoiseModellingCovadis-${{ replace(replace(replace(replace(github.ref_name != github.event.repository.default_branch && github.ref_name || github.sha, '/', '_'), '\\', '_'), ':', ''), '*', 'x') }}
+          path: NoiseModellingCovadis/
+
+
 
