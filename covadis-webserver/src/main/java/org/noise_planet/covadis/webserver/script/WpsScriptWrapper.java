@@ -76,12 +76,12 @@ public class WpsScriptWrapper {
 
     /**
      * Scans a predefined directory structure containing Groovy scripts and organizes them into groups.
-     *
+     * <p>
      * This method traverses the directory structure rooted at the `scriptsRoot` location recursively.
      * It identifies Groovy script files (files ending with the `.groovy` extension), extracts their names
      * (excluding the file extension), and groups them into categories based on the directory structure.
      * Each group corresponds to a directory path relative to the root directory.
-     *
+     * <p>
      * If the root directory does not exist or contains no valid files, an empty map is returned.
      *
      * @return a map where the keys are group names (relative directory paths) and the values are lists
@@ -91,8 +91,9 @@ public class WpsScriptWrapper {
         Map<String, List<File>> grouped = new TreeMap<>();
         File baseDir = scriptDirectory.toFile();
         Logger logger = LoggerFactory.getLogger(WpsScriptWrapper.class.getName());
-        logger.info("Scanning scripts in directory: " + scriptDirectory);
+        logger.info("Scanning scripts in directory: " + scriptDirectory.toAbsolutePath());
         if (!baseDir.exists()) {
+            logger.warn("Directory does not exist: " + scriptDirectory);
             // The location may be stored into the jar not the local file system
             try {
                 URL resourceUrl = loader.getResource(scriptDirectory.toString());
