@@ -132,10 +132,8 @@ public class NoiseModellingServer {
 
         app.start(configuration.port);
 
-        String url = "http://localhost:" + configuration.port + "/" + configuration.applicationRootUrl;
-
         if (openBrowser) {
-            openBrowser(url);
+            openBrowser(configuration.getWebSiteFullUrl());
         }
     }
 

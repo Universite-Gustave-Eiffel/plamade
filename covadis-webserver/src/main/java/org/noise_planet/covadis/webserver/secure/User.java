@@ -53,21 +53,15 @@ public class User {
         return roles.contains(Role.ADMINISTRATOR);
     }
 
-    public String getRegisterUrl(String protocol, String host, int port, String baseUrl) {
+    public String getRegisterUrl(String proxyBaseUrl) {
         if(registerToken.isEmpty())
             return "";
-        return getRegisterUrl(protocol,
-                host,
-                port,
-                baseUrl,
-                URLEncoder.encode(getRegisterToken(), StandardCharsets.UTF_8));
+        return getRegisterUrl(proxyBaseUrl,
+                getRegisterToken());
     }
-    public static String getRegisterUrl(String protocol, String host, int port, String baseUrl, String registerToken) {
-        return String.format("%s://%s:%d/%s/register/%s",
-                protocol,
-                host,
-                port,
-                baseUrl,
+    public static String getRegisterUrl(String proxyBaseUrl, String registerToken) {
+        return String.format("%s/register/%s",
+                proxyBaseUrl,
                 URLEncoder.encode(registerToken, StandardCharsets.UTF_8));
     }
 }

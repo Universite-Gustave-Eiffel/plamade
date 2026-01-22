@@ -278,8 +278,7 @@ public class UserController {
                     size = databaseFile.length();
                 }
                 row.put("dbSize", FileUtils.byteCountToDisplaySize(size));
-                row.put("registerUrl", user.getRegisterUrl("http", "localhost", configuration.getPort(),
-                        configuration.getApplicationRootUrl()));
+                row.put("registerUrl", user.getRegisterUrl(configuration.getWebSiteFullUrl()));
                 row.put("groups", user.getRoles().stream().map(Enum::name).collect(Collectors.joining(", ")));
                 table.add(row);
             }

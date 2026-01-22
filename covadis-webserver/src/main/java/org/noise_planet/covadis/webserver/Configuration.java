@@ -18,6 +18,7 @@ import java.io.*;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Manage webserver configuration
@@ -25,8 +26,11 @@ import java.util.Map;
 public class Configuration {
     public static final int DEFAULT_PORT = 8000;
     public static final String DEFAULT_APPLICATION_URL = "nmcovadis";
+    public static final String DEFAULT_APPLICATION_PROXY_URL = "http://localhost";
     /** Application context url */
     String applicationRootUrl = DEFAULT_APPLICATION_URL;
+    /** Proxy url of the application */
+    String applicationProxyBaseUrl = DEFAULT_APPLICATION_PROXY_URL;
     String scriptPath = "scripts";
     final boolean unsecure;
     boolean skipOpenBrowser = false;
@@ -89,6 +93,9 @@ public class Configuration {
         Option browserNotOpenOption = new Option("b", "browser-skip", false, "Disable open the browser page on startup");
         options.addOption(browserNotOpenOption);
 
+        Option applicationProxyBaseUrlOption = new Option("l", "proxy-base-url", true, "Custom root URL for the web application (ex: http://myservice.org)");
+        options.addOption(applicationProxyBaseUrlOption);
+
         return options;
     }
 
@@ -128,6 +135,9 @@ public class Configuration {
             }
             if (commandLine.hasOption("b")) {
                 config.skipOpenBrowser = true;
+            }
+            if(commandLine.hasOption("l")) {
+                config.applicationProxyBaseUrl = commandLine.getOptionValue("l");
             }
             return config;
         } catch (ParseException ex) {
@@ -340,6 +350,15 @@ public class Configuration {
      */
     public int getPort() {
         return port;
+    }
+
+    /**
+     * @return Return the full website url to type in the browser window
+     */
+    public String getWebSiteFullUrl() {
+        return (Objects.equals(applicationProxyBaseUrl, Configuration.DEFAULT_APPLICATION_PROXY_URL)
+                ? Configuration.DEFAULT_APPLICATION_PROXY_URL + ":" + port : applicationProxyBaseUrl)
+                + (applicationRootUrl.isEmpty() ? "" : "/" + applicationRootUrl);
     }
 
     /**
