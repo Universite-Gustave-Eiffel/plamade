@@ -24,103 +24,59 @@ import org.locationtech.jts.geom.Geometry
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
 
 import java.sql.Connection
+import java.sql.Statement
 
-title = 'Delaunay Grid'
-description = '&#10145;&#65039; Computes a <a href="https://en.wikipedia.org/wiki/Delaunay_triangulation" target="_blank">Delaunay</a> grid of receivers.</br>' +
-        '<hr>' +
-        'The grid will be based on: <ul>' +
-        '<li> the BUILDINGS table extent (option by default)</li>' +
-        '<li> <b>OR</b> a single Geometry "fence" (Extent filter).</li></ul>' +
-        '&#x2705; Two tables are returned:<ul>' +
-        '<li> <b>RECEIVERS</b></li>' +
-        '<li> <b>TRIANGLES</b></li>' +
-        '<img src="/wps_images/delaunay_grid_output.png" alt="Delaunay grid output" width="95%" align="center">'
+title = 'Write HPC settings'
+description = 'Create a table that will contain all settings to connect to a Slurm service through SSH'
 
 inputs = [
-        tableBuilding      : [
-                name       : 'Buildings table name',
-                title      : 'Buildings table name',
-                description: 'Name of the Buildings table. </br><br>' +
-                        'The table must contain: <ul>' +
-                        '<li> <b> THE_GEOM </b> : the 2D geometry of the building (POLYGON or MULTIPOLYGON)</li></ul>',
+        host      : [
+                name       : 'Host',
+                title      : 'Server host name or ip address',
+                description: 'Ex: slurmcluster.com',
                 type       : String.class
         ],
-        fence              : [
-                name       : 'Extent filter',
-                title      : 'Extent filter',
-                description: 'Create receivers only in the provided polygon (fence)',
+        port              : [
+                name       : 'Host SSH port',
+                title      : 'Host SSH port',
+                description: 'Connection port to the host (default 22)',
                 min        : 0, max: 1,
-                type       : Geometry.class
+                type       : Integer.class
         ],
-        sourcesTableName   : [
-                name       : 'Sources table name',
-                title      : 'Sources table name',
-                description: 'Name of the Road table.</br><br>' +
-                        'Receivers will not be created on the specified road width',
+        ssl_key   : [
+                name       : 'SSL Server Public Key',
+                title      : 'SSL Server Public Key',
+                description: '<p>Base64 Public SSL server key for host key checking</p>',
                 type       : String.class
         ],
-        maxCellDist        : [
-                name       : 'Maximum cell size',
-                title      : 'Maximum cell size',
-                description: 'Maximum distance used to split the domain into sub-domains (in meters) (FLOAT).</br><br>' +
-                        'In a logic of optimization of processing times, it allows to limit the number of objects (buildings, roads, …) stored in memory during the Delaunay triangulation.</br></br>' +
-                        '&#128736; Default value: <b>600 </b>',
-                min        : 0, max: 1,
-                type       : Double.class
+        ssk_key_type   : [
+                name       : 'SSH server key type',
+                title      : 'SSH server key type',
+                description: '<p>SSH supported server key type ex:ssh-rsa</p>',
+                type       : String.class
         ],
-        roadWidth          : [
-                name       : 'Road width',
-                title      : 'Road width',
-                description: 'Set Road Width (in meters) (FLOAT).</br> </br>' +
-                        'No receivers closer than road width distance will be created.</br> </br>' +
-                        '&#128736; Default value: <b>2 </b>',
-                min        : 0, max: 1,
-                type       : Double.class
+        user   : [
+                name       : 'SSH User name',
+                title      : 'SSH User name',
+                description: 'Username to connect with',
+                type       : String.class
         ],
-        maxArea            : [
-                name       : 'Maximum Area',
-                title      : 'Maximum Area',
-                description: 'Set Maximum Area (in m2) (FLOAT).</br> </br>' +
-                        'No triangles larger than provided area will be created.</br>' +
-                        'Smaller area will create more receivers.</br> </br> ' +
-                        '&#128736; Default value: <b>2500 </b>',
-                min        : 0, max: 1,
-                type       : Double.class
+        key   : [
+                name       : 'SSH User Private Key',
+                title      : 'SSH User Private Key',
+                description: '<p>Armored SSH Private key to connect to the SSH server:</p><p># macOS</p>' +
+                        '<pre>gpg --armor --export-secret-key joe@foo.bar | pbcopy</pre>' +
+                        '<p># Ubuntu (assuming GNU base64)</p>' +
+                        '<pre>gpg --armor --export-secret-key joe@foo.bar -w0 | xclip</pre>',
+                type       : String.class
         ],
-        height             : [
-                name       : 'Height',
-                title      : 'Height',
-                description: 'Receiver height relative to the ground (in meters) (FLOAT).</br> </br>' +
-                        '&#128736; Default value: <b>4 </b>',
-                min        : 0, max: 1,
-                type       : Double.class
-        ],
-        outputTableName    : [
-                name       : 'outputTableName',
-                title      : 'Name of output table',
-                description: 'Name of the output table.</br> </br>' +
-                        'Do not write the name of a table that contains a space.</br> </br>' +
-                        '&#128736; Default value: <b>RECEIVERS </b>',
+        key_password        : [
+                name       : 'SSH Private Key password',
+                title      : 'SSH Private Key password',
+                description: 'Optional private key password',
                 min        : 0, max: 1,
                 type       : String.class
         ],
-        isoSurfaceInBuildings: [
-                name        : 'Create IsoSurfaces over buildings',
-                title       : 'Create IsoSurfaces over buildings',
-                description : 'If enabled, isosurfaces will be visible at the location of buildings </br></br>' +
-                        '&#128736; Default value: <b>false </b>',
-                min         : 0, max: 1,
-                type        : Boolean.class
-        ],
-        fenceNegativeBuffer             : [
-                name       : 'Negative buffer',
-                title      : 'Negative buffer',
-                description: 'Reduce the fence(parameter, or sound sources and buildings extent)' +
-                        ' used to generate receivers positions. You should set here the maximum propagation distance (in meters) (FLOAT).</br> </br>' +
-                        '&#128736; Default value: <b>0 </b>',
-                min        : 0, max: 1,
-                type       : Double.class
-        ]
 ]
 
 outputs = [
@@ -142,8 +98,21 @@ def exec(Connection connection, Map input) {
         progressLogger = new RootProgressVisitor(1, true, 1)
     }
 
+    // Create a connection statement to interact with the database in SQL
+    Statement stmt = connection.createStatement()
+
+    stmt.execute("CREATE TABLE IF NOT EXISTS SLURM_CONFIGURATION(KEY VARCHAR, VALUE VARCHAR)")
+    stmt.execute("TRUNCATE TABLE SLURM_CONFIGURATION")
+    input.forEach { key, value ->
+        def ps = connection.prepareStatement("INSERT INTO SLURM_CONFIGURATION(KEY, VALUE) VALUES(?, ?);")
+        ps.setString(1, String.valueOf(key))
+        ps.setString(2, String.valueOf(value))
+        ps.execute()
+    }
+
+
     // print to WPS Builder
-    return ["result" : ""]
+    return ["result" : "Table SLURM_CONFIGURATION updated"]
 
 }
 
