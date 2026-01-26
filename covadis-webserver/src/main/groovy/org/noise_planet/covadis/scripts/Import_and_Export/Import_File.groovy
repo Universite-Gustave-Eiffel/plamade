@@ -43,7 +43,7 @@ title = 'Import File'
 description = '&#10145;&#65039; Import file into the database. </br>'+
               '<hr>' +
               'Valid file extensions: csv, dbf, geojson, gpx, bz2, gz, osm, shp, tsv </br> </br>' +
-              '<img src="/wps_images/import_file.png" alt="Import file" width="95%" align="center">'
+              '<img src="wps_images/import_file.png" alt="Import file" width="95%" align="center">'
 
 inputs = [
         pathFile : [
