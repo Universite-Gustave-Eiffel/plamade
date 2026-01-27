@@ -115,6 +115,7 @@ public class Job<T> implements Callable<T> {
                 .findFirst()
                 .orElse(null);
         boolean useConnection = true;
+        T returnData = null;
         if (execMetaMethod != null) {
             // 2. Access the native parameter types
             Class[] parameterTypes = execMetaMethod.getNativeParameterTypes();
@@ -124,29 +125,34 @@ public class Job<T> implements Callable<T> {
             } else if (!firstArgClass.equals(Object.class) && !firstArgClass.equals(Connection.class)) {
                 throw new RuntimeException("Invalid first argument type for exec method in " + scriptMetadata.id);
             }
-            System.out.println("First argument class: " + firstArgClass.getName());
-        }
-        try {
-            Object returnData;
-            if(useConnection) {
-                // Open the connection to the database
-                try (Connection connection = userDataSource.getConnection()) {
-                    returnData = script.invokeMethod("exec", new Object[]{connection, inputs});
+            try {
+                Object ret;
+                if(useConnection) {
+                    // Open the connection to the database
+                    try (Connection connection = userDataSource.getConnection()) {
+                        ret = execMetaMethod.invoke(script, new Object[]{connection, inputs});
+                    }
+                } else {
+                    ret = execMetaMethod.invoke(script, new Object[]{userDataSource, inputs});
                 }
-            } else {
-                returnData = script.invokeMethod("exec", new Object[]{userDataSource, inputs});
+                if (ret != null) {
+                    // Unchecked cast is unavoidable due to type erasure with generics
+                    // The script author is responsible for returning the correct type
+                    @SuppressWarnings("unchecked") T castedReturn = (T) ret;
+                    returnData = castedReturn;
+                }
+                setJobState(JobStates.COMPLETED);
+                setJobProgression(100);
+            } catch (Exception ex) {
+                setJobState(JobStates.FAILED);
+                logger.error("Job failed", ex);
+                throw new RuntimeException(ex);
+            } finally {
+                isRunning = false;
+                onJobEnd();
             }
-            setJobState(JobStates.COMPLETED);
-            setJobProgression(100);
-            return (T) returnData;
-        } catch (Exception ex) {
-            setJobState(JobStates.FAILED);
-            logger.error("Job failed", ex);
-            throw new RuntimeException(ex);
-        } finally {
-            isRunning = false;
-            onJobEnd();
         }
+        return returnData;
     }
 
     public void cancel() {

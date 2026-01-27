@@ -41,4 +41,4 @@ EOF
 
 EXPOSE 8000
 
-ENTRYPOINT ["sh", "-c", "exec /srv/noisemodelling/bin/WebServer -w /srv/noisemodelling/workspace -s /srv/noisemodelling/scripts ${PROXY_BASE_URL:+-l \"$PROXY_BASE_URL\"}"]
+ENTRYPOINT ["sh", "-c", "exec /srv/noisemodelling/bin/WebServer -b -w /srv/noisemodelling/workspace -s /srv/noisemodelling/scripts ${PROXY_BASE_URL:+-l \"$PROXY_BASE_URL\"}"]
