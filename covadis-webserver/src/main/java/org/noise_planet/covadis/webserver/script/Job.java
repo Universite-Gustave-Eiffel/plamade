@@ -10,6 +10,7 @@
 package org.noise_planet.covadis.webserver.script;
 
 import groovy.lang.GroovyShell;
+import groovy.lang.MetaMethod;
 import groovy.lang.Script;
 import org.h2gis.api.ProgressVisitor;
 import org.jetbrains.annotations.NotNull;
@@ -23,6 +24,7 @@ import javax.sql.DataSource;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -94,22 +96,46 @@ public class Job<T> implements Callable<T> {
 
     @Override
     public T call() throws Exception {
-        // Change the Thread name in order to allocate the logging messages of this job
+        // Change the Thread name to match the logging filter to the logging messages of this job
         Thread.currentThread().setName(getThreadName(jobId));
-        
-        // Open the connection to the database
-        try(Connection connection = userDataSource.getConnection()) {
-            isRunning = true;
-            setJobState(JobStates.RUNNING);
-            GroovyShell shell = new GroovyShell();
-            File scriptFile = scriptMetadata.path.toFile();
-            Script script = shell.parse(scriptFile);
-            // Provide system inputs
-            inputs.put("_progression", progressVisitor);
-            // The script is not sandboxed so it have the same read/write access as the application
-            // it is useless to try to limit access to the server configuration
-            inputs.put("_configuration", configuration);
-            Object returnData = script.invokeMethod("exec", new Object[]{connection, inputs});
+        isRunning = true;
+        setJobState(JobStates.RUNNING);
+        GroovyShell shell = new GroovyShell();
+        File scriptFile = scriptMetadata.path.toFile();
+        Script script = shell.parse(scriptFile);
+        // Provide system inputs
+        inputs.put("_progression", progressVisitor);
+        // The script is not sandboxed so it have the same read/write access as the application
+        // it is useless to try to limit access to the server configuration
+        inputs.put("_configuration", configuration);
+        // Check expected arguments
+        List<MetaMethod> methods = script.getMetaClass().getMethods();
+        MetaMethod execMetaMethod = methods.stream()
+                .filter(m -> m.getName().equals("exec"))
+                .findFirst()
+                .orElse(null);
+        boolean useConnection = true;
+        if (execMetaMethod != null) {
+            // 2. Access the native parameter types
+            Class[] parameterTypes = execMetaMethod.getNativeParameterTypes();
+            Class<?> firstArgClass = parameterTypes[0];
+            if(firstArgClass.equals(DataSource.class)) {
+                useConnection = false;
+            } else if (!firstArgClass.equals(Object.class) && !firstArgClass.equals(Connection.class)) {
+                throw new RuntimeException("Invalid first argument type for exec method in " + scriptMetadata.id);
+            }
+            System.out.println("First argument class: " + firstArgClass.getName());
+        }
+        try {
+            Object returnData;
+            if(useConnection) {
+                // Open the connection to the database
+                try (Connection connection = userDataSource.getConnection()) {
+                    returnData = script.invokeMethod("exec", new Object[]{connection, inputs});
+                }
+            } else {
+                returnData = script.invokeMethod("exec", new Object[]{userDataSource, inputs});
+            }
             setJobState(JobStates.COMPLETED);
             setJobProgression(100);
             return (T) returnData;

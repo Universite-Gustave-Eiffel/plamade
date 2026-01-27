@@ -10,17 +10,9 @@
  *
  */
 
-/**
- * @Author Pierre Aumond, Université Gustave Eiffel
- * @Author Nicolas Fortin, Université Gustave Eiffel
- */
-
-
 package org.noise_planet.covadis.scripts.hpc
 
-
 import org.h2gis.api.ProgressVisitor
-import org.locationtech.jts.geom.Geometry
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
 
 import java.sql.Connection
