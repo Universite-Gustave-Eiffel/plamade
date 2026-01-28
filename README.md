@@ -25,9 +25,45 @@ This platform may use High Power Computing platform (Slurm) in order to run the 
 
 ![Diagramme de flux](/documents/diag_flux.svg "Execution process")
 
-# Docker (todo)
+# Deployment
 
+This platform is deployed using Docker and hosted on the Github Packages.
 
+On the root of this repository you can find an example docker compose.
+
+If you have a domain name you can use the environment variable PROXY_BASE_URL with your domain name.
+
+By default the service is accessible from the path /nmcovadis but you can change it by using the environment variable ROOT_URL (empty to use the base url)
+
+## Dependencies
+
+Install Docker or Podman on your system
+
+## Running
+
+Download the file [docker-compose.yml](docker-compose.yml) and run this command in the same folder:
+
+```bash
+docker compose up -d
+```
+
+or
+
+```bash
+podman compose up -d
+```
+
+Follow the instructions of the logs in order to register the administrator account.
+
+```bash
+docker compose logs noisemodelling
+```
+
+or
+
+```bash
+podman compose logs noisemodelling
+```
 
 
 

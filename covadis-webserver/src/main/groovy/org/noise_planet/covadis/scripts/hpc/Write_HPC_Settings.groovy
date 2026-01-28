@@ -16,12 +16,19 @@ import org.h2gis.api.ProgressVisitor
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
 
 import java.sql.Connection
+import java.sql.PreparedStatement
 import java.sql.Statement
 
 title = 'Write HPC settings'
 description = 'Create a table that will contain all settings to connect to a Slurm service through SSH'
 
 inputs = [
+        configuration_name      : [
+                name       : 'Configuration Identifier',
+                title      : 'Configuration Identifier',
+                description: 'Ex: slurm1',
+                type       : String.class
+        ],
         host      : [
                 name       : 'Host',
                 title      : 'Server host name or ip address',
@@ -41,7 +48,7 @@ inputs = [
                 description: '<p>Base64 Public SSL server key for host key checking</p>',
                 type       : String.class
         ],
-        ssk_key_type   : [
+        ssh_key_type   : [
                 name       : 'SSH server key type',
                 title      : 'SSH server key type',
                 description: '<p>SSH supported server key type ex:ssh-rsa</p>',
@@ -93,15 +100,34 @@ def exec(Connection connection, Map input) {
     // Create a connection statement to interact with the database in SQL
     Statement stmt = connection.createStatement()
 
-    stmt.execute("CREATE TABLE IF NOT EXISTS SLURM_CONFIGURATION(KEY VARCHAR, VALUE VARCHAR)")
-    stmt.execute("TRUNCATE TABLE SLURM_CONFIGURATION")
-    input.forEach { key, value ->
-        def ps = connection.prepareStatement("INSERT INTO SLURM_CONFIGURATION(KEY, VALUE) VALUES(?, ?);")
-        ps.setString(1, String.valueOf(key))
-        ps.setString(2, String.valueOf(value))
-        ps.execute()
+    stmt.execute("CREATE TABLE IF NOT EXISTS SLURM_CONFIGURATION(" +
+            "configuration_name varchar," +
+            "host varchar," +
+            "port integer," +
+            "ssl_key varchar," +
+            "ssh_key_type varchar," +
+            "user varchar," +
+            "key varchar," +
+            "key_password varchar)")
+
+    try(PreparedStatement deleteSt = connection.prepareStatement("DELETE FROM SLURM_CONFIGURATION WHERE configuration_name = ?")) {
+        deleteSt.setString(1, input['configuration_name'] as String)
+        deleteSt.execute()
     }
 
+    try(PreparedStatement pst = connection.prepareStatement("INSERT INTO SLURM_CONFIGURATION(" +
+            "configuration_name, host, port, ssl_key, ssh_key_type, user, key, key_password) " +
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?)")) {
+        pst.setString(1, input['configuration_name'] as String)
+        pst.setString(2, input['host'] as String)
+        pst.setObject(3, input.getOrDefault('port', 22) as Integer)
+        pst.setString(4, input['ssl_key'] as String)
+        pst.setString(5, input['ssh_key_type'] as String)
+        pst.setString(6, input['user'] as String)
+        pst.setString(7, input['key'] as String)
+        pst.setObject(8, input['key_password'] as String)
+        pst.executeUpdate()
+    }
 
     // print to WPS Builder
     return ["result" : "Table SLURM_CONFIGURATION updated"]
