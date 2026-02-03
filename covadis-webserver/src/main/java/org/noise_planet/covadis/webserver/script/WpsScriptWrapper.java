@@ -12,6 +12,7 @@ package org.noise_planet.covadis.webserver.script;
 
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import org.h2.server.web.PageParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -294,14 +295,7 @@ public class WpsScriptWrapper {
      */
     private static String escapeForWpsXml(String input) {
         if (input == null) return "";
-        String noHtml = input.replaceAll("<[^>]+>", " ");
-        return noHtml
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&apos;")
-                .trim();
+        return PageParser.escapeHtml(input.trim());
     }
 
 

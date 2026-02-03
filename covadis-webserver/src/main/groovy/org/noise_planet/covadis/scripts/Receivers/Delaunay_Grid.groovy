@@ -13,33 +13,30 @@
 /**
  * @Author Pierre Aumond, Université Gustave Eiffel
  * @Author Nicolas Fortin, Université Gustave Eiffel
+ * @Contributor Ignacio Soto, Ministry for the Ecological Transition, Spain
  */
 
 
 package org.noise_planet.covadis.scripts.Receivers
 
 import groovy.sql.Sql
-import org.h2gis.api.EmptyProgressVisitor
+import org.h2.util.geometry.EWKTUtils
+import org.h2.util.geometry.JTSUtils
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.functions.spatial.crs.ST_SetSRID
 import org.h2gis.functions.spatial.crs.ST_Transform
 import org.h2gis.utilities.GeometryTableUtilities
+import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.locationtech.jts.geom.Envelope
 import org.locationtech.jts.geom.Geometry
-import org.locationtech.jts.io.WKTReader
-
-import org.noise_planet.noisemodelling.emission.*
+import org.noise_planet.noisemodelling.jdbc.DelaunayReceiversMaker
 import org.noise_planet.noisemodelling.pathfinder.delaunay.LayerDelaunayError
-import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor;
-import org.noise_planet.noisemodelling.propagation.*
-import org.noise_planet.noisemodelling.jdbc.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
-import java.util.concurrent.atomic.AtomicInteger
 
 title = 'Delaunay Grid'
 description = '&#10145;&#65039; Computes a <a href="https://en.wikipedia.org/wiki/Delaunay_triangulation" target="_blank">Delaunay</a> grid of receivers.</br>' +
@@ -50,9 +47,16 @@ description = '&#10145;&#65039; Computes a <a href="https://en.wikipedia.org/wik
               '&#x2705; Two tables are returned:<ul>' +
               '<li> <b>RECEIVERS</b></li>' +
               '<li> <b>TRIANGLES</b></li>' +
-              '<img src="/wps_images/delaunay_grid_output.png" alt="Delaunay grid output" width="95%" align="center">'
+              '<img src="wps_images/delaunay_grid_output.png" alt="Delaunay grid output" width="95%" align="center">'
 
 inputs = [
+        fenceTableName: [
+                name       : 'Fence table name',
+                title      : 'Fence table name',
+                description: 'Use the extent of a geometry table (e.g., from a shapefile) to limit receiver area',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
         tableBuilding      : [
                 name       : 'Buildings table name',
                 title      : 'Buildings table name',
@@ -84,12 +88,29 @@ inputs = [
                 min        : 0, max: 1,
                 type       : Double.class
         ],
+        skipCellNoSourcesMinimalDistance        : [
+                name       : 'Skip cell no sources minimal distance',
+                title      : 'Skip cell no sources minimal distance',
+                description: 'If provided, a sub-domain will not be computed if no sources geometries are near x meters from the sub-domain area',
+                min        : 0, max: 1,
+                type       : Double.class
+        ],
         roadWidth          : [
                 name       : 'Road width',
                 title      : 'Road width',
                 description: 'Set Road Width (in meters) (FLOAT).</br> </br>' +
-                             'No receivers closer than road width distance will be created.</br> </br>' +
+                             'No receivers closer than road width distance will be created.</br>' +
+                        ' </br> You can set 0m if you don\'t want to insert roads in the output but still want' +
+                        ' to skip cells without sources using the \'Skip cell no sources minimal distance\' parameter' +
                              '&#128736; Default value: <b>2 </b>',
+                min        : 0, max: 1,
+                type       : Double.class
+        ],
+        buildingBuffer      : [
+                name       : 'Building buffer',
+                title      : 'Minimum distance to buildings (m)',
+                description: 'Do not add receivers closer than this distance to buildings (in meters). ' +
+                             'Default value: 2',
                 min        : 0, max: 1,
                 type       : Double.class
         ],
@@ -136,7 +157,15 @@ inputs = [
                         '&#128736; Default value: <b>0 </b>',
                 min        : 0, max: 1,
                 type       : Double.class
-        ]
+        ],
+        exportTrianglesGeometries: [
+                name        : 'In the triangles table, export triangles geometries',
+                title       : 'In the triangles table, export triangles geometries',
+                description : 'If enabled, the TRIANGLES table will contain the geometry of each triangle. </br></br>' +
+                              '&#128736; Default value: <b>false </b>',
+                min         : 0, max: 1,
+                type        : Boolean.class
+        ],
 ]
 
 outputs = [
@@ -148,15 +177,15 @@ outputs = [
         ]
 ]
 
-def exec(Connection connection, Map input) {
-
-    ProgressVisitor progressLogger
-
-    if("_progression" in input) {
-        progressLogger = input["_progression"] as ProgressVisitor
-    } else {
-        progressLogger = new RootProgressVisitor(1, true, 1)
+// Create a spatial index if it does not exist yet on table(geomCol)
+def ensureSpatialIndex(Connection connection, String table) {
+    def geomCol = GeometryTableUtilities.getFirstGeometryColumnNameAndIndex(connection, table).first()
+    if(!JDBCUtilities.isSpatialIndexed(connection, table, geomCol)) {
+        JDBCUtilities.createSpatialIndex(connection, table, geomCol)
     }
+}
+
+def exec(Connection connection, Map input, ProgressVisitor progressLogger) {
 
     // output string, the information given back to the user
     String resultString = null
@@ -194,7 +223,6 @@ def exec(Connection connection, Map input) {
         isoSurfaceInBuildings = input['isoSurfaceInBuildings'] as Boolean
     }
 
-
     Double maxCellDist = 600.0
     if (input['maxCellDist']) {
         maxCellDist = input['maxCellDist'] as Double
@@ -210,23 +238,65 @@ def exec(Connection connection, Map input) {
         roadWidth = input['roadWidth'] as Double
     }
 
+    // Receiver-to-building minimum distance (meters).
+    // New parameter: prevents adding receivers too close to building footprints.
+    // Default: 2.0 m.
+    Double buildingBuffer = 2.0
+    if (input['buildingBuffer']) {
+        buildingBuffer = input['buildingBuffer'] as Double
+    }
+
     Double maxArea = 2500
     if (input.containsKey('maxArea')) {
         maxArea = input['maxArea'] as Double
     }
 
+    boolean exportTriangles = false
+    if(input.containsKey('exportTrianglesGeometries')) {
+        exportTriangles = input['exportTrianglesGeometries'] as Boolean
+    }
+
+    boolean skipCellNoSources = false
+    Double skipCellNoSourcesMinimalDistance = 0.0
+    if (input.containsKey('skipCellNoSourcesMinimalDistance')) {
+        skipCellNoSourcesMinimalDistance = input['skipCellNoSourcesMinimalDistance'] as Double
+        if(skipCellNoSourcesMinimalDistance > 0) {
+            skipCellNoSources = true
+        }
+    }
+
     int srid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(building_table_name))
+    if (srid == 0) {
+        srid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
+    }
 
     Geometry fence = null
-    WKTReader wktReader = new WKTReader()
     if (input['fence']) {
-        fence = wktReader.read(input['fence'] as String)
+        if(input['fence'] instanceof Geometry) {
+            fence = input['fence']
+        } else {
+            fence = JTSUtils.ewkb2geometry(EWKTUtils.ewkt2ewkb(input['fence'] as String))
+        }
+    }
+
+    // Fence handling (two options):
+    //  1) Direct geometry passed as 'fence' (handled above)
+    //  2) Bounding box extracted from another table via 'fenceTableName'
+    // Implemented by IsotoCedex (adapted from Building_Grid.groovy)
+    if (input['fenceTableName']) {
+        fence = GeometryTableUtilities.getEnvelope(connection, TableLocation.parse(input['fenceTableName'] as String), 'THE_GEOM')
+        if(fence.getSRID() == 0) {
+            fence.setSRID(srid)
+        }
     }
 
     //Statement sql = connection.createStatement()
     Sql sql = new Sql(connection)
+
+
     connection = new ConnectionWrapper(connection)
 
+    // Clean previous outputs so we can regenerate a fresh grid.
     // Delete previous receivers grid
     sql.execute(String.format("DROP TABLE IF EXISTS %s", receivers_table_name))
     sql.execute("DROP TABLE IF EXISTS TRIANGLES")
@@ -234,21 +304,24 @@ def exec(Connection connection, Map input) {
     // Generate receivers grid for noise map rendering
     DelaunayReceiversMaker delaunayReceiversMaker = new DelaunayReceiversMaker(building_table_name, sources_table_name)
 
-    if (fence != null) {
-        // Reproject fence
-        int targetSrid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(building_table_name))
-        if (targetSrid == 0) {
-            targetSrid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
-        }
-        if (targetSrid != 0) {
-            // Transform fence to the same coordinate system than the buildings & sources
-            fence = ST_Transform.ST_Transform(connection, ST_SetSRID.setSRID(fence, 4326), targetSrid)
-            delaunayReceiversMaker.setMainEnvelope(fence.getEnvelopeInternal())
-        } else {
-            System.err.println("Unable to find buildings or sources SRID, ignore fence parameters")
-        }
+    if(skipCellNoSources) {
+        delaunayReceiversMaker.setMinimalSourceGeometriesDistanceToComputeCell(skipCellNoSourcesMinimalDistance)
     }
 
+    delaunayReceiversMaker.setExportTrianglesGeometries(exportTriangles)
+
+    if (fence != null) {
+        // If the fence must be reprojected into the input srid
+        if (srid != 0 && fence.getSRID() != srid) {
+            if(fence.getSRID() == 0) {
+                // If the provided srid is not known, it is considered being in the WGS84 projection system
+                fence = ST_SetSRID.setSRID(fence, 4326)
+            }
+            // Transform fence to the same coordinate system than the buildings & sources
+            fence = ST_Transform.ST_Transform(connection, fence, srid)
+        }
+        delaunayReceiversMaker.setMainEnvelope(fence.getEnvelopeInternal())
+    }
 
     // Avoid loading to much geometries when doing Delaunay triangulation
     delaunayReceiversMaker.setMaximumPropagationDistance(maxCellDist)
@@ -258,17 +331,23 @@ def exec(Connection connection, Map input) {
     delaunayReceiversMaker.setRoadWidth(roadWidth)
     // No triangles larger than provided area
     delaunayReceiversMaker.setMaximumArea(maxArea)
+    // Do not add receivers closer to buildings than this distance
+    delaunayReceiversMaker.setBuildingBuffer(buildingBuffer)
 
+
+    // Allow isosurfaces to be present over buildings if requested.
     delaunayReceiversMaker.setIsoSurfaceInBuildings(isoSurfaceInBuildings)
-
-    logger.info("Delaunay initialize")
-    delaunayReceiversMaker.initialize(connection, new EmptyProgressVisitor())
 
     // Apply negative envelope parameter
     if (input.containsKey('fenceNegativeBuffer')) {
         double negativeBuffer = input['fenceNegativeBuffer'] as Double
         if(negativeBuffer > 0) {
-            Envelope envelope = delaunayReceiversMaker.getMainEnvelope()
+            Envelope envelope;
+            if(fence != null) {
+                envelope = fence.getEnvelopeInternal()
+            } else {
+                envelope = delaunayReceiversMaker.getComputationEnvelope(connection);
+            }
             envelope.expandBy(-negativeBuffer)
             delaunayReceiversMaker.setMainEnvelope(envelope)
         }
@@ -280,31 +359,34 @@ def exec(Connection connection, Map input) {
         delaunayReceiversMaker.setExceptionDumpFolder(input['errorDumpFolder'] as String)
     }
 
-    AtomicInteger pk = new AtomicInteger(0)
-    ProgressVisitor progressVisitorNM = progressLogger.subProcess(delaunayReceiversMaker.getGridDim() * delaunayReceiversMaker.getGridDim())
-
+    long startTime = System.currentTimeMillis()
     try {
-        for (int i = 0; i < delaunayReceiversMaker.getGridDim() && !progressVisitorNM.canceled; i++) {
-            for (int j = 0; j < delaunayReceiversMaker.getGridDim() && !progressVisitorNM.canceled; j++) {
-                logger.info("Compute cell " + (i * delaunayReceiversMaker.getGridDim() + j + 1) + " of " + delaunayReceiversMaker.getGridDim() * delaunayReceiversMaker.getGridDim())
-                delaunayReceiversMaker.generateReceivers(connection, i, j, receivers_table_name, "TRIANGLES", pk)
-                progressVisitorNM.endStep()
-            }
-        }
+        delaunayReceiversMaker.run(connection, receivers_table_name, "TRIANGLES", progressLogger)
     } catch (LayerDelaunayError ex) {
         logger.error("Got an error use the errorDumpFolder parameter with a folder path in order to save the " +
                 "input geometries for debugging purpose")
         throw ex
     }
 
-    logger.info("Create spatial index on "+receivers_table_name+" table")
-    sql.execute("Create spatial index on " + receivers_table_name + "(the_geom);")
+    logger.info("Generating spatial index on " + receivers_table_name)
+    // Ensure spatial indexes on output tables (if missing)
+    ensureSpatialIndex(connection, receivers_table_name)
 
-    int nbReceivers = sql.firstRow("SELECT COUNT(*) FROM " + receivers_table_name)[0] as Integer
-    int nbTriangles= sql.firstRow("SELECT COUNT(*) FROM TRIANGLES")[0] as Integer
+    if(exportTriangles) {
+        logger.info("Generating spatial index on TRIANGLES")
+        ensureSpatialIndex(connection, 'TRIANGLES')
+    }
+
+
+    long processTime = System.currentTimeMillis() - startTime
+    logger.info("Delaunay grid computed in " + (processTime / 1000) + " seconds.")
+
+    long nbReceivers = delaunayReceiversMaker.getReceiversCount()
 
     // Process Done
-    resultString = "Process done. " + receivers_table_name + " (" + nbReceivers + " receivers) and TRIANGLES (" + nbTriangles +" triangles) tables created. "
+    resultString = "Delaunay grid created with " + nbReceivers + " receivers in table " + receivers_table_name +
+            (exportTriangles ? " and triangles in table TRIANGLES" : "" )+ "."
+    resultString += " Process time: " + (processTime / 1000) + " seconds."
 
     // print to command window
     logger.info('Result : ' + resultString)
@@ -312,6 +394,7 @@ def exec(Connection connection, Map input) {
 
     // print to WPS Builder
     return resultString
+
 
 }
 

@@ -1,13 +1,14 @@
 /**
- * NoiseModelling is a library capable of producing noise maps. It can be freely used either for research and education, as well as by experts in a professional use.
- * <p>
+ * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
+ *
+ * This version is developed by the DECIDE team from the Lab-STICC (CNRS) and by the Mixt Research Unit in Environmental Acoustics (Université Gustave Eiffel).
+ * <http://noise-planet.org/noisemodelling.html>
+ *
  * NoiseModelling is distributed under GPL 3 license. You can read a copy of this License in the file LICENCE provided with this software.
- * <p>
- * Official webpage : http://noise-planet.org/noisemodelling.html
+ *
  * Contact: contact@noise-planet.org
+ *
  */
-
-
 
 /**
  * @Author Nicolas Fortin, Université Gustave Eiffel
@@ -16,7 +17,7 @@
 
 package org.noise_planet.covadis.scripts.Database_Manager
 
-import org.h2gis.utilities.GeometryTableUtilities
+import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.slf4j.Logger
@@ -50,7 +51,13 @@ outputs = [
         ]
 ]
 
-def exec(Connection connection, input) {
+
+
+
+def exec(Connection connection, Map input, ProgressVisitor progress) {
+
+    // output string, the information given back to the user
+    String resultString = null
 
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
@@ -73,31 +80,20 @@ def exec(Connection connection, input) {
 
     // Get every table names
     List<String> tables = JDBCUtilities.getTableNames(connection, null, "PUBLIC", "%", null)
-    int printedTables = 0
     // Loop over the tables
     tables.each { t ->
         TableLocation tab = TableLocation.parse(t)
         if (!ignorelst.contains(tab.getTable())) {
-            printedTables++
             sb.append(tab.getTable())
             sb.append("</br>")
             if (showColumnName) {
                 List<String> fields = JDBCUtilities.getColumnNames(connection, t)
-                def geometryColumnNames = GeometryTableUtilities.getGeometryColumnNames(connection, tab)
                 Integer keyColumnIndex = JDBCUtilities.getIntegerPrimaryKey(connection, tab)
                 int columnIndex = 1;
                 fields.each {
                     f ->
                         if (columnIndex == keyColumnIndex) {
                             sb.append(String.format("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%s&nbsp;&#128273;</br>", f))
-                        } else if(geometryColumnNames.contains(f)) {
-                            int epsg = 0;
-                            try {
-                                epsg = GeometryTableUtilities.getSRID(connection, tab, f)
-                            } catch (Exception ex) {
-                                //ignore
-                            }
-                            sb.append(String.format("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%s&nbsp;&#127760; (srid: %d)</br>", f, epsg))
                         } else {
                             sb.append(String.format("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%s</br>", f))
                         }
@@ -107,12 +103,11 @@ def exec(Connection connection, input) {
             sb.append("</br>")
         }
     }
-    if(printedTables == 0) {
-        sb.append("Empty database")
-    }
+
     // print to command window
     logger.info('End : Display database')
 
     // print to WPS Builder
     return sb.toString()
 }
+

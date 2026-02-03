@@ -9,38 +9,15 @@
  * Contact: contact@noise-planet.org
  *
  */
+package org.noise_planet.covadis.scripts.hpc
 
-/**
- * @Author Pierre Aumond, Université Gustave Eiffel
- * @Author Hesry Quentin, Université Gustave Eiffel
- * @Author Nicolas Fortin, Université Gustave Eiffel
- */
-
-package org.noise_planet.covadis.scripts.NoiseModelling
-
-
-
-import groovy.sql.Sql
 import org.h2gis.api.ProgressVisitor
-
-import org.h2gis.utilities.GeometryTableUtilities
-import org.h2gis.utilities.JDBCUtilities
-import org.h2gis.utilities.TableLocation
-import org.h2gis.utilities.dbtypes.DBTypes
-import org.h2gis.utilities.dbtypes.DBUtils
-import org.h2gis.utilities.wrapper.ConnectionWrapper
-import org.noise_planet.noisemodelling.jdbc.NoiseMapByReceiverMaker
-import org.noise_planet.noisemodelling.jdbc.NoiseMapDatabaseParameters
-import org.noise_planet.noisemodelling.jdbc.input.DefaultTableLoader
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
-import org.noise_planet.noisemodelling.propagation.AttenuationParameters
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 
-import java.sql.Connection
-import java.sql.SQLException
-import java.time.LocalDateTime
-import java.util.concurrent.TimeUnit
+import javax.sql.DataSource
+
+title = 'Write HPC settings'
+description = 'Create a table that will contain all settings to connect to a Slurm service through SSH'
 
 title = 'Computes the propagation from the sounds sources to the receivers'
 description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table.' +
@@ -273,293 +250,27 @@ outputs = [
                 type       : String.class
         ]
 ]
-// Open Connection to Geoserver
 
+/**
+ * Main run function
+ * @param dataSource
+ * @param input
+ * @return
+ */
+def exec(DataSource dataSource, Map input) {
 
-// run the script
+    ProgressVisitor progressLogger
 
-
-// main function of the script
-def exec(Connection connection, Map input, ProgressVisitor progress) {
-    long startCompute = System.currentTimeMillis()
-
-    DBTypes dbType = DBUtils.getDBType(connection.unwrap(Connection.class))
-
-    //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
-    connection = new ConnectionWrapper(connection)
-
-    // Create a sql connection to interact with the database in SQL
-    Sql sql = new Sql(connection)
-
-    sql.execute("DROP TABLE RECEIVERS_LEVEL IF EXISTS;")
-    // Create a logger to display messages in the geoserver logs and in the command prompt.
-    Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
-
-    // print to command window
-    logger.info('Start : Level from Emission')
-    logger.info("inputs {}", input) // log inputs of the run
-
-
-    // -------------------
-    // Get every inputs
-    // -------------------
-
-    String sources_table_name = input['tableSources']
-    // do it case-insensitive
-    sources_table_name = sources_table_name.toUpperCase()
-    // Check if srid are in metric projection.
-    int sridSources = GeometryTableUtilities.getSRID(connection, TableLocation.parse(sources_table_name))
-    if (sridSources == 3785 || sridSources == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+sources_table_name+".")
-    if (sridSources == 0) throw new IllegalArgumentException("Error : The table "+sources_table_name+" does not have an associated SRID.")
-
-    //Get the geometry field of the source table
-    TableLocation sourceTableIdentifier = TableLocation.parse(sources_table_name)
-    List<String> geomFields = GeometryTableUtilities.getGeometryColumnNames(connection, sourceTableIdentifier)
-    if (geomFields.isEmpty()) {
-        throw new SQLException(String.format("The table %s does not exists or does not contain a geometry field", sourceTableIdentifier))
-    }
-
-    //Get the primary key field of the source table
-    int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(sources_table_name))
-    if (pkIndex < 1) {
-        throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", sourceTableIdentifier))
-    }
-
-    String receivers_table_name = input['tableReceivers']
-    // do it case-insensitive
-    receivers_table_name = receivers_table_name.toUpperCase()
-    //Get the geometry field of the receiver table
-    TableLocation receiverTableIdentifier = TableLocation.parse(receivers_table_name)
-    List<String> geomFieldsRcv = GeometryTableUtilities.getGeometryColumnNames(connection, receiverTableIdentifier)
-    if (geomFieldsRcv.isEmpty()) {
-        throw new SQLException(String.format("The table %s does not exists or does not contain a geometry field", receiverTableIdentifier))
-    }
-    // Check if srid are in metric projection and are all the same.
-    int sridReceivers = GeometryTableUtilities.getSRID(connection, TableLocation.parse(receivers_table_name))
-    if (sridReceivers == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+receivers_table_name+".")
-    if (sridReceivers == 0) throw new IllegalArgumentException("Error : The table "+receivers_table_name+" does not have an associated SRID.")
-    if (sridReceivers != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+sources_table_name+" and "+receivers_table_name+" are not the same.")
-
-
-    //Get the primary key field of the receiver table
-    int pkIndexRecv = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(receivers_table_name))
-    if (pkIndexRecv < 1) {
-        throw new IllegalArgumentException(String.format("Source table %s does not contain a primary key", receiverTableIdentifier))
-    }
-
-    String building_table_name = input['tableBuilding']
-    // do it case-insensitive
-    building_table_name = building_table_name.toUpperCase()
-    // Check if srid are in metric projection and are all the same.
-    int sridBuildings = GeometryTableUtilities.getSRID(connection, TableLocation.parse(building_table_name))
-    if (sridBuildings == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+building_table_name+".")
-    if (sridBuildings == 0) throw new IllegalArgumentException("Error : The table "+building_table_name+" does not have an associated SRID.")
-    if (sridReceivers != sridBuildings) throw new IllegalArgumentException("Error : The SRID of table "+building_table_name+" and "+receivers_table_name+" are not the same.")
-
-    String dem_table_name = ""
-    if (input['tableDEM']) {
-        dem_table_name = input['tableDEM']
-        // do it case-insensitive
-        dem_table_name = dem_table_name.toUpperCase()
-        // Check if srid are in metric projection and are all the same.
-        int sridDEM = GeometryTableUtilities.getSRID(connection, TableLocation.parse(dem_table_name))
-        if (sridDEM == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+dem_table_name+".")
-        if (sridDEM == 0) throw new IllegalArgumentException("Error : The table "+dem_table_name+" does not have an associated SRID.")
-        if (sridDEM != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+sources_table_name+" and "+dem_table_name+" are not the same.")
-    }
-
-    String ground_table_name = ""
-    if (input['tableGroundAbs']) {
-        ground_table_name = input['tableGroundAbs']
-        // do it case-insensitive
-        ground_table_name = ground_table_name.toUpperCase()
-        // Check if srid are in metric projection and are all the same.
-        int sridGROUND = GeometryTableUtilities.getSRID(connection, TableLocation.parse(ground_table_name))
-        if (sridGROUND == 3785 || sridReceivers == 4326) throw new IllegalArgumentException("Error : Please use a metric projection for "+ground_table_name+".")
-        if (sridGROUND == 0) throw new IllegalArgumentException("Error : The table "+ground_table_name+" does not have an associated SRID.")
-        if (sridGROUND != sridSources) throw new IllegalArgumentException("Error : The SRID of table "+ground_table_name+" and "+sources_table_name+" are not the same.")
-    }
-
-    String tableSourceDirectivity = ""
-    if (input['tableSourceDirectivity']) {
-        tableSourceDirectivity = input['tableSourceDirectivity']
-        // do it case-insensitive
-        tableSourceDirectivity = tableSourceDirectivity.toUpperCase()
-    }
-
-    boolean recordProfile = false
-    if (input['confRecordProfile']) {
-        recordProfile = input['confRecordProfile']
-    }
-
-    int reflexion_order = 0
-    if (input['confReflOrder']) {
-        reflexion_order = Integer.valueOf(input['confReflOrder'] as String)
-    }
-
-    double max_src_dist = 150
-    if (input['confMaxSrcDist']) {
-        max_src_dist = Double.valueOf(input['confMaxSrcDist'] as String)
-    }
-
-    double max_ref_dist = 50
-    if (input['confMaxReflDist']) {
-        max_ref_dist = Double.valueOf(input['confMaxReflDist'] as String)
-    }
-
-    double wall_alpha = 0.1
-    if (input['paramWallAlpha']) {
-        wall_alpha = Double.valueOf(input['paramWallAlpha'] as String)
-    }
-
-    int n_thread = 0
-    if (input['confThreadNumber']) {
-        n_thread = Integer.valueOf(input['confThreadNumber'] as String)
-    }
-
-    boolean compute_vertical_diffraction = false
-    if (input['confDiffVertical']) {
-        compute_vertical_diffraction = input['confDiffVertical']
-    }
-
-    boolean compute_horizontal_diffraction = false
-    if (input['confDiffHorizontal']) {
-        compute_horizontal_diffraction = input['confDiffHorizontal']
-    }
-
-    boolean confExportSourceId = false
-    if (input['confExportSourceId']) {
-        confExportSourceId = input['confExportSourceId']
-    }
-
-    double confMaxError = 0.1
-    if (input['confMaxError']) {
-        confMaxError = Double.valueOf(input['confMaxError'] as String)
-    }
-
-    String frequencyFieldPrepend = "HZ"
-    if (input['frequencyFieldPrepend']) {
-        frequencyFieldPrepend = input['frequencyFieldPrepend'] as String
-    }
-
-    // --------------------------------------------
-    // Initialize NoiseModelling propagation part
-    // --------------------------------------------
-
-    NoiseMapByReceiverMaker pointNoiseMap = new NoiseMapByReceiverMaker(building_table_name, sources_table_name, receivers_table_name)
-
-    def parameters = pointNoiseMap.getNoiseMapDatabaseParameters()
-
-    parameters.setMergeSources(!confExportSourceId)
-    parameters.exportReceiverPosition = true
-
-    if (input['tableSourcesEmission']) {
-        // Use the right default database caps according to db type
-        String tableSourcesEmission = TableLocation.capsIdentifier(input['tableSourcesEmission'] as String, dbType)
-        pointNoiseMap.setSourcesEmissionTableName(tableSourcesEmission)
-    }
-
-    // add optional discrete directivity table name
-    if(tableSourceDirectivity.isEmpty()) {
-        // Use train directivity functions instead of discrete directivity
-        pointNoiseMap.sceneInputSettings.setUseTrainDirectivity(true)
+    if("_progression" in input) {
+        progressLogger = input["_progression"] as ProgressVisitor
     } else {
-        // Load table into specialized class
-        pointNoiseMap.sceneInputSettings.setDirectivityTableName(tableSourceDirectivity)
-        logger.info(String.format(Locale.ROOT, "Loaded directivity from %s table", tableSourceDirectivity))
+        progressLogger = new RootProgressVisitor(1, true, 1)
     }
 
-    if (input['tableSourceEmission']) {
-        // Use the right default database caps according to db type
-        String tableSourceEmission = TableLocation.capsIdentifier(input['tableSourceEmission'] as String, dbType)
-        pointNoiseMap.setSourcesEmissionTableName(tableSourceEmission)
-    }
-
-    sql.execute("drop table if exists " + TableLocation.parse(pointNoiseMap.noiseMapDatabaseParameters.receiversLevelTable))
-
-    if (input['confRaysName'] && !((input['confRaysName'] as String).isEmpty())) {
-        parameters.setRaysTable(input['confRaysName'] as String)
-        parameters.setExportRaysMethod(NoiseMapDatabaseParameters.ExportRaysMethods.TO_RAYS_TABLE)
-        parameters.exportAttenuationMatrix = true
-        parameters.exportCnossosPathWithAttenuation = true
-        parameters.keepAbsorption = true
-    }
-
-    pointNoiseMap.setComputeHorizontalDiffraction(compute_vertical_diffraction)
-    pointNoiseMap.setComputeVerticalDiffraction(compute_horizontal_diffraction)
-    pointNoiseMap.setSoundReflectionOrder(reflexion_order)
-    pointNoiseMap.setFrequencyFieldPrepend(frequencyFieldPrepend)
 
 
-    // Set environmental parameters
-    DefaultTableLoader defaultTableLoader = (DefaultTableLoader)pointNoiseMap.tableLoader
-    AttenuationParameters environmentalData = defaultTableLoader.defaultParameters
+    // print to WPS Builder
+    return ["result" : ""]
 
-    if (input.containsKey('confFavourableOccurrencesDefault')) {
-        StringTokenizer tk = new StringTokenizer(input['confFavourableOccurrencesDefault'] as String, ',')
-        double[] favOccurrences = new double[AttenuationParameters.DEFAULT_WIND_ROSE.length]
-        for (int i = 0; i < favOccurrences.length; i++) {
-            favOccurrences[i] = Math.max(0, Math.min(1, Double.valueOf(tk.nextToken().trim())))
-        }
-        environmentalData.setWindRose(favOccurrences)
-    }
-    if (input.containsKey('confHumidity')) {
-        environmentalData.setHumidity(input['confHumidity'] as Double)
-    }
-    if (input.containsKey('confTemperature')) {
-        environmentalData.setTemperature(input['confTemperature'] as Double)
-    }
-    if(input.containsKey("tablePeriodAtmosphericSettings")) {
-        pointNoiseMap.getSceneInputSettings().setPeriodAtmosphericSettingsTableName(input.get("tablePeriodAtmosphericSettings") as String)
-    }
-
-    // Building height field name
-    pointNoiseMap.setHeightField("HEIGHT")
-    // Import table with Snow, Forest, Grass, Pasture field polygons. Attribute G is associated with each polygon
-    if (ground_table_name != "") {
-        pointNoiseMap.setSoilTableName(ground_table_name)
-    }
-    // Point cloud height above sea level POINT(X Y Z)
-    if (dem_table_name != "") {
-        pointNoiseMap.setDemTable(dem_table_name)
-    }
-
-    pointNoiseMap.setMaximumPropagationDistance(max_src_dist)
-    pointNoiseMap.setMaximumReflectionDistance(max_ref_dist)
-    pointNoiseMap.setWallAbsorption(wall_alpha)
-    pointNoiseMap.setThreadCount(n_thread)
-
-
-    if(recordProfile) {
-        LocalDateTime now = LocalDateTime.now()
-        pointNoiseMap.noiseMapDatabaseParameters.CSVProfilerOutputPath = new File(String.format("profile_%d_%d_%d_%dh%d.csv",
-                now.getYear(), now.getMonthValue(), now.getDayOfMonth(), now.getHour(), now.getMinute()))
-        pointNoiseMap.noiseMapDatabaseParameters.CSVProfilerWriteInterval = 120 // delay write csv line in seconds
-    }
-
-    // Do not propagate for low emission or far away sources
-    // Maximum error in dB
-    parameters.setMaximumError(confMaxError)
-
-    // --------------------------------------------
-    // Run Calculations
-    // --------------------------------------------
-
-    // Init ProgressLogger (loading bar)
-    RootProgressVisitor progressLogger = new RootProgressVisitor(1, true, 1)
-
-    logger.info("Start calculation... ")
-
-    pointNoiseMap.run(connection, progressLogger)
-
-    long elapsed = System.currentTimeMillis() - startCompute;
-    long hours = TimeUnit.MILLISECONDS.toHours(elapsed)
-    elapsed -= TimeUnit.HOURS.toMillis(hours)
-    long minutes = TimeUnit.MILLISECONDS.toMinutes(elapsed)
-    elapsed -= TimeUnit.MINUTES.toMillis(minutes)
-    long seconds = TimeUnit.MILLISECONDS.toSeconds(elapsed)
-    String timeString = String.format(Locale.ROOT, "%02d:%02d:%02d", hours, minutes, seconds)
-    logger.info( "Calculation Done in $timeString ! ")
-
-    return "Calculation Done ! The table $pointNoiseMap.noiseMapDatabaseParameters.receiversLevelTable have been created."
 }
+
