@@ -1,5 +1,7 @@
 package org.noise_planet.covadis.scripts.Geometric_Tools
 
+import groovy.sql.Sql
+
 /**
  * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
  *
@@ -18,27 +20,17 @@ package org.noise_planet.covadis.scripts.Geometric_Tools
  * @Author Gwendall Petit, Lab-STICC CNRS UMR 6285 
  */
 
-
-
-
-
-import groovy.sql.Sql
-import org.h2gis.api.ProgressVisitor
 import groovy.text.SimpleTemplateEngine
 import groovy.transform.CompileStatic
-
 import org.h2.util.ScriptReader
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.GeometryTableUtilities
-import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
-import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
 import java.sql.SQLException
-import java.sql.Statement
 
 title = 'Enrich DEM with roads'
 description = '&#10145;&#65039; Insert altimetric points coming from roads into the input DEM.</br>' +

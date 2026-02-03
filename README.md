@@ -31,9 +31,11 @@ This platform is deployed using Docker and hosted on the Github Packages.
 
 On the root of this repository you can find an example docker compose.
 
-If you have a domain name you can use the environment variable PROXY_BASE_URL with your domain name.
+You can edit the following environment variables:
 
-By default the service is accessible from the path /nmcovadis but you can change it by using the environment variable ROOT_URL (empty to use the base url)
+- PROXY_BASE_URL :  If you have a domain name you can use the your domain name instead of localhost
+- ROOT_URL : By default the service is accessible from the path /nmcovadis but you can change it by using the environment variable ROOT_URL (empty to use the base url)
+- UNSECURE_MODE : By default the registration is enabled (with TOTP). You can disable the registration by setting the environment variable UNSECURE_MODE in the docker-compose.yml file to true.
 
 ## Dependencies
 
@@ -64,7 +66,5 @@ or
 ```bash
 podman compose logs noisemodelling
 ```
-
-
 
 

@@ -8,6 +8,8 @@ package org.noise_planet.covadis.webserver.utilities;
  * Contact: contact@noise-planet.org
  */
 
+import org.apache.commons.text.StringEscapeUtils;
+
 import java.time.Duration;
 import java.util.Locale;
 
@@ -38,5 +40,9 @@ public class StringUtilities {
                     durationArray[DURATION_MINUTES], durationArray[DURATION_SECONDS]);
         }
         return durationString;
+    }
+
+    public static String escapeHtml(String input) {
+        return StringEscapeUtils.escapeHtml4(input);
     }
 }
