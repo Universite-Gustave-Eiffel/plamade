@@ -39,6 +39,7 @@ import org.noise_planet.covadis.webserver.secure.JWTProvider;
 import org.noise_planet.covadis.webserver.secure.JavalinJWT;
 import org.noise_planet.covadis.webserver.secure.User;
 import org.noise_planet.covadis.webserver.utilities.Logging;
+import org.noise_planet.covadis.webserver.utilities.StringUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,8 +54,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.h2.server.web.PageParser.escapeHtml;
 
 /**
  * The OwsController class handles requests for OGC Web Services (OWS), including
@@ -393,7 +392,7 @@ public class OwsController {
                     "bold; '}'    </style></head><body>    <div class=''section''>        <div class=''title''>Error:" +
                     " </div>        <div class=''box''><span class=''error''>{0}</span></div>    </div>    <div " +
                     "class=''section''>        <div class=''title''>Inputs Data</div>        <div " +
-                    "class=''box''>{1}</div>    </div></body></html>", stackTrace, escapeHtml(ctx.body()));
+                    "class=''box''>{1}</div>    </div></body></html>", stackTrace, StringUtilities.escapeHtml(ctx.body()));
 
             ctx.contentType("text/html; charset=UTF-8");
             ctx.result(html);

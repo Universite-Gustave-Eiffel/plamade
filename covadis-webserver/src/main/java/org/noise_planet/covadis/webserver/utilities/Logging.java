@@ -14,9 +14,6 @@ import org.apache.log4j.RollingFileAppender;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-
-import static org.h2.server.web.PageParser.escapeHtml;
-
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -86,11 +83,11 @@ public class Logging {
             if (msg != null && !msg.isEmpty()) {
                 header += ": " + msg;
             }
-            sb.append(escapeHtml(prefix + header)).append("<br>");
+            sb.append(StringUtilities.escapeHtml(prefix + header)).append("<br>");
 
             // Stack frames
             for (StackTraceElement el : t.getStackTrace()) {
-                sb.append(escapeHtml(prefix + "\tat " + el)).append("<br>");
+                sb.append(StringUtilities.escapeHtml(prefix + "\tat " + el)).append("<br>");
             }
 
             // Suppressed exceptions
@@ -101,7 +98,7 @@ public class Logging {
             // Move to cause
             t = t.getCause();
             if (t != null && !seen.containsKey(t)) {
-                sb.append(escapeHtml(prefix + "Caused by: ")).append("<br>");
+                sb.append(StringUtilities.escapeHtml(prefix + "Caused by: ")).append("<br>");
             }
         }
 
@@ -117,15 +114,15 @@ public class Logging {
         if (msg != null && !msg.isEmpty()) {
             header += ": " + msg;
         }
-        sb.append(escapeHtml(prefix + "Suppressed: " + header)).append("<br>");
+        sb.append(StringUtilities.escapeHtml(prefix + "Suppressed: " + header)).append("<br>");
         for (StackTraceElement el : sup.getStackTrace()) {
-            sb.append(escapeHtml(prefix + "\tat " + el)).append("<br>");
+            sb.append(StringUtilities.escapeHtml(prefix + "\tat " + el)).append("<br>");
         }
         for (Throwable nested : sup.getSuppressed()) {
             appendSuppressed(sb, nested, seen, prefix + "\t");
         }
         if (sup.getCause() != null) {
-            sb.append(escapeHtml(prefix + "Caused by: ")).append("<br>");
+            sb.append(StringUtilities.escapeHtml(prefix + "Caused by: ")).append("<br>");
             appendSuppressed(sb, sup.getCause(), seen, prefix + "\t");
         }
     }
