@@ -17,7 +17,11 @@
 
 package org.noise_planet.covadis.scripts.Import_and_Export
 
+
+
 import org.apache.commons.io.FilenameUtils
+
+import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.functions.io.csv.CSVDriverFunction
 import org.h2gis.functions.io.dbf.DBFDriverFunction
@@ -31,19 +35,19 @@ import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.dbtypes.DBUtils
-import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Connection
 import java.sql.ResultSet
+import java.sql.SQLException
 import java.sql.Statement
 
 title = 'Import File'
 description = '&#10145;&#65039; Import file into the database. </br>'+
               '<hr>' +
               'Valid file extensions: csv, dbf, geojson, gpx, bz2, gz, osm, shp, tsv </br> </br>' +
-              '<img src="wps_images/import_file.png" alt="Import file" width="95%" align="center">'
+              '<img src="/wps_images/import_file.png" alt="Import file" width="95%" align="center">'
 
 inputs = [
         pathFile : [
@@ -85,16 +89,12 @@ outputs = [
         ]
 ]
 
-def exec(Connection connection, input) {
 
-    ProgressVisitor progressLogger
 
-    if("_progression" in input) {
-        progressLogger = input["_progression"] as ProgressVisitor
-    } else {
-        progressLogger = new RootProgressVisitor(1, true, 1)
-    }
-    
+
+
+def exec(Connection connection, Map input, ProgressVisitor progress) {
+
     // output string, the information given back to the user
     String resultString = null
 
@@ -157,35 +157,35 @@ def exec(Connection connection, input) {
     switch (ext) {
         case "csv":
             CSVDriverFunction csvDriver = new CSVDriverFunction()
-            csvDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            csvDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "dbf":
             DBFDriverFunction dbfDriver = new DBFDriverFunction()
-            dbfDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            dbfDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "geojson":
             GeoJsonDriverFunction geoJsonDriver = new GeoJsonDriverFunction()
-            geoJsonDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            geoJsonDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "gpx":
             GPXDriverFunction gpxDriver = new GPXDriverFunction()
-            gpxDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            gpxDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "bz2":
             OSMDriverFunction osmDriver = new OSMDriverFunction()
-            osmDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            osmDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "gz":
             OSMDriverFunction osmDriver = new OSMDriverFunction()
-            osmDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            osmDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "osm":
             OSMDriverFunction osmDriver = new OSMDriverFunction()
-            osmDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            osmDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "shp":
             SHPDriverFunction shpDriver = new SHPDriverFunction()
-            shpDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            shpDriver.importFile(connection, tableName, new File(pathFile), progress)
             ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)
 
             int pk2Field = JDBCUtilities.getFieldIndex(rs.getMetaData(), "PK2")
@@ -198,11 +198,11 @@ def exec(Connection connection, input) {
             break
         case "fgb":
             FGBDriverFunction fgbDriver = new FGBDriverFunction()
-            fgbDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            fgbDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
         case "tsv":
             TSVDriverFunction tsvDriver = new TSVDriverFunction()
-            tsvDriver.importFile(connection, tableName, new File(pathFile), progressLogger)
+            tsvDriver.importFile(connection, tableName, new File(pathFile), progress)
             break
 
     }
@@ -244,16 +244,20 @@ def exec(Connection connection, input) {
     int pkUserIndex = JDBCUtilities.getFieldIndex(rs.getMetaData(), "PK")
     int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(tableName))
 
-    if (pkIndex == 0) {
-        if (pkUserIndex > 0) {
-            stmt.execute("ALTER TABLE " + tableName + " ALTER COLUMN PK INT NOT NULL;")
-            stmt.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY (PK);  ")
-            resultString = resultString + String.format(tableName + " has a new primary key constraint on PK")
-            logger.info(String.format(tableName + " has a new primary key constraint on PK"))
+    resultString = "The table " + tableName + " has been uploaded to database!"
+
+    if (pkIndex == 0) { // no primary key in the table
+        if (pkUserIndex > 0) { // there is a field with name PK
+            try {
+                stmt.execute("ALTER TABLE " + tableName + " ALTER COLUMN PK INT NOT NULL;")
+                stmt.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY (PK);  ")
+                resultString = resultString + String.format(tableName + " has a new primary key constraint on PK")
+                logger.info(String.format(tableName + " has a new primary key constraint on PK"))
+            } catch (SQLException ex) {
+                logger.info("Could not set PK as a primary key", ex)
+            }
         }
     }
-
-    resultString = "The table " + tableName + " has been uploaded to database!"
 
     // print to command window
     logger.info(resultString)

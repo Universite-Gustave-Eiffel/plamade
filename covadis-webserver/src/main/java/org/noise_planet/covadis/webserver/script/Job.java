@@ -103,8 +103,6 @@ public class Job<T> implements Callable<T> {
         GroovyShell shell = new GroovyShell();
         File scriptFile = scriptMetadata.path.toFile();
         Script script = shell.parse(scriptFile);
-        // Provide system inputs
-        inputs.put("_progression", progressVisitor);
         // The script is not sandboxed so it have the same read/write access as the application
         // it is useless to try to limit access to the server configuration
         inputs.put("_configuration", configuration);
@@ -114,7 +112,9 @@ public class Job<T> implements Callable<T> {
                 .filter(m -> m.getName().equals("exec"))
                 .findFirst()
                 .orElse(null);
-        boolean useConnection = true;
+        boolean useConnection = true; //first argument is a connection input
+        boolean useProgressVisitor = false; // third argument is a ProgressVisitor
+
         T returnData = null;
         if (execMetaMethod != null) {
             // 2. Access the native parameter types
@@ -125,15 +125,30 @@ public class Job<T> implements Callable<T> {
             } else if (!firstArgClass.equals(Object.class) && !firstArgClass.equals(Connection.class)) {
                 throw new RuntimeException("Invalid first argument type for exec method in " + scriptMetadata.id);
             }
+            if(parameterTypes.length >= 3 && parameterTypes[2].equals(ProgressVisitor.class)) {
+                useProgressVisitor = true;
+            }
             try {
+                // Exec method signature can be:
+                // def exec(Connection connection, Map input)
+                // def exec(DataSource dataSource, Map input)
+                // def exec(Connection connection, Map input, ProgressVisitor progressVisitor)
+                // def exec(DataSource dataSource, Map input, ProgressVisitor progressVisitor)
+                Object[] args = new Object[useProgressVisitor ? 3 : 2];
+                args[1] = inputs;
+                if(useProgressVisitor) {
+                    args[2] = progressVisitor;
+                }
                 Object ret;
                 if(useConnection) {
                     // Open the connection to the database
                     try (Connection connection = userDataSource.getConnection()) {
-                        ret = execMetaMethod.invoke(script, new Object[]{connection, inputs});
+                        args[0] = connection;
+                        ret = execMetaMethod.invoke(script, args);
                     }
                 } else {
-                    ret = execMetaMethod.invoke(script, new Object[]{userDataSource, inputs});
+                    args[0] = userDataSource;
+                    ret = execMetaMethod.invoke(script, args);
                 }
                 if (ret != null) {
                     // Unchecked cast is unavoidable due to type erasure with generics

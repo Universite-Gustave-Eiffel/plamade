@@ -12,10 +12,8 @@
 
 /**
  * @Author Pierre Aumond, Université Gustave Eiffel
- * @Author Hesry Quentin, Université Gustave Eiffel
  * @Author Nicolas Fortin, Université Gustave Eiffel
  */
-
 package org.noise_planet.covadis.scripts.NoiseModelling
 
 
@@ -40,86 +38,82 @@ import org.slf4j.LoggerFactory
 import java.sql.Connection
 import java.sql.SQLException
 import java.time.LocalDateTime
-import java.util.concurrent.TimeUnit
 
-title = 'Computes the propagation from the sounds sources to the receivers'
-description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table.' +
-        '<hr>' +
-        '&#127757; Tables must be projected in a metric coordinate system (SRID). Use "Change_SRID" WPS Block if needed. </br></br>' +
-        '&#x2705; The output table are called: <b> RECEIVERS_LEVEL </b> </br></br>' +
-        'The output table contain: </br> <ul>' +
-        '<li><b> IDRECEIVER</b>: receiver an identifier (INTEGER) linked to RECEIVERS table primary key</li>' +
-        '<li><b> IDSOURCE</b>: source identifier (INTEGER) linked to SOURCES_GEOM primary key. Only if Keep source id is checked.</li>' +
-        '<li><b> PERIOD </b>: Time period (VARCHAR) ex. L D E and DEN. Only if you provide emission power to sources or the atmospheric settings table.</li>' +
-        '<li><b> THE_GEOM </b>: the 3D geometry of the receivers with the Z as the altitude (POINTZ)</li>' +
-        '<li><b> Hz63, Hz125, Hz250, Hz500, Hz1000,Hz2000, Hz4000, Hz8000 </b>: 8 columns giving the sound level for each octave band (FLOAT)</li></ul>'
+title = 'Compute noise level directly from road traffic data'
+description = '&#10145;&#65039; Computes Noise map from each period from the traffic flow rate and speed estimates' +
+        ' (specific format, see input details). <hr>' +
+        '&#127757; Tables must be projected in a metric coordinate system (SRID). Use "Change_SRID" WPS Block if needed.</br> </br>' +
+        '&#x2705; The output table is <b> RECEIVERS_LEVEL </b> </br></br>' +
+        'The output tables contain: </br> <ul>' +
+        '<li><b> IDRECEIVER</b>: an identifier (INTEGER, PRIMARY KEY)</li>' +
+        '<li><b> IDSOURCE</b>: an identifier of the source (INTEGER) if keepSource is true</li>' +
+        '<li><b> THE_GEOM </b>: the 3D geometry of the receivers (POINT)</li>' +
+        '<li><b> PERIOD </b>: time period ex. D, E, N, DEN (Varchar)</li>' +
+        '<li><b> Lw63, Lw125, Lw250, Lw500, Lw1000, Lw2000, Lw4000, Lw8000, Laeq, Leq</b>: noise level at receiver (REAL)</li> </ul>'
 
 inputs = [
         tableBuilding           : [
                 name       : 'Buildings table name',
                 title      : 'Buildings table name',
-                description: '&#127968; Name of the Buildings table</br> </br>' +
-                        'The table must contain: </br><ul>' +
-                        '<li><b> THE_GEOM </b>: the 2D geometry of the building (POLYGON or MULTIPOLYGON)</li>' +
-                        '<li><b> HEIGHT </b>: the height of the building (FLOAT)</li>' +
-                        '<li><b> G </b>: Optional, Wall absorption value if g is [0, 1] or wall surface impedance' +
-                        ' ([N.s.m-4] static air flow resistivity of material) if G is [20, 20000]' +
-                        ' (default is 0.1 if the column G does not exists) (FLOAT)</li></ul>',
-                type       : String.class
-        ],
-        tableSources            : [
-                name       : 'Sources geometry table name',
-                title      : 'Sources geometry table name',
-                description: 'Name of the Sources table (if only geometry is specified) </br> </br>' +
-                        'The table must contain (* mandatory): </br> <ul>' +
-                        '<li> <b> PK *</b> : an identifier. It shall be a primary key (INTEGER, PRIMARY KEY) </li> ' +
-                        '<li> <b> THE_GEOM *</b> : the 3D geometry of the sources (POINT, MULTIPOINT, LINESTRING, MULTILINESTRING). According to CNOSSOS-EU, you need to set a height of 0.05 m for a road traffic emission </li> ' +
-                        '<li> <b> HZD63, HZD125, HZD250, HZD500, HZD1000, HZD2000, HZD4000, HZD8000 </b> : 8 columns giving the day emission sound level for each octave band (FLOAT) </li> ' +
-                        '<li> <b> HZE </b> : 8 columns giving the evening emission sound level for each octave band (FLOAT) </li> ' +
-                        '<li> <b> HZN </b> : 8 columns giving the night emission sound level for each octave band (FLOAT) </li> ' +
-                        '<li> <b> YAW </b> : Source horizontal orientation in degrees. For points 0&#176; North, 90&#176; East. For lines 0&#176; line direction, 90&#176; right of the line direction.  (FLOAT) </li> ' +
-                        '<li> <b> PITCH </b> : Source vertical orientation in degrees. 0&#176; front, 90&#176; top, -90&#176; bottom. (FLOAT) </li> ' +
-                        '<li> <b> ROLL </b> : Source roll in degrees (FLOAT) </li> ' +
-                        '<li> <b> DIR_ID </b> : identifier of the directivity sphere from tableSourceDirectivity parameter or train directivity if not provided -> OMNIDIRECTIONAL(0), ROLLING(1), TRACTIONA(2), TRACTIONB(3), AERODYNAMICA(4), AERODYNAMICB(5), BRIDGE(6) (INTEGER) </li> </ul> ' +
-                        '&#128161; This table can be generated from the WPS Block "Road_Emission_from_Traffic"',
-                type       : String.class
-        ],
-        tableSourcesEmission            : [
-                name       : 'Sources emission table name',
-                title      : 'Sources emission table name',
-                description: 'Name of the Sources table (ex. SOURCES_EMISSION) </br> </br>' +
+                description: '&#127968; Name of the Buildings table </br> </br>' +
                         'The table must contain: </br> <ul>' +
+                        '<li> <b> THE_GEOM </b>: the 2D geometry of the building (POLYGON or MULTIPOLYGON) </li>' +
+                        '<li> <b> HEIGHT </b>: the height of the building (FLOAT)</li> </ul>',
+                type       : String.class
+        ],
+        tableRoads              : [
+                name       : 'Roads table name',
+                title      : 'Roads table name',
+                description: '&#128739; Name of the Roads table, traffic can be provided here but are limited to DAY EVENING NIGHT periods </br> </br>' +
+                        'This function recognize the following columns (* mandatory): </br> <ul>' +
+                        '<li><b> PK </b>* : an identifier. It shall be a primary key (INTEGER, PRIMARY KEY)</li>' +
+                        '<li><b> LV_D </b><b>TV_E </b><b> TV_N </b> : Hourly average light vehicle count (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> MV_D </b><b>MV_E </b><b>MV_N </b> : Hourly average medium heavy vehicles, delivery vans > 3.5 tons,  buses, touring cars, etc. with two axles and twin tyre mounting on rear axle count (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> HGV_D </b><b> HGV_E </b><b> HGV_N </b> :  Hourly average heavy duty vehicles, touring cars, buses, with three or more axles (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> WAV_D </b><b> WAV_E </b><b> WAV_N </b> :  Hourly average mopeds, tricycles or quads &le; 50 cc count (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> WBV_D </b><b> WBV_E </b><b> WBV_N </b> :  Hourly average motorcycles, tricycles or quads > 50 cc count (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> LV_SPD_D </b><b> LV_SPD_E </b><b>LV_SPD_N </b> :  Hourly average light vehicle speed (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> MV_SPD_D </b><b> MV_SPD_E </b><b>MV_SPD_N </b> :  Hourly average medium heavy vehicles speed (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> HGV_SPD_D </b><b> HGV_SPD_E </b><b> HGV_SPD_N </b> :  Hourly average heavy duty vehicles speed (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> WAV_SPD_D </b><b> WAV_SPD_E </b><b> WAV_SPD_N </b> :  Hourly average mopeds, tricycles or quads &le; 50 cc speed (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> WBV_SPD_D </b><b> WBV_SPD_E </b><b> WBV_SPD_N </b> :  Hourly average motorcycles, tricycles or quads > 50 cc speed (6-18h)(18-22h)(22-6h) (DOUBLE)</li>' +
+                        '<li><b> PVMT </b> :  CNOSSOS road pavement identifier (ex: NL05)(default NL08) (VARCHAR)</li>' +
+                        '<li><b> TEMP_D </b><b> TEMP_E </b><b> TEMP_N </b> : Average day, evening, night temperature (default 20&#x2103;) (6-18h)(18-22h)(22-6h)(DOUBLE)</li>' +
+                        '<li><b> TS_STUD </b> : A limited period Ts (in months) over the year where a average proportion pm of light vehicles are equipped with studded tyres (0-12) (DOUBLE)</li>' +
+                        '<li><b> PM_STUD </b> : Average proportion of vehicles equipped with studded tyres during TS_STUD period (0-1) (DOUBLE)</li>' +
+                        '<li><b> JUNC_DIST </b> : Distance to junction in meters (DOUBLE)</li>' +
+                        '<li><b> JUNC_TYPE </b> : Type of junction (k=0 none, k = 1 for a crossing with traffic lights ; k = 2 for a roundabout) (INTEGER)</li>' +
+                        '<li><b> SLOPE </b> : Slope (in %) of the road section. If the field is not filled in, the LINESTRING z-values will be used to calculate the slope and the traffic direction (way field) will be force to 3 (bidirectional). (DOUBLE)</li>' +
+                        '<li><b> WAY </b> : Define the way of the road section. 1 = one way road section and the traffic goes in the same way that the slope definition you have used, 2 = one way road section and the traffic goes in the inverse way that the slope definition you have used, 3 = bi-directional traffic flow, the flow is split into two components and correct half for uphill and half for downhill (INTEGER)</li>' +
+                        '</ul></br>'+
+                        '&#128161; This table can be generated from the WPS Block "Import_OSM"',
+                type       : String.class
+        ],
+        tableRoadsTraffic              : [
+                name       : 'Roads traffic table name',
+                title      : 'Roads traffic table name',
+                description: '&#128739; Name of the Roads traffic table per period </br> </br>' +
+                        'This function recognize the following columns (* mandatory): </br> <ul>' +
                         '<li><b> IDSOURCE </b>* : an identifier. It shall be linked to the primary key of tableRoads (INTEGER)</li>' +
                         '<li><b> PERIOD </b>* : Time period, you will find this column on the output (VARCHAR)</li>' +
-                        '<li> <b> HZ63, HZ125, HZ250, HZ500, HZ1000, HZ2000, HZ4000, HZ8000 </b> : Emission noise level in dB can be third-octave 50Hz to 10000Hz (FLOAT) </li> ',
-                min        : 0, max: 1, type: String.class
-        ],
-        tableReceivers          : [
-                name       : 'Receivers table name',
-                title      : 'Receivers table name',
-                description: 'Name of the Receivers table </br> </br>' +
-                        'The table must contain: </br> <ul>' +
-                        '<li> <b> PK </b> : an identifier. It shall be a primary key (INTEGER, PRIMARY KEY) </li> ' +
-                        '<li> <b> THE_GEOM </b> : the 3D geometry of the sources (POINT, MULTIPOINT) </li> </ul>' +
-                        '&#128161; This table can be generated from the WPS Blocks in the "Receivers" folder',
-                type       : String.class
-        ],
-        tableDEM                : [
-                name       : 'DEM table name',
-                title      : 'DEM table name',
-                description: 'Name of the Digital Elevation Model (DEM) table </br> </br>' +
-                        'The table must contain: </br> <ul>' +
-                        '<li> <b> THE_GEOM </b> : the 3D geometry of the sources (POINT, MULTIPOINT) </li> </ul>' +
-                        '&#128161; This table can be generated from the WPS Block "Import_Asc_File"',
-                min        : 0, max: 1, type: String.class
-        ],
-        tableGroundAbs          : [
-                name       : 'Ground absorption table name',
-                title      : 'Ground absorption table name',
-                description: 'Name of the surface/ground acoustic absorption table </br> </br>' +
-                        'The table must contain: </br> <ul>' +
-                        '<li> <b> THE_GEOM </b>: the 2D geometry of the sources (POLYGON or MULTIPOLYGON) </li>' +
-                        '<li> <b> G </b>: the acoustic absorption of a ground (FLOAT between 0 : very hard and 1 : very soft) </li> </ul> ',
+                        '<li><b> LV </b>  : Hourly average light vehicle count (DOUBLE)</li>' +
+                        '<li><b> MV </b> : Hourly average medium heavy vehicles, delivery vans > 3.5 tons,  buses, touring cars, etc. with two axles and twin tyre mounting on rear axle count (DOUBLE)</li>' +
+                        '<li><b> HGV </b>:  Hourly average heavy duty vehicles, touring cars, buses, with three or more axles (DOUBLE)</li>' +
+                        '<li><b> WAV </b>:  Hourly average mopeds, tricycles or quads &le; 50 cc count (DOUBLE)</li>' +
+                        '<li><b> WBV </b>:  Hourly average motorcycles, tricycles or quads > 50 cc count (DOUBLE)</li>' +
+                        '<li><b> LV_SPD </b> :  Hourly average light vehicle speed (DOUBLE)</li>' +
+                        '<li><b> MV_SPD </b> :  Hourly average medium heavy vehicles speed (DOUBLE)</li>' +
+                        '<li><b> HGV_SPD </b> :  Hourly average heavy duty vehicles speed (DOUBLE)</li>' +
+                        '<li><b> WAV_SPD </b> :  Hourly average mopeds, tricycles or quads &le; 50 cc speed (DOUBLE)</li>' +
+                        '<li><b> WBV_SPD </b> :  Hourly average motorcycles, tricycles or quads > 50 cc speed (DOUBLE)</li>' +
+                        '<li><b> PVMT </b> :  CNOSSOS road pavement identifier (ex: NL05)(default NL08) (VARCHAR)</li>' +
+                        '<li><b> TS_STUD </b> : A limited period Ts (in months) over the year where a average proportion pm of light vehicles are equipped with studded tyres (0-12) (DOUBLE)</li>' +
+                        '<li><b> PM_STUD </b> : Average proportion of vehicles equipped with studded tyres during TS_STUD period (0-1) (DOUBLE)</li>' +
+                        '<li><b> JUNC_DIST </b> : Distance to junction in meters (DOUBLE)</li>' +
+                        '<li><b> JUNC_TYPE </b> : Type of junction (k=0 none, k = 1 for a crossing with traffic lights ; k = 2 for a roundabout) (INTEGER)</li>' +
+                        '<li><b> SLOPE </b> : Slope (in %) of the road section. If the field is not filled in, the LINESTRING z-values will be used to calculate the slope and the traffic direction (way field) will be force to 3 (bidirectional). (DOUBLE)</li>' +
+                        '<li><b> WAY </b> : Define the way of the road section. 1 = one way road section and the traffic goes in the same way that the slope definition you have used, 2 = one way road section and the traffic goes in the inverse way that the slope definition you have used, 3 = bi-directional traffic flow, the flow is split into two components and correct half for uphill and half for downhill (INTEGER)</li>' +
+                        '</ul></br>',
                 min        : 0, max: 1, type: String.class
         ],
         tableSourceDirectivity          : [
@@ -131,7 +125,7 @@ inputs = [
                         '<li> <b> DIR_ID </b>: identifier of the directivity sphere (INTEGER) </li> ' +
                         '<li> <b> THETA </b>: [-90;90] Vertical angle in degree. 0&#176; front 90&#176; top -90&#176; bottom (FLOAT) </li> ' +
                         '<li> <b> PHI </b>: [0;360] Horizontal angle in degree. 0&#176; front 90&#176; right (FLOAT) </li> ' +
-                        '<li> <b> HZ63, HZ125, HZ250, HZ500, HZ1000, HZ2000, HZ4000, HZ8000 </b>: attenuation levels in dB for each octave or third octave (FLOAT) </li> </ul> ' ,
+                        '<li> <b> LW63, LW125, LW250, LW500, LW1000, LW2000, LW4000, LW8000 </b>: attenuation levels in dB for each octave or third octave (FLOAT) </li> </ul> ' ,
                 min        : 0, max: 1, type: String.class
         ],
         tablePeriodAtmosphericSettings          : [
@@ -149,6 +143,36 @@ inputs = [
                         '</ul>' ,
                 min        : 0, max: 1, type: String.class
         ],
+        tableReceivers          : [
+                name       : 'Receivers table name',
+                title      : 'Receivers table name',
+                description: 'Name of the Receivers table </br> </br>' +
+                        'The table must contain: </br> <ul>' +
+                        '<li><b> PK </b> : an identifier. It shall be a primary key (INTEGER, PRIMARY KEY) </li> ' +
+                        '<li><b> THE_GEOM </b> : the 3D geometry of the sources (POINT, MULTIPOINT) </li> </ul>' +
+                        '&#128161; This table can be generated from the WPS Blocks in the "Receivers" folder',
+                type       : String.class
+        ],
+        tableDEM                : [
+                name       : 'DEM table name',
+                title      : 'DEM table name',
+                description: 'Name of the Digital Elevation Model (DEM) table </br> </br>' +
+                        'The table must contain: </br> <ul>' +
+                        '<li><b> THE_GEOM </b>: the 3D geometry of the sources (POINT, MULTIPOINT).</li> </ul>' +
+                        '&#128161; This table can be generated from the WPS Block "Import_Asc_File"',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
+        tableGroundAbs          : [
+                name       : 'Ground absorption table name',
+                title      : 'Ground absorption table name',
+                description: 'Name of the surface/ground acoustic absorption table </br> </br>' +
+                        'The table must contain: </br> <ul>' +
+                        '<li> <b> THE_GEOM </b>: the 2D geometry of the sources (POLYGON or MULTIPOLYGON)</li>' +
+                        '<li> <b> G </b>: the acoustic absorption of a ground (FLOAT between 0 : very hard and 1 : very soft)</li> </ul>',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
         paramWallAlpha          : [
                 name       : 'wallAlpha',
                 title      : 'Wall absorption coefficient',
@@ -157,7 +181,8 @@ inputs = [
                         '<li> from 0 : fully absorbent </li>' +
                         '<li> to strictly less than 1 : fully reflective. </li> </ul>' +
                         '&#128736; Default value: <b>0.1 </b> ',
-                min        : 0, max: 1, type: String.class
+                min        : 0, max: 1,
+                type       : String.class
         ],
         confReflOrder           : [
                 name       : 'Order of reflexion',
@@ -165,21 +190,24 @@ inputs = [
                 description: 'Maximum number of reflections to be taken into account (INTEGER). </br> </br>' +
                         '&#x1F6A8; Adding 1 order of reflexion can significantly increase the processing time. </br> </br>' +
                         '&#128736; Default value: <b>1 </b>',
-                min        : 0, max: 1, type: String.class
+                min        : 0, max: 1,
+                type       : String.class
         ],
         confMaxSrcDist          : [
                 name       : 'Maximum source-receiver distance',
                 title      : 'Maximum source-receiver distance',
                 description: 'Maximum distance between source and receiver (FLOAT, in meters). </br> </br>' +
                         '&#128736; Default value: <b>150 </b>',
-                min        : 0, max: 1, type: String.class
+                min        : 0, max: 1,
+                type       : String.class
         ],
         confMaxReflDist         : [
                 name       : 'Maximum source-reflexion distance',
                 title      : 'Maximum source-reflexion distance',
                 description: 'Maximum reflection distance from the source (FLOAT, in meters). </br> </br>' +
                         '&#128736; Default value: <b>50 </b>',
-                min        : 0, max: 1, type: String.class
+                min        : 0, max: 1,
+                type       : String.class
         ],
         confThreadNumber        : [
                 name       : 'Thread number',
@@ -188,45 +216,48 @@ inputs = [
                         'To set this value, look at the number of cores you have. </br>' +
                         'If it is set to 0, use the maximum number of cores available.</br> </br>' +
                         '&#128736; Default value: <b>0 </b>',
-                min        : 0, max: 1, type: String.class
+                min        : 0, max: 1,
+                type       : String.class
         ],
         confDiffVertical        : [
                 name       : 'Diffraction on vertical edges',
                 title      : 'Diffraction on vertical edges',
                 description: 'Compute or not the diffraction on vertical edges. Following Directive 2015/996, enable this option for rail and industrial sources only. </br> </br>' +
                         '&#128736; Default value: <b>false </b>',
-                min        : 0, max: 1, type: Boolean.class
+                min        : 0, max: 1,
+                type       : Boolean.class
         ],
         confDiffHorizontal      : [
                 name       : 'Diffraction on horizontal edges',
                 title      : 'Diffraction on horizontal edges',
                 description: 'Compute or not the diffraction on horizontal edges. </br> </br>' +
                         '&#128736; Default value: <b>false </b>',
-                min        : 0, max: 1, type: Boolean.class
-        ],
-        confExportSourceId      : [
-                name       : 'Keep source id',
-                title      : 'Separate receiver level by source identifier',
-                description: 'Keep source identifier in output in order to get noise contribution of each noise source. </br> </br>' +
-                        '&#128736; Default value: <b>false </b>',
                 min        : 0, max: 1,
                 type       : Boolean.class
+        ],
+        confExportSourceId      : [
+                name       : 'keep source id',
+                title      : 'Separate receiver level by source identifier',
+                description: 'Keep source identifier in output in order to get noise contribution of each noise source. </br> </br>' +
+                        '&#128736; Default value: <b> false </b>',
+                min        : 0, max: 1,
+                type: Boolean.class
         ],
         confHumidity            : [
                 name       : 'Relative humidity',
                 title      : 'Relative humidity',
                 description: '&#127783; Humidity for noise propagation. </br> </br>' +
-                        '&#128736; Default value: <b>70</b>',
+                        '&#128736; Default humidity value: <b> 70</b>',
                 min        : 0, max: 1,
-                type       : Double.class
+                type: Double.class
         ],
         confTemperature         : [
                 name       : 'Temperature',
                 title      : 'Air temperature',
-                description: '&#127777; Air temperature in degree celsius </br> </br>' +
+                description: '&#127777; Default Air temperature in degree celsius. </br> </br>' +
                         '&#128736; Default value: <b> 15</b>',
                 min        : 0, max: 1,
-                type       : Double.class
+                type: Double.class
         ],
         confFavourableOccurrencesDefault: [
                 name       : 'Probability of occurrences',
@@ -247,7 +278,8 @@ inputs = [
                         'You can set a table name here in order to save all the rays computed by NoiseModelling. </br> </br>' +
                         'The number of rays has been limited in this script in order to avoid memory exception. </br> </br>' +
                         '&#128736; Default value: <b>empty (do not keep rays)</b>',
-                min        : 0, max: 1, type: String.class
+                min        : 0, max: 1,
+                type: String.class
         ],
         confMaxError            : [
                 name       : 'Max Error (dB)',
@@ -273,6 +305,7 @@ outputs = [
                 type       : String.class
         ]
 ]
+
 // Open Connection to Geoserver
 
 
@@ -281,7 +314,7 @@ outputs = [
 
 // main function of the script
 def exec(Connection connection, Map input, ProgressVisitor progress) {
-    long startCompute = System.currentTimeMillis()
+    int maximumRaysToExport = 5000
 
     DBTypes dbType = DBUtils.getDBType(connection.unwrap(Connection.class))
 
@@ -291,20 +324,18 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     // Create a sql connection to interact with the database in SQL
     Sql sql = new Sql(connection)
 
-    sql.execute("DROP TABLE RECEIVERS_LEVEL IF EXISTS;")
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
 
     // print to command window
-    logger.info('Start : Level from Emission')
+    logger.info('Start : Noise level from Traffic')
     logger.info("inputs {}", input) // log inputs of the run
-
 
     // -------------------
     // Get every inputs
     // -------------------
 
-    String sources_table_name = input['tableSources']
+    String sources_table_name = input['tableRoads']
     // do it case-insensitive
     sources_table_name = sources_table_name.toUpperCase()
     // Check if srid are in metric projection.
@@ -453,10 +484,10 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     parameters.setMergeSources(!confExportSourceId)
     parameters.exportReceiverPosition = true
 
-    if (input['tableSourcesEmission']) {
+    if (input['tableRoadsTraffic']) {
         // Use the right default database caps according to db type
-        String tableSourcesEmission = TableLocation.capsIdentifier(input['tableSourcesEmission'] as String, dbType)
-        pointNoiseMap.setSourcesEmissionTableName(tableSourcesEmission)
+        String tableRoadsTraffic = TableLocation.capsIdentifier(input['tableRoadsTraffic'] as String, dbType)
+        pointNoiseMap.setSourcesEmissionTableName(tableRoadsTraffic)
     }
 
     // add optional discrete directivity table name
@@ -469,12 +500,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         logger.info(String.format(Locale.ROOT, "Loaded directivity from %s table", tableSourceDirectivity))
     }
 
-    if (input['tableSourceEmission']) {
-        // Use the right default database caps according to db type
-        String tableSourceEmission = TableLocation.capsIdentifier(input['tableSourceEmission'] as String, dbType)
-        pointNoiseMap.setSourcesEmissionTableName(tableSourceEmission)
-    }
-
     sql.execute("drop table if exists " + TableLocation.parse(pointNoiseMap.noiseMapDatabaseParameters.receiversLevelTable))
 
     if (input['confRaysName'] && !((input['confRaysName'] as String).isEmpty())) {
@@ -483,6 +508,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         parameters.exportAttenuationMatrix = true
         parameters.exportCnossosPathWithAttenuation = true
         parameters.keepAbsorption = true
+        parameters.setMaximumRaysOutputCount(maximumRaysToExport)
     }
 
     pointNoiseMap.setComputeHorizontalDiffraction(compute_vertical_diffraction)
@@ -552,14 +578,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
     pointNoiseMap.run(connection, progressLogger)
 
-    long elapsed = System.currentTimeMillis() - startCompute;
-    long hours = TimeUnit.MILLISECONDS.toHours(elapsed)
-    elapsed -= TimeUnit.HOURS.toMillis(hours)
-    long minutes = TimeUnit.MILLISECONDS.toMinutes(elapsed)
-    elapsed -= TimeUnit.MINUTES.toMillis(minutes)
-    long seconds = TimeUnit.MILLISECONDS.toSeconds(elapsed)
-    String timeString = String.format(Locale.ROOT, "%02d:%02d:%02d", hours, minutes, seconds)
-    logger.info( "Calculation Done in $timeString ! ")
-
     return "Calculation Done ! The table $pointNoiseMap.noiseMapDatabaseParameters.receiversLevelTable have been created."
 }
+

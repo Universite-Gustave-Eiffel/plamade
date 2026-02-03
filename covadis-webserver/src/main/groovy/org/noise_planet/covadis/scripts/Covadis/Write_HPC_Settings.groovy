@@ -87,7 +87,7 @@ outputs = [
         ]
 ]
 
-def exec(Connection connection, Map input) {
+def exec(Connection connection, Map input, ProgressVisitor progress) {
 
     ProgressVisitor progressLogger
 

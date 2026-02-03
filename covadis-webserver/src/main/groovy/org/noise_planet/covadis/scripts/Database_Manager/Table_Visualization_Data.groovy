@@ -1,13 +1,14 @@
 /**
- * NoiseModelling is a library capable of producing noise maps. It can be freely used either for research and education, as well as by experts in a professional use.
- * <p>
+ * NoiseModelling is an open-source tool designed to produce environmental noise maps on very large urban areas. It can be used as a Java library or be controlled through a user friendly web interface.
+ *
+ * This version is developed by the DECIDE team from the Lab-STICC (CNRS) and by the Mixt Research Unit in Environmental Acoustics (Université Gustave Eiffel).
+ * <http://noise-planet.org/noisemodelling.html>
+ *
  * NoiseModelling is distributed under GPL 3 license. You can read a copy of this License in the file LICENCE provided with this software.
- * <p>
- * Official webpage : http://noise-planet.org/noisemodelling.html
+ *
  * Contact: contact@noise-planet.org
+ *
  */
-
-
 
 /**
  * @Author Pierre Aumond, Université Gustave Eiffel
@@ -17,7 +18,11 @@
 
 package org.noise_planet.covadis.scripts.Database_Manager
 
+
+
 import groovy.sql.Sql
+import org.h2gis.api.ProgressVisitor
+
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.TableLocation
@@ -61,7 +66,9 @@ outputs = [
         ]
 ]
 
-def exec(Connection connection, input) {
+
+
+def exec(Connection connection, Map input, ProgressVisitor progress) {
 
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
@@ -92,6 +99,7 @@ def exec(Connection connection, input) {
     // print to WPS Builder
     return mapToTable(output, sql, tableName, connection)
 }
+
 
 
 
