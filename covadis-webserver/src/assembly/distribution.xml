@@ -33,9 +33,5 @@
                 <include>README.md</include>
             </includes>
         </fileSet>
-        <fileSet>
-            <directory>${project.basedir}/src/test/resources</directory>
-            <outputDirectory>/resources</outputDirectory>
-        </fileSet>
     </fileSets>
 </assembly>
