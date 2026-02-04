@@ -363,7 +363,7 @@ public class OwsController {
                 return;
             }
             ScriptMetadata scriptMetadata = optionalScriptMetadata.get();
-            Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
+            Map<String, Object> inputs = scriptMetadata.extractInputs(execute);
             int jobUserId = userId > 0 ? userId : 1; // user may not be logged in
             Job<Object> job = new Job<>(jobUserId, scriptMetadata, serverDataSource,
                     fetchUserDataSource(jobUserId), inputs, configuration);

@@ -16,6 +16,7 @@ import groovy.lang.Script;
 import net.opengis.wps10.DataInputsType1;
 import net.opengis.wps10.ExecuteType;
 import net.opengis.wps10.InputType;
+import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,8 +55,10 @@ public class ScriptMetadata {
                     Map inputAttributes = (Map)input.getValue();
                     si.title = inputAttributes.getOrDefault("title", input.getKey()).toString();
                     si.description = inputAttributes.getOrDefault("description", "").toString();
-                    Object typeObj = inputAttributes.get("type");
-                    si.type = (typeObj != null) ? typeObj.toString() : "String";
+                    Object attributeType = inputAttributes.get("type");
+                    if(attributeType instanceof Class) {
+                        si.type = (Class<?>)attributeType;
+                    }
                     Object minValue = inputAttributes.get("min");
 
                     if (minValue != null) {
@@ -105,21 +108,50 @@ public class ScriptMetadata {
      * @return a map where keys are input names (as strings) and values are the corresponding input data
      *         values (as objects), or {@code null} if no data is associated with an input.
      */
-    public static Map<String, Object> extractInputs(ExecuteType execute) {
-        Map<String, Object> inputsMap = new HashMap<>();
+    public Map<String, Object> extractInputs(ExecuteType execute) {
+        Logger logger = org.slf4j.LoggerFactory.getLogger(ScriptMetadata.class);
         DataInputsType1 dataInputs = execute.getDataInputs();
-        if (dataInputs != null) {
-            for (Object obj : dataInputs.getInput()) {
-                if (obj instanceof InputType) {
-                    InputType input = (InputType) obj;
-                    String name = input.getIdentifier().getValue();
-                    Object value = (input.getData() != null && input.getData().getLiteralData() != null)
-                            ? input.getData().getLiteralData().getValue() : null;
-                    inputsMap.put(name, value);
+        Map<String, Object> queryInputs = new HashMap<>();
+        if (dataInputs != null && dataInputs.getInput() != null) {
+            for (Object inputObj : dataInputs.getInput()) {
+                if (inputObj instanceof InputType) {
+                    InputType input = (InputType) inputObj;
+                    try {
+                        String inputId = input.getIdentifier().getValue();
+                        Object inputContent = input.getData().getLiteralData().getValue();
+                        if (inputs.containsKey(inputId)) {
+                            ScriptInput scriptInput = inputs.get(inputId);
+                            // found expected input, try to cast to expect type if not null
+                            Class<?> expectedInputType = scriptInput.type;
+                            String typeName = expectedInputType.getName();
+                            if (typeName.equals(Long.class.getName())) {
+                                inputContent = Long.parseLong(input.getData().getLiteralData().getValue());
+                            } else if (typeName.equals(Integer.class.getName())) {
+                                inputContent = Integer.parseInt(input.getData().getLiteralData().getValue());
+                            } else if (typeName.equals(Float.class.getName())) {
+                                inputContent = Float.parseFloat(input.getData().getLiteralData().getValue());
+                            } else if (typeName.equals(Double.class.getName())) {
+                                inputContent = Double.parseDouble(input.getData().getLiteralData().getValue());
+                            } else if (typeName.equals(Boolean.class.getName())) {
+                                inputContent = Boolean.parseBoolean(input.getData().getLiteralData().getValue());
+                            } else if (typeName.equals(org.locationtech.jts.geom.Geometry.class.getName())) {
+                                inputContent =
+                                        new org.locationtech.jts.io.WKTReader().read(input.getData().getLiteralData().getValue());
+                            }
+                            queryInputs.put(inputId, inputContent);
+                        } else {
+                            logger.warn("Input '{}' not found in metadata, ignore this argument", inputId);
+                        }
+                    } catch (Exception ex) {
+                        logger.info("Warning, ignore input as there was an exception while converting input '{}'", input.getIdentifier().getValue(), ex);
+                    }
                 }
             }
         }
-        return inputsMap;
+        
+        
+        
+        return queryInputs;
     }
 
 }

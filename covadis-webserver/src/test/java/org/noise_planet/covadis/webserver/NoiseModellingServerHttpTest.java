@@ -258,6 +258,8 @@ class NoiseModellingServerHttpTest {
                 ".1\">sourcesTableName</p1:Identifier><p0:Data><p0:LiteralData>ROADS</p0:LiteralData></p0:Data></p0" +
                 ":Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
                 ".1\">exportTrianglesGeometries</p1:Identifier><p0:Data><p0:LiteralData>true</p0:LiteralData></p0" +
+                ":Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
+                ".1\">isoSurfaceInBuildings</p1:Identifier><p0:Data><p0:LiteralData>false</p0:LiteralData></p0" +
                 ":Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier " +
                 "xmlns:p1=\"http://www.opengis.net/ows/1" +
                 ".1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
