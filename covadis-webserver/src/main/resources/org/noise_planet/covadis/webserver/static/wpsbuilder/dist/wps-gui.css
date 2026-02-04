@@ -193,8 +193,9 @@ body {
     font-size: 40px;
     color: #fff;
 }
+
 #header {
-    background: url("wpsbuilder-header.png");
+    background: url("wpsbuilder-header.svg");
     display: inline-block;
     height: 60px;
     width: 420px;
