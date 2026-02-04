@@ -118,10 +118,11 @@ public class OwsController {
         this.configuration = configuration;
         this.serverDataSource = serverDataSource;
     }
+
     /**
      * Reloads the WPS (Web Processing Service) scripts by reloading them from the file system
      * and rebuilding the corresponding script wrappers.
-     *
+     * <p>
      * This method uses {@link WpsScriptWrapper#loadScripts()} to scan and organize script files into
      * groups. The results are then processed by {@link WpsScriptWrapper#buildScriptWrappers(Map)} to
      * create a new set of script wrappers, which replace the existing ones.
@@ -405,7 +406,7 @@ public class OwsController {
      * @return
      * @throws SQLException
      */
-    private DataSource fetchUserDataSource(int userId) throws SQLException {
+    public DataSource fetchUserDataSource(int userId) throws SQLException {
         DataSource dataSource = userDataSources.get(userId);
         if (dataSource == null) {
             dataSource = DatabaseManagement.createH2DataSource(

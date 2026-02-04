@@ -71,6 +71,18 @@ public class NoiseModellingServer {
     }
 
     /**
+     * Retrieves a user-specific {@link DataSource} instance for database operations.
+     * The {@code DataSource} is maintained with a connection pool for reuse between transactions.
+     *
+     * @param userId the unique identifier of the user for whom the {@code DataSource} is being retrieved.
+     * @return the {@code DataSource} instance associated with the specified user.
+     * @throws SQLException if an SQL error occurs while retrieving or creating the {@code DataSource}.
+     */
+    public DataSource getUserDataSource(int userId) throws SQLException {
+        return owsController.fetchUserDataSource(userId);
+    }
+
+    /**
      * The entry point of the application. This method initializes and starts the server.
      *
      * @param args command-line arguments passed to the application. Not utilized currently.

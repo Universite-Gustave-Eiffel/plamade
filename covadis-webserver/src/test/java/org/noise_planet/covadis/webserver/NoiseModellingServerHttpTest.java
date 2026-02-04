@@ -10,23 +10,30 @@
 package org.noise_planet.covadis.webserver;
 
 import org.apache.log4j.PropertyConfigurator;
+import org.h2.value.ValueBoolean;
+import org.h2gis.functions.io.geojson.GeoJsonRead;
+import org.h2gis.functions.io.geojson.GeoJsonWrite;
+import org.h2gis.functions.io.shp.SHPRead;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.JobStates;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.net.http.*;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.xml.sax.InputSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -153,7 +160,7 @@ class NoiseModellingServerHttpTest {
         HttpClient client = HttpClient.newHttpClient();
         String serviceParam = URLEncoder.encode("WPS", StandardCharsets.UTF_8);
         String requestParam = URLEncoder.encode("DescribeProcess", StandardCharsets.UTF_8);
-        URI uri = URI.create(BASE_URL + "?service=" + serviceParam + "&VERSION=1.0.0&request=" + requestParam + "&identifier=Database_Manager:Display_Database");
+        URI uri = URI.create(BASE_URL + "?service=" + serviceParam + "&VERSION=1.0.0&request=" + requestParam + "&identifier=Receivers:Delaunay_Grid");
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
@@ -165,8 +172,14 @@ class NoiseModellingServerHttpTest {
         assertEquals(200, response.statusCode());
         String body = response.body();
         assertNotNull(body);
-        assertTrue(body.contains("wps:ProcessDescriptions"));
-        assertTrue(body.contains("Display columns of the tables"));
+        // Check if XML is valid - will throw an exception if not valid
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        builder.parse(new InputSource(new StringReader(body)));
+        // Check content
+        assertTrue(body.contains("<wps:ProcessDescriptions "));
+        assertTrue(body.contains("Receivers:Delaunay_Grid"));
     }
 
     /**
@@ -209,6 +222,74 @@ class NoiseModellingServerHttpTest {
             assertEquals(1, jobs.size());
             assertEquals("Database_Manager:Clean_Database", jobs.get(0).get("script").toString());
             assertEquals(JobStates.COMPLETED.name(), jobs.get(0).get("status").toString());
+        }
+    }
+
+
+
+    /**
+     * Test Delaunay script
+     *
+     * @throws Exception if an error occurs during the HTTP request, response handling, or validation steps.
+     */
+    @Test
+    @Order(4)
+    void testPostWPSDelaunayExecute() throws Exception {
+        // Insert Data
+        try(Connection connection = app.getUserDataSource(1).getConnection()) {
+            GeoJsonRead.importTable(connection,
+                    NoiseModellingServerHttpTest.class.getResource("wpsinput/BUILDINGS_LOW_HEIGHT.geojson").getFile(),
+                    ValueBoolean.TRUE);
+            try(Statement statement = connection.createStatement()) {
+                statement.execute("CREATE TABLE ROADS(id integer primary key, geom geometry(LineStringZ, 2154))");
+                statement.execute("INSERT INTO ROADS VALUES(1, ST_GeomFromText('LINESTRING Z (491283" +
+                        ".47973571467446163 6772700.14766194019466639 0, 491298.31839100952493027 6772724" +
+                        ".17215146496891975 0, 491352.2851671117823571 6772724.08382613584399223 0, 491352" +
+                        ".2851671117823571 6772724.08382613584399223 0)', 2154))");
+            }
+        }
+        HttpClient client = HttpClient.newHttpClient();
+        String requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0" +
+                ".0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
+                ".1\">Receivers:Delaunay_Grid</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier " +
+                "xmlns:p1=\"http://www.opengis.net/ows/1" +
+                ".1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS_LOW_HEIGHT</p0:LiteralData></p0:Data></p0" +
+                ":Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
+                ".1\">sourcesTableName</p1:Identifier><p0:Data><p0:LiteralData>ROADS</p0:LiteralData></p0:Data></p0" +
+                ":Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
+                ".1\">exportTrianglesGeometries</p1:Identifier><p0:Data><p0:LiteralData>true</p0:LiteralData></p0" +
+                ":Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier " +
+                "xmlns:p1=\"http://www.opengis.net/ows/1" +
+                ".1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL))
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .header("Content-Type", "text/xml")
+                .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode());
+
+        try(Connection connection = app.getUserDataSource(1).getConnection()) {
+            // debug export table triangles as geojson
+            // GeoJsonWrite.exportTable(connection, "target/TRIANGLES.geojson", "TRIANGLES");
+            // Check if there is a triangle at the location of the building in x,y location 491303.97 6772708.80
+            // No triangle should be under the buildings
+            try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM TRIANGLES WHERE " +
+                    "ST_Contains(the_geom, ST_GeomFromText('POINT(491303.97 6772708.80)', 2154))")) {
+                try(ResultSet rs = preparedStatement.executeQuery()) {
+                    assertFalse(rs.next());
+                }
+            }
+            // An area with a triangle at 491308.588, 6772710.399
+            try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM TRIANGLES WHERE " +
+                    "ST_Contains(the_geom, ST_GeomFromText('POINT(491325.310 6772704.089)', 2154))")) {
+                try(ResultSet rs = preparedStatement.executeQuery()) {
+                    assertTrue(rs.next());
+                }
+            }
         }
     }
 }
