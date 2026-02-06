@@ -51,7 +51,7 @@ class NoiseModellingServerHttpTest {
      * It supports the execution of various HTTP-based operations such as handling requests
      * for WPS capabilities, process descriptions, and WPS execution, as verified in the test methods.
      */
-    private NoiseModellingServer app;
+    private static NoiseModellingServer app;
 
     /**
      * The default port number on which the HTTP server will listen.
@@ -85,8 +85,8 @@ class NoiseModellingServerHttpTest {
      *
      * @throws IOException if an I/O error occurs while starting the server.
      */
-    @BeforeEach
-    public void setUp(@TempDir Path temporaryDirectory) throws IOException, SQLException {
+    @BeforeAll
+    public static void setUp(@TempDir Path temporaryDirectory) throws IOException, SQLException {
         PropertyConfigurator.configure(
                 Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("test/log4j.properties")));
         Configuration configuration = new Configuration(true);
@@ -107,10 +107,19 @@ class NoiseModellingServerHttpTest {
      * the {@code stop()} method to cease its operations and release any resources
      * associated with it. This ensures a proper shutdown and prevents resource leaks.
      */
-    @AfterEach
-    public void tearDown() {
+    @AfterAll
+    public static void tearDown() {
         if (app != null) {
             app.getJavalinInstance().stop();
+        }
+    }
+
+    @BeforeEach
+    public void clearInstance() throws SQLException {
+        if (app != null) {
+            try(Connection connection = app.getServerDataSource().getConnection()) {
+                connection.createStatement().execute("TRUNCATE TABLE JOBS");
+            }
         }
     }
 
@@ -132,6 +141,12 @@ class NoiseModellingServerHttpTest {
         assertEquals(200, response.statusCode());
         String body = response.body();
         assertNotNull(body);
+        // Check if XML is valid - will throw an exception if not valid
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        builder.parse(new InputSource(new StringReader(body)));
+        
         assertTrue(body.contains("<wps:Capabilities "));
         assertTrue(body.contains("Database_Manager:Display_Database"));
     }
