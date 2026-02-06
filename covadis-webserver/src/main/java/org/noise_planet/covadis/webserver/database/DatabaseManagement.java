@@ -69,6 +69,12 @@ public class DatabaseManagement {
 
         javax.sql.DataSource h2DataSource = H2GISDBFactory.createDataSource(properties);
         config.setDataSource(h2DataSource);
+        config.setConnectionTestQuery("SELECT 1");
+        config.setConnectionTimeout(30000);
+        config.setIdleTimeout(600000);
+        config.setMaxLifetime(1800000);
+        config.setMinimumIdle(1);
+        config.setMaximumPoolSize(10);
         HikariDataSource dataSource = new HikariDataSource(config);
         if (initializeSpatial) {
             // Init spatial ext
