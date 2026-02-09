@@ -42,8 +42,10 @@ import org.noise_planet.covadis.webserver.utilities.Logging;
 import org.noise_planet.covadis.webserver.utilities.StringUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xml.sax.SAXException;
 
 import javax.sql.DataSource;
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -82,7 +84,7 @@ public class OwsController {
             KEEP_ALIVE_TIME, TimeUnit.MILLISECONDS);
 
     /**
-     * A static collection of {@link ScriptMetadata} objects representing the
+     * Collection of {@link ScriptMetadata} objects representing the
      * scripts available for the Web Processing Service (WPS). Each script is wrapped
      * in a {@link ScriptMetadata}, which encapsulates its metadata, inputs, outputs,
      * and logic to facilitate execution.
@@ -92,7 +94,8 @@ public class OwsController {
      * handling WPS operations by mapping process identifiers to their corresponding
      * Groovy script implementations.
      */
-    static List<ScriptMetadata> wpsScripts;
+    List<ScriptMetadata> wpsScripts;
+
     /**
      * An instance of WpsScriptWrapper used to manage the execution of WPS (Web Processing Service) scripts.
      * This wrapper facilitates the interaction between the application and the underlying scripting engine
@@ -284,23 +287,6 @@ public class OwsController {
         }
     }
 
-
-    /**
-     * Executes a Groovy script with the provided connection and inputs.
-     *
-     * @param connection an active database connection used in the script execution context.
-     * @param inputs a map of key-value pairs representing the inputs required by the script.
-     * @return the result of the script execution, which can be of any type.
-     * @throws IOException if there is an issue reading or processing the script file.
-     */
-    public static Object execute(Connection connection, ScriptMetadata scriptMetadata, Map<String, Object> inputs) throws IOException {
-        File scriptFile = scriptMetadata.path.toFile();
-        GroovyShell shell = new GroovyShell();
-        Script script = shell.parse(scriptFile);
-
-        return script.invokeMethod("exec", new Object[]{connection, inputs});
-    }
-
     /**
      * Render job list HTML page
      * @param ctx web context
@@ -319,6 +305,17 @@ public class OwsController {
         }
     }
 
+
+    public static ExecuteType parseExecuteRequest(InputStream inputStream)
+            throws IOException, ParserConfigurationException, SAXException {
+        Parser parser = new Parser(new WPSConfiguration());
+        Object parsed = parser.parse(inputStream);
+        if (!(parsed instanceof ExecuteType)) {
+            return null;
+        }
+        return (ExecuteType) parsed;
+    }
+
     /**
      * Handles an HTTP POST request for a Web Processing Service (WPS) operation.
      * This method parses the request body, validates the WPS Execute Request, identifies
@@ -333,15 +330,13 @@ public class OwsController {
     public void handleWPSPost(Context ctx) {
         try {
             int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
-            Parser parser = new Parser(new WPSConfiguration());
-            Object parsed = parser.parse(new ByteArrayInputStream(ctx.bodyAsBytes()));
+            ExecuteType execute = parseExecuteRequest(new ByteArrayInputStream(ctx.bodyAsBytes()));
 
-            if (!(parsed instanceof ExecuteType)) {
+            if (execute == null) {
                 ctx.status(400).result("WPS request not valid");
                 return;
             }
 
-            ExecuteType execute = (ExecuteType) parsed;
             String processId = execute.getIdentifier().getValue();
 
             String[] parts = processId.split(":");
@@ -353,7 +348,7 @@ public class OwsController {
             String group = parts[0];
             String scriptName = parts[1];
 
-            // Fetch expected script
+            // Fetch the script name to execute
             Optional<ScriptMetadata> optionalScriptMetadata = wpsScripts.stream()
                     .filter(sw -> sw.id.equals(group + ":" + scriptName))
                     .findFirst();
@@ -363,7 +358,7 @@ public class OwsController {
                 return;
             }
             ScriptMetadata scriptMetadata = optionalScriptMetadata.get();
-            Map<String, Object> inputs = ScriptMetadata.extractInputs(execute);
+            Map<String, Object> inputs = scriptMetadata.extractInputs(execute);
             int jobUserId = userId > 0 ? userId : 1; // user may not be logged in
             Job<Object> job = new Job<>(jobUserId, scriptMetadata, serverDataSource,
                     fetchUserDataSource(jobUserId), inputs, configuration);

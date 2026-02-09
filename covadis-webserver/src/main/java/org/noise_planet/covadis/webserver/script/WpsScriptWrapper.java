@@ -312,7 +312,6 @@ public class WpsScriptWrapper {
             processDesc.appendChild(dataInputs);
 
             for (ScriptInput input : wrapper.inputs.values()) {
-                input.type = input.type.replace("class java.lang.", "");
                 Element inputElem = doc.createElement("Input");
                 inputElem.setAttribute("minOccurs", input.optional ? "0" : "1");
                 inputElem.setAttribute("maxOccurs", "1");
@@ -336,7 +335,7 @@ public class WpsScriptWrapper {
 
                 Element dataType = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows" +
                         ":DataType");
-                if ("class java.lang.Boolean".equalsIgnoreCase(input.type)) {
+                if (input.type.equals(Boolean.class)) {
                     dataType.setTextContent("xs:boolean");
                     literalData.appendChild(dataType);
 
@@ -356,7 +355,7 @@ public class WpsScriptWrapper {
                     defaultValue.setTextContent("false");
                     literalData.appendChild(defaultValue);
                 } else {
-                    dataType.setTextContent("xs:" + input.type.toLowerCase());
+                    dataType.setTextContent("xs:" + input.type.getSimpleName().toLowerCase(Locale.ROOT));
                     literalData.appendChild(dataType);
                 }
             }

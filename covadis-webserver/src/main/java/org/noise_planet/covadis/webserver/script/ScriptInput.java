@@ -10,6 +10,6 @@ public class ScriptInput {
     public String id;
     public String title;
     public String description;
-    public String type;
+    public Class<?> type;
     public boolean optional = false;
 }
