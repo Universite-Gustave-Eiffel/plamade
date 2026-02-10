@@ -1,0 +1,151 @@
+package org.noise_planet.covadis.webserver.script;
+
+import net.opengis.ows11.*;
+import net.opengis.wps10.*;
+import org.geotools.wps.WPSConfiguration;
+import org.geotools.xsd.Encoder;
+import org.locationtech.jts.geom.Geometry;
+
+import javax.xml.namespace.QName;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * A utility class for generating WPS (Web Processing Service) XML documents.
+ * This class provides methods to construct a DescribeProcess XML for a specific script by
+ * defining its inputs, outputs, and other metadata.
+ */
+public class WpsXmlDocumentGenerator {
+    Encoder encoder = new Encoder(new WPSConfiguration());
+
+    private final static Wps10Factory wpsf = Wps10Factory.eINSTANCE;
+    private final static Ows11Factory owsf = Ows11Factory.eINSTANCE;
+    private final static Map<Class<?>, String> javaClassToXsdType;
+    static {
+        javaClassToXsdType = new HashMap<>();
+        javaClassToXsdType.put(String.class, "xs:string");
+        javaClassToXsdType.put(Boolean.class, "xs:boolean");
+        javaClassToXsdType.put(Integer.class, "xs:int");
+        javaClassToXsdType.put(Double.class, "xs:double");
+    }
+
+    /**
+     * Shortcut method to generate wps xml generator string
+     * @param value String
+     * @return Instance
+     */
+    private static LanguageStringType languageString(String value) {
+        LanguageStringType languageStringType = owsf.createLanguageStringType();
+        languageStringType.setValue(value);
+        return languageStringType;
+    }
+
+    /**
+     * Parameter identifier
+     * @param value String
+     * @return Instance
+     */
+    private static CodeType codetype(String value) {
+        CodeType codeType = owsf.createCodeType();
+        codeType.setValue(value);
+        return codeType;
+    }
+
+    /**
+     * Creates and initializes a {@link DomainMetadataType} instance with the specified name.
+     * It can be a parameter type (String, number.)
+     * @param name String
+     * @return Instance
+     */
+    private static DomainMetadataType domainMetadataType(String name) {
+        DomainMetadataType domainMetadataType = owsf.createDomainMetadataType();
+        domainMetadataType.setValue(name);
+        return domainMetadataType;
+    }
+
+    public static ValueType valueType(String value) {
+        ValueType valueType = owsf.createValueType();
+        valueType.setValue(value);
+        return valueType;
+    }
+
+    public static void dataInputs(DataInputsType inputs, ScriptInput scriptInput) {
+        InputDescriptionType input = wpsf.createInputDescriptionType();
+        inputs.getInput().add(input);
+        input.setIdentifier(codetype(scriptInput.id));
+        input.setTitle(languageString(scriptInput.title));
+        input.setAbstract(languageString(scriptInput.description));
+        input.setMaxOccurs(scriptInput.maxOccurs < 0 ? BigInteger.valueOf(Long.MAX_VALUE) : BigInteger.valueOf(scriptInput.maxOccurs));
+        input.setMinOccurs(BigInteger.valueOf(scriptInput.minOccurs));
+        LiteralInputType literalInputType = wpsf.createLiteralInputType();
+        input.setLiteralData(literalInputType);
+        if (scriptInput.type.equals(Boolean.class)) {
+            literalInputType.setDataType(domainMetadataType("xs:boolean"));
+            literalInputType.setAllowedValues(owsf.createAllowedValuesType());
+            literalInputType.getAllowedValues().getValue().add(valueType("true"));
+            literalInputType.getAllowedValues().getValue().add(valueType("false"));
+        } else {
+            literalInputType.setDataType(domainMetadataType(javaClassToXsdType.getOrDefault(scriptInput.type, "xs:string")));
+        }
+    }
+
+    public static void processOutputs(ProcessOutputsType outputs, ScriptOutput scriptOutput) {
+        OutputDescriptionType output = wpsf.createOutputDescriptionType();
+        outputs.getOutput().add(output);
+        output.setIdentifier(codetype(scriptOutput.id));
+        output.setTitle(languageString(scriptOutput.title));
+        output.setAbstract(languageString(scriptOutput.description));
+        if(!scriptOutput.type.equals(Geometry.class)) {
+            output.setLiteralOutput(wpsf.createLiteralOutputType());
+        } else {
+            // Geometry output is converted to WKT
+            SupportedComplexDataType complex = wpsf.createSupportedComplexDataType();
+            output.setComplexOutput(complex);
+            complex.setSupported(wpsf.createComplexDataCombinationsType());
+            ComplexDataDescriptionType ddt = wpsf.createComplexDataDescriptionType();
+            ddt.setMimeType("application/wkt");
+            complex.getSupported().getFormat().add(ddt);
+            ComplexDataDescriptionType def = wpsf.createComplexDataDescriptionType();
+            def.setMimeType(ddt.getMimeType());
+            complex.setDefault(wpsf.createComplexDataCombinationType());
+            complex.getDefault().setFormat(def);
+        }
+    }
+
+    /**
+     * Generates a WPS DescribeProcess XML for a specific Groovy script.
+     *
+     * @param wrapper the ScriptWrapper representing the script
+     * @return XML string for WPS DescribeProcess
+     */
+    public String generateDescribeProcessXML(ScriptMetadata wrapper) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        ProcessDescriptionsType processDescriptionsType = wpsf.createProcessDescriptionsType();
+        processDescriptionsType.setLang("en");
+        processDescriptionsType.setService("WPS");
+
+        ProcessDescriptionType processDescriptionType = Wps10Factory.eINSTANCE.createProcessDescriptionType();
+        processDescriptionsType.getProcessDescription().add(processDescriptionType);
+        processDescriptionType.setIdentifier(codetype(wrapper.id));
+        processDescriptionType.setTitle(languageString(wrapper.title));
+        processDescriptionType.setAbstract(languageString(wrapper.description));
+        processDescriptionType.setProcessVersion("1.0.0");
+        processDescriptionType.setStoreSupported(true);
+        processDescriptionType.setStatusSupported(true);
+        DataInputsType dataInputsType = Wps10Factory.eINSTANCE.createDataInputsType();
+        processDescriptionType.setDataInputs(dataInputsType);
+        for (ScriptInput input : wrapper.inputs.values()) {
+            dataInputs(dataInputsType, input);
+        }
+        processDescriptionType.setProcessOutputs(Wps10Factory.eINSTANCE.createProcessOutputsType());
+        for(ScriptOutput output : wrapper.outputs.values()) {
+            processOutputs(processDescriptionType.getProcessOutputs(), output);
+        }
+        encoder.encode(processDescriptionsType, new QName("http://www.opengis.net/wps/1.0.0", "ProcessDescriptions"), baos);
+        return baos.toString();
+    }
+}

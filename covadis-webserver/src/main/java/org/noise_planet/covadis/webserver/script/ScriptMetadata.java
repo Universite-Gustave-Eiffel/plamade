@@ -48,22 +48,21 @@ public class ScriptMetadata {
         // Convert metadata inputs into ScriptInput instances
         Object inputsValue = metadata.get("inputs");
         if(inputsValue instanceof Map) {
-            for (Map.Entry input : ((Map<String, Object>) inputsValue).entrySet()) {
+            for (Map.Entry<String, Object> input : ((Map<String, Object>) inputsValue).entrySet()) {
                 ScriptInput si = new ScriptInput();
                 si.id = input.getKey().toString();
                 if(input.getValue() instanceof Map) {
-                    Map inputAttributes = (Map)input.getValue();
+                    Map<String, Object> inputAttributes = (Map)input.getValue();
                     si.title = inputAttributes.getOrDefault("title", input.getKey()).toString();
                     si.description = inputAttributes.getOrDefault("description", "").toString();
                     Object attributeType = inputAttributes.get("type");
                     if(attributeType instanceof Class) {
                         si.type = (Class<?>)attributeType;
                     }
-                    Object minValue = inputAttributes.get("min");
-
-                    if (minValue != null) {
-                        si.optional = true;
-                    }
+                    Object minValue = inputAttributes.getOrDefault("min", 1);
+                    si.minOccurs = minValue instanceof Integer ? (Integer)minValue : 1;
+                    Object maxValue = inputAttributes.getOrDefault("max", 1);
+                    si.maxOccurs = maxValue instanceof Integer ? (Integer)maxValue : 1;
                 }
                 inputs.put(si.id, si);
             }
@@ -72,12 +71,18 @@ public class ScriptMetadata {
         Object outputsValue = metadata.get("outputs");
         if(outputsValue instanceof Map) {
             for (Map.Entry output : ((Map<String, Object>) outputsValue).entrySet()) {
-                ScriptOutput si = new ScriptOutput();
-                si.id = output.getKey().toString();
+                ScriptOutput scriptOutput = new ScriptOutput();
+                scriptOutput.id = output.getKey().toString();
                 if(output.getValue() instanceof Map) {
-                    si.title = ((Map)output.getValue()).getOrDefault("title", output.getKey()).toString();
+                    Map<String, Object> outputAttributes = (Map) output.getValue();
+                    scriptOutput.title = (String) outputAttributes.getOrDefault("title", "no titles");
+                    scriptOutput.description = outputAttributes.getOrDefault("description", "").toString();
+                    Object attributeType = outputAttributes.get("type");
+                    if(attributeType instanceof Class) {
+                        scriptOutput.type = (Class<?>)attributeType;
+                    }
                 }
-                outputs.put(si.id, si);
+                outputs.put(scriptOutput.id, scriptOutput);
             }
         }
     }

@@ -2,6 +2,8 @@ package org.noise_planet.covadis.webserver;
 
 import net.opengis.wps10.ExecuteType;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Geometry;
+import org.noise_planet.covadis.webserver.script.WpsXmlDocumentGenerator;
 import org.noise_planet.covadis.webserver.script.ScriptMetadata;
 import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
 import org.xml.sax.SAXException;
@@ -57,5 +59,27 @@ public class TestParseWPSQueries {
         assertEquals(Boolean.class, inputs.get("isoSurfaceInBuildings").getClass());
         assertEquals(false, inputs.get("isoSurfaceInBuildings"));
 
+    }
+
+
+    @Test
+    public void testGeometryReturnParse() throws IOException, ParserConfigurationException, SAXException {
+
+        // Build ScriptWrapper
+        List<ScriptMetadata> wrappers = WpsScriptWrapper.buildScriptWrappers(WpsScriptWrapper.scanScriptsGrouped(ClassLoader.getSystemClassLoader(), Path.of("scripts")));
+        assertNotEquals(0, wrappers.size());
+        // look for the script named Delaunay_Grid
+        Optional<ScriptMetadata> scriptMetadata = wrappers.stream().filter(sw -> sw.id.equals("Database_Manager:Table_Visualization_Map")).findFirst();
+        assertTrue(scriptMetadata.isPresent());
+        assertEquals("Database_Manager:Table_Visualization_Map", scriptMetadata.get().id);
+
+        assertTrue(scriptMetadata.get().outputs.containsKey("result"));
+        assertEquals(Geometry.class, scriptMetadata.get().outputs.get("result").type);
+
+        String describeProcessXML = WpsXmlDocumentGenerator.generateDescribeProcessXML(scriptMetadata.get());
+
+        // Expect XML output with WKT Geometry type
+        assertTrue(describeProcessXML.contains("application/wkt"));
+        assertTrue(describeProcessXML.contains("<ows:Identifier>Database_Manager:Table_Visualization_Map</ows:Identifier>"));
     }
 }
