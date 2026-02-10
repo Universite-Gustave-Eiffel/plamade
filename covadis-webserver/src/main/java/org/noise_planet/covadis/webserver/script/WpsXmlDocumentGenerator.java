@@ -19,7 +19,6 @@ import java.util.Map;
  * defining its inputs, outputs, and other metadata.
  */
 public class WpsXmlDocumentGenerator {
-    Encoder encoder = new Encoder(new WPSConfiguration());
 
     private final static Wps10Factory wpsf = Wps10Factory.eINSTANCE;
     private final static Ows11Factory owsf = Ows11Factory.eINSTANCE;
@@ -145,6 +144,9 @@ public class WpsXmlDocumentGenerator {
         for(ScriptOutput output : wrapper.outputs.values()) {
             processOutputs(processDescriptionType.getProcessOutputs(), output);
         }
+
+
+        Encoder encoder = new Encoder(new WPSConfiguration());
         encoder.encode(processDescriptionsType, new QName("http://www.opengis.net/wps/1.0.0", "ProcessDescriptions"), baos);
         return baos.toString();
     }
