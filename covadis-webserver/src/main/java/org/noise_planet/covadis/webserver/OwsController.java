@@ -10,11 +10,8 @@
 
 package org.noise_planet.covadis.webserver;
 
-import groovy.lang.GroovyShell;
-import groovy.lang.Script;
 import io.javalin.http.Context;
 import io.javalin.http.InternalServerErrorResponse;
-import io.javalin.http.UnauthorizedResponse;
 import io.javalin.websocket.WsCloseContext;
 import io.javalin.websocket.WsConnectContext;
 import io.javalin.websocket.WsContext;
@@ -33,6 +30,8 @@ import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
 import org.geotools.xsd.Parser;
 import org.jetbrains.annotations.NotNull;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.WKTWriter;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.*;
 import org.noise_planet.covadis.webserver.secure.JWTProvider;
@@ -70,6 +69,7 @@ public class OwsController {
     public static final long KEEP_ALIVE_TIME = 0L;
     public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
     private static final int DEFAULT_ABORT_JOB_DELAY = 5;
+    private WpsXmlDocumentGenerator wpsXmlDocumentGenerator = new WpsXmlDocumentGenerator();
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -209,14 +209,13 @@ public class OwsController {
      *            query parameters, response handling, and the ability to set
      *            content type and status codes
      */
-    private void handleWPSGet(Context ctx) {
+    private void handleWPSGet(Context ctx) throws IOException {
         String request = ctx.queryParam("request");
         ctx.contentType("text/xml; charset=UTF-8");
 
         if ("GetCapabilities".equalsIgnoreCase(request)) {
-            String xml = WpsScriptWrapper.generateCapabilitiesXML(wpsScripts);
+            String xml = WpsXmlDocumentGenerator.generateCapabilitiesXML(wpsScripts);
             ctx.result(xml);
-
         } else if ("DescribeProcess".equalsIgnoreCase(request)) {
             String identifier = ctx.queryParam("identifier");
             if (identifier == null || identifier.isEmpty()) {
@@ -229,7 +228,7 @@ public class OwsController {
                     .findFirst();
 
             if (target.isPresent()) {
-                ctx.result(WpsScriptWrapper.generateDescribeProcessXML(target.get()));
+                ctx.result(wpsXmlDocumentGenerator.generateDescribeProcessXML(target.get()));
             } else {
                 ctx.status(404).result("<ows:Exception>Process not found: " + identifier + "</ows:Exception>");
             }
@@ -365,11 +364,7 @@ public class OwsController {
             Future<Object> result = jobExecutorService.submitJob(job);
             try {
                 Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-                if(jobResult instanceof Map<?, ?> && ((Map<?, ?>) jobResult).containsKey("result")) {
-                    ctx.result(((Map<?, ?>) jobResult).get("result").toString());
-                } else {
-                    ctx.result(jobResult.toString());
-                }
+                processResult(ctx, jobResult);
             } catch (TimeoutException e) {
                 String url = ctx.contextPath() + "/job_logs/" + job.getId();
                 ctx.result(String.format(
@@ -392,6 +387,22 @@ public class OwsController {
 
             ctx.contentType("text/html; charset=UTF-8");
             ctx.result(html);
+        }
+    }
+
+    private static void processResult(Context context, Object result) {
+        if(result instanceof Map<?, ?> && ((Map<?, ?>) result).containsKey("result")) {
+            processResult(context, ((Map<?, ?>) result).get("result"));
+        } else {
+            if(result instanceof Geometry) {
+                // Convert Geometry to WKT then encode it in base64
+                WKTWriter wktWriter = new WKTWriter(2);
+                String wkt = wktWriter.write((Geometry) result);
+                context.contentType("application/octet-stream");
+                context.result(wkt.getBytes());
+            } else {
+                context.result(result.toString());
+            }
         }
     }
 

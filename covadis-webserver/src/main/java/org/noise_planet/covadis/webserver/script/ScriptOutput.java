@@ -8,4 +8,6 @@ package org.noise_planet.covadis.webserver.script;
 public class ScriptOutput {
     public String id;
     public String title;
+    public String description;
+    public Class<?> type;
 }

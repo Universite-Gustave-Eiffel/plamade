@@ -10,31 +10,37 @@
 
 package org.noise_planet.covadis.webserver.script;
 
-import groovy.lang.GroovyShell;
-import groovy.lang.Script;
+import net.opengis.ows11.CodeType;
+import net.opengis.ows11.DomainMetadataType;
+import net.opengis.ows11.LanguageStringType;
+import net.opengis.ows11.Ows11Factory;
+import net.opengis.wps10.*;
 import org.apache.commons.text.StringEscapeUtils;
-import org.h2.server.web.PageParser;
+import org.geotools.wps.WPSConfiguration;
+import org.geotools.xsd.Encoder;
+import org.locationtech.jts.geom.Geometry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.math.BigInteger;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * The `WpsScriptWrapper` class provides functionalities to manage, organize, and process
@@ -48,6 +54,7 @@ import java.util.regex.Pattern;
  * of scripts into a WPS framework by generating necessary XML representations.
  */
 public class WpsScriptWrapper {
+
 
     /**
      * The root directory where Groovy script files are stored and managed.
@@ -190,229 +197,6 @@ public class WpsScriptWrapper {
         }
 
         return wrappers;
-    }
-
-    /**
-     * Generates a WPS GetCapabilities XML document listing all available scripts.
-     *
-     * @param scripts the list of available ScriptWrapper instances
-     * @return XML string for WPS GetCapabilities
-     */
-    public static String generateCapabilitiesXML(List<ScriptMetadata> scripts) {
-        try {
-            Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
-
-            Element root = doc.createElementNS("http://www.opengis.net/wps/1.0.0", "wps:Capabilities");
-            root.setAttribute("xmlns:wps", "http://www.opengis.net/wps/1.0.0");
-            root.setAttribute("xmlns:ows", "http://www.opengis.net/ows/1.1");
-            root.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-            root.setAttribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-            root.setAttribute("xsi:schemaLocation", "http://www.opengis.net/wps/1.0.0 http://schemas.opengis" +
-                    ".net/wps/1.0.0/wpsAll.xsd");
-            doc.appendChild(root);
-
-            Element serviceIdentification = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows" +
-                    ":ServiceIdentification");
-            root.appendChild(serviceIdentification);
-
-            Element title = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Title");
-            title.setTextContent("Prototype GeoServer WPS");
-            serviceIdentification.appendChild(title);
-
-            Element abstractElem = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Abstract");
-            abstractElem.setTextContent("");
-            serviceIdentification.appendChild(abstractElem);
-
-            Element serviceType = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:ServiceType");
-            serviceType.setTextContent("WPS");
-            serviceIdentification.appendChild(serviceType);
-
-            Element serviceTypeVersion = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows" +
-                    ":ServiceTypeVersion");
-            serviceTypeVersion.setTextContent("1.0.0");
-            serviceIdentification.appendChild(serviceTypeVersion);
-
-            Element processOfferings = doc.createElement("wps:ProcessOfferings");
-            root.appendChild(processOfferings);
-
-            for (ScriptMetadata script : scripts) {
-                Element process = doc.createElement("wps:Process");
-                process.setAttribute("wps:processVersion", "1.0.0");
-                processOfferings.appendChild(process);
-
-                Element identifier = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Identifier");
-                identifier.setTextContent(script.id);
-                process.appendChild(identifier);
-
-                Element processTitle = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Title");
-                processTitle.setTextContent(script.title);
-                process.appendChild(processTitle);
-
-                Element processAbstract = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Abstract");
-                processAbstract.setTextContent(escapeForWpsXml(script.description));
-                process.appendChild(processAbstract);
-            }
-
-            TransformerFactory tf = TransformerFactory.newInstance();
-            Transformer transformer = tf.newTransformer();
-            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
-            transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-
-            StringWriter writer = new StringWriter();
-            transformer.transform(new DOMSource(doc),
-                    new StreamResult(writer));
-
-            return writer.toString();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate XML", e);
-        }
-    }
-    /**
-     * Generates a WPS DescribeProcess XML for a specific Groovy script.
-     *
-     * @param wrapper the ScriptWrapper representing the script
-     * @return XML string for WPS DescribeProcess
-     */
-    public static String generateDescribeProcessXML(ScriptMetadata wrapper) {
-        try {
-            Document doc =
-                    DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
-
-            Element root = doc.createElementNS("http://www.opengis.net/wps/1.0.0", "wps" +
-                    ":ProcessDescriptions");
-            root.setAttribute("xmlns:wps", "http://www.opengis.net/wps/1.0.0");
-            root.setAttribute("xmlns:ows", "http://www.opengis.net/ows/1.1");
-            root.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-            root.setAttribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-            root.setAttribute("xsi:schemaLocation", "http://www.opengis.net/wps/1.0.0 http://schemas.opengis" +
-                    ".net/wps/1.0.0/wpsAll.xsd");
-            root.setAttribute("xml:lang", "en-US");
-            doc.appendChild(root);
-
-            Element processDesc = doc.createElement("ProcessDescription");
-            processDesc.setAttribute("wps:processVersion", "1.0.0");
-            processDesc.setAttribute("storeSupported", "true");
-            processDesc.setAttribute("statusSupported", "true");
-            root.appendChild(processDesc);
-
-            Element identifier = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Identifier");
-            identifier.setTextContent(wrapper.id);
-            processDesc.appendChild(identifier);
-
-            Element title = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Title");
-            title.setTextContent(wrapper.title);
-            processDesc.appendChild(title);
-
-            Element abstractElem = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Abstract");
-            abstractElem.setTextContent(wrapper.description);
-            processDesc.appendChild(abstractElem);
-
-            Element dataInputs = doc.createElement("DataInputs");
-            processDesc.appendChild(dataInputs);
-
-            for (ScriptInput input : wrapper.inputs.values()) {
-                Element inputElem = doc.createElement("Input");
-                inputElem.setAttribute("minOccurs", input.optional ? "0" : "1");
-                inputElem.setAttribute("maxOccurs", "1");
-                dataInputs.appendChild(inputElem);
-
-                Element inputId = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Identifier");
-                inputId.setTextContent(input.id);
-                inputElem.appendChild(inputId);
-
-                Element inputTitle = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Title");
-                inputTitle.setTextContent(input.title);
-                inputElem.appendChild(inputTitle);
-
-                Element inputAbstract = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows" +
-                        ":Abstract");
-                inputAbstract.setTextContent(input.description);
-                inputElem.appendChild(inputAbstract);
-
-                Element literalData = doc.createElement("LiteralData");
-                inputElem.appendChild(literalData);
-
-                Element dataType = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows" +
-                        ":DataType");
-                if (input.type.equals(Boolean.class)) {
-                    dataType.setTextContent("xs:boolean");
-                    literalData.appendChild(dataType);
-
-                    Element allowedValues = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows" +
-                            ":AllowedValues");
-                    literalData.appendChild(allowedValues);
-
-                    Element valueTrue = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Value");
-                    valueTrue.setTextContent("true");
-                    allowedValues.appendChild(valueTrue);
-
-                    Element valueFalse = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Value");
-                    valueFalse.setTextContent("false");
-                    allowedValues.appendChild(valueFalse);
-
-                    Element defaultValue = doc.createElement("DefaultValue");
-                    defaultValue.setTextContent("false");
-                    literalData.appendChild(defaultValue);
-                } else {
-                    dataType.setTextContent("xs:" + input.type.getSimpleName().toLowerCase(Locale.ROOT));
-                    literalData.appendChild(dataType);
-                }
-            }
-
-            Element processOutputs = doc.createElement("ProcessOutputs");
-            processDesc.appendChild(processOutputs);
-
-            for (ScriptOutput output : wrapper.outputs.values()) {
-                Element outputElem = doc.createElement("Output");
-                processOutputs.appendChild(outputElem);
-
-                Element outputId = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Identifier");
-                outputId.setTextContent(output.id);
-                outputElem.appendChild(outputId);
-
-                Element outputTitle = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:Title");
-                outputTitle.setTextContent(output.title);
-                outputElem.appendChild(outputTitle);
-
-                Element literalOutput = doc.createElement("LiteralOutput");
-                outputElem.appendChild(literalOutput);
-
-                Element dataType = doc.createElementNS("http://www.opengis.net/ows/1.1", "ows:DataType");
-                dataType.setTextContent("String");
-                literalOutput.appendChild(dataType);
-            }
-
-            TransformerFactory tf = TransformerFactory.newInstance();
-            Transformer transformer = tf.newTransformer();
-            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
-            transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-
-            StringWriter writer = new StringWriter();
-            transformer.transform(new DOMSource(doc),
-                    new StreamResult(writer));
-
-            return writer.toString();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate XML", e);
-        }
-    }
-
-
-    /**
-     * Escapes a given input string for use in WPS (Web Processing Service) XML documents.
-     * This method sanitizes the input by removing HTML tags, replacing certain characters
-     * with their XML entity equivalents, and trimming any leading or trailing whitespace.
-     *
-     * @param input the input string to be escaped; can be null
-     * @return the escaped string suitable for inclusion in a WPS XML document;
-     *         returns an empty string if the input is null
-     */
-    private static String escapeForWpsXml(String input) {
-        if (input == null) return "";
-        // Escape HTML tags
-        return StringEscapeUtils.escapeHtml4(input).trim();
     }
 
 

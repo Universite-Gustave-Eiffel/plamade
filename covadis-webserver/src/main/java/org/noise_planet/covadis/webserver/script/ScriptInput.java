@@ -11,5 +11,12 @@ public class ScriptInput {
     public String title;
     public String description;
     public Class<?> type;
-    public boolean optional = false;
+    /**
+     * Minimum occurrences of this input. A value of 0 indicates that the input is optional.
+     */
+    public int minOccurs = 1;
+    /**
+     * Maximum occurrences of this input.
+     */
+    public int maxOccurs = 1;
 }

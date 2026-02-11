@@ -61717,13 +61717,13 @@ var extent = [-180, -90, 180, 90];
 //  })
 //});
 wps.backgroundLayer = new ol.layer.Tile({
-	source: new ol.source.TileWMS({
-	  url: 'https://maps.heigit.org/osm-wms/service?',
-	  params: {
-		      'LAYERS': 'osm_auto:all'
-		   }
-	})
-  });
+    source: new ol.source.TileWMS({
+        url: 'https://ows.terrestris.de/osm/service?',
+        params: {
+            'LAYERS': 'OSM-WMS'
+        }
+    })
+});
 // apparently axis order is not what we expect when using WPS
 var projection = new ol.proj.Projection({
   code: 'http://www.opengis.net/gml/srs/epsg.xml#4326',
