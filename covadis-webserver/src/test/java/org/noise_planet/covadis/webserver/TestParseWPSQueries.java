@@ -82,4 +82,26 @@ public class TestParseWPSQueries {
         assertTrue(describeProcessXML.contains("application/wkt"));
         assertTrue(describeProcessXML.contains("<ows:Identifier>Database_Manager:Table_Visualization_Map</ows:Identifier>"));
     }
+
+    @Test
+    public void testGenerateCapabilitiesXML() throws IOException {
+        // Build ScriptWrapper
+        List<ScriptMetadata> wrappers =
+                WpsScriptWrapper.buildScriptWrappers(WpsScriptWrapper.scanScriptsGrouped(ClassLoader.getSystemClassLoader(), Path.of("scripts")));
+        assertNotEquals(0, wrappers.size());
+
+        String capabilitiesXML = WpsXmlDocumentGenerator.generateCapabilitiesXML(wrappers);
+
+        // Check that capabilities XML is not empty
+        assertNotNull(capabilitiesXML);
+        assertFalse(capabilitiesXML.isEmpty());
+
+        // Expect XML to contain WPS capabilities elements
+        assertTrue(capabilitiesXML.contains("Capabilities"));
+        assertTrue(capabilitiesXML.contains("ProcessOfferings"));
+        assertTrue(capabilitiesXML.contains("ows:Identifier"));
+        assertTrue(capabilitiesXML.contains("Receivers:Building_Grid"));
+    }
+
+
 }

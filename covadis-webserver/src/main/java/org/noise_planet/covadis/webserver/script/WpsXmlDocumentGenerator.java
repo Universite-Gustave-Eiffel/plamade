@@ -5,12 +5,22 @@ import net.opengis.wps10.*;
 import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
 import org.locationtech.jts.geom.Geometry;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import javax.xml.namespace.QName;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.math.BigInteger;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -120,7 +130,7 @@ public class WpsXmlDocumentGenerator {
      * @param wrapper the ScriptWrapper representing the script
      * @return XML string for WPS DescribeProcess
      */
-    public String generateDescribeProcessXML(ScriptMetadata wrapper) throws IOException {
+    public static String generateDescribeProcessXML(ScriptMetadata wrapper) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
         ProcessDescriptionsType processDescriptionsType = wpsf.createProcessDescriptionsType();
@@ -148,6 +158,47 @@ public class WpsXmlDocumentGenerator {
 
         Encoder encoder = new Encoder(new WPSConfiguration());
         encoder.encode(processDescriptionsType, new QName("http://www.opengis.net/wps/1.0.0", "ProcessDescriptions"), baos);
+        return baos.toString();
+    }
+
+
+
+    /**
+     * Generates a WPS GetCapabilities XML document listing all available scripts.
+     *
+     * @param scripts the list of available ScriptWrapper instances
+     * @return XML string for WPS GetCapabilities
+     */
+    public static String generateCapabilitiesXML(List<ScriptMetadata> scripts) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        WPSCapabilitiesType capabilities = wpsf.createWPSCapabilitiesType();
+        capabilities.setService("WPS");
+        capabilities.setVersion("1.0.0");
+
+        ServiceIdentificationType serviceIdentification = owsf.createServiceIdentificationType();
+        capabilities.setServiceIdentification(serviceIdentification);
+        serviceIdentification.getTitle().add(languageString("NoiseModelling WPS"));
+        serviceIdentification.getAbstract().add(languageString("WPS service of NoiseModelling"));
+
+        CodeType serviceType = codetype("WPS");
+        serviceIdentification.setServiceType(serviceType);
+        serviceIdentification.setServiceTypeVersion ("1.0.0");
+
+        ProcessOfferingsType processOfferings = wpsf.createProcessOfferingsType();
+        capabilities.setProcessOfferings(processOfferings);
+
+        for (ScriptMetadata script : scripts) {
+            ProcessBriefType process = wpsf.createProcessBriefType();
+            process.setProcessVersion("1.0.0");
+            process.setIdentifier(codetype(script.id));
+            process.setTitle(languageString(script.title));
+            process.setAbstract(languageString(script.description));
+            processOfferings.getProcess().add(process);
+        }
+
+        Encoder encoder = new Encoder(new WPSConfiguration());
+        encoder.encode(capabilities, new QName("http://www.opengis.net/wps/1.0.0", "Capabilities"), baos);
         return baos.toString();
     }
 }

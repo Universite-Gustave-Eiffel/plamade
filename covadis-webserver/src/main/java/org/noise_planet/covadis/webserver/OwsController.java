@@ -214,9 +214,8 @@ public class OwsController {
         ctx.contentType("text/xml; charset=UTF-8");
 
         if ("GetCapabilities".equalsIgnoreCase(request)) {
-            String xml = WpsScriptWrapper.generateCapabilitiesXML(wpsScripts);
+            String xml = WpsXmlDocumentGenerator.generateCapabilitiesXML(wpsScripts);
             ctx.result(xml);
-
         } else if ("DescribeProcess".equalsIgnoreCase(request)) {
             String identifier = ctx.queryParam("identifier");
             if (identifier == null || identifier.isEmpty()) {
