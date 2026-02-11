@@ -32,16 +32,16 @@ inputs = [
         driverClass: [
                 name       : 'Driver name',
                 title      : 'Driver name',
-                description: 'Name of the class to connect to the external database. For an external H2 database "org.h2.Driver", for a PostGIS database "org.h2gis.postgis_jts.Driver" ',
-                min        : 0, max: 1,
+                description: 'Name of the class to connect to the external database.' +
+                        ' For an external H2 database: <pre>org.h2.Driver</pre>For a PostGIS database: <pre>org.h2gis.postgis_jts.Driver</pre>',
                 type       : String.class
         ],
         databaseUrl: [
                 name       : 'Database URL',
                 title      : 'Database URL',
                 description: 'Connection url of the database. ' +
-                        'Ex: "jdbc:postgresql_h2://hostname:5432/databaseName" for postgis,' +
-                        ' "jdbc:h2:tcp://localhost/D:/data/test" for H2 in server mode',
+                        'For PostGIS <pre>jdbc:postgresql_h2://hostname:5432/databaseName</pre>' +
+                        ' for H2 <pre>jdbc:h2:tcp://localhost/D:/data/test</pre>',
                 type       : String.class
         ],
         username: [
@@ -60,6 +60,9 @@ inputs = [
                 name       : 'External table schema',
                 title      : 'External table schema',
                 description: 'External Table Schema ex: public',
+                min: 0,
+                max: 1,
+                default: 'public',
                 type       : String.class
         ],
         remoteTableName: [
@@ -118,10 +121,16 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     def remoteTableName = input['remoteTableName'] as String
     def force = input['force'] ? "FORCE" : ""
 
-    sql.execute("""CREATE $force LINKED TABLE $localTableName(?, ?, ?, ?, ?, ?) $fetchSizeStatement;""".toString(),
-            [driverClass, databaseUrl, username, password, remoteSchemaName, remoteTableName])
+    logger.info("Create linked table $localTableName with the server $databaseUrl")
 
-    // print to WPS Builder
-    return [result: "Table $localTableName created"]
+    connection.createStatement().with {
+        execute("""CREATE $force LINKED TABLE $localTableName('$driverClass', '$databaseUrl', '$username', '$password', '$remoteSchemaName', '$remoteTableName') $fetchSizeStatement;""".toString())
+        close()
+    }
+
+    def result = "Table $localTableName created"
+    logger.info(result)
+
+    return [result: result]
 }
 
