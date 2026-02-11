@@ -118,9 +118,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     def remoteTableName = input['remoteTableName'] as String
     def force = input['force'] ? "FORCE" : ""
 
-    sql.execute("""CREATE $force LINKED TABLE $localTableName('$driverClass', '$databaseUrl',\n" +
-            "    '$username', '$password', '$remoteSchemaName','$remoteTableName') $fetchSizeStatement;""".toString())
-
+    sql.execute("""CREATE $force LINKED TABLE $localTableName(?, ?, ?, ?, ?, ?) $fetchSizeStatement;""".toString(),
+            [driverClass, databaseUrl, username, password, remoteSchemaName, remoteTableName])
 
     // print to WPS Builder
     return [result: "Table $localTableName created"]
