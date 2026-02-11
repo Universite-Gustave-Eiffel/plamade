@@ -137,7 +137,7 @@ public class WpsXmlDocumentGenerator {
         processDescriptionsType.setLang("en");
         processDescriptionsType.setService("WPS");
 
-        ProcessDescriptionType processDescriptionType = Wps10Factory.eINSTANCE.createProcessDescriptionType();
+        ProcessDescriptionType processDescriptionType = wpsf.createProcessDescriptionType();
         processDescriptionsType.getProcessDescription().add(processDescriptionType);
         processDescriptionType.setIdentifier(codetype(wrapper.id));
         processDescriptionType.setTitle(languageString(wrapper.title));
@@ -145,12 +145,12 @@ public class WpsXmlDocumentGenerator {
         processDescriptionType.setProcessVersion("1.0.0");
         processDescriptionType.setStoreSupported(true);
         processDescriptionType.setStatusSupported(true);
-        DataInputsType dataInputsType = Wps10Factory.eINSTANCE.createDataInputsType();
+        DataInputsType dataInputsType = wpsf.createDataInputsType();
         processDescriptionType.setDataInputs(dataInputsType);
         for (ScriptInput input : wrapper.inputs.values()) {
             dataInputs(dataInputsType, input);
         }
-        processDescriptionType.setProcessOutputs(Wps10Factory.eINSTANCE.createProcessOutputsType());
+        processDescriptionType.setProcessOutputs(wpsf.createProcessOutputsType());
         for(ScriptOutput output : wrapper.outputs.values()) {
             processOutputs(processDescriptionType.getProcessOutputs(), output);
         }
