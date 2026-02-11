@@ -87,7 +87,7 @@ public class UserController {
         JavalinJWT.addTokenToCookie(ctx, "");
         // redirect the user to the page
         ctx.render("blank", Map.of(
-                "redirectUrl", ctx.contextPath(),
+                "redirectUrl", ctx.contextPath().isEmpty() ? "/" : ctx.contextPath(),
                 "message", "Logout successful, you will be redirected to the application"));
     }
 
