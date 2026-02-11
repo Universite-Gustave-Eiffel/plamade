@@ -115,7 +115,7 @@ public class UserController {
                     logger.info("User {} has logged into the system", email);
                     // redirect the user to the page
                     ctx.render("blank", Map.of(
-                            "redirectUrl", ctx.contextPath(),
+                            "redirectUrl", ctx.contextPath().isEmpty() ? "/" : ctx.contextPath(),
                             "message", "Login successful, you will be redirected to the application"));
                 } else {
                     ctx.attribute("messages", "Invalid email or TOTP code");
