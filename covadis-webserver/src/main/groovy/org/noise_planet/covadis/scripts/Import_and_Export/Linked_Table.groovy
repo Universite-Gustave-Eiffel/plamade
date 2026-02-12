@@ -12,7 +12,7 @@
 
 package org.noise_planet.covadis.scripts.Import_and_Export
 
-import groovy.sql.Sql
+
 import org.h2gis.api.ProgressVisitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -102,7 +102,6 @@ outputs = [
 ]
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
-    Sql sql = new Sql(connection)
 
     // Create a logger to display messages in the geoserver logs and in the command prompt.
     Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
@@ -124,7 +123,9 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     logger.info("Create linked table $localTableName with the server $databaseUrl")
 
     connection.createStatement().with {
-        execute("""CREATE $force LINKED TABLE $localTableName('$driverClass', '$databaseUrl', '$username', '$password', '$remoteSchemaName', '$remoteTableName') $fetchSizeStatement;""".toString())
+        execute("""CREATE $force LINKED TABLE $localTableName(${enquoteLiteral(driverClass)}, ${
+            enquoteLiteral(databaseUrl)}, ${enquoteLiteral(username)}, ${enquoteLiteral(password)}, ${
+            enquoteLiteral(remoteSchemaName)}, ${enquoteLiteral(remoteTableName)}) $fetchSizeStatement;""".toString())
         close()
     }
 
