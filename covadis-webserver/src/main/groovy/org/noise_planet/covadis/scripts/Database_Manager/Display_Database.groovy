@@ -21,6 +21,8 @@ import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.dbtypes.DBTypes
+import org.h2gis.utilities.dbtypes.DBUtils
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -81,9 +83,11 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
     // Get every table names
     List<String> tables = JDBCUtilities.getTableNames(connection, null, "PUBLIC", "%", null)
+    DBTypes dbType = DBUtils.getDBType(connection)
+
     // Loop over the tables
     tables.each { t ->
-        TableLocation tab = TableLocation.parse(t)
+        TableLocation tab = TableLocation.parse(t, dbType)
         if (!ignorelst.contains(tab.getTable())) {
             sb.append(tab.getTable())
             sb.append("</br>")
@@ -99,7 +103,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                         } else if(geometryColumnNames.contains(f)) {
                             int epsg = 0;
                             try {
-                                epsg = GeometryTableUtilities.getSRID(connection, tab, f)
+                                epsg = GeometryTableUtilities.getSRID(connection, tab)
                             } catch (Exception ex) {
                                 //ignore
                             }
