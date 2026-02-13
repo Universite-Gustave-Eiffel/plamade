@@ -39,6 +39,8 @@ description = '&#10145;&#65039; Display a table containing a geometric column on
               'Technically, it groups all the geometries of a table and returns them in WKT OGC format. </br> </br> '+
               '&#x1F6A8; Be careful, this treatment can be blocked if the table is too large.'
 
+executionTimeout = 120 // Will run the execution in background after x seconds
+
 inputs = [
         inputSRID: [
                 name       : 'Projection identifier',
@@ -123,7 +125,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
     // Project geometry in WGS84 (EPSG:4326) and groups all the geometries of the table
-    String geomField = "ST_ACCUM(ST_TRANSFORM(" + spatialFieldNames.get(0) + " ,4326))"
+    String geomField = "ST_ACCUM(ST_TRANSFORM(" + TableLocation.quoteIdentifier(spatialFieldNames.get(0)) + " ,4326))"
     ResultSet rs = stmt.executeQuery(String.format("select %s " + spatialFieldNames.get(0) + " from %s", geomField, tableName))
 
     // Get the geometry field from the table
