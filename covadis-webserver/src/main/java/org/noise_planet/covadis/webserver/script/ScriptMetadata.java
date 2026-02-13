@@ -29,11 +29,14 @@ import java.util.Set;
  * Represents the description for a script, with expected inputs and outputs
  */
 public class ScriptMetadata {
+    // Still run the script after this time, but it will run in the background
+    public static final int DEFAULT_JOB_EXECUTION_TIMEOUT_SECONDS = 5;
 
     final public String id;
     final public String title;
     final public String description;
     final public Path path;
+    final public int executionTimeoutSeconds;
 
     final public Map<String, ScriptInput> inputs = new HashMap<>();
     final public Map<String, ScriptOutput> outputs = new HashMap<>();
@@ -43,6 +46,7 @@ public class ScriptMetadata {
         id = group + ":" + file.getName().replace(".groovy", "");
         title = metadata.getOrDefault("title", id).toString();
         description = metadata.getOrDefault("description", "").toString();
+        executionTimeoutSeconds = (Integer) metadata.getOrDefault("executionTimeout", DEFAULT_JOB_EXECUTION_TIMEOUT_SECONDS);
         path = file.toPath();
 
         // Convert metadata inputs into ScriptInput instances

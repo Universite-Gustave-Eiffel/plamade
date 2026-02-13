@@ -114,6 +114,13 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         }
     }
 
+    if(sb.length() == 0) {
+        sb.append('<div class="l-box" style="background-color: #f0f8ff; border: 1px solid #4682b4; padding: 20px; border-radius: 5px; margin: 10px 0;">')
+        sb.append('<h2 style="color: #4682b4; margin-top: 0;">&#x1F5C4; Database is Empty</h2>')
+        sb.append('<p style="font-size: 14px; color: #333;">No tables found in the database.</p>')
+        sb.append('<p style="font-size: 14px; color: #666;">Please import data using **Import_File** to get started.</p>')
+        sb.append('</div>')
+    }
     // print to command window
     logger.info('End : Display database')
 

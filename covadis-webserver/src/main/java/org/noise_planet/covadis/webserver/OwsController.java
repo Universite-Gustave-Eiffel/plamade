@@ -63,7 +63,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * operation type.
  */
 public class OwsController {
-    public static final int JOB_EXECUTION_TIMEOUT_MS = 5000;
     public static final int CORE_POOL_SIZE = 5;
     public static final int MAXIMUM_POOL_SIZE = 5;
     public static final long KEEP_ALIVE_TIME = 0L;
@@ -363,7 +362,7 @@ public class OwsController {
                     fetchUserDataSource(jobUserId), inputs, configuration);
             Future<Object> result = jobExecutorService.submitJob(job);
             try {
-                Object jobResult = result.get(JOB_EXECUTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                Object jobResult = result.get(scriptMetadata.executionTimeoutSeconds, TimeUnit.SECONDS);
                 processResult(ctx, jobResult);
             } catch (TimeoutException e) {
                 String url = ctx.contextPath() + "/job_logs/" + job.getId();

@@ -127,6 +127,7 @@ public class WpsScriptWrapper {
             }
         }
         scanRecursive(baseDir, "", grouped);
+        logger.info("Found {} scripts in directory: {}", grouped.values().stream().mapToInt(List::size).sum(), scriptDirectory);
         return grouped;
     }
 

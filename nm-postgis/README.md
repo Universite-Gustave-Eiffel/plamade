@@ -1,0 +1,1 @@
+This folder creates a setup of a PostGIS database to run the tests.
