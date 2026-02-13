@@ -195,10 +195,10 @@ body {
 }
 
 #header {
-    background: url("wpsbuilder-header.svg");
+    background: url("wpsbuilder-header.png") no-repeat;
     display: inline-block;
-    height: 60px;
-    width: 420px;
+    height: 58px;
+    width: 433px;
     margin-right: 20px;
 }
 
@@ -239,7 +239,8 @@ a.brand span {
 
 .navbar-inner > .container-fluid > .btn-group {
     margin-top: 12px;
-    margin-bottom: 65px;
+    margin-bottom: 12px;
+    vertical-align: text-bottom;
 }
 
 #workspace {
