@@ -20,7 +20,7 @@ import java.sql.PreparedStatement
 import java.sql.Statement
 
 title = 'Write HPC settings'
-description = 'Create a table that will contain all settings to connect to a Slurm service through SSH'
+description = 'Create a table named SLURM_CONFIGURATION that will contain all settings to connect to a Slurm service through SSH'
 
 inputs = [
         configuration_name      : [
@@ -68,14 +68,7 @@ inputs = [
                         '<p># Ubuntu (assuming GNU base64)</p>' +
                         '<pre>gpg --armor --export-secret-key joe@foo.bar -w0 | xclip</pre>',
                 type       : String.class
-        ],
-        key_password        : [
-                name       : 'SSH Private Key password',
-                title      : 'SSH Private Key password',
-                description: 'Optional private key password',
-                min        : 0, max: 1,
-                type       : String.class
-        ],
+        ]
 ]
 
 outputs = [
@@ -107,8 +100,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             "ssl_key varchar," +
             "ssh_key_type varchar," +
             "user varchar," +
-            "key varchar," +
-            "key_password varchar)")
+            "key varchar)")
 
     try(PreparedStatement deleteSt = connection.prepareStatement("DELETE FROM SLURM_CONFIGURATION WHERE configuration_name = ?")) {
         deleteSt.setString(1, input['configuration_name'] as String)
@@ -116,8 +108,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
     try(PreparedStatement pst = connection.prepareStatement("INSERT INTO SLURM_CONFIGURATION(" +
-            "configuration_name, host, port, ssl_key, ssh_key_type, user, key, key_password) " +
-            "VALUES(?, ?, ?, ?, ?, ?, ?, ?)")) {
+            "configuration_name, host, port, ssl_key, ssh_key_type, user, key) " +
+            "VALUES(?, ?, ?, ?, ?, ?, ?)")) {
         pst.setString(1, input['configuration_name'] as String)
         pst.setString(2, input['host'] as String)
         pst.setObject(3, input.getOrDefault('port', 22) as Integer)
@@ -125,7 +117,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pst.setString(5, input['ssh_key_type'] as String)
         pst.setString(6, input['user'] as String)
         pst.setString(7, input['key'] as String)
-        pst.setObject(8, input['key_password'] as String)
         pst.executeUpdate()
     }
 

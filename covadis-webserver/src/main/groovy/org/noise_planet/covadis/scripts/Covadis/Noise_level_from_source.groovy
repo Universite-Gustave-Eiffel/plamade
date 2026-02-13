@@ -239,7 +239,20 @@ inputs = [
                 description: 'Frequency field name prepend. Ex. for 1000 Hz frequency the default column name is HZ1000.' +
                         '&#128736; Default value: <b>HZ</b>',
                 min        : 0, max: 1, type: String.class
-        ]
+        ],
+        configuration_name      : [
+                name       : 'SSH Configuration Identifier',
+                title      : 'SSH Configuration Identifier',
+                description: 'Slurm configuration written through Write_HPC_Settings WPS Script',
+                type       : String.class
+        ],
+        key_password        : [
+                name       : 'SSH Private Key password',
+                title      : 'SSH Private Key password',
+                description: 'Optional private key password',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
 ]
 
 outputs = [
