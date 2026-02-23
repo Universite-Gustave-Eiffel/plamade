@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * over SSH. The class provides utilities for managing SLURM job states, executing commands on remote servers,
  * and maintaining an authenticated SSH session.
  */
-public class SlurmSession {
+public class SlurmSession implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(SlurmSession.class);
 
     public static final SlurmJobKnownStatus[] SLURM_JOB_KNOWN_STATUSES = new SlurmJobKnownStatus[]{
@@ -54,15 +54,24 @@ public class SlurmSession {
     private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
     private int oldFinishedJobs = 0;
     private Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
+    private final SlurmConfig slurmConfig;
+    private SshClient client;
+    private ClientSession session;
 
-    public SlurmSession() {
+    public SlurmSession(SlurmConfig slurmConfig) {
+        this.slurmConfig = slurmConfig;
         // Loop check for job status
         for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
             slurmStateMap.put(s.status, s);
         }
     }
 
-    public static ClientSession openSshSession(SlurmConfig slurmConfig) throws IOException, GeneralSecurityException {
+    /**
+     * Connects to the remote server and authenticates the SSH session.
+     * @throws IOException If an error occurs during connection or authentication.
+     * @throws GeneralSecurityException If an error occurs during security configuration.
+     */
+    public void connect() throws IOException, GeneralSecurityException {
         // Opens authenticated SSH session to remote host
 
         // 1. Prepare the input stream
@@ -78,7 +87,7 @@ public class SlurmSession {
                 keyStream,
                 (slurmConfig.sshKeyPassword == null || slurmConfig.sshKeyPassword.isEmpty()) ? null : passwordProvider
         );
-        SshClient client = SshClient.setUpDefaultClient();
+        client = SshClient.setUpDefaultClient();
         try {
             // Set the KeyIdentityProvider with the loaded keys
             client.setKeyIdentityProvider(KeyIdentityProvider.wrapKeyPairs(keyPairs));
@@ -105,25 +114,16 @@ public class SlurmSession {
                 return false;
             });
 
-            ClientSession session = client.connect(slurmConfig.user, slurmConfig.host, slurmConfig.port)
+            session = client.connect(slurmConfig.user, slurmConfig.host, slurmConfig.port)
                     .verify(SFTP_TIMEOUT).getSession();
 
             session.auth().verify(SFTP_TIMEOUT);
             logger.info("Successfully connected to the server {}", slurmConfig.host);
-
-            // Register a listener to close the client when the session is closed
-            session.addCloseFutureListener(future -> {
-                try {
-                    client.close();
-                } catch (IOException e) {
-                    logger.warn("Failed to close SSH client", e);
-                }
-            });
-
-            return session;
         } catch (Throwable t) {
             try {
-                client.close();
+                if (client != null) {
+                    client.close();
+                }
             } catch (IOException e) {
                 t.addSuppressed(e);
             }
@@ -131,20 +131,37 @@ public class SlurmSession {
         }
     }
 
+    @Override
+    public void close() throws IOException {
+        try {
+            if (session != null) {
+                session.close();
+            }
+        } finally {
+            if (client != null) {
+                client.close();
+            }
+        }
+    }
+
+    public ClientSession getSession() {
+        return session;
+    }
+
     /**
-     * Executes a command on a remote server using an SSH client session and captures the output.
-     * The output lines are optionally logged and returned as a list of strings.
-     * Additionally, it tracks the number of bytes read from the remote execution and updates the provided {@code AtomicLong}.
+     * Executes a command on a remote server using the active SSH client session and captures the output.
      *
-     * @param session The active SSH client session to use for executing the command.
      * @param command The command string to be executed on the remote server.
      * @param logResult Indicates whether the output of the command should be logged.
      * @param readBytes An {@code AtomicLong} instance that will be updated to reflect the number of bytes read during execution.
      * @return A list of strings, where each string represents a line of output from the executed command.
      * @throws IOException If an error occurs during command execution or communication over the SSH channel.
      */
-    public List<String> runCommand(ClientSession session, String command, boolean logResult, AtomicLong readBytes)
+    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes)
             throws IOException {
+        if (session == null || !session.isAuthenticated()) {
+            throw new IOException("SSH session is not connected or authenticated.");
+        }
         List<String> lines = new ArrayList<>();
         try (ChannelExec shell = session.createExecChannel(command)) {
             shell.setRedirectErrorStream(false);

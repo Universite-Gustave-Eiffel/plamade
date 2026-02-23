@@ -38,13 +38,13 @@ public class SlurmSessionTest {
         config.serverKeyType = serverKeyType;
 
         logger.info("Connecting to {}:{} as {}", host, config.port, user);
-        try (ClientSession session = SlurmSession.openSshSession(config)) {
-            assertNotNull(session);
-            assertTrue(session.isAuthenticated());
+        try (SlurmSession slurmSession = new SlurmSession(config)) {
+            slurmSession.connect();
+            assertNotNull(slurmSession.getSession());
+            assertTrue(slurmSession.getSession().isAuthenticated());
 
-            SlurmSession slurmSession = new SlurmSession();
             AtomicLong readBytes = new AtomicLong(0);
-            List<String> output = slurmSession.runCommand(session, "whoami", true, readBytes);
+            List<String> output = slurmSession.runCommand("whoami", true, readBytes);
             assertFalse(output.isEmpty(), "Command output should not be empty");
             String actualUser = output.get(0).trim();
             // In some environments (like linuxserver/openssh-server), whoami might return the PUID's user or the USER_NAME.
