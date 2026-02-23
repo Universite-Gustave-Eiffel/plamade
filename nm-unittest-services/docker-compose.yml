@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: imresamu/postgis:17-3.5
+    environment:
+      # must specify password for PG Docker container image, see: https://registry.hub.docker.com/_/postgres?tab=description&page=1&name=10
+      POSTGRES_USER: noisemodelling
+      POSTGRES_PASSWORD: noisemodelling
+      POSTGRES_DB: noisemodelling_db
+    ports:
+      - "5432:5432"
+    # needed because the postgres container does not provide a healthcheck
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  sshd:
+    image: linuxserver/openssh-server:latest
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: Etc/UTC
+      USER_NAME: testuser
+      PUBLIC_KEY: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDeviPPiHoEJnJ0QW0zbR4Uco+wI1ekLNySZ37QS/AxR0b9OyLQKQoQ04/ekT5UmwoLzNVQK9hz7Kxmg5YTFpgGSCGOGlkGOJRZQgVQ51ITzOQvz67WRkuuCKRV2g/mzWkMRWNqKag9Q8fAbIF5f3kWQNypsyROngfLnBstt4SvsbDeU+0r++vavegmYpFYh1V3MDjFibrKg+8+9BpMJ/KaPwVknaHz0SEQ8D/HUQrfhb+WsaXiQxnU0IW+7Yzp2iO3voUP/CkdX9C1KoRA9KEo0yctb+l2W7PDOxLh5TZIeXcak93TWo/SMiNT4C0zjm/9ZDGNq6HXY2z19us9NGcv test@example.com"
+      SUDO_ACCESS: "true"
+      PASSWORD_ACCESS: "false"
+    ports:
+      - "2222:2222"
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 2222 || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ssh_data:/config
+
+volumes:
+  postgres_data:
+  ssh_data:

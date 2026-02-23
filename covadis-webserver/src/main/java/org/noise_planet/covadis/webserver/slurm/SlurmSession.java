@@ -27,7 +27,11 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 
-
+/**
+ * Represents a session for interacting with a SLURM (Simple Linux Utility for Resource Management) workload manager
+ * over SSH. The class provides utilities for managing SLURM job states, executing commands on remote servers,
+ * and maintaining an authenticated SSH session.
+ */
 public class SlurmSession {
     private static final Logger logger = LoggerFactory.getLogger(SlurmSession.class);
 
@@ -70,11 +74,12 @@ public class SlurmSession {
         // 2. Load the KeyPair
         Iterable<KeyPair> keyPairs = SecurityUtils.loadKeyPairIdentities(
                 null,
-                () -> "in-memory-key",
+                null,
                 keyStream,
-                slurmConfig.sshKeyPassword.isEmpty() ? null : passwordProvider
+                (slurmConfig.sshKeyPassword == null || slurmConfig.sshKeyPassword.isEmpty()) ? null : passwordProvider
         );
-        try(SshClient client = SshClient.setUpDefaultClient()) {
+        SshClient client = SshClient.setUpDefaultClient();
+        try {
             // Set the KeyIdentityProvider with the loaded keys
             client.setKeyIdentityProvider(KeyIdentityProvider.wrapKeyPairs(keyPairs));
 
@@ -84,7 +89,13 @@ public class SlurmSession {
                 String serverKeyAlgorithm = serverKey.getAlgorithm();
                 String encodedKey = Base64.getEncoder().encodeToString(serverKey.getEncoded());
 
-                if (serverKeyAlgorithm.equals(slurmConfig.serverKeyType) && encodedKey.equals(slurmConfig.serverKey)) {
+                if (slurmConfig.serverKeyType != null && slurmConfig.serverKey != null &&
+                        serverKeyAlgorithm.equals(slurmConfig.serverKeyType) && encodedKey.equals(slurmConfig.serverKey)) {
+                    return true;
+                }
+
+                if (slurmConfig.serverKeyType == null || slurmConfig.serverKey == null || slurmConfig.serverKey.isEmpty()) {
+                    logger.warn("No server key configured. Trusting the server automatically (not recommended for production).");
                     return true;
                 }
 
@@ -100,7 +111,23 @@ public class SlurmSession {
             session.auth().verify(SFTP_TIMEOUT);
             logger.info("Successfully connected to the server {}", slurmConfig.host);
 
+            // Register a listener to close the client when the session is closed
+            session.addCloseFutureListener(future -> {
+                try {
+                    client.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close SSH client", e);
+                }
+            });
+
             return session;
+        } catch (Throwable t) {
+            try {
+                client.close();
+            } catch (IOException e) {
+                t.addSuppressed(e);
+            }
+            throw t;
         }
     }
 
