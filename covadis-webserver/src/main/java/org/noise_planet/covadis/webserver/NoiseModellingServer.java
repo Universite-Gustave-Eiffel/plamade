@@ -15,6 +15,7 @@ import io.javalin.http.Handler;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
+import io.javalin.util.JavalinLogger;
 import io.javalin.websocket.WsConfig;
 import org.apache.log4j.PropertyConfigurator;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
@@ -154,6 +155,7 @@ public class NoiseModellingServer {
      * @param rootPath Base url
      */
     private void configureApp(String rootPath) {
+        JavalinLogger.startupInfo = false; // disable startup info
         app = Javalin.create(config -> {
             config.router.contextPath = rootPath;
             config.staticFiles.add(staticFileConfig -> {

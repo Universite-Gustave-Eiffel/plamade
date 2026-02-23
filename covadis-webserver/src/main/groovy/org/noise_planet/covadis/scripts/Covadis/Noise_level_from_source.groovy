@@ -9,12 +9,17 @@
  * Contact: contact@noise-planet.org
  *
  */
-package org.noise_planet.covadis.scripts.hpc
+package org.noise_planet.covadis.scripts.Covadis
 
+import groovy.sql.Sql
 import org.h2gis.api.ProgressVisitor
+import org.noise_planet.covadis.webserver.slurm.SlurmConfig
+import org.noise_planet.covadis.webserver.slurm.SlurmSession
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
 
 import javax.sql.DataSource
+import java.sql.Connection
+import java.util.concurrent.atomic.AtomicLong
 
 title = 'Write HPC settings'
 description = 'Create a table that will contain all settings to connect to a Slurm service through SSH'
@@ -270,20 +275,31 @@ outputs = [
  * @param input
  * @return
  */
-def exec(DataSource dataSource, Map input) {
+def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
-    ProgressVisitor progressLogger
+    // Retrieve SSH credentials from the database
+    // configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path
+    try(Connection connection = dataSource.connection) {
+        Sql sql = Sql.newInstance(connection)
+        def res = sql.firstRow("SELECT configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path" +
+                " from SLURM_CONFIGURATION where configuration_name = ?", input.configuration_name)
 
-    if("_progression" in input) {
-        progressLogger = input["_progression"] as ProgressVisitor
-    } else {
-        progressLogger = new RootProgressVisitor(1, true, 1)
+        SlurmConfig slurmConfig = new SlurmConfig()
+        slurmConfig.host = res.host
+        slurmConfig.port = res.port as Integer
+        slurmConfig.sshKeyArmoredString = res.ssl_key
+        slurmConfig.sshKeyPassword = input.key_password
+        slurmConfig.user = res.user
+        slurmConfig.serverKey = res.ssl_key
+        slurmConfig.serverKeyType = res.ssh_key_type
+        slurmConfig.javaBinaryPath = res.java_binary_path
+
+        try(SlurmSession slurmSession = new SlurmSession(slurmConfig)) {
+            slurmSession.connect()
+            def outputBytes = new AtomicLong(0)
+            def outputs = slurmSession.runCommand(slurmConfig.javaBinaryPath+" -v", true, outputBytes)
+            return ["result" : outputs.join('\n')]
+        }
     }
-
-
-
-    // print to WPS Builder
-    return ["result" : ""]
-
 }
 

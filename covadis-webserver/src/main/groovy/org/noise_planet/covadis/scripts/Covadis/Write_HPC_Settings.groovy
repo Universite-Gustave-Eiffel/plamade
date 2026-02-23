@@ -10,7 +10,7 @@
  *
  */
 
-package org.noise_planet.covadis.scripts.hpc
+package org.noise_planet.covadis.scripts.Covadis
 
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
@@ -68,6 +68,13 @@ inputs = [
                         '<p># Ubuntu (assuming GNU base64)</p>' +
                         '<pre>gpg --armor --export-secret-key joe@foo.bar -w0 | xclip</pre>',
                 type       : String.class
+        ],
+        java_binary_path   : [
+                name       : 'Java path',
+                title      : 'Java path',
+                description: '<p>Absolute or relative path (from home) of the Java binary' +
+                        '<pre>~/jdk-11.0.13/bin/java</pre>',
+                type       : String.class
         ]
 ]
 
@@ -100,7 +107,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             "ssl_key varchar," +
             "ssh_key_type varchar," +
             "user varchar," +
-            "key varchar)")
+            "key varchar," +
+            "java_binary_path varchar)")
 
     try(PreparedStatement deleteSt = connection.prepareStatement("DELETE FROM SLURM_CONFIGURATION WHERE configuration_name = ?")) {
         deleteSt.setString(1, input['configuration_name'] as String)
@@ -108,8 +116,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
     try(PreparedStatement pst = connection.prepareStatement("INSERT INTO SLURM_CONFIGURATION(" +
-            "configuration_name, host, port, ssl_key, ssh_key_type, user, key) " +
-            "VALUES(?, ?, ?, ?, ?, ?, ?)")) {
+            "configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path) " +
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?)")) {
         pst.setString(1, input['configuration_name'] as String)
         pst.setString(2, input['host'] as String)
         pst.setObject(3, input.getOrDefault('port', 22) as Integer)
@@ -117,6 +125,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pst.setString(5, input['ssh_key_type'] as String)
         pst.setString(6, input['user'] as String)
         pst.setString(7, input['key'] as String)
+        pst.setString(8, input['java_binary_path'] as String)
         pst.executeUpdate()
     }
 

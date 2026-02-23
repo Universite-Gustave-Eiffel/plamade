@@ -18,5 +18,6 @@ public class SlurmConfig {
     public String serverKey;
     public String serverKeyType;
     public String serverTempFolder;
+    public String javaBinaryPath;
 }
 
