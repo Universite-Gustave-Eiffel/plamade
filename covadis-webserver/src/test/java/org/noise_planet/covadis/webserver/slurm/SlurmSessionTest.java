@@ -51,6 +51,12 @@ public class SlurmSessionTest {
             // For linuxserver/openssh-server with USER_NAME=testuser, it should be testuser.
             assertTrue(actualUser.equals(user) || actualUser.contains(user), "User mismatch. Expected " + user + " but got " + actualUser);
             assertTrue(readBytes.get() > 0, "Read bytes should be greater than zero");
+
+            // Test unlimited timeout (0)
+            readBytes.set(0);
+            output = slurmSession.runCommand("echo 'unlimited'", true, readBytes, 0);
+            assertFalse(output.isEmpty(), "Command output should not be empty");
+            assertEquals("unlimited", output.get(0).trim());
         } catch (Exception e) {
             logger.error("SSH connection failed", e);
             throw e;

@@ -11,6 +11,7 @@ package org.noise_planet.covadis.webserver.slurm;
 import com.google.common.io.CountingInputStream;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.channel.ChannelExec;
+import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.keyprovider.KeyIdentityProvider;
@@ -154,10 +155,11 @@ public class SlurmSession implements AutoCloseable {
      * @param command The command string to be executed on the remote server.
      * @param logResult Indicates whether the output of the command should be logged.
      * @param readBytes An {@code AtomicLong} instance that will be updated to reflect the number of bytes read during execution.
+     * @param timeoutMs The timeout in milliseconds for the execution of the command (0 for unlimited).
      * @return A list of strings, where each string represents a line of output from the executed command.
      * @throws IOException If an error occurs during command execution or communication over the SSH channel.
      */
-    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes)
+    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes, long timeoutMs)
             throws IOException {
         if (session == null || !session.isAuthenticated()) {
             throw new IOException("SSH session is not connected or authenticated.");
@@ -182,20 +184,32 @@ public class SlurmSession implements AutoCloseable {
                     }
                     lines.add(line);
                 } else {
-                    if (shell.isClosed()) {
-                        Integer exitStatus = shell.getExitStatus();
-                        if (exitStatus != null && exitStatus != 0) {
-                            logger.error(String.format("Command %s \n exit-status: %d", command, exitStatus));
-                        }
-                    } else {
-                        logger.warn("Stream is closed but the channel is still open");
-                    }
                     break;
                 }
+            }
+            shell.waitFor(EnumSet.of(ClientChannelEvent.CLOSED), timeoutMs > 0 ? timeoutMs : 0);
+            Integer exitStatus = shell.getExitStatus();
+            if (exitStatus != null && exitStatus != 0) {
+                logger.error(String.format("Command %s \n exit-status: %d", command, exitStatus));
             }
             readBytes.addAndGet(countingInputStream.getCount());
         }
 
         return lines;
+    }
+
+    /**
+     * Executes a command on a remote server using the active SSH client session and captures the output.
+     * Use a default timeout of {@link #SFTP_TIMEOUT}.
+     *
+     * @param command The command string to be executed on the remote server.
+     * @param logResult Indicates whether the output of the command should be logged.
+     * @param readBytes An {@code AtomicLong} instance that will be updated to reflect the number of bytes read during execution.
+     * @return A list of strings, where each string represents a line of output from the executed command.
+     * @throws IOException If an error occurs during command execution or communication over the SSH channel.
+     */
+    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes)
+            throws IOException {
+        return runCommand(command, logResult, readBytes, SFTP_TIMEOUT);
     }
 }
