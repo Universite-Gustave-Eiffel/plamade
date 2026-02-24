@@ -67,6 +67,9 @@ public class SlurmSession implements AutoCloseable {
         for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
             slurmStateMap.put(s.status, s);
         }
+        if (!SecurityUtils.isBouncyCastleRegistered()) {
+            throw new IllegalStateException("BouncyCastle is required for Ed25519 support but not registered!");
+        }
     }
 
     /**
