@@ -20,9 +20,9 @@ import java.util.concurrent.*;
  * Manage pool of Job Threads.
  */
 public class JobExecutorService {
-    private final Map<Integer, Job<?>> jobs = new ConcurrentHashMap<>();
-    private final ExecutorService executorService;
-    private final ScheduledExecutorService scheduledExecutorService;
+    protected final Map<Integer, Job<?>> jobs = new ConcurrentHashMap<>();
+    protected final ExecutorService executorService;
+    protected final ScheduledExecutorService scheduledExecutorService;
     private final Logger logger = LoggerFactory.getLogger(JobExecutorService.class);
 
     public JobExecutorService(int corePoolSize, int maximumPoolSize, long keepAliveTime, @NotNull TimeUnit unit) {

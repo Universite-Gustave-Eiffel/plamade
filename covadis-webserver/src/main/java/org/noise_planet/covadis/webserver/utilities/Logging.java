@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 public class Logging {
 
     public static final String DEFAULT_LOG_FORMAT = "[%t][%c] %-5p %d{dd MMM HH:mm:ss} - %m%n";
-    private static final Pattern LOG_PATTERN =
+    public static final Pattern LOG_PATTERN =
             Pattern.compile("^\\[(?<thread>.+?)\\]\\[(?<logger>[^\\]]+)\\]");
 
     public static void configureFileLogger(String workingDirectory, String loggingFileName) {
@@ -48,7 +48,7 @@ public class Logging {
     }
 
     @NotNull
-    private static RollingFileAppender createRollingFileAppender(String workingDirectory, String loggingFileName) {
+    public static RollingFileAppender createRollingFileAppender(String workingDirectory, String loggingFileName) {
         RollingFileAppender rollingAppender = new RollingFileAppender();
 
         // Configure appender properties
@@ -108,7 +108,7 @@ public class Logging {
         return sb.toString();
     }
 
-    private static void appendSuppressed(StringBuilder sb, Throwable sup, java.util.IdentityHashMap<Throwable, Boolean> seen, String prefix) {
+    public static void appendSuppressed(StringBuilder sb, Throwable sup, java.util.IdentityHashMap<Throwable, Boolean> seen, String prefix) {
         if (sup == null || seen.containsKey(sup)) return;
         seen.put(sup, Boolean.TRUE);
 

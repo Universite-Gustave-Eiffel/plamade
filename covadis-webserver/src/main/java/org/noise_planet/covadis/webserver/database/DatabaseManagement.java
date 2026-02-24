@@ -39,7 +39,7 @@ import java.util.*;
  * The Model of the Web Server
  */
 public class DatabaseManagement {
-    private static final int DATABASE_VERSION = 1;
+    public static final int DATABASE_VERSION = 1;
     public static final String ADMIN_EMAIL = "admin@localhost";
 
     /**
@@ -93,7 +93,7 @@ public class DatabaseManagement {
      * @return Connection URL
      */
     @NotNull
-    private static StringBuilder getConnectionUrl(String databaseDirectory, String databaseName,
+    public static StringBuilder getConnectionUrl(String databaseDirectory, String databaseName,
                                                   boolean databaseEncryption) {
         StringBuilder connectionUrl = new StringBuilder();
         connectionUrl.append(H2GISDBFactory.START_URL);
@@ -156,7 +156,7 @@ public class DatabaseManagement {
 
     }
 
-    private static void createServerDataBaseStructure(Connection connection) throws SQLException {
+    public static void createServerDataBaseStructure(Connection connection) throws SQLException {
         Statement st = connection.createStatement();
         final String serverSecretToken = JWTProviderFactory.generateServerSecretToken();
         st.executeUpdate(
@@ -288,7 +288,7 @@ public class DatabaseManagement {
     }
 
     @NotNull
-    private static User getUser(Connection connection, ResultSet rsUser) throws SQLException {
+    public static User getUser(Connection connection, ResultSet rsUser) throws SQLException {
         String email = rsUser.getString("EMAIL");
         String registerToken = rsUser.getString("REGISTER_TOKEN");
         int userIdentifier = rsUser.getInt("PK_USER");
@@ -566,7 +566,7 @@ public class DatabaseManagement {
     }
 
     @NotNull
-    private static Map<String, Object> parseJob(ResultSet rs, DateFormat mediumDateFormatEN, DecimalFormat f) throws SQLException {
+    public static Map<String, Object> parseJob(ResultSet rs, DateFormat mediumDateFormatEN, DecimalFormat f) throws SQLException {
         Map<String, Object> row = new HashMap<>();
         Integer pkJob = rs.getInt("pk_job");
         row.put("id", pkJob);

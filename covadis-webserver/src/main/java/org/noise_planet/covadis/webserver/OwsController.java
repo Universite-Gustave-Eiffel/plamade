@@ -208,7 +208,7 @@ public class OwsController {
      *            query parameters, response handling, and the ability to set
      *            content type and status codes
      */
-    private void handleWPSGet(Context ctx) throws IOException {
+    protected void handleWPSGet(Context ctx) throws IOException {
         String request = ctx.queryParam("request");
         ctx.contentType("text/xml; charset=UTF-8");
 
@@ -247,7 +247,7 @@ public class OwsController {
      *            request and response handling, and allowing for status and body configuration
      * @throws Exception if an error occurs while reading or responding with the requested resource
      */
-    private void handleWFSGet(Context ctx) throws Exception {
+    protected void handleWFSGet(Context ctx) throws Exception {
         String request = ctx.queryParam("request");
         if ("GetCapabilities".equalsIgnoreCase(request)) {
             try (InputStream xmlStream = getClass().getResourceAsStream("static/xmlFiles/wfs.xml")){
@@ -272,7 +272,7 @@ public class OwsController {
      * @throws Exception if an I/O error occurs while attempting to read the WCS capabilities
      *                   XML file or while processing the request
      */
-    private void handleWCSGet(Context ctx) throws Exception {
+    protected void handleWCSGet(Context ctx) throws Exception {
         String request = ctx.queryParam("request");
         if ("GetCapabilities".equalsIgnoreCase(request)) {
             try (InputStream xmlStream = getClass().getResourceAsStream("static/xmlFiles/wcs.xml")) {
@@ -389,7 +389,7 @@ public class OwsController {
         }
     }
 
-    private static void processResult(Context context, Object result) {
+    public static void processResult(Context context, Object result) {
         if(result instanceof Map<?, ?> && ((Map<?, ?>) result).containsKey("result")) {
             processResult(context, ((Map<?, ?>) result).get("result"));
         } else {
@@ -693,5 +693,12 @@ public class OwsController {
                 }
             }
         });
+    }
+
+    /**
+     * Shuts down the server by stopping the job executor service.
+     */
+    public void shutdown() {
+        jobExecutorService.shutdown();
     }
 }

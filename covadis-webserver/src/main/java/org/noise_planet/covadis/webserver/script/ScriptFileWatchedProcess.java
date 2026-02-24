@@ -98,7 +98,7 @@ public class ScriptFileWatchedProcess implements Callable<Boolean> {
         }, delaySeconds, TimeUnit.SECONDS);
     }
 
-    private void registerRecursive(WatchService watchService) throws IOException {
+    protected void registerRecursive(WatchService watchService) throws IOException {
         try (Stream<Path> pathStream = Files.walk(scriptsDir)) {
             pathStream.filter(Files::isDirectory)
                     .forEach(dir -> {

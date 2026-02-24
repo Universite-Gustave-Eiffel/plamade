@@ -34,17 +34,17 @@ import java.util.concurrent.Future;
  */
 public class Job<T> implements Callable<T> {
     private static final Logger logger = LoggerFactory.getLogger(Job.class);
-    private ScriptMetadata scriptMetadata;
+    protected ScriptMetadata scriptMetadata;
     /** NoiseModelling DataBase for the user */
-    private DataSource userDataSource;
-    private DataSource serverDataSource;
-    private Map<String, Object> inputs;
-    private boolean isRunning = false;
-    private int userId;
-    private int jobId;
-    private Configuration configuration;
-    private Future<T> future;
-    private ProgressVisitor progressVisitor;
+    protected DataSource userDataSource;
+    protected DataSource serverDataSource;
+    protected Map<String, Object> inputs;
+    protected boolean isRunning = false;
+    protected int userId;
+    protected int jobId;
+    protected Configuration configuration;
+    protected Future<T> future;
+    protected ProgressVisitor progressVisitor;
 
     public Job(int userId, ScriptMetadata scriptMetadata,
                DataSource serverDataSource, DataSource userDataSource, Map<String, Object> inputs, Configuration configuration) throws SQLException {

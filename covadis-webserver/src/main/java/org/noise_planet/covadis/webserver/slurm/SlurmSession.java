@@ -18,7 +18,6 @@ import org.apache.sshd.common.keyprovider.KeyIdentityProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
 import org.noise_planet.covadis.webserver.utilities.LoggingOutputStream;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
 import java.io.*;
@@ -50,15 +49,15 @@ public class SlurmSession implements AutoCloseable {
             new SlurmJobKnownStatus("TIMEOUT", true, true) // Job timeout (will not be restarted)
     };
 
-    private static final int SFTP_TIMEOUT = 60000;
-    private static final int POLL_SLURM_STATUS_TIME = 40000;
+    public static final int SFTP_TIMEOUT = 60000;
+    public static final int POLL_SLURM_STATUS_TIME = 40000;
 
-    private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
-    private int oldFinishedJobs = 0;
-    private Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
-    private final SlurmConfig slurmConfig;
-    private SshClient client;
-    private ClientSession session;
+    public static final String DEFAULT_BATCH_FILE_NAME = "noisemodelling_batch.sh";
+    protected int oldFinishedJobs = 0;
+    protected Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
+    protected final SlurmConfig slurmConfig;
+    protected SshClient client;
+    protected ClientSession session;
     private final Logger logger;
 
     public SlurmSession(SlurmConfig slurmConfig, Logger logger) {
