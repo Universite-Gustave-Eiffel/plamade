@@ -281,15 +281,15 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
     // configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path
     try(Connection connection = dataSource.connection) {
         Sql sql = Sql.newInstance(connection)
-        def res = sql.firstRow("SELECT configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path" +
-                " from SLURM_CONFIGURATION where configuration_name = ?", input.configuration_name)
+        def res = sql.firstRow("SELECT * from SLURM_CONFIGURATION where configuration_name = ?",
+                input.configuration_name)
 
         SlurmConfig slurmConfig = new SlurmConfig()
         slurmConfig.host = res.host
         slurmConfig.port = res.port as Integer
-        slurmConfig.sshKeyArmoredString = res.ssl_key
+        slurmConfig.sshKeyArmoredString = res.private_key
         slurmConfig.sshKeyPassword = input.key_password
-        slurmConfig.user = res.user
+        slurmConfig.user = res.user_name
         slurmConfig.serverKey = res.ssl_key
         slurmConfig.serverKeyType = res.ssh_key_type
         slurmConfig.javaBinaryPath = res.java_binary_path
