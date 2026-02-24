@@ -109,6 +109,11 @@ public class WpsXmlDocumentGenerator {
         output.setAbstract(languageString(scriptOutput.description));
         if(!scriptOutput.type.equals(Geometry.class)) {
             output.setLiteralOutput(wpsf.createLiteralOutputType());
+            if(scriptOutput.type.equals(Boolean.class)) {
+                output.getLiteralOutput().setDataType(domainMetadataType("xs:boolean"));
+            } else {
+                output.getLiteralOutput().setDataType(domainMetadataType(javaClassToXsdType.getOrDefault(scriptOutput.type, "xs:string")));
+            }
         } else {
             // Geometry output is converted to WKT
             SupportedComplexDataType complex = wpsf.createSupportedComplexDataType();

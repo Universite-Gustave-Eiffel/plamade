@@ -23,6 +23,7 @@ import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
 import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.io.WKTWriter
@@ -97,9 +98,10 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     if (input['inputSRID']) {
         srid = input['inputSRID'] as Integer
     }
+    DBTypes dbType = DBUtils.getDBType(connection)
 
     // Read Geometry Index and type of the table
-    List<String> spatialFieldNames = GeometryTableUtilities.getGeometryColumnNames(connection, TableLocation.parse(tableName, DBUtils.getDBType(connection)))
+    List<String> spatialFieldNames = GeometryTableUtilities.getGeometryColumnNames(connection, TableLocation.parse(tableName, dbType))
 
     // If the table does not contain a geometry field
     if (spatialFieldNames.isEmpty()) {
@@ -107,7 +109,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
     // Get the SRID of the table
-    Integer tableSrid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(tableName))
+    Integer tableSrid = GeometryTableUtilities.getSRID(connection, TableLocation.parse(tableName, dbType))
 
     if (tableSrid != 0 && tableSrid != srid && input['inputSRID']) throw new Exception("The table already has a different SRID than the one you gave.")
 
@@ -116,13 +118,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
     // Display the actual SRID in the command window
     logger.info("The actual SRID of the table is " + srid)
-
-    if (tableSrid == 0) {
-        GeometryMetaData metaData = GeometryTableUtilities.getMetaData(connection, TableLocation.parse(tableName, DBUtils.getDBType(connection)), spatialFieldNames.get(0));
-        metaData.setSRID(srid);
-        connection.createStatement().execute(String.format("ALTER TABLE %s ALTER COLUMN %s %s USING ST_SetSRID(%s,%d)",
-                TableLocation.parse(tableName, DBUtils.getDBType(connection)), spatialFieldNames.get(0), metaData.getSQL(), spatialFieldNames.get(0),spatialFieldNames.get(0) ,srid))
-    }
 
     // Project geometry in WGS84 (EPSG:4326) and groups all the geometries of the table
     String geomField = "ST_ACCUM(ST_TRANSFORM(" + TableLocation.quoteIdentifier(spatialFieldNames.get(0)) + " ,4326))"

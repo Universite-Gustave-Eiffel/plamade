@@ -9,12 +9,18 @@
  * Contact: contact@noise-planet.org
  *
  */
-package org.noise_planet.covadis.scripts.hpc
+package org.noise_planet.covadis.scripts.Covadis
 
+import groovy.sql.Sql
 import org.h2gis.api.ProgressVisitor
+import org.noise_planet.covadis.webserver.slurm.SlurmConfig
+import org.noise_planet.covadis.webserver.slurm.SlurmSession
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
+import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
+import java.sql.Connection
+import java.util.concurrent.atomic.AtomicLong
 
 title = 'Write HPC settings'
 description = 'Create a table that will contain all settings to connect to a Slurm service through SSH'
@@ -239,7 +245,20 @@ inputs = [
                 description: 'Frequency field name prepend. Ex. for 1000 Hz frequency the default column name is HZ1000.' +
                         '&#128736; Default value: <b>HZ</b>',
                 min        : 0, max: 1, type: String.class
-        ]
+        ],
+        configuration_name      : [
+                name       : 'SSH Configuration Identifier',
+                title      : 'SSH Configuration Identifier',
+                description: 'Slurm configuration written through Write_HPC_Settings WPS Script',
+                type       : String.class
+        ],
+        key_password        : [
+                name       : 'SSH Private Key password',
+                title      : 'SSH Private Key password',
+                description: 'Optional private key password',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
 ]
 
 outputs = [
@@ -257,20 +276,32 @@ outputs = [
  * @param input
  * @return
  */
-def exec(DataSource dataSource, Map input) {
+def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
-    ProgressVisitor progressLogger
+    // Retrieve SSH credentials from the database
+    // configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path
+    try(Connection connection = dataSource.connection) {
+        Sql sql = Sql.newInstance(connection)
+        def res = sql.firstRow("SELECT * from SLURM_CONFIGURATION where configuration_name = ?",
+                input.configuration_name)
 
-    if("_progression" in input) {
-        progressLogger = input["_progression"] as ProgressVisitor
-    } else {
-        progressLogger = new RootProgressVisitor(1, true, 1)
+        SlurmConfig slurmConfig = new SlurmConfig()
+        slurmConfig.host = res.host
+        slurmConfig.port = res.port as Integer
+        slurmConfig.sshKeyArmoredString = res.private_key
+        slurmConfig.sshKeyPassword = input.key_password
+        slurmConfig.user = res.user_name
+        slurmConfig.serverKey = res.ssl_key
+        slurmConfig.serverKeyType = res.ssh_key_type
+        slurmConfig.javaBinaryPath = res.java_binary_path
+
+        // Create a logger with the thread name as it contains the Job identifier
+        try(SlurmSession slurmSession = new SlurmSession(slurmConfig, LoggerFactory.getLogger(Thread.currentThread().name))) {
+            slurmSession.connect()
+            def outputBytes = new AtomicLong(0)
+            def outputs = slurmSession.runCommand(slurmConfig.javaBinaryPath+" -v", true, outputBytes)
+            return ["result" : outputs.join('\n')]
+        }
     }
-
-
-
-    // print to WPS Builder
-    return ["result" : ""]
-
 }
 

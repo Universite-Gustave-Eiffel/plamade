@@ -111,7 +111,7 @@ public class WpsScriptWrapper {
         Logger logger = LoggerFactory.getLogger(WpsScriptWrapper.class.getName());
         logger.info("Scanning scripts in directory: " + scriptDirectory.toAbsolutePath());
         if (!baseDir.exists()) {
-            logger.warn("Directory does not exist: " + scriptDirectory);
+            logger.warn("Directory does not exist {}, will try to use ClassLoader resources package instead..", scriptDirectory);
             // The location may be stored into the jar not the local file system
             try {
                 URL resourceUrl = loader.getResource(scriptDirectory.toString());
@@ -127,7 +127,7 @@ public class WpsScriptWrapper {
             }
         }
         scanRecursive(baseDir, "", grouped);
-        logger.info("Found {} scripts in directory: {}", grouped.values().stream().mapToInt(List::size).sum(), scriptDirectory);
+        logger.info("Found {} scripts in directory/package: {}", grouped.values().stream().mapToInt(List::size).sum(), scriptDirectory);
         return grouped;
     }
 

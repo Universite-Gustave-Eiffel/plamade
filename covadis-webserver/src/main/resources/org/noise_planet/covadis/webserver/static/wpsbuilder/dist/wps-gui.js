@@ -61991,7 +61991,7 @@ wps.editor.prototype.showEditForm = function(node) {
       var value = node.value;
       value = (value === undefined) ? '' : value;
       html += '<div class="form-row" id="' + name + '-field">';
-      html += '<input type="text" id="' + id + '" value="' + value + '" class="form-control input-sm"></div>';
+      html += '<textarea id="' + id + '" value="' + value + '" class="form-control input-sm"/></div>';
     }
     html += saveButton;
     if (node._info.maxOccurs > 1 && node._info.maxOccurs > node._info.minOccurs) {

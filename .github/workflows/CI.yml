@@ -21,6 +21,18 @@ jobs:
           - 5432:5432
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      sshd:
+        image: linuxserver/openssh-server:latest
+        env:
+          PUID: 1000
+          PGID: 1000
+          TZ: Etc/UTC
+          USER_NAME: testuser
+          PUBLIC_KEY: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDeviPPiHoEJnJ0QW0zbR4Uco+wI1ekLNySZ37QS/AxR0b9OyLQKQoQ04/ekT5UmwoLzNVQK9hz7Kxmg5YTFpgGSCGOGlkGOJRZQgVQ51ITzOQvz67WRkuuCKRV2g/mzWkMRWNqKag9Q8fAbIF5f3kWQNypsyROngfLnBstt4SvsbDeU+0r++vavegmYpFYh1V3MDjFibrKg+8+9BpMJ/KaPwVknaHz0SEQ8D/HUQrfhb+WsaXiQxnU0IW+7Yzp2iO3voUP/CkdX9C1KoRA9KEo0yctb+l2W7PDOxLh5TZIeXcak93TWo/SMiNT4C0zjm/9ZDGNq6HXY2z19us9NGcv test@example.com"
+          SUDO_ACCESS: "true"
+          PASSWORD_ACCESS: "false"
+        ports:
+          - 2222:2222
     steps:
       # Checkout the source code of the project
       - name: Checkout
@@ -37,8 +49,8 @@ jobs:
           server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - name: Building
-        run: mvn test -B
+      - name: Run tests
+        run: bash nm-unittest-services/run_ssh_test.sh
       - name: Package
         run: mvn package
       - name: Install bsdtar

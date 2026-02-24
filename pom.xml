@@ -461,6 +461,11 @@
                 <artifactId>osmosis-xml</artifactId>
                 <version>[0.48, 0.49)</version>
             </dependency>
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-core</artifactId>
+                <version>2.17.1</version>
+            </dependency>
             <!-- Test dependencies -->
             <dependency>
                 <groupId>org.junit.jupiter</groupId>

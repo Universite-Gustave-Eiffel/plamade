@@ -1,13 +1,13 @@
-[main] INFO  15 déc. 15:46:54 - HikariPool-1 - Starting...
-[main] INFO  15 déc. 15:46:54 - HikariPool-1 - Added connection conn1: url=jdbc:h2:file:/Users/fortin/github/plamade/covadis-webserver/target/server user=SA
-[main] INFO  15 déc. 15:46:54 - HikariPool-1 - Start completed.
-[main] INFO  15 déc. 15:46:55 - Starting Javalin ...
-[main] INFO  15 déc. 15:46:55 - jetty-11.0.25; built: 2025-03-13T00:15:57.301Z; git: a2e9fae3ad8320f2a713d4fa29bba356a99d1295; jvm 11.0.29+7-LTS
-[main] INFO  15 déc. 15:46:55 - Session workerName=node0
-[main] INFO  15 déc. 15:46:55 - Started o.e.j.s.ServletContextHandler@2c34402{/,null,AVAILABLE}
-[main] INFO  15 déc. 15:46:55 - Started ServerConnector@1de5cc88{HTTP/1.1, (http/1.1)}{0.0.0.0:8000}
-[main] INFO  15 déc. 15:46:55 - Started Server@615e83ac{STARTING}[11.0.25,sto=0] @2050ms
-[main] INFO  15 déc. 15:46:55 -
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:54 - HikariPool-1 - Starting...
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:54 - HikariPool-1 - Added connection conn1: url=jdbc:h2:file:/Users/fortin/github/plamade/covadis-webserver/target/server user=SA
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:54 - HikariPool-1 - Start completed.
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Starting Javalin ...
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - jetty-11.0.25; built: 2025-03-13T00:15:57.301Z; git: a2e9fae3ad8320f2a713d4fa29bba356a99d1295; jvm 11.0.29+7-LTS
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Session workerName=node0
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Started o.e.j.s.ServletContextHandler@2c34402{/,null,AVAILABLE}
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Started ServerConnector@1de5cc88{HTTP/1.1, (http/1.1)}{0.0.0.0:8000}
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Started Server@615e83ac{STARTING}[11.0.25,sto=0] @2050ms
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 -
        __                  ___           _____
       / /___ __   ______ _/ (_)___      / ___/
  __  / / __ `/ | / / __ `/ / / __ \    / __ \
@@ -16,18 +16,18 @@
 
        https://javalin.io/documentation
 
-[main] INFO  15 déc. 15:46:55 - Javalin started in 89ms \o/
-[main] INFO  15 déc. 15:46:55 - Static file handler added: StaticFileConfig(hostedPath=/nmcovadis/builder, directory=/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/wpsbuilder/, location=EXTERNAL, precompress=false, aliasCheck=null, headers={Cache-Control=max-age=0}, mimeTypes={}, roles=[RUNNER]). File system location: '/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/wpsbuilder/'
-[main] INFO  15 déc. 15:46:55 - Static file handler added: StaticFileConfig(hostedPath=/nmcovadis, directory=/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/root/, location=EXTERNAL, precompress=false, aliasCheck=null, headers={Cache-Control=max-age=0}, mimeTypes={}, roles=[ANYONE]). File system location: '/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/root/'
-[main] INFO  15 déc. 15:46:55 - Listening on http://localhost:8000/
-[main] INFO  15 déc. 15:46:55 - You are running Javalin 6.7.0 (released June 22, 2025. Your Javalin version is 175 days old. Consider checking for a newer version.).
-[JettyServerThreadPool-42] INFO  15 déc. 15:46:56 - 404 not found on /favicon.ico
-[JettyServerThreadPool-42] INFO  15 déc. 15:47:09 - HikariPool-2 - Starting...
-[JettyServerThreadPool-42] INFO  15 déc. 15:47:09 - HikariPool-2 - Added connection conn12: url=jdbc:h2:file:/Users/fortin/github/plamade/covadis-webserver/target/user_001 user=SA
-[JettyServerThreadPool-42] INFO  15 déc. 15:47:09 - HikariPool-2 - Start completed.
-[JOB_8] INFO  15 déc. 15:47:09 - inputs {pkName=ID, _progression=org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor@16c4f9e7, _configuration=org.noise_planet.covadis.webserver.Configuration@30cb6bcc, tableName=test}
-[JOB_8] INFO  15 déc. 15:47:09 - Start : Add primary key column or constraint
-[JOB_8] ERROR 15 déc. 15:47:09 - Error executing WPS <p0:Execute xmlns:p0="http://www.opengis.net/wps/1.0.0" service="WPS" version="1.0.0"><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">Database_Manager:Add_Primary_Key</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">pkName</p1:Identifier><p0:Data><p0:LiteralData>ID</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">tableName</p1:Identifier><p0:Data><p0:LiteralData>test</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Javalin started in 89ms \o/
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Static file handler added: StaticFileConfig(hostedPath=/nmcovadis/builder, directory=/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/wpsbuilder/, location=EXTERNAL, precompress=false, aliasCheck=null, headers={Cache-Control=max-age=0}, mimeTypes={}, roles=[RUNNER]). File system location: '/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/wpsbuilder/'
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Static file handler added: StaticFileConfig(hostedPath=/nmcovadis, directory=/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/root/, location=EXTERNAL, precompress=false, aliasCheck=null, headers={Cache-Control=max-age=0}, mimeTypes={}, roles=[ANYONE]). File system location: '/Users/fortin/github/plamade/covadis-webserver/target/classes/org/noise_planet/covadis/webserver/static/root/'
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - Listening on http://localhost:8000/
+[main][io.javalin.Javalin] INFO  15 déc. 15:46:55 - You are running Javalin 6.7.0 (released June 22, 2025. Your Javalin version is 175 days old. Consider checking for a newer version.).
+[JettyServerThreadPool-42][io.javalin.Javalin] INFO  15 déc. 15:46:56 - 404 not found on /favicon.ico
+[JettyServerThreadPool-42][io.javalin.Javalin] INFO  15 déc. 15:47:09 - HikariPool-2 - Starting...
+[JettyServerThreadPool-42][io.javalin.Javalin] INFO  15 déc. 15:47:09 - HikariPool-2 - Added connection conn12: url=jdbc:h2:file:/Users/fortin/github/plamade/covadis-webserver/target/user_001 user=SA
+[JettyServerThreadPool-42][io.javalin.Javalin] INFO  15 déc. 15:47:09 - HikariPool-2 - Start completed.
+[JOB_8][JOB_8] INFO  15 déc. 15:47:09 - inputs {pkName=ID, _progression=org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor@16c4f9e7, _configuration=org.noise_planet.covadis.webserver.Configuration@30cb6bcc, tableName=test}
+[JOB_8][JOB_8] INFO  15 déc. 15:47:09 - Start : Add primary key column or constraint
+[JOB_8][JOB_8] ERROR 15 déc. 15:47:09 - Error executing WPS <p0:Execute xmlns:p0="http://www.opengis.net/wps/1.0.0" service="WPS" version="1.0.0"><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">Database_Manager:Add_Primary_Key</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">pkName</p1:Identifier><p0:Data><p0:LiteralData>ID</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">tableName</p1:Identifier><p0:Data><p0:LiteralData>test</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1="http://www.opengis.net/ows/1.1">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>
 java.util.concurrent.ExecutionException: java.lang.RuntimeException: org.codehaus.groovy.runtime.InvokerInvocationException: java.sql.SQLException: Table TEST not found.
 	at java.base/java.util.concurrent.FutureTask.report(FutureTask.java:122)
 	at java.base/java.util.concurrent.FutureTask.get(FutureTask.java:205)
@@ -99,11 +99,11 @@ Caused by: java.sql.SQLException: Table TEST not found.
 	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
 	at org.codehaus.groovy.reflection.CachedMethod.invoke(CachedMethod.java:338)
 	... 11 more
-[JOB_9] INFO  15 déc. 16:23:25 - Start : Display database
-[JOB_9] INFO  15 déc. 16:23:25 - inputs {_progression=org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor@34f93c74, _configuration=org.noise_planet.covadis.webserver.Configuration@30cb6bcc, showColumns=true}
-[JOB_9] INFO  15 déc. 16:23:25 - End : Display database
-[Thread-2] INFO  15 déc. 17:00:53 - Stopping Javalin ...
-[Thread-2] INFO  15 déc. 17:00:53 - Stopped Server@615e83ac{STOPPING}[11.0.25,sto=0]
-[Thread-2] INFO  15 déc. 17:00:53 - Stopped ServerConnector@1de5cc88{HTTP/1.1, (http/1.1)}{0.0.0.0:8000}
-[Thread-2] INFO  15 déc. 17:00:53 - Stopped o.e.j.s.ServletContextHandler@2c34402{/,null,STOPPED}
-[Thread-2] INFO  15 déc. 17:00:53 - Javalin has stopped
+[JOB_9][JOB_9] INFO  15 déc. 16:23:25 - Start : Display database
+[JOB_9][JOB_9] INFO  15 déc. 16:23:25 - inputs {_progression=org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor@34f93c74, _configuration=org.noise_planet.covadis.webserver.Configuration@30cb6bcc, showColumns=true}
+[JOB_9][JOB_9] INFO  15 déc. 16:23:25 - End : Display database
+[Thread-2][io.javalin.Javalin] INFO  15 déc. 17:00:53 - Stopping Javalin ...
+[Thread-2][io.javalin.Javalin] INFO  15 déc. 17:00:53 - Stopped Server@615e83ac{STOPPING}[11.0.25,sto=0]
+[Thread-2][io.javalin.Javalin] INFO  15 déc. 17:00:53 - Stopped ServerConnector@1de5cc88{HTTP/1.1, (http/1.1)}{0.0.0.0:8000}
+[Thread-2][io.javalin.Javalin] INFO  15 déc. 17:00:53 - Stopped o.e.j.s.ServletContextHandler@2c34402{/,null,STOPPED}
+[Thread-2][io.javalin.Javalin] INFO  15 déc. 17:00:53 - Javalin has stopped
