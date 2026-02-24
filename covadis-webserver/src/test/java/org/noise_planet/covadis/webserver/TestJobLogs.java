@@ -38,11 +38,14 @@ public class TestJobLogs {
         String lastLines = Logging.getLastLines(
                 new File(resourceFile.toURI()),
                 -1, "JOB_16", fetchedLines);
-        assertEquals(8, fetchedLines.get());
+        assertEquals(7, fetchedLines.get());
         assertLinesMatch(Arrays.asList("[JOB_16][JOB_16] ERROR 2026-02-24 12:06:11 - Command java -v",
                 " exit-status: 127",
+                "[sshd-SshClient[1e3d79ba]-nio2-thread-1][JOB_16] ERROR 2026-02-24 12:06:11 - bash: line 1: java: command not found",
                 "[JOB_16][JOB_16] INFO  2026-02-24 12:06:11 - Successfully connected to the server localhost",
-                "[sshd-SshClient[1e3d79ba]-nio2-thread-1][JOB_16] ERROR 2026-02-24 12:06:11 - bash: line 1: java: command not found"), Arrays.asList(Arrays.copyOfRange(lastLines.split("\n"), 0, 4)));
+                "[sshd-SshClient[1e3d79ba]-nio2-thread-4][JOB_16] WARN  2026-02-24 12:06:11 - No server key configured. Trusting the server automatically (not recommended for production).",
+                "[JOB_16][org.apache.sshd.client.config.hosts.DefaultConfigFileHostEntryResolver] INFO  2026-02-24 12:06:11 - resolveEffectiveResolver(testuser@localhost:2222) loaded 4 entries from /Users/user/.ssh/config",
+                "[JOB_16][org.apache.sshd.common.io.DefaultIoServiceFactoryFactory] INFO  2026-02-24 12:06:11 - No detected/configured IoServiceFactoryFactory; using Nio2ServiceFactoryFactory"), Arrays.asList(lastLines.split("\n")));
     }
 
     /**

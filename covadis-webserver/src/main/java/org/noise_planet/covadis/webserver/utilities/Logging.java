@@ -29,7 +29,7 @@ public class Logging {
 
     public static final String DEFAULT_LOG_FORMAT = "[%t][%c] %-5p %d{dd MMM HH:mm:ss} - %m%n";
     private static final Pattern LOG_PATTERN =
-            Pattern.compile("^\\[(?<thread>[^\\]]+)\\]\\[(?<logger>[^\\]]+)\\]");
+            Pattern.compile("^\\[(?<thread>.+?)\\]\\[(?<logger>[^\\]]+)\\]");
 
     public static void configureFileLogger(String workingDirectory, String loggingFileName) {
         try {
