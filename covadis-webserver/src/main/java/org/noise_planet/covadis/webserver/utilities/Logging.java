@@ -17,16 +17,19 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Utility functions related to logging features
  */
 public class Logging {
 
-    public static final String DEFAULT_LOG_FORMAT = "[%t] %-5p %d{dd MMM HH:mm:ss} - %m%n";
+    public static final String DEFAULT_LOG_FORMAT = "[%t][%c] %-5p %d{dd MMM HH:mm:ss} - %m%n";
+    private static final Pattern LOG_PATTERN =
+            Pattern.compile("^\\[(?<thread>[^\\]]+)\\]\\[(?<logger>[^\\]]+)\\]");
 
     public static void configureFileLogger(String workingDirectory, String loggingFileName) {
         try {
@@ -169,16 +172,16 @@ public class Logging {
      * @return
      * @throws IOException
      */
-    public static String getLastLines(File logFile, int maximumLinesToFetch, String threadId, AtomicInteger fetchedLines) throws IOException {
+    public static String getLastLines(File logFile, int maximumLinesToFetch, String jobId, AtomicInteger fetchedLines) throws IOException {
         int pushedLines = 0;
         StringBuilder sbMatch = new StringBuilder();
         final int buffer = 8192;
-        long fileSize = Files.size(logFile.toPath());
         long read = 0;
-        long lastCursor = fileSize;
         String tailCache = "";
         int lastEndOfLine=0;
         try(RandomAccessFile f = new RandomAccessFile(logFile.getAbsoluteFile(), "r")) {
+            long fileSize = f.length();
+            long lastCursor = fileSize;
             while((maximumLinesToFetch == -1 || pushedLines < maximumLinesToFetch) && read < fileSize) {
                 long cursor = Math.max(0, fileSize - read - buffer);
                 read += buffer;
@@ -203,13 +206,12 @@ public class Logging {
                         break;
                     }
                     String line = tailCache.substring(nextEndOfLine + 1, lastEndOfLine);
-                    if(!threadId.isEmpty()) {
-                        int firstHook = line.indexOf("[");
-                        int lastHook = line.indexOf("]");
-                        if (firstHook == 0 && firstHook < lastHook) {
-                            // The line is starting with [xxx]
-                            String thread = line.substring(firstHook + 1, lastHook);
-                            if(thread.equals(threadId) && lastEndOfLine < previousHookLocation) {
+                    if(!jobId.isEmpty()) {
+                        Matcher matcher = LOG_PATTERN.matcher(line);
+                        if (matcher.find()) {
+                            String threadName = matcher.group("thread");
+                            String loggerName = matcher.group("logger");
+                            if((threadName.equals(jobId) || loggerName.equals(jobId)) && lastEndOfLine < previousHookLocation) {
                                 // push other lines of this log
                                 String logLines = tailCache.substring(nextEndOfLine + 1, previousHookLocation);
                                 pushedLines += (int) logLines.lines().count();

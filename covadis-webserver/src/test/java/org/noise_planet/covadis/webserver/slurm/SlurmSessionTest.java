@@ -42,7 +42,7 @@ public class SlurmSessionTest {
         config.serverKeyType = serverKeyType;
 
         logger.info("Connecting to {}:{} as {}", host, config.port, user);
-        try (SlurmSession slurmSession = new SlurmSession(config)) {
+        try (SlurmSession slurmSession = new SlurmSession(config, LoggerFactory.getLogger(SlurmSessionTest.class))) {
             slurmSession.connect();
             assertNotNull(slurmSession.getSession());
             assertTrue(slurmSession.getSession().isAuthenticated());

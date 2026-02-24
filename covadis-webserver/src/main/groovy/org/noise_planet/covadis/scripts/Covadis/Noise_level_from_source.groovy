@@ -16,6 +16,7 @@ import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
+import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
 import java.sql.Connection
@@ -294,7 +295,8 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
         slurmConfig.serverKeyType = res.ssh_key_type
         slurmConfig.javaBinaryPath = res.java_binary_path
 
-        try(SlurmSession slurmSession = new SlurmSession(slurmConfig)) {
+        // Create a logger with the thread name as it contains the Job identifier
+        try(SlurmSession slurmSession = new SlurmSession(slurmConfig, LoggerFactory.getLogger(Thread.currentThread().name))) {
             slurmSession.connect()
             def outputBytes = new AtomicLong(0)
             def outputs = slurmSession.runCommand(slurmConfig.javaBinaryPath+" -v", true, outputBytes)

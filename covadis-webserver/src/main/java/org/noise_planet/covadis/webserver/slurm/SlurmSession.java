@@ -16,8 +16,10 @@ import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.keyprovider.KeyIdentityProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
+import org.noise_planet.covadis.webserver.utilities.LoggingOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * and maintaining an authenticated SSH session.
  */
 public class SlurmSession implements AutoCloseable {
-    private static final Logger logger = LoggerFactory.getLogger(SlurmSession.class);
 
     public static final SlurmJobKnownStatus[] SLURM_JOB_KNOWN_STATUSES = new SlurmJobKnownStatus[]{
             new SlurmJobKnownStatus("COMPLETED", true, false), // The job has completed successfully.
@@ -58,9 +59,11 @@ public class SlurmSession implements AutoCloseable {
     private final SlurmConfig slurmConfig;
     private SshClient client;
     private ClientSession session;
+    private final Logger logger;
 
-    public SlurmSession(SlurmConfig slurmConfig) {
+    public SlurmSession(SlurmConfig slurmConfig, Logger logger) {
         this.slurmConfig = slurmConfig;
+        this.logger = logger;
         // Loop check for job status
         for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
             slurmStateMap.put(s.status, s);
@@ -167,7 +170,7 @@ public class SlurmSession implements AutoCloseable {
         List<String> lines = new ArrayList<>();
         try (ChannelExec shell = session.createExecChannel(command)) {
             shell.setRedirectErrorStream(false);
-            shell.setErr(System.err);
+            shell.setErr(new LoggingOutputStream(logger, Level.ERROR));
             shell.open().verify(SFTP_TIMEOUT);
 
             InputStream in = shell.getInvertedOut();
