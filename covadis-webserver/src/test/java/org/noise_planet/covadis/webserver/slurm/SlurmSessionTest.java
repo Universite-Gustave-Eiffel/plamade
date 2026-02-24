@@ -1,6 +1,5 @@
 package org.noise_planet.covadis.webserver.slurm;
 
-import org.apache.sshd.client.session.ClientSession;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -11,6 +10,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Tests SSH connection for SlurmSession. This test is not mandatory but will be executed in GitHub action
+ * You can launch the test locally by running the docker compose located in nm-unittest-services folder then
+ * running the bash script run_ssh_test.sh
+ */
 public class SlurmSessionTest {
     private static final Logger logger = LoggerFactory.getLogger(SlurmSessionTest.class);
 
