@@ -46,12 +46,13 @@ inputs = [
                 name       : 'SSL Server Public Key',
                 title      : 'SSL Server Public Key',
                 description: '<p>Base64 Public SSL server key for host key checking</p>',
-                type       : String.class
+                type       : String.class,
+                min: 0, max: 1
         ],
         ssh_key_type   : [
                 name       : 'SSH server key type',
                 title      : 'SSH server key type',
-                description: '<p>SSH supported server key type ex:ssh-rsa</p>',
+                description: '<p>SSH supported server key type</p><pre>ssh-rsa</pre><pre>ssh-ed25519</pre>',
                 type       : String.class
         ],
         user   : [
@@ -106,8 +107,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             "port integer," +
             "ssl_key varchar," +
             "ssh_key_type varchar," +
-            "user varchar," +
-            "key varchar," +
+            "user_name varchar," +
+            "private_key varchar," +
             "java_binary_path varchar)")
 
     try(PreparedStatement deleteSt = connection.prepareStatement("DELETE FROM SLURM_CONFIGURATION WHERE configuration_name = ?")) {
@@ -116,7 +117,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
     try(PreparedStatement pst = connection.prepareStatement("INSERT INTO SLURM_CONFIGURATION(" +
-            "configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path) " +
+            "configuration_name, host, port, ssl_key, ssh_key_type, user_name, private_key, java_binary_path) " +
             "VALUES(?, ?, ?, ?, ?, ?, ?, ?)")) {
         pst.setString(1, input['configuration_name'] as String)
         pst.setString(2, input['host'] as String)
