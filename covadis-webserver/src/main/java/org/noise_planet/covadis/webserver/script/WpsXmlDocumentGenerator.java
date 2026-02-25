@@ -92,12 +92,26 @@ public class WpsXmlDocumentGenerator {
         LiteralInputType literalInputType = wpsf.createLiteralInputType();
         input.setLiteralData(literalInputType);
         if (scriptInput.type.equals(Boolean.class)) {
+            // Special handling for boolean input
             literalInputType.setDataType(domainMetadataType("xs:boolean"));
             literalInputType.setAllowedValues(owsf.createAllowedValuesType());
             literalInputType.getAllowedValues().getValue().add(valueType("true"));
             literalInputType.getAllowedValues().getValue().add(valueType("false"));
         } else {
-            literalInputType.setDataType(domainMetadataType(javaClassToXsdType.getOrDefault(scriptInput.type, "xs:string")));
+            // Set default value
+            if(scriptInput.defaultValue != null) {
+                literalInputType.setDefaultValue(scriptInput.defaultValue);
+            }
+            // Generate allowed values
+            if(!scriptInput.allowedValues.isEmpty()) {
+                literalInputType.setAllowedValues(owsf.createAllowedValuesType());
+                for (String allowedValue : scriptInput.allowedValues) {
+                    literalInputType.getAllowedValues().getValue().add(valueType(allowedValue));
+                }
+            } else {
+                // If there is restricted values we must not set the data type
+                literalInputType.setDataType(domainMetadataType(javaClassToXsdType.getOrDefault(scriptInput.type, "xs:string")));
+            }
         }
     }
 

@@ -21,9 +21,7 @@ import org.slf4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Represents the description for a script, with expected inputs and outputs
@@ -67,6 +65,12 @@ public class ScriptMetadata {
                     si.minOccurs = minValue instanceof Integer ? (Integer)minValue : 1;
                     Object maxValue = inputAttributes.getOrDefault("max", 1);
                     si.maxOccurs = maxValue instanceof Integer ? (Integer)maxValue : 1;
+                    Object defaultValue = inputAttributes.getOrDefault("default", null);
+                    si.defaultValue = defaultValue != null ? defaultValue.toString() : null;
+                    Object allowedValues = inputAttributes.getOrDefault("allowedValues", new HashSet<>());
+                    if(allowedValues instanceof Collection) {
+                        si.allowedValues = new HashSet<>((Collection<String>)allowedValues);
+                    }
                 }
                 inputs.put(si.id, si);
             }
