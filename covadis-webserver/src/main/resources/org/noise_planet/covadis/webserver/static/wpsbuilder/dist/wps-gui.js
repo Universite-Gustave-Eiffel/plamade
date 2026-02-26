@@ -61991,7 +61991,11 @@ wps.editor.prototype.showEditForm = function(node) {
       var value = node.value;
       value = (value === undefined) ? '' : value;
       html += '<div class="form-row" id="' + name + '-field">';
-      html += '<textarea id="' + id + '" value="' + value + '" class="form-control input-sm"/></div>';
+      var textarea = document.createElement('textarea');
+      textarea.id = id;
+      textarea.className = 'form-control input-sm';
+      textarea.textContent = value; // Browser automatically escapes this safely
+      html += textarea.outerHTML;
     }
     html += saveButton;
     if (node._info.maxOccurs > 1 && node._info.maxOccurs > node._info.minOccurs) {
