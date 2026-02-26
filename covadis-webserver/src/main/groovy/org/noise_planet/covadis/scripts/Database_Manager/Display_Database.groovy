@@ -40,10 +40,8 @@ inputs = [
                 title      : 'Display columns of the tables',
                 description: 'Do you want to display also the column of the tables ? </br></br>' +
                              '&#128161; Note : A small yellow key symbol (&#128273;) will appear if the column as a Primary Key constraint.',
-                type       : String.class,
-                min        : 0, max: 1,
-                allowedValues: ["Yes", "No"],
-                default: "Yes"
+                type       : Boolean.class,
+                min        : 0, max: 1
         ]
 ]
 
@@ -74,7 +72,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     Boolean showColumnName = false
     
     if(input['showColumns']) {
-        showColumnName = "Yes" == input['showColumns']
+        showColumnName = input['showColumns'].toBoolean()
     }
 
     // list of the system tables
