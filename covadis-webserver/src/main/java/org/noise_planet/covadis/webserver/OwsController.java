@@ -471,7 +471,7 @@ public class OwsController {
                 context.contentType("application/octet-stream");
                 context.result(wkt.getBytes());
             } else {
-                context.result(result.toString());
+                context.result(result != null ? result.toString() : "");
             }
         }
     }

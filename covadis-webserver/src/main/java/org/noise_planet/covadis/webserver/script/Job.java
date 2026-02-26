@@ -173,9 +173,8 @@ public class Job<T> implements Callable<T> {
                         // The script author is responsible for returning the correct type
                         @SuppressWarnings("unchecked") T castedReturn = (T) ret;
                         currentPlan.outputs = castedReturn;
+                        returnData = castedReturn;
                     }
-                    setJobState(JobStates.COMPLETED);
-                    setJobProgression(100);
                 }
                 if(parentPlan != null) {
                     // Update the value of the parent plan input
@@ -188,6 +187,8 @@ public class Job<T> implements Callable<T> {
                 }
                 currentPlan = parentPlan;
             }
+            setJobState(JobStates.COMPLETED);
+            setJobProgression(100);
         } catch (Exception ex) {
             setJobState(JobStates.FAILED);
             logger.error("Job failed", ex);
