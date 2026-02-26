@@ -187,13 +187,13 @@ public class WpsScriptWrapper {
      * @return a list of {@code ScriptWrapper} instances representing available scripts
      * @throws IOException if a script file cannot be read or parsed
      */
-    public static List<ScriptMetadata> buildScriptWrappers(Map<String, List<File>> scriptFiles) throws IOException {
-        List<ScriptMetadata> wrappers = new ArrayList<>();
+    public static Map<String, ScriptMetadata> buildScriptWrappers(Map<String, List<File>> scriptFiles) throws IOException {
+        Map<String, ScriptMetadata> wrappers = new HashMap<>();
         for (Map.Entry<String, List<File>> entry : scriptFiles.entrySet()) {
             String group = entry.getKey();
             for (File file : entry.getValue()) {
                 ScriptMetadata wrapper = new ScriptMetadata(group, file);
-                wrappers.add(wrapper);
+                wrappers.put(wrapper.id, wrapper);
             }
         }
 

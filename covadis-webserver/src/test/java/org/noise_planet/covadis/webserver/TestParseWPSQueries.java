@@ -1,8 +1,11 @@
 package org.noise_planet.covadis.webserver;
 
 import net.opengis.wps10.ExecuteType;
+import org.apache.commons.math3.stat.inference.TestUtils;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Geometry;
+import org.noise_planet.covadis.webserver.script.ExecutionPlan;
 import org.noise_planet.covadis.webserver.script.WpsXmlDocumentGenerator;
 import org.noise_planet.covadis.webserver.script.ScriptMetadata;
 import org.noise_planet.covadis.webserver.script.WpsScriptWrapper;
@@ -11,6 +14,9 @@ import org.xml.sax.SAXException;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -24,14 +30,12 @@ public class TestParseWPSQueries {
     public void testDelaunayParse() throws IOException, ParserConfigurationException, SAXException {
 
         // Build ScriptWrapper
-        List<ScriptMetadata> wrappers = WpsScriptWrapper.buildScriptWrappers(WpsScriptWrapper.scanScriptsGrouped(ClassLoader.getSystemClassLoader(),
-                Path.of("scripts")));
+        Map<String, ScriptMetadata> wrappers = getWrappers();
         assertNotEquals(0, wrappers.size());
         // look for the script named Delaunay_Grid
-        Optional<ScriptMetadata> scriptMetadata = wrappers.stream().filter(sw -> sw.id.equals("Receivers:Delaunay_Grid"))
-                .findFirst();
-        assertTrue(scriptMetadata.isPresent());
-        assertEquals("Receivers:Delaunay_Grid", scriptMetadata.get().id);
+        ScriptMetadata scriptMetadata = wrappers.get("Receivers:Delaunay_Grid");
+        assertNotNull(scriptMetadata);
+        assertEquals("Receivers:Delaunay_Grid", scriptMetadata.id);
 
         String requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0" +
                 ".0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
@@ -49,16 +53,21 @@ public class TestParseWPSQueries {
                 ".1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
 
         // Provide request body as an input stream
-        ExecuteType executeType = OwsController.parseExecuteRequest(new ByteArrayInputStream(requestBody.getBytes()));
-        assertNotNull(executeType);
-        Map<String, Object> inputs = scriptMetadata.get().extractInputs(executeType);
+        ExecutionPlan executionPlan = OwsController.generateExecutionPlanFromWPS(new ByteArrayInputStream(requestBody.getBytes()), wrappers);
+        assertNotNull(executionPlan);
         // Check inputs values and type
-        assertEquals("BUILDINGS_LOW_HEIGHT", inputs.get("tableBuilding"));
-        assertEquals(Boolean.class, inputs.get("exportTrianglesGeometries").getClass());
-        assertEquals(true, inputs.get("exportTrianglesGeometries"));
-        assertEquals(Boolean.class, inputs.get("isoSurfaceInBuildings").getClass());
-        assertEquals(false, inputs.get("isoSurfaceInBuildings"));
+        assertEquals("BUILDINGS_LOW_HEIGHT", executionPlan.getInputs().get("tableBuilding"));
+        assertEquals(Boolean.class, executionPlan.getInputs().get("exportTrianglesGeometries").getClass());
+        assertEquals(true, executionPlan.getInputs().get("exportTrianglesGeometries"));
+        assertEquals(Boolean.class, executionPlan.getInputs().get("isoSurfaceInBuildings").getClass());
+        assertEquals(false, executionPlan.getInputs().get("isoSurfaceInBuildings"));
 
+    }
+
+    private static @NonNull Map<String, ScriptMetadata> getWrappers() throws IOException {
+        Map<String, ScriptMetadata> wrappers = WpsScriptWrapper.buildScriptWrappers(WpsScriptWrapper.scanScriptsGrouped(ClassLoader.getSystemClassLoader(),
+                Path.of("scripts")));
+        return wrappers;
     }
 
 
@@ -66,17 +75,17 @@ public class TestParseWPSQueries {
     public void testGeometryReturnParse() throws IOException, ParserConfigurationException, SAXException {
 
         // Build ScriptWrapper
-        List<ScriptMetadata> wrappers = WpsScriptWrapper.buildScriptWrappers(WpsScriptWrapper.scanScriptsGrouped(ClassLoader.getSystemClassLoader(), Path.of("scripts")));
+        Map<String, ScriptMetadata> wrappers = getWrappers();
         assertNotEquals(0, wrappers.size());
         // look for the script named Delaunay_Grid
-        Optional<ScriptMetadata> scriptMetadata = wrappers.stream().filter(sw -> sw.id.equals("Database_Manager:Table_Visualization_Map")).findFirst();
-        assertTrue(scriptMetadata.isPresent());
-        assertEquals("Database_Manager:Table_Visualization_Map", scriptMetadata.get().id);
+        ScriptMetadata scriptMetadata = wrappers.get("Database_Manager:Table_Visualization_Map");
+        assertNotNull(scriptMetadata);
+        assertEquals("Database_Manager:Table_Visualization_Map", scriptMetadata.id);
 
-        assertTrue(scriptMetadata.get().outputs.containsKey("result"));
-        assertEquals(Geometry.class, scriptMetadata.get().outputs.get("result").type);
+        assertTrue(scriptMetadata.outputs.containsKey("result"));
+        assertEquals(Geometry.class, scriptMetadata.outputs.get("result").type);
 
-        String describeProcessXML = WpsXmlDocumentGenerator.generateDescribeProcessXML(scriptMetadata.get());
+        String describeProcessXML = WpsXmlDocumentGenerator.generateDescribeProcessXML(scriptMetadata);
 
         // Expect XML output with WKT Geometry type
         assertTrue(describeProcessXML.contains("application/wkt"));
@@ -86,8 +95,7 @@ public class TestParseWPSQueries {
     @Test
     public void testGenerateCapabilitiesXML() throws IOException {
         // Build ScriptWrapper
-        List<ScriptMetadata> wrappers =
-                WpsScriptWrapper.buildScriptWrappers(WpsScriptWrapper.scanScriptsGrouped(ClassLoader.getSystemClassLoader(), Path.of("scripts")));
+        Map<String, ScriptMetadata> wrappers = getWrappers();
         assertNotEquals(0, wrappers.size());
 
         String capabilitiesXML = WpsXmlDocumentGenerator.generateCapabilitiesXML(wrappers);
@@ -103,5 +111,25 @@ public class TestParseWPSQueries {
         assertTrue(capabilitiesXML.contains("Receivers:Building_Grid"));
     }
 
+    @Test
+    public void testParseChainedExecuteQuery() throws IOException, ParserConfigurationException, SAXException {
+        // Build ScriptWrapper
+        Map<String, ScriptMetadata> wrappers = getWrappers();
+        assertNotEquals(0, wrappers.size());
+
+        try(InputStream inputStream = TestParseWPSQueries.class.getResourceAsStream("wps_parse/chainedExecute1.xml")) {
+            assertNotNull(inputStream);
+            ExecutionPlan executionPlan = OwsController.generateExecutionPlanFromWPS(inputStream, wrappers);
+            assertNotNull(executionPlan);
+            assertEquals("Database_Manager:Table_Visualization_Data", executionPlan.getScriptMetadata().id);
+            assertTrue(executionPlan.getInputs().containsKey("tableName"));
+            assertInstanceOf(ExecutionPlan.class, executionPlan.getInputs().get("tableName"));
+            ExecutionPlan chainedExecutionPlan = (ExecutionPlan) executionPlan.getInputs().get("tableName");
+            assertEquals("Import_and_Export:Import_File", chainedExecutionPlan.getScriptMetadata().id);
+            assertEquals("org/noise_planet/covadis/webserver/wpsinput/BUILDINGS_LOW_HEIGHT.geojson", chainedExecutionPlan.getInputs().get("pathFile"));
+            assertEquals("outputTable", chainedExecutionPlan.getChainedOutputKey());
+        }
+
+    }
 
 }

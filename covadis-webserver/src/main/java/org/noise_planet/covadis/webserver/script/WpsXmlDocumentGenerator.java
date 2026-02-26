@@ -188,7 +188,7 @@ public class WpsXmlDocumentGenerator {
      * @param scripts the list of available ScriptWrapper instances
      * @return XML string for WPS GetCapabilities
      */
-    public static String generateCapabilitiesXML(List<ScriptMetadata> scripts) throws IOException {
+    public static String generateCapabilitiesXML(Map<String, ScriptMetadata> scripts) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
         WPSCapabilitiesType capabilities = wpsf.createWPSCapabilitiesType();
@@ -207,7 +207,7 @@ public class WpsXmlDocumentGenerator {
         ProcessOfferingsType processOfferings = wpsf.createProcessOfferingsType();
         capabilities.setProcessOfferings(processOfferings);
 
-        for (ScriptMetadata script : scripts) {
+        for (ScriptMetadata script : scripts.values()) {
             ProcessBriefType process = wpsf.createProcessBriefType();
             process.setProcessVersion("1.0.0");
             process.setIdentifier(codetype(script.id));

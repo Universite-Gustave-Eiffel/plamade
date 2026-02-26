@@ -81,11 +81,11 @@ inputs = [
 ]
 
 outputs = [
-        result: [
-                name       : 'Result output string',
-                title      : 'Result output string',
-                description: 'This type of result does not allow the blocks to be linked together.',
-                type       : String.class
+        outputTable: [
+                name: 'Name of the created table',
+                title: 'Name of the created table',
+                description: 'Name of the created table',
+                type: String.class
         ]
 ]
 
@@ -244,15 +244,15 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     int pkUserIndex = JDBCUtilities.getFieldIndex(rs.getMetaData(), "PK")
     int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(tableName))
 
-    resultString = "The table " + tableName + " has been uploaded to database!"
+    resultString = "The table " + tableName + " has been uploaded to the database!"
 
     if (pkIndex == 0) { // no primary key in the table
         if (pkUserIndex > 0) { // there is a field with name PK
             try {
                 stmt.execute("ALTER TABLE " + tableName + " ALTER COLUMN PK INT NOT NULL;")
                 stmt.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY (PK);  ")
-                resultString = resultString + String.format(tableName + " has a new primary key constraint on PK")
-                logger.info(String.format(tableName + " has a new primary key constraint on PK"))
+                resultString += String.format(" $tableName has a new primary key constraint on the field named PK")
+                logger.info(String.format("$tableName has a new primary key constraint on PK"))
             } catch (SQLException ex) {
                 logger.info("Could not set PK as a primary key", ex)
             }
@@ -263,8 +263,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     logger.info(resultString)
     logger.info('End : Import File')
 
-    // print to WPS Builder
-    return resultString
+    // Output the name of the output table
+    return [outputTable: tableName]
 
 }
 

@@ -112,60 +112,6 @@ public class ScriptMetadata {
         return script.getBinding().getVariables();
     }
 
-    /**
-     * Extracts input data from the provided {@code ExecuteType} object and returns a map of input names
-     * to their corresponding values. It processes the data inputs defined in the {@code ExecuteType}
-     * object to construct this mapping.
-     *
-     * @param execute the {@code ExecuteType} object that contains the data inputs to extract.
-     * @return a map where keys are input names (as strings) and values are the corresponding input data
-     *         values (as objects), or {@code null} if no data is associated with an input.
-     */
-    public Map<String, Object> extractInputs(ExecuteType execute) {
-        Logger logger = org.slf4j.LoggerFactory.getLogger(ScriptMetadata.class);
-        DataInputsType1 dataInputs = execute.getDataInputs();
-        Map<String, Object> queryInputs = new HashMap<>();
-        if (dataInputs != null && dataInputs.getInput() != null) {
-            for (Object inputObj : dataInputs.getInput()) {
-                if (inputObj instanceof InputType) {
-                    InputType input = (InputType) inputObj;
-                    try {
-                        String inputId = input.getIdentifier().getValue();
-                        Object inputContent = input.getData().getLiteralData().getValue();
-                        if (inputs.containsKey(inputId)) {
-                            ScriptInput scriptInput = inputs.get(inputId);
-                            // found expected input, try to cast to expect type if not null
-                            Class<?> expectedInputType = scriptInput.type;
-                            String typeName = expectedInputType.getName();
-                            if (typeName.equals(Long.class.getName())) {
-                                inputContent = Long.parseLong(input.getData().getLiteralData().getValue());
-                            } else if (typeName.equals(Integer.class.getName())) {
-                                inputContent = Integer.parseInt(input.getData().getLiteralData().getValue());
-                            } else if (typeName.equals(Float.class.getName())) {
-                                inputContent = Float.parseFloat(input.getData().getLiteralData().getValue());
-                            } else if (typeName.equals(Double.class.getName())) {
-                                inputContent = Double.parseDouble(input.getData().getLiteralData().getValue());
-                            } else if (typeName.equals(Boolean.class.getName())) {
-                                inputContent = Boolean.parseBoolean(input.getData().getLiteralData().getValue());
-                            } else if (typeName.equals(org.locationtech.jts.geom.Geometry.class.getName())) {
-                                inputContent =
-                                        new org.locationtech.jts.io.WKTReader().read(input.getData().getLiteralData().getValue());
-                            }
-                            queryInputs.put(inputId, inputContent);
-                        } else {
-                            logger.warn("Input '{}' not found in metadata, ignore this argument", inputId);
-                        }
-                    } catch (Exception ex) {
-                        logger.info("Warning, ignore input as there was an exception while converting input '{}'", input.getIdentifier().getValue(), ex);
-                    }
-                }
-            }
-        }
-        
-        
-        
-        return queryInputs;
-    }
 
 }
 
