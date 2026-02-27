@@ -39,6 +39,23 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+/**
+ * {@link NoiseModellingServer} is the main class responsible for initializing and running the NoiseModelling web server.
+ * It leverages {@link Javalin}(psi_element://io.javalin.Javalin) to serve static content, manage OGC-compliant Web Processing Service (WPS) operations
+ * through {@link OwsController}(psi_element://org.noise_planet.covadis.webserver.OwsController), and handle user authentication and management
+ * via {@link UserController}(psi_element://org.noise_planet.covadis.webserver.secure.UserController).
+ * <p>
+ * The server provides functionalities such as:
+ * <ul>
+ *     <li>Serving static web resources for the application interface.</li>
+ *     <li>Exposing OGC WPS endpoints for NoiseModelling computations.</li>
+ *     <li>User registration, login, and access control using JWT.</li>
+ *     <li>Job management, including logging and cancellation.</li>
+ *     <li>Dynamic script reloading by watching for changes in a specified script directory.</li>
+ * </ul>
+ * This class also handles server shutdown procedures and integrates with a database for persistent storage
+ * and user management.
+ */
 public class NoiseModellingServer {
     public static final String LOGGING_FILE_NAME = "webserver.log";
     protected final Logger logger = LoggerFactory.getLogger(NoiseModellingServer.class);

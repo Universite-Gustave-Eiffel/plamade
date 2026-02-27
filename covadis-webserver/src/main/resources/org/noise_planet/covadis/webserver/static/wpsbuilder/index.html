@@ -74,7 +74,9 @@
         <div id="workspace-add-tab"><span id="btn-workspace-add-tab"></span></div>
         <div id="workspace-content">
           <div id="chart" class="ui-droppable"></div>
-          <div id="tab-xml" style="display:none"><pre><code class="python"></code></pre></div>
+          <div id="tab-xml" style="display:none"><pre><code class="python">Please run a WPS script a first time in order to generate the corresponding Python code</code></pre>
+            <button onclick="copyToClipboard()">Copy Code</button>
+          </div>
         </div>
       </div>
       <div id="chart-zoom-controls">
@@ -107,6 +109,13 @@
     <script src="vendor/ol.js"></script>
     <script src="dist/wps-gui.js"></script>
     <script>
+
+      async function copyToClipboard() {
+        // Get the text content from the pre/code block
+        var codeElement = document.querySelector('#tab-xml pre code');
+        var codeText = codeElement.textContent;
+        await navigator.clipboard.writeText(codeText);
+      }
         var url = 'ows';
         var wpsclient = new wps.client({
           servers: {
