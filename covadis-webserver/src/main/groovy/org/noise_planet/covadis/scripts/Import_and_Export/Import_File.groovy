@@ -17,10 +17,8 @@
 
 package org.noise_planet.covadis.scripts.Import_and_Export
 
-import groovy.transform.Field
-import org.apache.commons.io.FilenameUtils
 
-import org.h2gis.api.EmptyProgressVisitor
+import org.apache.commons.io.FilenameUtils
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.functions.io.csv.CSVDriverFunction
 import org.h2gis.functions.io.dbf.DBFDriverFunction
@@ -30,11 +28,9 @@ import org.h2gis.functions.io.gpx.GPXDriverFunction
 import org.h2gis.functions.io.osm.OSMDriverFunction
 import org.h2gis.functions.io.shp.SHPDriverFunction
 import org.h2gis.functions.io.tsv.TSVDriverFunction
-import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.GeometryTableUtilities
+import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
-import org.h2gis.utilities.TableUtilities
-import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory

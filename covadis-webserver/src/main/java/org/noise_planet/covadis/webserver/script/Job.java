@@ -9,8 +9,6 @@
 
 package org.noise_planet.covadis.webserver.script;
 
-import groovy.json.DefaultJsonGenerator;
-import groovy.json.JsonBuilder;
 import groovy.lang.GroovyShell;
 import groovy.lang.MetaMethod;
 import groovy.lang.Script;
@@ -38,6 +36,7 @@ import java.util.concurrent.Future;
 public class Job<T> implements Callable<T> {
     private static final Logger logger = LoggerFactory.getLogger(Job.class);
     /** NoiseModelling DataBase for the user */
+    public static final int limit = 2000;
     protected DataSource userDataSource;
     protected DataSource serverDataSource;
     protected boolean isRunning = false;
@@ -180,14 +179,20 @@ public class Job<T> implements Callable<T> {
                         returnData = castedReturn;
                     }
                 }
-                logger.info("Script {} executed with result {}", currentPlan.scriptMetadata.id, new JsonBuilder(currentPlan.outputs));
+                String outputString = currentPlan.outputs != null ? currentPlan.outputs.toString() : "null";
+                logger.info("Script {} executed with result {}",
+                        currentPlan.scriptMetadata.id,
+                        outputString.length() > limit ?
+                                outputString.substring(0, limit) +
+                                        "... [TRUNCATED]" : outputString);
                 if(!parentPlan.isEmpty()) {
                     // Update the value of the parent plan input
-                    if(currentPlan.chainedOutputKey.isEmpty() || !(currentPlan.outputs instanceof Map)) {
-                        parentPlan.peek().inputs.put(parentPlanInputName.peek(), currentPlan.outputs);
+                    if(currentPlan.chainedOutputKey.isEmpty() || !(currentPlan.outputs instanceof Map
+                            && ((Map) currentPlan.outputs).containsKey(currentPlan.chainedOutputKey))) {
+                        parentPlan.peek().inputs.put(parentPlanInputName.pop(), currentPlan.outputs);
                     } else {
                         Map<String, Object> outputs = (Map<String, Object>) currentPlan.outputs;
-                        parentPlan.peek().inputs.put(parentPlanInputName.peek(), outputs.get(currentPlan.chainedOutputKey));
+                        parentPlan.peek().inputs.put(parentPlanInputName.pop(), outputs.get(currentPlan.chainedOutputKey));
                     }
                 }
                 currentPlan = parentPlan.isEmpty() ? null : parentPlan.pop();
