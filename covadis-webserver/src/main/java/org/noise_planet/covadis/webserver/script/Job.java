@@ -9,6 +9,8 @@
 
 package org.noise_planet.covadis.webserver.script;
 
+import groovy.json.DefaultJsonGenerator;
+import groovy.json.JsonBuilder;
 import groovy.lang.GroovyShell;
 import groovy.lang.MetaMethod;
 import groovy.lang.Script;
@@ -26,6 +28,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
@@ -103,18 +106,18 @@ public class Job<T> implements Callable<T> {
         ExecutionPlan currentPlan = executionPlan;
         // The currentPlan is executing because the output of the currentPlan
         // is the input (parentPlanInputName) of the parent plan
-        ExecutionPlan parentPlan = null;
-        String parentPlanInputName = "";
+        Stack<ExecutionPlan> parentPlan = new Stack<>();
+        Stack<String> parentPlanInputName = new Stack<>();
         T returnData = null;
         try {
             while (currentPlan != null) {
                 // Check inputs of the current plan to find the next plan to execute
-                // If the input is an ExecutionPlan and not a literal value, it is the next plan to execute
+                // If one of the input is an ExecutionPlan and not a literal value, it is the next plan to execute
                 boolean recheck = false;
                 for (Map.Entry<String, Object> input : currentPlan.inputs.entrySet()) {
                     if (input.getValue() instanceof ExecutionPlan) {
-                        parentPlan = currentPlan;
-                        parentPlanInputName = input.getKey();
+                        parentPlan.push(currentPlan);
+                        parentPlanInputName.push(input.getKey());
                         currentPlan = (ExecutionPlan) input.getValue();
                         recheck = true;
                         break;
@@ -158,6 +161,7 @@ public class Job<T> implements Callable<T> {
                         args[2] = progressVisitor;
                     }
                     Object ret;
+                    logger.info("Executing script {}", currentPlan.scriptMetadata.id);
                     if (useConnection) {
                         // Open the connection to the database
                         try (Connection connection = userDataSource.getConnection()) {
@@ -176,16 +180,17 @@ public class Job<T> implements Callable<T> {
                         returnData = castedReturn;
                     }
                 }
-                if(parentPlan != null) {
+                logger.info("Script {} executed with result {}", currentPlan.scriptMetadata.id, new JsonBuilder(currentPlan.outputs));
+                if(!parentPlan.isEmpty()) {
                     // Update the value of the parent plan input
                     if(currentPlan.chainedOutputKey.isEmpty() || !(currentPlan.outputs instanceof Map)) {
-                        parentPlan.inputs.put(parentPlanInputName, currentPlan.outputs);
+                        parentPlan.peek().inputs.put(parentPlanInputName.peek(), currentPlan.outputs);
                     } else {
                         Map<String, Object> outputs = (Map<String, Object>) currentPlan.outputs;
-                        parentPlan.inputs.put(parentPlanInputName, outputs.get(currentPlan.chainedOutputKey));
+                        parentPlan.peek().inputs.put(parentPlanInputName.peek(), outputs.get(currentPlan.chainedOutputKey));
                     }
                 }
-                currentPlan = parentPlan;
+                currentPlan = parentPlan.isEmpty() ? null : parentPlan.pop();
             }
             setJobState(JobStates.COMPLETED);
             setJobProgression(100);

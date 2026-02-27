@@ -17,8 +17,7 @@
 
 package org.noise_planet.covadis.scripts.Import_and_Export
 
-
-
+import groovy.transform.Field
 import org.apache.commons.io.FilenameUtils
 
 import org.h2gis.api.EmptyProgressVisitor
@@ -34,6 +33,8 @@ import org.h2gis.functions.io.tsv.TSVDriverFunction
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.TableUtilities
+import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -77,6 +78,16 @@ inputs = [
                              '&#128736; Default value: <b>it will take the name of the file without its extension</b> (special characters will be removed and whitespaces will be replace by an underscore.',
                 min        : 0, max: 1,
                 type       : String.class
+        ],
+        ifTableExists: [
+                name         : 'Table exists operation',
+                title        : 'Table exists operation',
+                description  : '<p>What to do if a table with the same name already exists ?</p>' +
+                        '<p>&#128736; Default value: Overwrite</p>',
+                min          : 0, max: 1,
+                allowedValues: ["Overwrite", "Skip import", "Raise error"],
+                default      : "Overwrite",
+                type         : String.class
         ]
 ]
 
@@ -148,9 +159,21 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     // Create a connection statement to interact with the database in SQL
     Statement stmt = connection.createStatement()
 
-    // Drop the table if already exists
-    String dropOutputTable = "drop table if exists " + tableName
-    stmt.execute(dropOutputTable)
+    def tableExistsOperation = input.getOrDefault("ifTableExists", "Overwrite")
+
+    boolean tableExists = JDBCUtilities.tableExists(connection, tableName)
+    if(tableExists && "Overwrite" == tableExistsOperation) {
+        // Drop the table if already exists
+        logger.info("Table already exists drop the table..")
+        String dropOutputTable = "drop table if exists " + tableName
+        stmt.execute(dropOutputTable)
+    } else if(tableExists && "Skip import" == tableExistsOperation) {
+        logger.info("Table already exists skip importing the file")
+        return [outputTable: tableName]
+    } else if(tableExists) {
+        throw new IllegalStateException("Table already exists and user choose to raise an error in this case")
+    }
+
 
     // Get the extension of the file
     String ext = pathFile.substring(pathFile.lastIndexOf('.') + 1, pathFile.length()).toLowerCase()
@@ -214,6 +237,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     if (spatialFieldNames.isEmpty()) {
         logger.warn("The table " + tableName + " does not contain a geometry field.")
     } else {
+        logger.info("Creating spatial index on $tableName..")
         stmt.execute('CREATE SPATIAL INDEX IF NOT EXISTS ' + tableName + '_INDEX ON ' + tableName + '(the_geom);')
 
         // Get the SRID of the table

@@ -19,7 +19,7 @@ public class ExecutionPlan {
     protected Object outputs;
     protected ScriptMetadata scriptMetadata;
     // If this plan is referenced as an input of another plan,
-    // this is the key of one of this plan outputs that will be used as an input of the parent plan
+    // this is the key of one of these plan outputs that will be used as an input of the parent plan
     protected String chainedOutputKey = "";
 
     /**
@@ -52,14 +52,14 @@ public class ExecutionPlan {
     }
 
     /**
-     * @return the name of the output of the parent plan that will be used as an input of this plan.
+     * @return the name of the output of this plan used as an input of the parent plan
      */
     public String getChainedOutputKey() {
         return chainedOutputKey;
     }
 
     /**
-     * Set the name of the output of the parent plan that will be used as an input of this plan.
+     * Set the name of the output of this plan used as an input of the parent plan.
      * @param chainedOutputKey
      */
     public void setChainedOutputKey(String chainedOutputKey) {
