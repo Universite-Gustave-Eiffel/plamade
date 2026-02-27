@@ -464,7 +464,7 @@ a.brand span {
 }
 #chart-zoom-controls {
     position: absolute;
-    bottom:30px; right: 350px;
+    bottom:10px; right: 10px;
 }
 #sidebar {
     width: 305px;
