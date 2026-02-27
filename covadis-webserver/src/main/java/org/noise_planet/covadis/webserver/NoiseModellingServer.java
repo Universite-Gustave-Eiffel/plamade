@@ -181,7 +181,9 @@ public class NoiseModellingServer {
          * a context attribute for future handlers to access directly.
          */
         Handler decodeHandler = JavalinJWT.createCookieDecodeHandler(provider);
+        Handler headerDecodeHandler = JavalinJWT.createHeaderDecodeHandler(provider);
 
+        app.before(headerDecodeHandler);
         app.before(decodeHandler);
         app.beforeMatched(new Auth(provider, serverDataSource, configuration)::handleAccess);
 
