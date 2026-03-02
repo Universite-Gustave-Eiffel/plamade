@@ -2,7 +2,9 @@ package org.noise_planet.covadis.webserver;
 
 import net.opengis.wps10.ExecuteType;
 import org.apache.commons.math3.stat.inference.TestUtils;
+import org.apache.log4j.PropertyConfigurator;
 import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.webserver.script.ExecutionPlan;
@@ -20,11 +22,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestParseWPSQueries {
+
+    @BeforeAll
+    public static void init() {
+        PropertyConfigurator.configure(
+                Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("log4j.properties")));
+    }
 
     @Test
     public void testDelaunayParse() throws IOException, ParserConfigurationException, SAXException {
@@ -126,7 +135,7 @@ public class TestParseWPSQueries {
             assertInstanceOf(ExecutionPlan.class, executionPlan.getInputs().get("tableName"));
             ExecutionPlan chainedExecutionPlan = (ExecutionPlan) executionPlan.getInputs().get("tableName");
             assertEquals("Import_and_Export:Import_File", chainedExecutionPlan.getScriptMetadata().id);
-            assertEquals("org/noise_planet/covadis/webserver/wpsinput/BUILDINGS_LOW_HEIGHT.geojson", chainedExecutionPlan.getInputs().get("pathFile"));
+            assertEquals("src/test/resources/org/noise_planet/covadis/webserver/wpsinput/BUILDINGS_LOW_HEIGHT.geojson", chainedExecutionPlan.getInputs().get("pathFile"));
             assertEquals("outputTable", chainedExecutionPlan.getChainedOutputKey());
         }
 
