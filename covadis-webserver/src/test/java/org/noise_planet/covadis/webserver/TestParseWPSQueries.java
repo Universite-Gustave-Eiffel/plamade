@@ -141,4 +141,38 @@ public class TestParseWPSQueries {
 
     }
 
+    @Test
+    public void testParseChainedExecuteQuery2() throws IOException, ParserConfigurationException, SAXException {
+        // Build ScriptWrapper
+        Map<String, ScriptMetadata> wrappers = getWrappers();
+        assertNotEquals(0, wrappers.size());
+
+        try(InputStream inputStream = TestParseWPSQueries.class.getResourceAsStream("wps_parse/chainedExecute2.xml")) {
+            assertNotNull(inputStream);
+            ExecutionPlan executionPlan = OwsController.generateExecutionPlanFromWPS(inputStream, wrappers);
+            // Last process
+            assertNotNull(executionPlan);
+            assertEquals("Import_and_Export:Export_Table", executionPlan.getScriptMetadata().id);
+            assertTrue(executionPlan.getInputs().containsKey("tableToExport"));
+            assertInstanceOf(ExecutionPlan.class, executionPlan.getInputs().get("tableToExport"));
+            // Linked previous process
+            ExecutionPlan chainedExecutionPlan = (ExecutionPlan) executionPlan.getInputs().get("tableToExport");
+            assertEquals("Acoustic_Tools:Create_Isosurface", chainedExecutionPlan.getScriptMetadata().id);
+            assertTrue(chainedExecutionPlan.getInputs().containsKey("resultTable"));
+            assertInstanceOf(ExecutionPlan.class, chainedExecutionPlan.getInputs().get("resultTable"));
+            // Linked previous process
+            ExecutionPlan chainedExecutionPlan2 = (ExecutionPlan) chainedExecutionPlan.getInputs().get("resultTable");
+            assertEquals("NoiseModelling:Noise_level_from_source", chainedExecutionPlan2.getScriptMetadata().id);
+            assertTrue(chainedExecutionPlan2.getInputs().containsKey("tableReceivers"));
+            assertInstanceOf(ExecutionPlan.class, chainedExecutionPlan2.getInputs().get("tableReceivers"));
+            // Linked previous process
+            ExecutionPlan chainedExecutionPlan3 = (ExecutionPlan) chainedExecutionPlan2.getInputs().get("tableReceivers");
+            assertEquals("Receivers:Delaunay_Grid", chainedExecutionPlan3.getScriptMetadata().id);
+            assertTrue(chainedExecutionPlan2.getInputs().containsKey("tableBuilding"));
+            assertInstanceOf(ExecutionPlan.class, chainedExecutionPlan2.getInputs().get("tableBuilding"));
+            // Linked previous process
+            ExecutionPlan chainedExecutionPlan4 = (ExecutionPlan) chainedExecutionPlan3.getInputs().get("tableBuilding");
+            assertEquals("Import_and_Export:Import_File", chainedExecutionPlan4.getScriptMetadata().id);
+        }
+    }
 }

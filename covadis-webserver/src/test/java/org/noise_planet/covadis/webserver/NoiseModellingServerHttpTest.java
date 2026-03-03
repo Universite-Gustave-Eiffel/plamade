@@ -385,8 +385,8 @@ class NoiseModellingServerHttpTest {
     @Test
     @Order(5)
     void testPostWPSChainedExecution() throws Exception {
-
         try(InputStream inputStream = TestParseWPSQueries.class.getResourceAsStream("wps_parse/chainedExecute1.xml")) {
+            assertNotNull(inputStream);
             String requestBody = new String(inputStream.readAllBytes());
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()

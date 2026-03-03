@@ -63015,9 +63015,11 @@ wps.ui.prototype.handleLocal = function(value) {
 
 // brute force
 wps.ui.prototype.processAlgorithm = function(processId) {
-  var executed = [];
-  var toExecute = this.getDependsOnAlgorithms(processId);
-  while (executed.length < toExecute.length) {
+  let executed = [];
+  let toExecute = this.getDependsOnAlgorithms(processId);
+  var pushed = true;
+  while (pushed) {
+    pushed = false;
     for (var i=0, ii=toExecute.length; i<ii; ++i) {
       if (executed.indexOf(toExecute[i]) === -1) {
         var canExecute = true;
@@ -63043,6 +63045,7 @@ wps.ui.prototype.processAlgorithm = function(processId) {
             inputs: values
           });
           executed.push(toExecute[i]);
+          pushed = true;
         }
       }
     }
