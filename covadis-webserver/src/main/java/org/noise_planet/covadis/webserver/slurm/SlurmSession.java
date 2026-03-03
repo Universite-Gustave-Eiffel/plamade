@@ -16,6 +16,8 @@ import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.keyprovider.KeyIdentityProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
+import org.apache.sshd.scp.client.ScpClient;
+import org.apache.sshd.scp.client.ScpClientCreator;
 import org.noise_planet.covadis.webserver.utilities.LoggingOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.event.Level;
@@ -153,6 +155,7 @@ public class SlurmSession implements AutoCloseable {
     public ClientSession getSession() {
         return session;
     }
+
 
     /**
      * Executes a command on a remote server using the active SSH client session and captures the output.
