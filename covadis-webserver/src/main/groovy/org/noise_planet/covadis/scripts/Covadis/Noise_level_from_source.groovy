@@ -16,13 +16,11 @@ import org.apache.sshd.scp.client.ScpClientCreator
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
-import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
 import java.nio.file.Files
 import java.sql.Connection
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
 
@@ -281,89 +279,83 @@ outputs = [
  * @return
  */
 def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
-    def nm_url = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
-    def nm_folder = nm_url.substring(nm_url.lastIndexOf('/')+1, nm_url.lastIndexOf('.zip'))
+    def nmUrl = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
+    def nmFolder = nmUrl.substring(nmUrl.lastIndexOf('/') + 1, nmUrl.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
     def logger = LoggerFactory.getLogger(jobIdentifier)
-    // Retrieve SSH credentials from the database
-    // configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path
-    try(Connection connection = dataSource.connection) {
-        Sql sql = Sql.newInstance(connection)
-        def res = sql.firstRow("SELECT * from SLURM_CONFIGURATION where configuration_name = ?",
-                input.configuration_name)
 
-        SlurmConfig slurmConfig = new SlurmConfig()
-        slurmConfig.host = res.host
-        slurmConfig.port = res.port as Integer
-        slurmConfig.sshKeyArmoredString = res.private_key
-        slurmConfig.sshKeyPassword = input.key_password
-        slurmConfig.user = res.user_name
-        slurmConfig.serverKey = res.ssl_key
-        slurmConfig.serverKeyType = res.ssh_key_type
-        slurmConfig.javaBinaryPath = res.java_binary_path
+    try (Connection connection = dataSource.connection) {
+        Sql sql = Sql.newInstance(connection)
+        def res = sql.firstRow("SELECT * FROM SLURM_CONFIGURATION WHERE configuration_name = ?", input.configuration_name)
+
+        SlurmConfig slurmConfig = new SlurmConfig(
+            host: res.host,
+            port: res.port as Integer,
+            sshKeyArmoredString: res.private_key,
+            sshKeyPassword: input.key_password,
+            user: res.user_name,
+            serverKey: res.ssl_key,
+            serverKeyType: res.ssh_key_type,
+            javaBinaryPath: res.java_binary_path
+        )
 
         // Create a logger with the thread name as it contains the Job identifier
         try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
             slurmSession.connect()
-            def outputBytes = new AtomicLong(0)
-            // Check java version
-            def outputs = slurmSession.runCommand(slurmConfig.javaBinaryPath+" --version", true, outputBytes)
-            def matcher = (outputs.first() =~ /\d+/)
-            int mainVersion = matcher[0] as Integer
-            if(mainVersion < 11) {
-                throw new IllegalStateException("Wrong remote java version got $mainVersion expected >= 11")
-            }
-            def javaHome = new File(slurmConfig.javaBinaryPath).parentFile.parent
-            // export java home
-            outputs = slurmSession.runCommand("export JAVA_HOME=${javaHome}", true, outputBytes)
-            // Check if noisemodelling folder is in home
-            if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
-                // Download noisemodelling
-                slurmSession.runCommand("wget ${nm_url}", true, outputBytes)
-                slurmSession.runCommand("unzip -fo ${nm_folder}.zip && rm ${nm_folder}.zip", true, new AtomicLong())
-                // Check if the folder is correctly unzipped
-                if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
-                    throw new IllegalStateException("NoiseModelling folder not found after unzipping")
-                }
-            } else {
-                logger.info("NoiseModelling folder already exists on the remote server, skipping download")
-            }
-            // Export h2 backup of database to temporary file
-            String dateStr = getDateString()
-            def exportDir = Files.createTempDirectory(dateStr).toFile()
-            connection.createStatement().execute("BACKUP TO '${exportDir.absolutePath}/h2database.zip'")
-            // Create remote workspace folder using the date and job identifier
-            def remoteWorkspace = "~/workspace/${dateStr}_${jobIdentifier}"
-            slurmSession.runCommand("mkdir -p ${remoteWorkspace}", true, outputBytes)
-            // Copy the database backup to the remote server
-            ScpClientCreator scpClientCreator = ScpClientCreator.instance()
-            var scpClient = scpClientCreator.createScpClient(slurmSession.getSession())
-            scpClient.upload("${exportDir.absolutePath}/h2database.zip", "${remoteWorkspace}/h2database.zip")
+
+            validateJavaVersion(slurmSession, slurmConfig.javaBinaryPath)
+            setupNoiseModelling(slurmSession, nmUrl, nmFolder)
+
+            def exportDir = exportDatabase(connection)
+            def remoteWorkspace = createRemoteWorkspace(slurmSession, jobIdentifier)
+
+            uploadDatabaseBackup(slurmSession, exportDir, remoteWorkspace)
             exportDir.deleteOnExit()
-            return ["result" : outputs.join('\n')]
+
+            return ["result": "Setup completed"]
         }
     }
 }
-/**
- * Check if a folder exists on the remote server
- * @param slurmSession the SlurmSession to use to run the command
- * @param folder the folder to check
- * @return true if the folder exists, false otherwise
- */
+
+private static void validateJavaVersion(SlurmSession slurmSession, String javaBinaryPath) {
+    def outputs = slurmSession.runCommand("${javaBinaryPath} --version", true)
+    def mainVersion = (outputs.first() =~ /\d+/)[0] as Integer
+    if (mainVersion < 11) throw new IllegalStateException("Java version $mainVersion < 11")
+    slurmSession.runCommand("export JAVA_HOME=${new File(javaBinaryPath).parentFile.parent}", true)
+}
+
+private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl, String nmFolder) {
+    if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
+        slurmSession.runCommand("wget ${nmUrl}", true)
+        slurmSession.runCommand("unzip -fo ${nmFolder}.zip && rm ${nmFolder}.zip", true)
+        if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
+            throw new IllegalStateException("NoiseModelling folder not found after unzipping")
+        }
+    }
+}
+
+private static File exportDatabase(Connection connection) {
+    def exportDir = Files.createTempDirectory(getDateString()).toFile()
+    connection.createStatement().execute("BACKUP TO '${exportDir.absolutePath}/h2database.zip'")
+    return exportDir
+}
+
+private static String createRemoteWorkspace(SlurmSession slurmSession, String jobIdentifier) {
+    def remoteWorkspace = "~/workspace/${getDateString()}_${jobIdentifier}"
+    slurmSession.runCommand("mkdir -p ${remoteWorkspace}", true)
+    return remoteWorkspace
+}
+
+private static void uploadDatabaseBackup(SlurmSession slurmSession, File exportDir, String remoteWorkspace) {
+    def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
+    scpClient.upload("${exportDir.absolutePath}/h2database.zip", "${remoteWorkspace}/h2database.zip")
+}
+
 private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {
-    List<String> outputLines = slurmSession.runCommand(
-            "[ -d $folder ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong())
-    return outputLines.first() == "Exists"
+    slurmSession.runCommand("[ -d $folder ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong()).first() == "Exists"
 }
 
 private static String getDateString() {
     def now = LocalDateTime.now()
-    int year = now.year
-    int month = now.monthValue
-    int day = now.dayOfMonth
-    int hour = now.hour
-    int minute = now.minute
-    def dateStr = "${year}_${month}_${day}.${hour}.${minute}"
-    dateStr
+    "${now.year}_${now.monthValue}_${now.dayOfMonth}.${now.hour}.${now.minute}"
 }
-
