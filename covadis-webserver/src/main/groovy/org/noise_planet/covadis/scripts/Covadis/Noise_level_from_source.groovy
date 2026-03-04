@@ -279,8 +279,8 @@ outputs = [
  * @return
  */
 def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
-    def nmUrl = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
-    def nmFolder = nmUrl.substring(nmUrl.lastIndexOf('/') + 1, nmUrl.lastIndexOf('.zip'))
+    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
+    def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
     def logger = LoggerFactory.getLogger(jobIdentifier)
 
@@ -304,7 +304,7 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
             slurmSession.connect()
 
             validateJavaVersion(slurmSession, slurmConfig.javaBinaryPath)
-            setupNoiseModelling(slurmSession, nmUrl, nmFolder)
+            setupNoiseModelling(slurmSession, noiseModellingDownloadURL, noiseModellingFolder)
 
             def exportDir = exportDatabase(connection)
             def remoteWorkspace = createRemoteWorkspace(slurmSession, jobIdentifier)
