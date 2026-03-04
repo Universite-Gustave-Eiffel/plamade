@@ -39,16 +39,33 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+/**
+ * {@link NoiseModellingServer} is the main class responsible for initializing and running the NoiseModelling web server.
+ * It leverages {@link Javalin}(psi_element://io.javalin.Javalin) to serve static content, manage OGC-compliant Web Processing Service (WPS) operations
+ * through {@link OwsController}(psi_element://org.noise_planet.covadis.webserver.OwsController), and handle user authentication and management
+ * via {@link UserController}(psi_element://org.noise_planet.covadis.webserver.secure.UserController).
+ * <p>
+ * The server provides functionalities such as:
+ * <ul>
+ *     <li>Serving static web resources for the application interface.</li>
+ *     <li>Exposing OGC WPS endpoints for NoiseModelling computations.</li>
+ *     <li>User registration, login, and access control using JWT.</li>
+ *     <li>Job management, including logging and cancellation.</li>
+ *     <li>Dynamic script reloading by watching for changes in a specified script directory.</li>
+ * </ul>
+ * This class also handles server shutdown procedures and integrates with a database for persistent storage
+ * and user management.
+ */
 public class NoiseModellingServer {
     public static final String LOGGING_FILE_NAME = "webserver.log";
-    private final Logger logger = LoggerFactory.getLogger(NoiseModellingServer.class);
-    private Javalin app;
-    private Future<?> scriptWatch;
-    private final OwsController owsController;
-    private final Configuration configuration;
-    private final DataSource serverDataSource;
-    private final JWTProvider<User> provider;
-    private final UserController userController;
+    protected final Logger logger = LoggerFactory.getLogger(NoiseModellingServer.class);
+    protected Javalin app;
+    protected Future<?> scriptWatch;
+    protected final OwsController owsController;
+    protected final Configuration configuration;
+    protected final DataSource serverDataSource;
+    protected final JWTProvider<User> provider;
+    protected final UserController userController;
 
     public NoiseModellingServer(Configuration configuration) throws IOException, SQLException {
         this.configuration = configuration;
@@ -135,6 +152,7 @@ public class NoiseModellingServer {
                 app.stop();
                 // Close all datasource connections
                 owsController.closeDataBaseDataSources();
+                owsController.shutdown();
                 if (serverDataSource instanceof AutoCloseable) {
                     ((AutoCloseable) serverDataSource).close();
                 }
@@ -154,7 +172,7 @@ public class NoiseModellingServer {
      * Configure Javalin routes
      * @param rootPath Base url
      */
-    private void configureApp(String rootPath) {
+    protected void configureApp(String rootPath) {
         JavalinLogger.startupInfo = false; // disable startup info
         app = Javalin.create(config -> {
             config.router.contextPath = rootPath;
@@ -180,31 +198,26 @@ public class NoiseModellingServer {
          * a context attribute for future handlers to access directly.
          */
         Handler decodeHandler = JavalinJWT.createCookieDecodeHandler(provider);
+        Handler headerDecodeHandler = JavalinJWT.createHeaderDecodeHandler(provider);
 
+        app.before(headerDecodeHandler);
         app.before(decodeHandler);
         app.beforeMatched(new Auth(provider, serverDataSource, configuration)::handleAccess);
 
+        installWpsRoutes();
+
+
+        installJobsRoutes();
+        installUserManagementRoutes();
+        installExceptionHandlers();
+    }
+
+    protected void installWpsRoutes() {
         app.get("/builder/ows", owsController::handleGet, Role.RUNNER);
         app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
-        app.get("/job_logs/{job_id}", owsController::jobLogs, Role.RUNNER);
-        app.ws("/job_logs_stream/{job_id}", this::manageLogsWebSocket, Role.RUNNER);
-        app.post("/jobs/delete/{job_id}", owsController::jobDelete, Role.RUNNER);
-        app.post("/jobs/delete_all", owsController::jobDeleteAll, Role.RUNNER);
-        app.post("/jobs/cancel/{job_id}", owsController::jobCancel, Role.RUNNER);
-        app.get("/jobs", owsController::jobList, Role.RUNNER);
-        
+    }
 
-        app.get("/", userController::index, Role.ANYONE);
-        app.get("/login", userController::login, Role.ANYONE);
-        app.post("/do_login", userController::doLogin, Role.ANYONE);
-        app.get("/register/{token}", userController::register, Role.ANYONE);
-        app.post("/do_register/{token}", userController::doRegister, Role.ANYONE);
-        app.get("/users", userController::users, Role.ADMINISTRATOR);
-        app.post("/users", userController::users, Role.ADMINISTRATOR);
-        app.get("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
-        app.post("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
-        app.get("/logout", userController::logout, Role.ANYONE);
-
+    protected void installExceptionHandlers() {
         // Exception rendering Handling
         app.error(HttpStatus.UNAUTHORIZED, ctx -> {
             String message = ctx.attributeMap().getOrDefault("messages", "").toString();
@@ -220,6 +233,28 @@ public class NoiseModellingServer {
                     "redirectUrl", ctx.contextPath().isEmpty() ? "/" : ctx.contextPath(),
                     "message", "This page does not exists, redirecting to home.."));
         });
+    }
+
+    protected void installJobsRoutes() {
+        app.get("/job_logs/{job_id}", owsController::jobLogs, Role.RUNNER);
+        app.ws("/job_logs_stream/{job_id}", this::manageLogsWebSocket, Role.RUNNER);
+        app.post("/jobs/delete/{job_id}", owsController::jobDelete, Role.RUNNER);
+        app.post("/jobs/delete_all", owsController::jobDeleteAll, Role.RUNNER);
+        app.post("/jobs/cancel/{job_id}", owsController::jobCancel, Role.RUNNER);
+        app.get("/jobs", owsController::jobList, Role.RUNNER);
+    }
+
+    protected void installUserManagementRoutes() {
+        app.get("/", userController::index, Role.ANYONE);
+        app.get("/login", userController::login, Role.ANYONE);
+        app.post("/do_login", userController::doLogin, Role.ANYONE);
+        app.get("/register/{token}", userController::register, Role.ANYONE);
+        app.post("/do_register/{token}", userController::doRegister, Role.ANYONE);
+        app.get("/users", userController::users, Role.ADMINISTRATOR);
+        app.post("/users", userController::users, Role.ADMINISTRATOR);
+        app.get("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
+        app.post("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
+        app.get("/logout", userController::logout, Role.ANYONE);
     }
 
     /**
@@ -246,13 +281,13 @@ public class NoiseModellingServer {
      * @param owsController the instance responsible for reloading scripts when a `.groovy` file is changed.
      * @return a Future representing the asynchronous script reload operation.
      */
-    private Future<Boolean> startWatcher(Path scriptsDir, OwsController owsController) {
+    protected Future<Boolean> startWatcher(Path scriptsDir, OwsController owsController) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Callable<Boolean> task = new ScriptFileWatchedProcess(scriptsDir, owsController);
         return executor.submit(task);
     }
 
-    private void manageLogsWebSocket(WsConfig ws) {
+    protected void manageLogsWebSocket(WsConfig ws) {
         ws.onConnect(owsController::jobLogsStreamOnConnect);
         ws.onClose(owsController::jobLogsStreamOnClose);
     }

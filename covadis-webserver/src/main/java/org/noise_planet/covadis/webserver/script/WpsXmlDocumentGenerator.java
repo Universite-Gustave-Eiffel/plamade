@@ -92,12 +92,26 @@ public class WpsXmlDocumentGenerator {
         LiteralInputType literalInputType = wpsf.createLiteralInputType();
         input.setLiteralData(literalInputType);
         if (scriptInput.type.equals(Boolean.class)) {
+            // Special handling for boolean input
             literalInputType.setDataType(domainMetadataType("xs:boolean"));
             literalInputType.setAllowedValues(owsf.createAllowedValuesType());
             literalInputType.getAllowedValues().getValue().add(valueType("true"));
             literalInputType.getAllowedValues().getValue().add(valueType("false"));
         } else {
-            literalInputType.setDataType(domainMetadataType(javaClassToXsdType.getOrDefault(scriptInput.type, "xs:string")));
+            // Set default value
+            if(scriptInput.defaultValue != null) {
+                literalInputType.setDefaultValue(scriptInput.defaultValue);
+            }
+            // Generate allowed values
+            if(!scriptInput.allowedValues.isEmpty()) {
+                literalInputType.setAllowedValues(owsf.createAllowedValuesType());
+                for (String allowedValue : scriptInput.allowedValues) {
+                    literalInputType.getAllowedValues().getValue().add(valueType(allowedValue));
+                }
+            } else {
+                // If there is restricted values we must not set the data type
+                literalInputType.setDataType(domainMetadataType(javaClassToXsdType.getOrDefault(scriptInput.type, "xs:string")));
+            }
         }
     }
 
@@ -174,7 +188,7 @@ public class WpsXmlDocumentGenerator {
      * @param scripts the list of available ScriptWrapper instances
      * @return XML string for WPS GetCapabilities
      */
-    public static String generateCapabilitiesXML(List<ScriptMetadata> scripts) throws IOException {
+    public static String generateCapabilitiesXML(Map<String, ScriptMetadata> scripts) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
         WPSCapabilitiesType capabilities = wpsf.createWPSCapabilitiesType();
@@ -193,7 +207,7 @@ public class WpsXmlDocumentGenerator {
         ProcessOfferingsType processOfferings = wpsf.createProcessOfferingsType();
         capabilities.setProcessOfferings(processOfferings);
 
-        for (ScriptMetadata script : scripts) {
+        for (ScriptMetadata script : scripts.values()) {
             ProcessBriefType process = wpsf.createProcessBriefType();
             process.setProcessVersion("1.0.0");
             process.setIdentifier(codetype(script.id));

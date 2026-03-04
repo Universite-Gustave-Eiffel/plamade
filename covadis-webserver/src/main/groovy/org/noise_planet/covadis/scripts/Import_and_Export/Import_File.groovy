@@ -18,10 +18,7 @@
 package org.noise_planet.covadis.scripts.Import_and_Export
 
 
-
 import org.apache.commons.io.FilenameUtils
-
-import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.functions.io.csv.CSVDriverFunction
 import org.h2gis.functions.io.dbf.DBFDriverFunction
@@ -31,8 +28,8 @@ import org.h2gis.functions.io.gpx.GPXDriverFunction
 import org.h2gis.functions.io.osm.OSMDriverFunction
 import org.h2gis.functions.io.shp.SHPDriverFunction
 import org.h2gis.functions.io.tsv.TSVDriverFunction
-import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.GeometryTableUtilities
+import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.dbtypes.DBUtils
 import org.slf4j.Logger
@@ -77,15 +74,25 @@ inputs = [
                              '&#128736; Default value: <b>it will take the name of the file without its extension</b> (special characters will be removed and whitespaces will be replace by an underscore.',
                 min        : 0, max: 1,
                 type       : String.class
+        ],
+        ifTableExists: [
+                name         : 'Table exists operation',
+                title        : 'Table exists operation',
+                description  : '<p>What to do if a table with the same name already exists ?</p>' +
+                        '<p>&#128736; Default value: Overwrite</p>',
+                min          : 0, max: 1,
+                allowedValues: ["Overwrite", "Skip import", "Raise error"],
+                default      : "Overwrite",
+                type         : String.class
         ]
 ]
 
 outputs = [
-        result: [
-                name       : 'Result output string',
-                title      : 'Result output string',
-                description: 'This type of result does not allow the blocks to be linked together.',
-                type       : String.class
+        outputTable: [
+                name: 'Name of the created table',
+                title: 'Name of the created table',
+                description: 'Name of the created table',
+                type: String.class
         ]
 ]
 
@@ -148,9 +155,21 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     // Create a connection statement to interact with the database in SQL
     Statement stmt = connection.createStatement()
 
-    // Drop the table if already exists
-    String dropOutputTable = "drop table if exists " + tableName
-    stmt.execute(dropOutputTable)
+    def tableExistsOperation = input.getOrDefault("ifTableExists", "Overwrite")
+
+    boolean tableExists = JDBCUtilities.tableExists(connection, tableName)
+    if(tableExists && "Overwrite" == tableExistsOperation) {
+        // Drop the table if already exists
+        logger.info("Table already exists drop the table..")
+        String dropOutputTable = "drop table if exists " + tableName
+        stmt.execute(dropOutputTable)
+    } else if(tableExists && "Skip import" == tableExistsOperation) {
+        logger.info("Table already exists skip importing the file")
+        return [outputTable: tableName]
+    } else if(tableExists) {
+        throw new IllegalStateException("Table already exists and user choose to raise an error in this case")
+    }
+
 
     // Get the extension of the file
     String ext = pathFile.substring(pathFile.lastIndexOf('.') + 1, pathFile.length()).toLowerCase()
@@ -214,6 +233,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     if (spatialFieldNames.isEmpty()) {
         logger.warn("The table " + tableName + " does not contain a geometry field.")
     } else {
+        logger.info("Creating spatial index on $tableName..")
         stmt.execute('CREATE SPATIAL INDEX IF NOT EXISTS ' + tableName + '_INDEX ON ' + tableName + '(the_geom);')
 
         // Get the SRID of the table
@@ -244,15 +264,15 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     int pkUserIndex = JDBCUtilities.getFieldIndex(rs.getMetaData(), "PK")
     int pkIndex = JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse(tableName))
 
-    resultString = "The table " + tableName + " has been uploaded to database!"
+    resultString = "The table " + tableName + " has been uploaded to the database!"
 
     if (pkIndex == 0) { // no primary key in the table
         if (pkUserIndex > 0) { // there is a field with name PK
             try {
                 stmt.execute("ALTER TABLE " + tableName + " ALTER COLUMN PK INT NOT NULL;")
                 stmt.execute("ALTER TABLE " + tableName + " ADD PRIMARY KEY (PK);  ")
-                resultString = resultString + String.format(tableName + " has a new primary key constraint on PK")
-                logger.info(String.format(tableName + " has a new primary key constraint on PK"))
+                resultString += String.format(" $tableName has a new primary key constraint on the field named PK")
+                logger.info(String.format("$tableName has a new primary key constraint on PK"))
             } catch (SQLException ex) {
                 logger.info("Could not set PK as a primary key", ex)
             }
@@ -263,8 +283,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     logger.info(resultString)
     logger.info('End : Import File')
 
-    // print to WPS Builder
-    return resultString
+    // Output the name of the output table
+    return [outputTable: tableName]
 
 }
 

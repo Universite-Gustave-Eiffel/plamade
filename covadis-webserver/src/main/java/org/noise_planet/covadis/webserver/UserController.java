@@ -169,7 +169,7 @@ public class UserController {
     }
 
 
-    private static String createQRCodeImage(URI totpUri) throws IOException {
+    public static String createQRCodeImage(URI totpUri) throws IOException {
         try {
             BitMatrix bitMatrix = new QRCodeWriter().encode(totpUri.toString(), BarcodeFormat.QR_CODE, 200, 200);
             BufferedImage image = MatrixToImageWriter.toBufferedImage(bitMatrix);
@@ -187,7 +187,7 @@ public class UserController {
      * @param totpSecret totpSecret string (multiple of 4
      * @return formated totpSecret
      */
-    private static String formatTotpSecret(String totpSecret) {
+    public static String formatTotpSecret(String totpSecret) {
         StringBuilder formatted = new StringBuilder();
         for (int i = 0; i < totpSecret.length(); i += 4) {
             formatted.append(totpSecret, i, Math.min(i + 4, totpSecret.length()));
@@ -198,7 +198,7 @@ public class UserController {
         return formatted.toString();
     }
 
-    private List<String> readMessagesArg(Context ctx) {
+    public List<String> readMessagesArg(Context ctx) {
         String message = ctx.attributeMap().getOrDefault("messages", "").toString();
         if(message.isEmpty()) {
             return Collections.emptyList();
@@ -375,7 +375,7 @@ public class UserController {
      * @return A File instance representing the user's database file.
      */
     @NotNull
-    private File getDatabaseFile(User user) {
+    public File getDatabaseFile(User user) {
         return new File(configuration.workingDirectory,
                 OwsController.getUserDatabaseName(user.getIdentifier()) + ".mv.db");
     }

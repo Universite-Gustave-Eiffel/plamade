@@ -19,7 +19,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.JobStates;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.net.http.*;
 import java.net.URI;
@@ -88,7 +90,7 @@ class NoiseModellingServerHttpTest {
     @BeforeAll
     public static void setUp(@TempDir Path temporaryDirectory) throws IOException, SQLException {
         PropertyConfigurator.configure(
-                Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("test/log4j.properties")));
+                Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("log4j.properties")));
         Configuration configuration = new Configuration(true);
         configuration.setWorkingDirectory(temporaryDirectory.toString());
         app = new NoiseModellingServer(configuration);
@@ -376,6 +378,34 @@ class NoiseModellingServerHttpTest {
                     assertEquals("local", rs.getString("configuration_name"));
                 }
             }
+        }
+    }
+
+
+    @Test
+    @Order(5)
+    void testPostWPSChainedExecution() throws Exception {
+        try(InputStream inputStream = TestParseWPSQueries.class.getResourceAsStream("wps_parse/chainedExecute1.xml")) {
+            assertNotNull(inputStream);
+            String requestBody = new String(inputStream.readAllBytes());
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .header("Content-Type", "text/xml")
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, response.statusCode());
+            // Check if BUILDINGS_LOW_HEIGHT table exists
+            try(Connection connection = app.getUserDataSource(1).getConnection()) {
+                try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM BUILDINGS_LOW_HEIGHT")) {
+                    try(ResultSet rs = preparedStatement.executeQuery()) {
+                        assertTrue(rs.next());
+                    }
+                }
+            }
+            // Check if the content of the buildings_low_height table is printed as html in response body
+            assertTrue(response.body().contains("The total number of rows is 9"));
         }
     }
 }

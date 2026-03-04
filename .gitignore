@@ -16,4 +16,5 @@ out/
 application.log
 target/
 .DS_Store
+.proxyai
 

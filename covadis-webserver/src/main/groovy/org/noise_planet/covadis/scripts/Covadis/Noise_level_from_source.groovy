@@ -12,6 +12,7 @@
 package org.noise_planet.covadis.scripts.Covadis
 
 import groovy.sql.Sql
+import org.apache.sshd.scp.client.ScpClientCreator
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
@@ -19,7 +20,10 @@ import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVis
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
+import java.nio.file.Files
 import java.sql.Connection
+import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
 
 title = 'Write HPC settings'
@@ -277,7 +281,10 @@ outputs = [
  * @return
  */
 def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
-
+    def nm_url = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
+    def nm_folder = nm_url.substring(nm_url.lastIndexOf('/')+1, nm_url.lastIndexOf('.zip'))
+    String jobIdentifier = Thread.currentThread().name
+    def logger = LoggerFactory.getLogger(jobIdentifier)
     // Retrieve SSH credentials from the database
     // configuration_name, host, port, ssl_key, ssh_key_type, user, key, java_binary_path
     try(Connection connection = dataSource.connection) {
@@ -296,12 +303,67 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
         slurmConfig.javaBinaryPath = res.java_binary_path
 
         // Create a logger with the thread name as it contains the Job identifier
-        try(SlurmSession slurmSession = new SlurmSession(slurmConfig, LoggerFactory.getLogger(Thread.currentThread().name))) {
+        try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
             slurmSession.connect()
             def outputBytes = new AtomicLong(0)
-            def outputs = slurmSession.runCommand(slurmConfig.javaBinaryPath+" -v", true, outputBytes)
+            // Check java version
+            def outputs = slurmSession.runCommand(slurmConfig.javaBinaryPath+" --version", true, outputBytes)
+            def matcher = (outputs.first() =~ /\d+/)
+            int mainVersion = matcher[0].toInteger()
+            if(mainVersion < 11) {
+                throw new IllegalStateException("Wrong remote java version got $mainVersion expected >= 11")
+            }
+            def javaHome = new File(slurmConfig.javaBinaryPath).parentFile.parent
+            // export java home
+            outputs = slurmSession.runCommand("export JAVA_HOME=${javaHome}", true, outputBytes)
+            // Check if noisemodelling folder is in home
+            if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
+                // Download noisemodelling
+                slurmSession.runCommand("wget ${nm_url}", true, outputBytes)
+                slurmSession.runCommand("unzip ${nm_folder}.zip", true, new AtomicLong())
+                // Check if the folder is correctly unzipped
+                if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
+                    throw new IllegalStateException("NoiseModelling folder not found after unzipping")
+                }
+            } else {
+                logger.info("NoiseModelling folder already exists on the remote server, skipping download")
+            }
+            // Export h2 backup of database to temporary file
+            String dateStr = getDateString()
+            def exportDir = Files.createTempDirectory(dateStr).toFile()
+            connection.createStatement().execute("BACKUP TO '${exportDir.absolutePath}/h2database.zip'")
+            // Create remote workspace folder using the date and job identifier
+            def remoteWorkspace = "~/workspace/${dateStr}_${jobIdentifier}"
+            slurmSession.runCommand("mkdir -p ${remoteWorkspace}", true, outputBytes)
+            // Copy the database backup to the remote server
+            ScpClientCreator scpClientCreator = ScpClientCreator.instance()
+            var scpClient = scpClientCreator.createScpClient(slurmSession.getSession())
+            scpClient.upload("${exportDir.absolutePath}/h2database.zip", "${remoteWorkspace}/h2database.zip")
+            exportDir.deleteOnExit()
             return ["result" : outputs.join('\n')]
         }
     }
+}
+/**
+ * Check if a folder exists on the remote server
+ * @param slurmSession the SlurmSession to use to run the command
+ * @param folder the folder to check
+ * @return true if the folder exists, false otherwise
+ */
+private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {
+    List<String> outputLines = slurmSession.runCommand(
+            "[ -d \"$folder\" ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong())
+    return outputLines.first() == "Exists"
+}
+
+private static String getDateString() {
+    def now = LocalDateTime.now()
+    int year = now.year
+    int month = now.monthValue
+    int day = now.dayOfMonth
+    int hour = now.hour
+    int minute = now.minute
+    def dateStr = "${year}_${month}_${day}.${hour}.${minute}"
+    dateStr
 }
 

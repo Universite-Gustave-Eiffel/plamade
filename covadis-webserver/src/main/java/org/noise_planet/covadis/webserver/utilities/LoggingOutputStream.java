@@ -21,9 +21,9 @@ import org.slf4j.event.Level;
  * Redirects output to a logger.
  */
 public class LoggingOutputStream extends OutputStream {
-    private final Logger logger;
-    private final Level level;
-    private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    protected final Logger logger;
+    protected final Level level;
+    protected final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 
     public LoggingOutputStream(Logger logger, Level level) {
         this.logger = logger;
@@ -41,7 +41,7 @@ public class LoggingOutputStream extends OutputStream {
         }
     }
 
-    private void flushBuffer() {
+    protected void flushBuffer() {
         if (buffer.size() > 0) {
             // Convert the captured bytes to a UTF-8 String
             String message = buffer.toString(StandardCharsets.UTF_8);

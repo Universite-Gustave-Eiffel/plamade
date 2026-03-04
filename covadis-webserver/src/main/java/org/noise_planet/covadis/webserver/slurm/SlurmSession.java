@@ -16,9 +16,10 @@ import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.keyprovider.KeyIdentityProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
+import org.apache.sshd.scp.client.ScpClient;
+import org.apache.sshd.scp.client.ScpClientCreator;
 import org.noise_planet.covadis.webserver.utilities.LoggingOutputStream;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
 import java.io.*;
@@ -50,15 +51,15 @@ public class SlurmSession implements AutoCloseable {
             new SlurmJobKnownStatus("TIMEOUT", true, true) // Job timeout (will not be restarted)
     };
 
-    private static final int SFTP_TIMEOUT = 60000;
-    private static final int POLL_SLURM_STATUS_TIME = 40000;
+    public static final int SFTP_TIMEOUT = 60000;
+    public static final int POLL_SLURM_STATUS_TIME = 40000;
 
-    private static final String BATCH_FILE_NAME = "noisemodelling_batch.sh";
-    private int oldFinishedJobs = 0;
-    private Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
-    private final SlurmConfig slurmConfig;
-    private SshClient client;
-    private ClientSession session;
+    public static final String DEFAULT_BATCH_FILE_NAME = "noisemodelling_batch.sh";
+    protected int oldFinishedJobs = 0;
+    protected Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
+    protected final SlurmConfig slurmConfig;
+    protected SshClient client;
+    protected ClientSession session;
     private final Logger logger;
 
     public SlurmSession(SlurmConfig slurmConfig, Logger logger) {
@@ -67,6 +68,9 @@ public class SlurmSession implements AutoCloseable {
         // Loop check for job status
         for(SlurmJobKnownStatus s : SLURM_JOB_KNOWN_STATUSES) {
             slurmStateMap.put(s.status, s);
+        }
+        if (!SecurityUtils.isBouncyCastleRegistered()) {
+            throw new IllegalStateException("BouncyCastle is required for Ed25519 support but not registered!");
         }
     }
 
@@ -151,6 +155,7 @@ public class SlurmSession implements AutoCloseable {
     public ClientSession getSession() {
         return session;
     }
+
 
     /**
      * Executes a command on a remote server using the active SSH client session and captures the output.

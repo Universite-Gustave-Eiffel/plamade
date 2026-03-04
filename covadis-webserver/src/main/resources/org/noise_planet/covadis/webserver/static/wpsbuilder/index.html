@@ -67,24 +67,30 @@
       <div id="workspace">
         <ul id="workspace-tabs" class="red-ui-tabs">
           <li class="red-ui-tab active" style="width: 100px"><a href="#chart"
-              class="red-ui-tab-label" title="Builder">Builder</a></li>
+                                                                class="red-ui-tab-label" title="Builder">Builder</a>
+          </li>
           <li class="red-ui-tab" style="width: 100px"><a href="#tab-xml" class="red-ui-tab-label"
-              title="XML">XML</a></li>
+                                                         title="Python">Python</a></li>
         </ul>
         <div id="workspace-add-tab"><span id="btn-workspace-add-tab"></span></div>
         <div id="workspace-content">
-          <div id="chart" class="ui-droppable"></div>
-          <div id="tab-xml" style="display:none"><pre><code class="xml"></code></pre></div>
-        </div>
-      </div>
-      <div id="chart-zoom-controls">
-        <div class="btn-group">
-          <a class="btn btn-mini" title="Zoom out" id="btn-zoom-out" href="#"><i class="glyphicon glyphicon-zoom-out"
-            ></i></a>
-          <a class="btn btn-mini" title="Reset zoom" id="btn-zoom-zero" href="#"><i class="glyphicon glyphicon-th"
-            ></i></a>
-          <a class="btn btn-mini" title="Zoom in" id="btn-zoom-in" href="#"><i class="glyphicon glyphicon-zoom-in"
-            ></i></a>
+          <div id="chart" class="ui-droppable">
+            <div id="chart-zoom-controls">
+              <div class="btn-group">
+                <a class="btn btn-mini" title="Zoom out" id="btn-zoom-out" href="#"><i
+                        class="glyphicon glyphicon-zoom-out"
+                ></i></a>
+                <a class="btn btn-mini" title="Reset zoom" id="btn-zoom-zero" href="#"><i class="glyphicon glyphicon-th"
+                ></i></a>
+                <a class="btn btn-mini" title="Zoom in" id="btn-zoom-in" href="#"><i class="glyphicon glyphicon-zoom-in"
+                ></i></a>
+              </div>
+            </div>
+          </div>
+          <div id="tab-xml" style="display:none">
+            <pre><code class="python">A Python code will be generated here after the run of your first Process</code></pre>
+            <button onclick="copyToClipboard()">Copy Code</button>
+          </div>
         </div>
       </div>
       <div id="sidebar">
@@ -107,6 +113,13 @@
     <script src="vendor/ol.js"></script>
     <script src="dist/wps-gui.js"></script>
     <script>
+
+      async function copyToClipboard() {
+        // Get the text content from the pre/code block
+        var codeElement = document.querySelector('#tab-xml pre code');
+        var codeText = codeElement.textContent;
+        await navigator.clipboard.writeText(codeText);
+      }
         var url = 'ows';
         var wpsclient = new wps.client({
           servers: {

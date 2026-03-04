@@ -18,9 +18,7 @@ import io.javalin.websocket.WsContext;
 import net.opengis.ows11.ExceptionReportType;
 import net.opengis.ows11.ExceptionType;
 import net.opengis.ows11.Ows11Factory;
-import net.opengis.wps10.ExecuteType;
-import net.opengis.wps10.ProcessFailedType;
-import net.opengis.wps10.Wps10Factory;
+import net.opengis.wps10.*;
 import org.apache.log4j.*;
 import org.apache.log4j.spi.Filter;
 import org.apache.log4j.spi.LoggingEvent;
@@ -93,7 +91,7 @@ public class OwsController {
      * handling WPS operations by mapping process identifiers to their corresponding
      * Groovy script implementations.
      */
-    List<ScriptMetadata> wpsScripts;
+    Map<String, ScriptMetadata> wpsScripts;
 
     /**
      * An instance of WpsScriptWrapper used to manage the execution of WPS (Web Processing Service) scripts.
@@ -208,7 +206,7 @@ public class OwsController {
      *            query parameters, response handling, and the ability to set
      *            content type and status codes
      */
-    private void handleWPSGet(Context ctx) throws IOException {
+    protected void handleWPSGet(Context ctx) throws IOException {
         String request = ctx.queryParam("request");
         ctx.contentType("text/xml; charset=UTF-8");
 
@@ -222,12 +220,10 @@ public class OwsController {
                 return;
             }
 
-            Optional<ScriptMetadata> target = wpsScripts.stream()
-                    .filter(w -> w.id.equals(identifier))
-                    .findFirst();
+            ScriptMetadata target = wpsScripts.get(identifier);
 
-            if (target.isPresent()) {
-                ctx.result(wpsXmlDocumentGenerator.generateDescribeProcessXML(target.get()));
+            if (target != null) {
+                ctx.result(wpsXmlDocumentGenerator.generateDescribeProcessXML(target));
             } else {
                 ctx.status(404).result("<ows:Exception>Process not found: " + identifier + "</ows:Exception>");
             }
@@ -247,7 +243,7 @@ public class OwsController {
      *            request and response handling, and allowing for status and body configuration
      * @throws Exception if an error occurs while reading or responding with the requested resource
      */
-    private void handleWFSGet(Context ctx) throws Exception {
+    protected void handleWFSGet(Context ctx) throws Exception {
         String request = ctx.queryParam("request");
         if ("GetCapabilities".equalsIgnoreCase(request)) {
             try (InputStream xmlStream = getClass().getResourceAsStream("static/xmlFiles/wfs.xml")){
@@ -272,7 +268,7 @@ public class OwsController {
      * @throws Exception if an I/O error occurs while attempting to read the WCS capabilities
      *                   XML file or while processing the request
      */
-    private void handleWCSGet(Context ctx) throws Exception {
+    protected void handleWCSGet(Context ctx) throws Exception {
         String request = ctx.queryParam("request");
         if ("GetCapabilities".equalsIgnoreCase(request)) {
             try (InputStream xmlStream = getClass().getResourceAsStream("static/xmlFiles/wcs.xml")) {
@@ -315,6 +311,103 @@ public class OwsController {
     }
 
     /**
+     * Parse the XML of the query to generate the execution plan
+     * @param wpsXmlBody XML of the query
+     * @return Execution plan
+     * @throws IOException if an I/O error occurs while reading the XML
+     * @throws ParserConfigurationException if a configuration error occurs while parsing the XML
+     * @throws SAXException if a SAX error occurs while parsing the XML
+     */
+    public static ExecutionPlan generateExecutionPlanFromWPS(InputStream wpsXmlBody, Map<String, ScriptMetadata> wpsScripts)
+            throws IOException, ParserConfigurationException, SAXException {
+        ExecuteType execute = parseExecuteRequest(wpsXmlBody);
+        if(execute == null) {
+            throw new IOException("Invalid WPS request");
+        }
+        return extractExecuteQuery(execute, wpsScripts);
+    }
+
+    /**
+     * Extracts input data from the provided {@code ExecuteType} object and returns the execution plan.
+     * It processes the data inputs defined in the {@code ExecuteType}
+     * object to construct this mapping.
+     *
+     * @param execute the {@code ExecuteType} object that contains the data inputs to extract.
+     * @param wpsScripts the map of WPS scripts to their metadata.
+     * @return The execution plan requested by the query
+     */
+    public static ExecutionPlan extractExecuteQuery(ExecuteType execute, Map<String, ScriptMetadata> wpsScripts) throws IOException {
+        String processId = execute.getIdentifier().getValue();
+
+        // Fetch the script name to execute
+        ScriptMetadata scriptMetadata = wpsScripts.get(processId);
+
+        if (scriptMetadata == null) {
+            throw new IOException("Process name not found: " + processId);
+        }
+
+        DataInputsType1 dataInputs = execute.getDataInputs();
+        Map<String, Object> queryInputs = new HashMap<>();
+        if (dataInputs != null && dataInputs.getInput() != null) {
+            for (Object inputObj : dataInputs.getInput()) {
+                if (inputObj instanceof InputType) {
+                    InputType input = (InputType) inputObj;
+                    try {
+                        String inputId = input.getIdentifier().getValue();
+                        if(input.getData() != null && input.getData().getLiteralData() != null) {
+                            // Simple literal data type as input
+                            Object inputContent = input.getData().getLiteralData().getValue();
+                            if (scriptMetadata.inputs.containsKey(inputId)) {
+                                ScriptInput scriptInput = scriptMetadata.inputs.get(inputId);
+                                // found expected input, try to cast to expect type if not null
+                                Class<?> expectedInputType = scriptInput.type;
+                                String typeName = expectedInputType.getName();
+                                if (typeName.equals(Long.class.getName())) {
+                                    inputContent = Long.parseLong(input.getData().getLiteralData().getValue());
+                                } else if (typeName.equals(Integer.class.getName())) {
+                                    inputContent = Integer.parseInt(input.getData().getLiteralData().getValue());
+                                } else if (typeName.equals(Float.class.getName())) {
+                                    inputContent = Float.parseFloat(input.getData().getLiteralData().getValue());
+                                } else if (typeName.equals(Double.class.getName())) {
+                                    inputContent = Double.parseDouble(input.getData().getLiteralData().getValue());
+                                } else if (typeName.equals(Boolean.class.getName())) {
+                                    inputContent = Boolean.parseBoolean(input.getData().getLiteralData().getValue());
+                                } else if (typeName.equals(org.locationtech.jts.geom.Geometry.class.getName())) {
+                                    inputContent =
+                                            new org.locationtech.jts.io.WKTReader().read(input.getData().getLiteralData().getValue());
+                                }
+                                queryInputs.put(inputId, inputContent);
+                            } else {
+                                Logger logger = LoggerFactory.getLogger(ExecutionPlan.class);
+                                logger.warn("Input '{}' not found in metadata, ignore this argument", inputId);
+                            }
+                        } else if(input.getReference() != null) {
+                            // Chained Process as input
+                            InputReferenceType reference = input.getReference();
+                            if(reference.getBody() instanceof ExecuteType) {
+                                ExecutionPlan childExecutionPlan =
+                                        extractExecuteQuery((ExecuteType) reference.getBody(), wpsScripts);
+                                queryInputs.put(inputId, childExecutionPlan);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        Logger logger = LoggerFactory.getLogger(ExecutionPlan.class);
+                        logger.info("Warning, ignore input as there was an exception while converting input '{}'", input.getIdentifier().getValue(), ex);
+                    }
+                }
+            }
+        }
+        // Expected output
+        OutputDefinitionType outputDefinitionType = execute.getResponseForm().getRawDataOutput();
+        if(outputDefinitionType != null) {
+            String outputIdentifier = outputDefinitionType.getIdentifier().getValue();
+            if(scriptMetadata.outputs.containsKey(outputIdentifier)) {
+                return new ExecutionPlan(queryInputs, scriptMetadata, outputIdentifier);
+            }
+        }
+        return new ExecutionPlan(queryInputs, scriptMetadata);
+    }
+    /**
      * Handles an HTTP POST request for a Web Processing Service (WPS) operation.
      * This method parses the request body, validates the WPS Execute Request, identifies
      * the target script to execute based on its process identifier, and executes the script.
@@ -328,41 +421,14 @@ public class OwsController {
     public void handleWPSPost(Context ctx) {
         try {
             int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
-            ExecuteType execute = parseExecuteRequest(new ByteArrayInputStream(ctx.bodyAsBytes()));
+            ExecutionPlan executionPlan = generateExecutionPlanFromWPS(new ByteArrayInputStream(ctx.bodyAsBytes()), wpsScripts);
 
-            if (execute == null) {
-                ctx.status(400).result("WPS request not valid");
-                return;
-            }
-
-            String processId = execute.getIdentifier().getValue();
-
-            String[] parts = processId.split(":");
-            if (parts.length != 2) {
-                ctx.status(400).result("Invalid process ID");
-                return;
-            }
-
-            String group = parts[0];
-            String scriptName = parts[1];
-
-            // Fetch the script name to execute
-            Optional<ScriptMetadata> optionalScriptMetadata = wpsScripts.stream()
-                    .filter(sw -> sw.id.equals(group + ":" + scriptName))
-                    .findFirst();
-
-            if (optionalScriptMetadata.isEmpty()) {
-                returnExceptionDocument(ctx, new IllegalArgumentException("Invalid script name: " + scriptName));
-                return;
-            }
-            ScriptMetadata scriptMetadata = optionalScriptMetadata.get();
-            Map<String, Object> inputs = scriptMetadata.extractInputs(execute);
             int jobUserId = userId > 0 ? userId : 1; // user may not be logged in
-            Job<Object> job = new Job<>(jobUserId, scriptMetadata, serverDataSource,
-                    fetchUserDataSource(jobUserId), inputs, configuration);
+            Job<Object> job = new Job<>(jobUserId, executionPlan, serverDataSource,
+                    fetchUserDataSource(jobUserId) , configuration);
             Future<Object> result = jobExecutorService.submitJob(job);
             try {
-                Object jobResult = result.get(scriptMetadata.executionTimeoutSeconds, TimeUnit.SECONDS);
+                Object jobResult = result.get(executionPlan.getScriptMetadata().executionTimeoutSeconds, TimeUnit.SECONDS);
                 processResult(ctx, jobResult);
             } catch (TimeoutException e) {
                 String url = ctx.contextPath() + "/job_logs/" + job.getId();
@@ -389,9 +455,14 @@ public class OwsController {
         }
     }
 
-    private static void processResult(Context context, Object result) {
-        if(result instanceof Map<?, ?> && ((Map<?, ?>) result).containsKey("result")) {
-            processResult(context, ((Map<?, ?>) result).get("result"));
+    /**
+     * Format the WPS output for the rendering of the WPS Builder website
+     * @param context
+     * @param result
+     */
+    public static void processResult(Context context, Object result) {
+        if(result instanceof Map<?, ?> && ((Map<?, ?>) result).size() == 1) {
+            processResult(context, ((Map<?, ?>) result).values().iterator().next());
         } else {
             if(result instanceof Geometry) {
                 // Convert Geometry to WKT then encode it in base64
@@ -400,7 +471,7 @@ public class OwsController {
                 context.contentType("application/octet-stream");
                 context.result(wkt.getBytes());
             } else {
-                context.result(result.toString());
+                context.result(result != null ? result.toString() : "");
             }
         }
     }
@@ -693,5 +764,12 @@ public class OwsController {
                 }
             }
         });
+    }
+
+    /**
+     * Shuts down the server by stopping the job executor service.
+     */
+    public void shutdown() {
+        jobExecutorService.shutdown();
     }
 }

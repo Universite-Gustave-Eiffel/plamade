@@ -61991,7 +61991,11 @@ wps.editor.prototype.showEditForm = function(node) {
       var value = node.value;
       value = (value === undefined) ? '' : value;
       html += '<div class="form-row" id="' + name + '-field">';
-      html += '<textarea id="' + id + '" value="' + value + '" class="form-control input-sm"/></div>';
+      var textarea = document.createElement('textarea');
+      textarea.id = id;
+      textarea.className = 'form-control input-sm';
+      textarea.textContent = value; // Browser automatically escapes this safely
+      html += textarea.outerHTML;
     }
     html += saveButton;
     if (node._info.maxOccurs > 1 && node._info.maxOccurs > node._info.minOccurs) {
@@ -63011,9 +63015,11 @@ wps.ui.prototype.handleLocal = function(value) {
 
 // brute force
 wps.ui.prototype.processAlgorithm = function(processId) {
-  var executed = [];
-  var toExecute = this.getDependsOnAlgorithms(processId);
-  while (executed.length < toExecute.length) {
+  let executed = [];
+  let toExecute = this.getDependsOnAlgorithms(processId);
+  var pushed = true;
+  while (pushed) {
+    pushed = false;
     for (var i=0, ii=toExecute.length; i<ii; ++i) {
       if (executed.indexOf(toExecute[i]) === -1) {
         var canExecute = true;
@@ -63039,6 +63045,7 @@ wps.ui.prototype.processAlgorithm = function(processId) {
             inputs: values
           });
           executed.push(toExecute[i]);
+          pushed = true;
         }
       }
     }
@@ -63165,9 +63172,73 @@ wps.ui.prototype.execute = function(ui) {
 
       recurse(inputs, ui, values);
 
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    };
+    /**
+     * Generates a Python script that performs the WPS POST request
+     * @param {string} xmlPayload - The XML content for the body
+     * @param {string} jwt - The JWT token to be used in the Cookie header
+     * @param targetUrl Post url
+     */
+    var generatePythonScript = function(xmlPayload, jwt, targetUrl) {
+        const referer=window.location.origin+window.location.pathname;
+            // We use a template literal for the Python code.
+            // We escape backticks if necessary, but here we just inject the variables.
+            const pythonCode = `import urllib.request
+import urllib.error
+
+# Variables
+xml_content = """${xmlPayload}"""
+jwt_token = "${jwt}"
+
+def send_request():
+    url = "${targetUrl}"
+    
+    # Encode the XML content to bytes
+    encoded_data = xml_content.encode('utf-8')
+
+    # Define Headers (using the injected JWT)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0",
+        "Accept": "*/*",
+        "Accept-Language": "fr,fr-FR;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Content-Type": "application/xml",
+        "Origin": "${window.location.origin}",
+        "Connection": "keep-alive",
+        "Referer": "${referer}",
+        "Cookie": f"jwt={jwt_token}",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin"
+    }
+
+    req = urllib.request.Request(url, data=encoded_data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req) as response:
+            print(f"Status: {response.getcode()}")
+            print(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        print(f"HTTP Error {e.code}: {e.read().decode('utf-8')}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    send_request()
+`;
+
+        return pythonCode;
+      };
       var prettyXML = function(body) {
         var code = $('#tab-xml pre code').get(0);
-        $(code).html(document.createTextNode(vkbeautify.xml(body, 2)));
+        var prettyXml = vkbeautify.xml(body, 2);
+        const targetUrl = window.location.origin + window.location.pathname.replace(/\/$/, "") + "/ows";
+        var pythonCode = generatePythonScript(prettyXml, getCookie('jwt'), targetUrl)
+        $(code).html(document.createTextNode(pythonCode));
         hljs.highlightBlock(code);
       };
 
