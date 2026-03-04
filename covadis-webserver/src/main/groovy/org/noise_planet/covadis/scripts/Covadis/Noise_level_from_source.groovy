@@ -309,7 +309,7 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
             // Check java version
             def outputs = slurmSession.runCommand(slurmConfig.javaBinaryPath+" --version", true, outputBytes)
             def matcher = (outputs.first() =~ /\d+/)
-            int mainVersion = matcher[0].toInteger()
+            int mainVersion = matcher[0] as Integer
             if(mainVersion < 11) {
                 throw new IllegalStateException("Wrong remote java version got $mainVersion expected >= 11")
             }
@@ -320,7 +320,7 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
             if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
                 // Download noisemodelling
                 slurmSession.runCommand("wget ${nm_url}", true, outputBytes)
-                slurmSession.runCommand("unzip ${nm_folder}.zip", true, new AtomicLong())
+                slurmSession.runCommand("unzip -fo ${nm_folder}.zip && rm ${nm_folder}.zip", true, new AtomicLong())
                 // Check if the folder is correctly unzipped
                 if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
                     throw new IllegalStateException("NoiseModelling folder not found after unzipping")
@@ -352,7 +352,7 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
  */
 private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {
     List<String> outputLines = slurmSession.runCommand(
-            "[ -d \"$folder\" ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong())
+            "[ -d $folder ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong())
     return outputLines.first() == "Exists"
 }
 
