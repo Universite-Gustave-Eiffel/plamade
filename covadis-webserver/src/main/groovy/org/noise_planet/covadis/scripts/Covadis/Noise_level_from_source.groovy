@@ -281,6 +281,8 @@ outputs = [
  * @return
  */
 def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
+    def nm_url = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
+    def nm_folder = nm_url.substring(nm_url.lastIndexOf('/')+1, nm_url.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
     def logger = LoggerFactory.getLogger(jobIdentifier)
     // Retrieve SSH credentials from the database
@@ -315,24 +317,19 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
             // export java home
             outputs = slurmSession.runCommand("export JAVA_HOME=${javaHome}", true, outputBytes)
             // Check if noisemodelling folder is in home
-            List<String> outputLines = slurmSession.runCommand("[ -d \"/path/to/folder\" ] && echo \"Exists\" || echo \"Not found\"", true, outputBytes)
-            if(outputLines.first() == "Not found") {
+            if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
                 // Download noisemodelling
-                def nm_url = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1"
-                def nm_file = nm_url.substring(nm_url.lastIndexOf('/')+1)
-                slurmSession.runCommand("wget ${nm_url}${nm_file}.zip -O ${nm_file}.zip", true, outputBytes)
-                slurmSession.runCommand("unzip ${nm_file}.zip && mv ${nm_file} noisemodelling && rm ${nm_file}.zip", true, outputBytes)
+                slurmSession.runCommand("wget ${nm_url}", true, outputBytes)
+                slurmSession.runCommand("unzip ${nm_folder}.zip", true, new AtomicLong())
+                // Check if the folder is correctly unzipped
+                if(!isRemoteFolderExists(slurmSession, "~/${nm_folder}")) {
+                    throw new IllegalStateException("NoiseModelling folder not found after unzipping")
+                }
             } else {
                 logger.info("NoiseModelling folder already exists on the remote server, skipping download")
             }
             // Export h2 backup of database to temporary file
-            def now = LocalDateTime.now()
-            int year  = now.year
-            int month = now.monthValue
-            int day   = now.dayOfMonth
-            int hour = now.hour
-            int minute = now.minute
-            def dateStr = "${year}_${month}_${day}.${hour}.${minute}"
+            String dateStr = getDateString()
             def exportDir = Files.createTempDirectory(dateStr).toFile()
             connection.createStatement().execute("BACKUP TO '${exportDir.absolutePath}/h2database.zip'")
             // Create remote workspace folder using the date and job identifier
@@ -342,8 +339,31 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
             ScpClientCreator scpClientCreator = ScpClientCreator.instance()
             var scpClient = scpClientCreator.createScpClient(slurmSession.getSession())
             scpClient.upload("${exportDir.absolutePath}/h2database.zip", "${remoteWorkspace}/h2database.zip")
+            exportDir.deleteOnExit()
             return ["result" : outputs.join('\n')]
         }
     }
+}
+/**
+ * Check if a folder exists on the remote server
+ * @param slurmSession the SlurmSession to use to run the command
+ * @param folder the folder to check
+ * @return true if the folder exists, false otherwise
+ */
+private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {
+    List<String> outputLines = slurmSession.runCommand(
+            "[ -d \"$folder\" ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong())
+    return outputLines.first() == "Exists"
+}
+
+private static String getDateString() {
+    def now = LocalDateTime.now()
+    int year = now.year
+    int month = now.monthValue
+    int day = now.dayOfMonth
+    int hour = now.hour
+    int minute = now.minute
+    def dateStr = "${year}_${month}_${day}.${hour}.${minute}"
+    dateStr
 }
 
