@@ -33,4 +33,4 @@ g+MvfN+dOffEdalpEa71QGyu0SQT8MSq9RX7qQjkBLijxcBZVThicY6DVUxT+RUTYjMz7E
 t9UciovHTxjaytvodoAD36bn2ZRg0v8imS9ct7cknp+EU3PpvTPUZUKYGn+ARVpyuYWd/5
 R83Qu+7qV0ztWSNoVQAAABB0ZXN0QGV4YW1wbGUuY29tAQ==
 -----END OPENSSH PRIVATE KEY-----"
-mvn test -B
+mvn compile test -B

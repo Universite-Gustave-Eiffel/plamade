@@ -47,12 +47,14 @@ outputs = [result: [name       : 'Result output string',
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
 
+    Statement statement = connection.createStatement()
+
     /**
      * SLURM_ARRAY_TASK_ID will be set to the job array index value.
      * SLURM_ARRAY_TASK_COUNT will be set to the number of tasks in the job array.
      * SLURM_ARRAY_TASK_MAX will be set to the highest job array index value.
      * SLURM_ARRAY_TASK_MIN will be set to the lowest job array index value.*/
-    String receivers_table_name = Statement.enquoteIdentifier(input['tableReceivers'] as String, false)
+    String receivers_table_name = statement.enquoteIdentifier(input['tableReceivers'] as String, false)
 
     //Get the geometry field of the receiver table
     TableLocation receiverTableIdentifier = TableLocation.parse(receivers_table_name)
