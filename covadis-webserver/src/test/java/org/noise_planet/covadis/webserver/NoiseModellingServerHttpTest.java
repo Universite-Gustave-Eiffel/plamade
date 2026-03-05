@@ -397,6 +397,7 @@ class NoiseModellingServerHttpTest {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             assertEquals(200, response.statusCode());
             // Check if BUILDINGS_LOW_HEIGHT table exists
+
             try(Connection connection = app.getUserDataSource(1).getConnection()) {
                 try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM BUILDINGS_LOW_HEIGHT")) {
                     try(ResultSet rs = preparedStatement.executeQuery()) {

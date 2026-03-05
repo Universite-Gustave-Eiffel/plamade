@@ -31,7 +31,7 @@ public class JDBCTestCase {
     static DataSource createDataSource(String user, String password, boolean debug) throws SQLException {
         HikariConfig config = new HikariConfig();
         boolean pgHostConfigurationDefined = System.getenv().containsKey ("POSTGRES_HOST");
-
+        pgHostConfigurationDefined = false; // We do not use Postgis Database locally
         if(pgHostConfigurationDefined) {
             config.setUsername(System.getenv("POSTGRES_USER"));
             config.setPassword(System.getenv("POSTGRES_PASSWORD"));

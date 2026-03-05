@@ -14,6 +14,8 @@ import groovy.sql.Sql
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
+import org.h2gis.utilities.dbtypes.DBTypes
+import org.h2gis.utilities.dbtypes.DBUtils
 
 import java.sql.Connection
 import java.sql.Statement
@@ -56,11 +58,13 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
      * SLURM_ARRAY_TASK_MIN will be set to the lowest job array index value.*/
     String receivers_table_name = statement.enquoteIdentifier(input['tableReceivers'] as String, false)
 
+    DBTypes dbType = DBUtils.getDBType(connection)
+
     //Get the geometry field of the receiver table
-    TableLocation receiverTableIdentifier = TableLocation.parse(receivers_table_name)
+    TableLocation receiverTableIdentifier = TableLocation.parse(receivers_table_name, dbType)
 
     //Get the primary key field of the receiver table
-    org.h2gis.utilities.Tuple<String, Integer> pkNameAndIndex = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(connection, TableLocation.parse(receivers_table_name))
+    org.h2gis.utilities.Tuple<String, Integer> pkNameAndIndex = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(connection, receiverTableIdentifier)
 
     if (pkNameAndIndex == null) {
         throw new IllegalArgumentException("Receivers table $receiverTableIdentifier does not contain a primary key")
