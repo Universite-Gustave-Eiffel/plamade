@@ -244,6 +244,10 @@
                             <mainClass>org.noise_planet.covadis.webserver.NoiseModellingServer</mainClass>
                             <id>WebServer</id>
                         </program>
+                        <program>
+                            <mainClass>org.noise_planet.covadis.runner.Main</mainClass>
+                            <id>ScriptRunner</id>
+                        </program>
                     </programs>
                     <!-- This ensures all dependencies are included -->
                     <repositoryLayout>flat</repositoryLayout>

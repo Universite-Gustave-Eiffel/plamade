@@ -9,7 +9,7 @@
  * Contact: contact@noise-planet.org
  *
  */
-package org.noise_planet.covadis.scripts.Covadis
+package org.noise_planet.covadis.scripts.Slurm
 
 import groovy.sql.Sql
 import org.apache.sshd.scp.client.ScpClientCreator
@@ -315,6 +315,38 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
             return ["result": "Setup completed"]
         }
     }
+}
+
+public static String generateSlurmBashScript(String javaHome, String noisemodellingPath, Map inputs, String workspacePath) {
+    def script = $/
+    #! /bin/bash
+
+    # run with this command
+    # must be run in the same folder than the database
+    # sbatch --array=0-11 noisemodelling_batch.sh
+
+    echo "copy data and code to local node"
+    rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/data/
+
+    echo "Prepare NoiseModelling run"
+    
+    cd /scratch/job."$$SLURM_JOB_ID"/data/
+    
+    unzip h2database.zip
+    
+    export JAVA_HOME=$javaHome
+
+    bash $noisemodellingPath/bin/wps_scripts -w /scratch/job."$$SLURM_JOB_ID"/data/ -s noisemodelling/wps/NoiseModelling/Noise_level_from_source.groovy || exit 1
+
+    bash $noisemodellingPath/bin/wps_scripts -w /scratch/job."$$SLURM_JOB_ID"/data/ -s noisemodelling/wps/NoiseModelling/Noise_level_from_source.groovy || exit 1
+
+    echo "copy results"
+    mkdir -p ~/results_"$$SLURM_ARRAY_JOB_ID"
+
+    # copy files, ignore missing documents
+    cp /scratch/job."$$SLURM_JOB_ID"/data/RECEIVERS_LEVEL.fgb $workspacePath/results_"$$SLURM_ARRAY_JOB_ID"/ 2>/dev/null || :
+    /$
+    return script
 }
 
 private static void validateJavaVersion(SlurmSession slurmSession, String javaBinaryPath) {

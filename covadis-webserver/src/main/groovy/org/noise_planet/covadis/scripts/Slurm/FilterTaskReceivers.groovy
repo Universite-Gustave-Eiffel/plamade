@@ -8,7 +8,7 @@
  *
  * Contact: contact@noise-planet.org
  **/
-package org.noise_planet.covadis.scripts.Covadis
+package org.noise_planet.covadis.scripts.Slurm
 
 import groovy.sql.Sql
 import org.h2gis.api.ProgressVisitor
@@ -18,8 +18,8 @@ import org.h2gis.utilities.TableLocation
 import java.sql.Connection
 import java.sql.Statement
 
-title = 'Distributed Noise_level_from_source'
-description = 'Using the task identifier, restrict the receiver range to compute the noise levels'
+title = 'Keep only receivers related to the current task identifier'
+description = 'Using the task identifier, restrict to a computed receiver range'
 
 inputs = [taskId        : [name       : 'Task identifier',
                            title      : 'Task identifier',
