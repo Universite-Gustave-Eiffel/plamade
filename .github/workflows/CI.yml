@@ -51,6 +51,12 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Run tests
         run: bash nm-unittest-services/run_ssh_test.sh
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: noisemodelling_db
+          POSTGRES_USER: noisemodelling
+          POSTGRES_PASSWORD: noisemodelling
       - name: Package
         run: mvn package
       - name: Install bsdtar
