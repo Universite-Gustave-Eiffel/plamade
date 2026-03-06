@@ -114,6 +114,26 @@ static String mapToTable(List<Map> list, Sql sql, String tableName, Connection c
 
     Map first = list.first()
 
+    output.append("<style>\n")
+    output.append("table {\n")
+    output.append("    border-collapse: collapse;\n")
+    output.append("    width: 100%;\n")
+    output.append("}\n")
+    output.append("th, td {\n")
+    output.append("    border: 1px solid black;\n")
+    output.append("    padding: 8px;\n")
+    output.append("    text-align: left;\n")
+    output.append("}\n")
+    output.append("th {\n")
+    output.append("    background-color: #f2f2f2;\n")
+    output.append("}\n")
+    output.append("td div {\n")
+    output.append("    max-width: 300px;\n")
+    output.append("    overflow-x: auto;\n")
+    output.append("}\n")
+    output.append("</style>\n")
+
+    output.append("<h2>Table Content</h2>")
     output.append("The total number of rows is " + sql.firstRow('SELECT COUNT(*) FROM ' + tableName)[0])
 
     //get SRID of the table
@@ -140,7 +160,7 @@ static String mapToTable(List<Map> list, Sql sql, String tableName, Connection c
 
 
     output.append("</br> </br> ")
-    output.append("<table  border=' 1px solid black'><thead><tr>")
+    output.append("<table border='1px solid black'><thead><tr>")
 
     first.each { key, val ->
         output.append("<th>${key}</th>")
@@ -150,11 +170,8 @@ static String mapToTable(List<Map> list, Sql sql, String tableName, Connection c
     WKTWriter wktWriter = new WKTWriter(3)
     list.each { map ->
         if (map.size() > 0) {
-
             def values = map.values()
-
             output.append("<tr>")
-
             values.each {
                 def val = it
                 if (it instanceof Geometry) {

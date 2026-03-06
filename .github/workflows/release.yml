@@ -1,0 +1,94 @@
+name: Release (via Pull Request)
+
+on:
+  workflow_dispatch:
+    inputs:
+      releaseVersion:
+        description: 'Release version (e.g., 2.0.0)'
+        required: true
+      developmentVersion:
+        description: 'Next development version (e.g., 2.1.0-SNAPSHOT)'
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write # Needed to create the PR
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Use default GITHUB_TOKEN; it has permission to push to non-protected branches
+          fetch-depth: 0
+
+      - name: Setup java 11
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create Release Branch
+        run: |
+          git checkout -b release/v${{ github.event.inputs.releaseVersion }}
+
+      - name: Prepare Release
+        # -DpushChanges=false ensures Maven doesn't try to push to main automatically
+        run: |
+          mvn -B release:prepare \
+            -DreleaseVersion=${{ github.event.inputs.releaseVersion }} \
+            -DdevelopmentVersion=${{ github.event.inputs.developmentVersion }} \
+            -DpushChanges=false \
+            -Darguments="-DskipTests"
+
+      - name: Push Branch and Tag
+        run: |
+          # Push the commits (Release and Next Snapshot) to the temporary branch
+          git push origin release/v${{ github.event.inputs.releaseVersion }}
+          # Push the tag (Maven creates this locally)
+          git push origin v${{ github.event.inputs.releaseVersion }}
+
+      - name: Create Pull Request to Main
+        run: |
+          gh pr create \
+            --title "Release v${{ github.event.inputs.releaseVersion }}" \
+            --body "This PR updates the version to ${{ github.event.inputs.releaseVersion }} and prepares the next development cycle ${{ github.event.inputs.developmentVersion }}." \
+            --base main \
+            --head release/v${{ github.event.inputs.releaseVersion }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Zip Artifact
+        # Since we are already on the release-ready state locally,
+        # we can just package the webserver
+        run: |
+          # Checkout the release tag to be sure we build the exact release code
+          git checkout v${{ github.event.inputs.releaseVersion }}
+          mvn package -DskipTests
+          
+          mkdir NoiseModellingCovadis
+          sudo apt-get update && sudo apt-get install -y libarchive-tools
+          bsdtar -xvf covadis-webserver/target/*.zip --strip-components=1 -C NoiseModellingCovadis
+          zip -r NoiseModellingCovadis-${{ github.event.inputs.releaseVersion }}.zip NoiseModellingCovadis/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.releaseVersion }}
+          name: Release ${{ github.event.inputs.releaseVersion }}
+          files: NoiseModellingCovadis-${{ github.event.inputs.releaseVersion }}.zip
+          generate_release_notes: true
+

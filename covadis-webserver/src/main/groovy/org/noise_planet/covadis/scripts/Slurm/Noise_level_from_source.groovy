@@ -24,11 +24,8 @@ import java.sql.Connection
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
 
-title = 'Write HPC settings'
-description = 'Create a table that will contain all settings to connect to a Slurm service through SSH'
-
 title = 'Computes the propagation from the sounds sources to the receivers'
-description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table.' +
+description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table on a remote HPC cluster using Slurm for job management.' +
         '<hr>' +
         '&#127757; Tables must be projected in a metric coordinate system (SRID). Use "Change_SRID" WPS Block if needed. </br></br>' +
         '&#x2705; The output table are called: <b> RECEIVERS_LEVEL </b> </br></br>' +
@@ -275,10 +272,10 @@ outputs = [
 /**
  * Main run function
  * @param dataSource
- * @param input
+ * @param inputs
  * @return
  */
-def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
+def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
     def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
     def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
@@ -286,13 +283,13 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
     try (Connection connection = dataSource.connection) {
         Sql sql = Sql.newInstance(connection)
-        def res = sql.firstRow("SELECT * FROM SLURM_CONFIGURATION WHERE configuration_name = ?", input.configuration_name)
+        def res = sql.firstRow("SELECT * FROM SLURM_CONFIGURATION WHERE configuration_name = ?", inputs.configuration_name)
 
         SlurmConfig slurmConfig = new SlurmConfig(
             host: res.host,
             port: res.port as Integer,
             sshKeyArmoredString: res.private_key,
-            sshKeyPassword: input.key_password,
+            sshKeyPassword: inputs.key_password,
             user: res.user_name,
             serverKey: res.ssl_key,
             serverKeyType: res.ssh_key_type,
@@ -307,10 +304,12 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
             setupNoiseModelling(slurmSession, noiseModellingDownloadURL, noiseModellingFolder)
 
             def exportDir = exportDatabase(connection)
-            def remoteWorkspace = createRemoteWorkspace(slurmSession, jobIdentifier)
+            String remoteWorkspace = createRemoteWorkspace(slurmSession, jobIdentifier)
 
             uploadDatabaseBackup(slurmSession, exportDir, remoteWorkspace)
             exportDir.deleteOnExit()
+
+            def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, noiseModellingFolder, inputs, remoteWorkspace)
 
             return ["result": "Setup completed"]
         }
@@ -318,6 +317,22 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 }
 
 public static String generateSlurmBashScript(String javaHome, String noisemodellingPath, Map inputs, String workspacePath) {
+
+    String tableReceivers = inputs['tableReceivers']
+
+    // remove specific keys of this WPS process
+    Map<String, Object> inputsCopy = new HashMap<>(inputs)
+    inputsCopy.remove("key_password")
+    inputsCopy.remove("configuration_name")
+
+    // build arguments string for the local Noise_level_from_source.groovy script
+    StringBuilder arguments = new StringBuilder()
+    for(Map.Entry<String, Object> entry : inputsCopy.entrySet()) {
+        arguments.append("--").append(entry.key).append(" ")
+        arguments.append(entry.value).append(" ")
+    }
+
+
     def script = $/
     #! /bin/bash
 
@@ -325,7 +340,7 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
     # must be run in the same folder than the database
     # sbatch --array=0-11 noisemodelling_batch.sh
 
-    echo "copy data and code to local node"
+    echo "copy data and code to local node storage"
     rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/data/
 
     echo "Prepare NoiseModelling run"
@@ -336,15 +351,14 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
     
     export JAVA_HOME=$javaHome
 
-    bash $noisemodellingPath/bin/wps_scripts -w /scratch/job."$$SLURM_JOB_ID"/data/ -s noisemodelling/wps/NoiseModelling/Noise_level_from_source.groovy || exit 1
+    echo "Filter receivers"
+    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/wps/Slurm/FilterTaskReceivers.groovy --taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --tableReceivers $tableReceivers || exit 1
 
-    bash $noisemodellingPath/bin/wps_scripts -w /scratch/job."$$SLURM_JOB_ID"/data/ -s noisemodelling/wps/NoiseModelling/Noise_level_from_source.groovy || exit 1
-
-    echo "copy results"
-    mkdir -p ~/results_"$$SLURM_ARRAY_JOB_ID"
-
-    # copy files, ignore missing documents
-    cp /scratch/job."$$SLURM_JOB_ID"/data/RECEIVERS_LEVEL.fgb $workspacePath/results_"$$SLURM_ARRAY_JOB_ID"/ 2>/dev/null || :
+    echo "Run propagation"
+    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
+    
+    echo "Export results"
+    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy --exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".fgb --tableToExport RECEIVERS_LEVEL || exit 1
     /$
     return script
 }
