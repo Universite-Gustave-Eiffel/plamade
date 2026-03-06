@@ -276,7 +276,7 @@ outputs = [
  * @return
  */
 def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
-    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
+    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_03_06/NoiseModellingCovadis-2.0.0-SNAPSHOT.zip"
     def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
     def logger = LoggerFactory.getLogger(jobIdentifier)
@@ -347,7 +347,11 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
     
     cd /scratch/job."$$SLURM_JOB_ID"/data/
     
+    #unzip the database
     unzip h2database.zip
+    
+    #rename the h2 database
+    mv *.mv.db h2gisdb.mv.db
     
     export JAVA_HOME=$javaHome
 
