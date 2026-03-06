@@ -52,7 +52,10 @@ jobs:
             -DreleaseVersion=${{ github.event.inputs.releaseVersion }} \
             -DdevelopmentVersion=${{ github.event.inputs.developmentVersion }} \
             -DpushChanges=false \
-            -Darguments="-DskipTests"
+            -Darguments="-DskipTests -P!use-snapshots"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Push Branch and Tag
         run: |

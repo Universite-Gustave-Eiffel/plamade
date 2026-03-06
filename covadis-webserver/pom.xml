@@ -37,7 +37,6 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -121,7 +120,6 @@
         <dependency>
             <groupId>com.auth0</groupId>
             <artifactId>java-jwt</artifactId>
-            <version>[4.5.0, 5)</version>
         </dependency>
         <dependency>
             <groupId>io.javalin</groupId>
