@@ -216,6 +216,20 @@ public class SlurmSession implements AutoCloseable {
      * @return A list of strings, where each string represents a line of output from the executed command.
      * @throws IOException If an error occurs during command execution or communication over the SSH channel.
      */
+    public List<String> runCommand(String command, boolean logResult)  throws IOException {
+        return runCommand(command, logResult, new AtomicLong());
+    }
+
+    /**
+     * Executes a command on a remote server using the active SSH client session and captures the output.
+     * Use a default timeout of {@link #SFTP_TIMEOUT}.
+     *
+     * @param command The command string to be executed on the remote server.
+     * @param logResult Indicates whether the output of the command should be logged.
+     * @param readBytes An {@code AtomicLong} instance that will be updated to reflect the number of bytes read during execution.
+     * @return A list of strings, where each string represents a line of output from the executed command.
+     * @throws IOException If an error occurs during command execution or communication over the SSH channel.
+     */
     public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes)
             throws IOException {
         return runCommand(command, logResult, readBytes, SFTP_TIMEOUT);

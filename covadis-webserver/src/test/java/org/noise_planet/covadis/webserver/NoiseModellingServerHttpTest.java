@@ -318,7 +318,7 @@ class NoiseModellingServerHttpTest {
         HttpClient client = HttpClient.newHttpClient();
         String requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0" +
                 ".0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
-                ".1\">Covadis:Write_HPC_Settings</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier " +
+                ".1\">Slurm:Write_HPC_Settings</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier " +
                 "xmlns:p1=\"http://www.opengis.net/ows/1.1\">ssh_key_type</p1:Identifier><p0:Data><p0:LiteralData>ssh" +
                 "-rsa</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis" +
                 ".net/ows/1.1\">ssl_key</p1:Identifier><p0:Data><p0:LiteralData>none</p0:LiteralData></p0:Data></p0" +
@@ -397,6 +397,7 @@ class NoiseModellingServerHttpTest {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             assertEquals(200, response.statusCode());
             // Check if BUILDINGS_LOW_HEIGHT table exists
+
             try(Connection connection = app.getUserDataSource(1).getConnection()) {
                 try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM BUILDINGS_LOW_HEIGHT")) {
                     try(ResultSet rs = preparedStatement.executeQuery()) {

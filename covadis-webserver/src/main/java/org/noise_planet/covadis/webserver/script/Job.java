@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.File;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -100,7 +101,6 @@ public class Job<T> implements Callable<T> {
         Thread.currentThread().setName(getThreadName(jobId));
         isRunning = true;
         setJobState(JobStates.RUNNING);
-        GroovyShell shell = new GroovyShell();
         // Follow the execution plan by executing instances of ExecutionPlan on inputs
         ExecutionPlan currentPlan = executionPlan;
         // The currentPlan is executing because the output of the currentPlan
@@ -126,65 +126,9 @@ public class Job<T> implements Callable<T> {
                     // The current plan has changed, we need to recheck the inputs
                     continue;
                 }
-                File scriptFile = currentPlan.scriptMetadata.path.toFile();
-                Script script = shell.parse(scriptFile);
-                // The script is not sandboxed so it have the same read/write access as the application
-                // it is useless to try to limit access to the server configuration
-                currentPlan.inputs.put("_configuration", configuration);
-                // Check expected arguments
-                List<MetaMethod> methods = script.getMetaClass().getMethods();
-                MetaMethod execMetaMethod =
-                        methods.stream().filter(m -> m.getName().equals("exec")).findFirst().orElse(null);
-                boolean useConnection = true; //first argument is a connection input
-                boolean useProgressVisitor = false; // third argument is a ProgressVisitor
-                if (execMetaMethod != null) {
-                    // 2. Access the native parameter types
-                    Class[] parameterTypes = execMetaMethod.getNativeParameterTypes();
-                    Class<?> firstArgClass = parameterTypes[0];
-                    if (firstArgClass.equals(DataSource.class)) {
-                        useConnection = false;
-                    } else if (!firstArgClass.equals(Object.class) && !firstArgClass.equals(Connection.class)) {
-                        throw new RuntimeException("Invalid first argument type for exec method in " + currentPlan.scriptMetadata.id);
-                    }
-                    if (parameterTypes.length >= 3 && parameterTypes[2].equals(ProgressVisitor.class)) {
-                        useProgressVisitor = true;
-                    }
-                    // Exec method signature can be:
-                    // def exec(Connection connection, Map input)
-                    // def exec(DataSource dataSource, Map input)
-                    // def exec(Connection connection, Map input, ProgressVisitor progressVisitor)
-                    // def exec(DataSource dataSource, Map input, ProgressVisitor progressVisitor)
-                    Object[] args = new Object[useProgressVisitor ? 3 : 2];
-                    args[1] = currentPlan.inputs;
-                    if (useProgressVisitor) {
-                        args[2] = progressVisitor;
-                    }
-                    Object ret;
-                    logger.info("Executing script {}", currentPlan.scriptMetadata.id);
-                    if (useConnection) {
-                        // Open the connection to the database
-                        try (Connection connection = userDataSource.getConnection()) {
-                            args[0] = connection;
-                            ret = execMetaMethod.invoke(script, args);
-                        }
-                    } else {
-                        args[0] = userDataSource;
-                        ret = execMetaMethod.invoke(script, args);
-                    }
-                    if (ret != null) {
-                        // Unchecked cast is unavoidable due to type erasure with generics
-                        // The script author is responsible for returning the correct type
-                        @SuppressWarnings("unchecked") T castedReturn = (T) ret;
-                        currentPlan.outputs = castedReturn;
-                        returnData = castedReturn;
-                    }
-                }
-                String outputString = currentPlan.outputs != null ? currentPlan.outputs.toString() : "null";
-                logger.info("Script {} executed with result {}",
-                        currentPlan.scriptMetadata.id,
-                        outputString.length() > limit ?
-                                outputString.substring(0, limit) +
-                                        "... [TRUNCATED]" : outputString);
+                Object ret = runScript(currentPlan, progressVisitor, userDataSource);
+                @SuppressWarnings("unchecked") T castedReturn = (T) ret;
+                returnData = castedReturn;
                 if(!parentPlan.isEmpty()) {
                     // Update the value of the parent plan input
                     if(currentPlan.chainedOutputKey.isEmpty() || !(currentPlan.outputs instanceof Map
@@ -207,6 +151,66 @@ public class Job<T> implements Callable<T> {
             isRunning = false;
             onJobEnd();
         }
+        return returnData;
+    }
+
+    public static Object runScript(ExecutionPlan currentPlan, ProgressVisitor progressVisitor, DataSource userDataSource) throws IOException, SQLException {
+        Object returnData = null;
+        GroovyShell shell = new GroovyShell();
+        Script script = shell.parse(currentPlan.scriptMetadata.path.toFile());
+        // Check expected arguments
+        List<MetaMethod> methods = script.getMetaClass().getMethods();
+        MetaMethod execMetaMethod =
+                methods.stream().filter(m -> m.getName().equals("exec")).findFirst().orElse(null);
+        boolean useConnection = true; //first argument is a connection input
+        boolean useProgressVisitor = false; // third argument is a ProgressVisitor
+        if (execMetaMethod != null) {
+            // 2. Access the native parameter types
+            Class[] parameterTypes = execMetaMethod.getNativeParameterTypes();
+            Class<?> firstArgClass = parameterTypes[0];
+            if (firstArgClass.equals(DataSource.class)) {
+                useConnection = false;
+            } else if (!firstArgClass.equals(Object.class) && !firstArgClass.equals(Connection.class)) {
+                throw new RuntimeException("Invalid first argument type for exec method in " + currentPlan.scriptMetadata.id);
+            }
+            if (parameterTypes.length >= 3 && parameterTypes[2].equals(ProgressVisitor.class)) {
+                useProgressVisitor = true;
+            }
+            // Exec method signature can be:
+            // def exec(Connection connection, Map input)
+            // def exec(DataSource dataSource, Map input)
+            // def exec(Connection connection, Map input, ProgressVisitor progressVisitor)
+            // def exec(DataSource dataSource, Map input, ProgressVisitor progressVisitor)
+            Object[] args = new Object[useProgressVisitor ? 3 : 2];
+            args[1] = currentPlan.inputs;
+            if (useProgressVisitor) {
+                args[2] = progressVisitor;
+            }
+            Object ret;
+            logger.info("Executing script {}", currentPlan.scriptMetadata.id);
+            if (useConnection) {
+                // Open the connection to the database
+                try (Connection connection = userDataSource.getConnection()) {
+                    args[0] = connection;
+                    ret = execMetaMethod.invoke(script, args);
+                }
+            } else {
+                args[0] = userDataSource;
+                ret = execMetaMethod.invoke(script, args);
+            }
+            if (ret != null) {
+                // Unchecked cast is unavoidable due to type erasure with generics
+                // The script author is responsible for returning the correct type
+                currentPlan.outputs = ret;
+                returnData = ret;
+            }
+        }
+        String outputString = currentPlan.outputs != null ? currentPlan.outputs.toString() : "null";
+        logger.info("Script {} executed with result {}",
+                currentPlan.scriptMetadata.id,
+                outputString.length() > limit ?
+                        outputString.substring(0, limit) +
+                                "... [TRUNCATED]" : outputString);
         return returnData;
     }
 

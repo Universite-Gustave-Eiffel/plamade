@@ -10,7 +10,7 @@
  *
  */
 
-package org.noise_planet.covadis.scripts.Covadis
+package org.noise_planet.covadis.scripts.Slurm
 
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor

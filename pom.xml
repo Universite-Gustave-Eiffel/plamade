@@ -25,9 +25,9 @@
         <module>covadis-webserver</module>
     </modules>
     <scm>
-        <connection>scm:git:https://github.com/Universite-Gustave-Eiffel/covadis.git</connection>
-        <developerConnection>scm:git:https://github.com/Universite-Gustave-Eiffel/covadis.git</developerConnection>
-        <url>git@github.com:Universite-Gustave-Eiffel/covadis.git</url>
+        <connection>scm:git:https://github.com/Universite-Gustave-Eiffel/plamade.git</connection>
+        <developerConnection>scm:git:https://github.com/Universite-Gustave-Eiffel/plamade.git</developerConnection>
+        <url>git@github.com:Universite-Gustave-Eiffel/plamade.git</url>
         <tag>HEAD</tag>
     </scm>
     <build>
