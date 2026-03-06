@@ -13,13 +13,17 @@ package org.noise_planet.covadis.scripts.Slurm
 
 import groovy.sql.Sql
 import org.apache.sshd.scp.client.ScpClientCreator
+import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
+import java.nio.charset.Charset
 import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
@@ -311,6 +315,9 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
 
             def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, noiseModellingFolder, inputs, remoteWorkspace)
 
+            // upload bash script    // upload bash script
+            def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
+            scpClient.upload(new ByteArrayInputStream(bashCode.getBytes(Charset.defaultCharset())), "${remoteWorkspace}/noisemodelling_batch.sh", bashCode.length(), PosixFilePermissions.fromString("rwxr-x---"), ScpTimestampCommandDetails.parse())
             return ["result": "Setup completed"]
         }
     }
@@ -377,7 +384,7 @@ private static void validateJavaVersion(SlurmSession slurmSession, String javaBi
 private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl, String nmFolder) {
     if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
         slurmSession.runCommand("wget ${nmUrl}", true)
-        slurmSession.runCommand("unzip -fo ${nmFolder}.zip && rm ${nmFolder}.zip", true)
+        slurmSession.runCommand("unzip -o ${nmFolder}.zip -d ${nmFolder} && rm ${nmFolder}.zip", true)
         if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
             throw new IllegalStateException("NoiseModelling folder not found after unzipping")
         }
