@@ -318,8 +318,11 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             // upload bash script    // upload bash script
             def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
             scpClient.upload(new ByteArrayInputStream(bashCode.getBytes(Charset.defaultCharset())), "${remoteWorkspace}/noisemodelling_batch.sh", bashCode.length(), PosixFilePermissions.fromString("rwxr-x---"), ScpTimestampCommandDetails.parse())
-            return ["result": "Setup completed"]
         }
+
+        // dummy table for test
+        sql.execute("CREATE TABLE RECEIVERS_LEVEL(PK SERIAL) AS SELECT 1")
+        return ["result": "Setup completed"]
     }
 }
 
@@ -341,36 +344,35 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
 
 
     def script = $/
-    #! /bin/bash
+#!/bin/sh
+# run with this command
+# must be run in the same folder than the database
+# sbatch --array=0-11 noisemodelling_batch.sh
 
-    # run with this command
-    # must be run in the same folder than the database
-    # sbatch --array=0-11 noisemodelling_batch.sh
+echo "copy data and code to local node storage"
+rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/data/
 
-    echo "copy data and code to local node storage"
-    rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/data/
+echo "Prepare NoiseModelling run"
 
-    echo "Prepare NoiseModelling run"
-    
-    cd /scratch/job."$$SLURM_JOB_ID"/data/
-    
-    #unzip the database
-    unzip h2database.zip
-    
-    #rename the h2 database
-    mv *.mv.db h2gisdb.mv.db
-    
-    export JAVA_HOME=$javaHome
+cd /scratch/job."$$SLURM_JOB_ID"/data/
 
-    echo "Filter receivers"
-    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/wps/Slurm/FilterTaskReceivers.groovy --taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --tableReceivers $tableReceivers || exit 1
+#unzip the database
+unzip h2database.zip
 
-    echo "Run propagation"
-    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
-    
-    echo "Export results"
-    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy --exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".fgb --tableToExport RECEIVERS_LEVEL || exit 1
-    /$
+#rename the h2 database
+mv *.mv.db h2gisdb.mv.db
+
+export JAVA_HOME=$javaHome
+
+echo "Filter receivers"
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/wps/Slurm/FilterTaskReceivers.groovy --taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --tableReceivers $tableReceivers || exit 1
+
+echo "Run propagation"
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
+
+echo "Export results"
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy --exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".fgb --tableToExport RECEIVERS_LEVEL || exit 1
+/$
     return script
 }
 
@@ -399,7 +401,9 @@ private static File exportDatabase(Connection connection) {
 
 private static String createRemoteWorkspace(SlurmSession slurmSession, String jobIdentifier) {
     def remoteWorkspace = "~/workspace/${getDateString()}_${jobIdentifier}"
-    slurmSession.runCommand("mkdir -p ${remoteWorkspace}", true)
+    String command = "mkdir -p -v ${remoteWorkspace}"
+    slurmSession.getLogger().info("Run command {}", command)
+    slurmSession.runCommand(command, true)
     return remoteWorkspace
 }
 
@@ -409,7 +413,9 @@ private static void uploadDatabaseBackup(SlurmSession slurmSession, File exportD
 }
 
 private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {
-    slurmSession.runCommand("[ -d $folder ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong()).first() == "Exists"
+    String command = "[ -d $folder ] && echo \"Exists\" || echo \"Not found\""
+    slurmSession.getLogger().info("Run command {}", command)
+    slurmSession.runCommand(command, true, new AtomicLong()).first() == "Exists"
 }
 
 private static String getDateString() {

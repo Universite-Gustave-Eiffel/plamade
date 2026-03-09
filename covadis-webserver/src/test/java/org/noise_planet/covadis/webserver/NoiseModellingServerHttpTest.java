@@ -14,6 +14,7 @@ import org.h2.value.ValueBoolean;
 import org.h2gis.functions.io.geojson.GeoJsonRead;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.functions.io.shp.SHPRead;
+import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
@@ -29,12 +30,15 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.*;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.xml.sax.InputSource;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -383,7 +387,6 @@ class NoiseModellingServerHttpTest {
 
 
     @Test
-    @Order(5)
     void testPostWPSChainedExecution() throws Exception {
         try(InputStream inputStream = TestParseWPSQueries.class.getResourceAsStream("wps_parse/chainedExecute1.xml")) {
             assertNotNull(inputStream);
@@ -408,5 +411,66 @@ class NoiseModellingServerHttpTest {
             // Check if the content of the buildings_low_height table is printed as html in response body
             assertTrue(response.body().contains("The total number of rows is 9"));
         }
+    }
+
+    @Test
+    @Timeout(value = 2, unit = TimeUnit.MINUTES)
+    public void testWPSRunRemoteNoiseModelling() throws Exception {
+        String host = System.getenv("SSH_HOST");
+        String portStr = System.getenv("SSH_PORT");
+        String user = System.getenv("SSH_USER");
+        String key = System.getenv("SSH_KEY");
+        String keyPassword = System.getenv("SSH_KEY_PASSWORD");
+        String serverKey = System.getenv("SSH_SERVER_KEY");
+        String serverKeyType = System.getenv("SSH_SERVER_KEY_TYPE");
+
+        Assumptions.assumeTrue(host != null && !host.isEmpty(), "SSH_HOST is not set");
+        Assumptions.assumeTrue(user != null && !user.isEmpty(), "SSH_USER is not set");
+        Assumptions.assumeTrue(key != null && !key.isEmpty(), "SSH_KEY is not set");
+
+        SlurmConfig config = new SlurmConfig();
+        config.host = host;
+        config.port = portStr != null && !portStr.isEmpty() ? Integer.parseInt(portStr) : 22;
+        config.user = user;
+        config.sshKeyArmoredString = key;
+        config.sshKeyPassword = keyPassword != null ? keyPassword : "";
+        config.serverKey = serverKey;
+        config.serverKeyType = serverKeyType;
+
+        HttpClient client = HttpClient.newHttpClient();
+        String requestBody = String.format("<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Write_HPC_Settings</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">ssh_key_type</p1:Identifier><p0:Data><p0:LiteralData>ssh-rsa</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">ssl_key</p1:Identifier><p0:Data><p0:LiteralData></p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">host</p1:Identifier><p0:Data><p0:LiteralData>%s</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">user</p1:Identifier><p0:Data><p0:LiteralData>%s</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">java_binary_path</p1:Identifier><p0:Data><p0:LiteralData>/usr/lib/jvm/java-21-openjdk-amd64/bin/java</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">key</p1:Identifier><p0:Data><p0:LiteralData>%s</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">port</p1:Identifier><p0:Data><p0:LiteralData>%d</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>", config.host, config.user, config.sshKeyArmoredString, config.port);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL))
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .header("Content-Type", "text/xml")
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+
+        requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Noise_level_from_source</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableSources</p1:Identifier><p0:Data><p0:LiteralData>SOURCES</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableReceivers</p1:Identifier><p0:Data><p0:LiteralData>RECEIVERS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
+        request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL))
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .header("Content-Type", "text/xml")
+                .build();
+        response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+
+        // Wait for the table RECEIVERS_LEVEL to appear
+        // This unit test will timeout after 2 minutes
+        try(Connection connection = app.getUserDataSource(1).getConnection()) {
+            while(true) {
+                if(!JDBCUtilities.tableExists(connection, "RECEIVERS_LEVEL")) {
+                    Thread.sleep(500);
+                    continue;
+                }
+                Statement statement = connection.createStatement();
+                try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL")) {
+                    assertTrue(resultSet.next());
+                    break;
+                }
+            }
+        }
+
     }
 }

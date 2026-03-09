@@ -1,20 +1,63 @@
-# Use the linuxserver/openssh-server as the base (Alpine-based)
-FROM linuxserver/openssh-server:latest
+FROM nathanhess/slurm:base
 
-# 1. Replace http with https in the repository file
-# 2. Add the community repository (using https)
-# 3. Update and install OpenJDK 21
-RUN sed -i 's|http://|https://|g' /etc/apk/repositories && \
-    echo "https://dl-cdn.alpinelinux.org/alpine/v3.23/community" >> /etc/apk/repositories && \
-    apk update && \
-    apk add --no-cache openjdk21
+USER root
 
-# Set environment variables for Java (Optional but recommended)
-ENV JAVA_HOME=/usr/lib/jvm/default-jvm
-ENV PATH="${JAVA_HOME}/bin:${PATH}"
+# 1. Install Java 21, SSH, and Sudo
+RUN apt-get update && apt-get install -y \
+    openjdk-21-jdk \
+    openssh-server \
+    unzip \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create /scratch/ folder with write rights for everyone
-RUN mkdir -p /scratch && chmod 777 /scratch
+# 2. Basic SSH setup
+RUN mkdir -p /var/run/sshd && \
+    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
-# Verify the installation during the build process
-RUN java -version
+# 3. Create the initialization script
+RUN echo '#!/bin/bash\n\
+USERNAME=${USER_NAME:-testuser}\n\
+\n\
+# 1. Create User if it doesn't exist\n\
+if ! id -u "$USERNAME" >/dev/null 2>&1; then\n\
+    useradd -m -s /bin/bash "$USERNAME"\n\
+    echo "User $USERNAME created."\n\
+fi\n\
+\n\
+# 2. Handle Sudo Access\n\
+if [ "$SUDO_ACCESS" = "true" ]; then\n\
+    echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME\n\
+fi\n\
+\n\
+# 3. Handle SSH Key\n\
+if [ -n "$PUBLIC_KEY" ]; then\n\
+    USER_HOME=$(eval echo ~$USERNAME)\n\
+    mkdir -p "$USER_HOME/.ssh"\n\
+    echo "$PUBLIC_KEY" > "$USER_HOME/.ssh/authorized_keys"\n\
+    chown -R "$USERNAME:$USERNAME" "$USER_HOME/.ssh"\n\
+    chmod 700 "$USER_HOME/.ssh"\n\
+    chmod 600 "$USER_HOME/.ssh/authorized_keys"\n\
+    echo "SSH Public Key injected for $USERNAME."\n\
+fi\n\
+\n\
+# 4. Handle Password Access\n\
+if [ "$PASSWORD_ACCESS" = "false" ]; then\n\
+    sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config\n\
+else\n\
+    sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config\n\
+fi\n\
+\n\
+# 5. Start SSH service\n\
+service ssh start\n\
+\n\
+# 6. Execute the Slurm startup (not using exec so we can keep the script running)\n\
+/etc/startup.sh "$@"\n\
+\n\
+echo "All services started. Keeping container alive..."\n\
+# 7. Keep the container running forever\n\
+tail -f /dev/null' > /usr/local/bin/init-ssh-slurm.sh
+
+RUN chmod +x /usr/local/bin/init-ssh-slurm.sh
+
+USER root
+ENTRYPOINT ["/usr/local/bin/init-ssh-slurm.sh"]

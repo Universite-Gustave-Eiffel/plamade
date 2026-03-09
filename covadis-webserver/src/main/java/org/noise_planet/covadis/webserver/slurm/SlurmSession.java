@@ -234,4 +234,8 @@ public class SlurmSession implements AutoCloseable {
             throws IOException {
         return runCommand(command, logResult, readBytes, SFTP_TIMEOUT);
     }
+
+    public Logger  getLogger() {
+        return logger;
+    }
 }

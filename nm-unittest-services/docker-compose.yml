@@ -18,7 +18,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   sshd:
-    image: linuxserver/openssh-server:latest
+    build: .
     environment:
       PUID: 1000
       PGID: 1000
@@ -28,7 +28,7 @@ services:
       SUDO_ACCESS: "true"
       PASSWORD_ACCESS: "false"
     ports:
-      - "2222:2222"
+      - "2222:22"
     healthcheck:
       test: [ "CMD-SHELL", "nc -z localhost 2222 || exit 1" ]
       interval: 10s
