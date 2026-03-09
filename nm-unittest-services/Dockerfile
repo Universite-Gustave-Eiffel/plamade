@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     openjdk-21-jdk \
     openssh-server \
     unzip \
+    rsync \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 

@@ -313,7 +313,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             uploadDatabaseBackup(slurmSession, exportDir, remoteWorkspace)
             exportDir.deleteOnExit()
 
-            def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, noiseModellingFolder, inputs, remoteWorkspace)
+            def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, "~/"+noiseModellingFolder, inputs, remoteWorkspace)
 
             // upload bash script    // upload bash script
             def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
@@ -343,8 +343,7 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
     }
 
 
-    def script = $/
-#!/bin/sh
+    def script = $/#!/bin/sh
 # run with this command
 # must be run in the same folder than the database
 # sbatch --array=0-11 noisemodelling_batch.sh
