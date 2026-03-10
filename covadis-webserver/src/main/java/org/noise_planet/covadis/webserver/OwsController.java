@@ -66,7 +66,6 @@ public class OwsController {
     public static final long KEEP_ALIVE_TIME = 0L;
     public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
     private static final int DEFAULT_ABORT_JOB_DELAY = 5;
-    private WpsXmlDocumentGenerator wpsXmlDocumentGenerator = new WpsXmlDocumentGenerator();
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -223,7 +222,7 @@ public class OwsController {
             ScriptMetadata target = wpsScripts.get(identifier);
 
             if (target != null) {
-                ctx.result(wpsXmlDocumentGenerator.generateDescribeProcessXML(target));
+                ctx.result(WpsXmlDocumentGenerator.generateDescribeProcessXML(target));
             } else {
                 ctx.status(404).result("<ows:Exception>Process not found: " + identifier + "</ows:Exception>");
             }
@@ -278,6 +277,27 @@ public class OwsController {
             }
         } else {
             ctx.status(400).result("Unknown WCS request");
+        }
+    }
+
+    /**
+     * OGC compliant WPS, Build a ExecuteResponse according to the state of a Job
+     * @param ctx the context of the current HTTP request, providing access to query parameters,
+     * request and response handling, and allowing for status and body configuration
+     */
+    public void handleJobExecuteStatus(Context ctx) {
+        try(Connection connection = serverDataSource.getConnection()) {
+            User user = ctx.attribute("user");
+            int jobId = Integer.parseInt(ctx.pathParam("job_id"));
+            Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
+            if(hasUnauthorizedJobAccess(ctx, user, jobData)) {
+                return;
+            }
+            Job<?> job = jobExecutorService.getJob(jobId);
+            ctx.result(WpsXmlDocumentGenerator.generateExecuteResponseDocument(job, jobData, ctx.contextPath()));
+        } catch (SQLException | IOException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
         }
     }
 

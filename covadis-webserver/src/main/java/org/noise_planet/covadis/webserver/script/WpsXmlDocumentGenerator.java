@@ -1,26 +1,24 @@
 package org.noise_planet.covadis.webserver.script;
 
+
 import net.opengis.ows11.*;
 import net.opengis.wps10.*;
 import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
+import org.jspecify.annotations.NonNull;
 import org.locationtech.jts.geom.Geometry;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
+import org.noise_planet.covadis.webserver.Configuration;
 
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.math.BigInteger;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -208,16 +206,64 @@ public class WpsXmlDocumentGenerator {
         capabilities.setProcessOfferings(processOfferings);
 
         for (ScriptMetadata script : scripts.values()) {
-            ProcessBriefType process = wpsf.createProcessBriefType();
-            process.setProcessVersion("1.0.0");
-            process.setIdentifier(codetype(script.id));
-            process.setTitle(languageString(script.title));
-            process.setAbstract(languageString(script.description));
+            ProcessBriefType process = getProcessBriefType(script);
             processOfferings.getProcess().add(process);
         }
 
         Encoder encoder = new Encoder(new WPSConfiguration());
         encoder.encode(capabilities, new QName("http://www.opengis.net/wps/1.0.0", "Capabilities"), baos);
         return baos.toString();
+    }
+
+    private static @NonNull ProcessBriefType getProcessBriefType(ScriptMetadata script) {
+        ProcessBriefType process = wpsf.createProcessBriefType();
+        process.setProcessVersion("1.0.0");
+        process.setIdentifier(codetype(script.id));
+        process.setTitle(languageString(script.title));
+        process.setAbstract(languageString(script.description));
+        return process;
+    }
+
+    public static String generateExecuteResponseDocument(Job<?> job, Map<String, Object> jobData, Configuration webServerConfiguration) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ExecuteResponseType response = wpsf.createExecuteResponseType();
+        response.setLang("en");
+        response.setService("WPS");
+        if(job != null) {
+            response.setProcess(getProcessBriefType(job.executionPlan.scriptMetadata));
+        }
+        response.setStatusLocation(webServerConfiguration.getWebSiteFullUrl() + "/jobs/" + jobData.get("id"));
+        response.setStatus(wpsf.createStatusType());
+        Timestamp startDate = (Timestamp) jobData.get("startDate");
+        LocalDateTime startDateTime = startDate == null ? LocalDateTime.now() : startDate.toLocalDateTime();
+        XMLGregorianCalendar xmlGregorianCalendar = DatatypeFactory.newDefaultInstance()
+                .newXMLGregorianCalendar(startDateTime.getYear(), startDateTime.getMonthValue(),
+                        startDateTime.getDayOfMonth(), startDateTime.getHour(), startDateTime.getMinute(),
+                        startDateTime.getSecond(), 0, GregorianCalendar.ZONE_OFFSET);
+        response.getStatus().setCreationTime(xmlGregorianCalendar);
+        switch (JobStates.valueOf(jobData.get("status").toString())) {
+            case QUEUED:
+                response.getStatus().setProcessAccepted(JobStates.QUEUED.name());
+                break;
+            case RUNNING:
+                response.getStatus().setProcessStarted(wpsf.createProcessStartedType());
+                response.getStatus().getProcessStarted().setValue(JobStates.RUNNING.name());
+                response.getStatus().getProcessStarted().setPercentCompleted(
+                        BigInteger.valueOf(Double.valueOf(Double.parseDouble(
+                                (String) jobData.get("progression"))).intValue()));
+                break;
+            case COMPLETED:
+                response.getStatus().setProcessSucceeded(JobStates.COMPLETED.name());
+                break;
+            case CANCELED:
+            case FAILED:
+                response.getStatus().setProcessFailed(wpsf.createProcessFailedType());
+                response.getStatus().getProcessFailed().setExceptionReport(owsf.createExceptionReportType());
+                break;
+        }
+        Encoder encoder = new Encoder(new WPSConfiguration());
+        encoder.encode(response, new QName("http://www.opengis.net/wps/1.0.0", "ExecuteResponse"), baos);
+        return baos.toString();
+
     }
 }

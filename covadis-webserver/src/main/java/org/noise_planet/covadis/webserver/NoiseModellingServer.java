@@ -215,6 +215,7 @@ public class NoiseModellingServer {
     protected void installWpsRoutes() {
         app.get("/builder/ows", owsController::handleGet, Role.RUNNER);
         app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
+        app.get("/builder/jobs/{job_id}", owsController::handleJobExecuteStatus, Role.RUNNER);
     }
 
     protected void installExceptionHandlers() {
