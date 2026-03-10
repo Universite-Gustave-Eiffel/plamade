@@ -27,7 +27,7 @@ RUN chmod +x /etc/slurm/prolog.sh
 RUN echo "Prolog=/etc/slurm/prolog.sh" >> /etc/slurm/slurm.conf
 
 # Add an Epilog script to clean up after the job
-RUN echo '#!/bin/bash\nrm -rf /scratch/job_${SLURM_JOB_ID}\nrm -f $SLURM_SUBMIT_DIR/scratch' > /etc/slurm/epilog.sh && \
+RUN echo '#!/bin/bash\nrm -rf /scratch/job.${SLURM_JOB_ID}' > /etc/slurm/epilog.sh && \
     chmod +x /etc/slurm/epilog.sh && \
     echo "Epilog=/etc/slurm/epilog.sh" >> /etc/slurm/slurm.conf
 

@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.net.URL;
 import java.net.http.*;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -437,6 +438,7 @@ class NoiseModellingServerHttpTest {
         config.serverKey = serverKey;
         config.serverKeyType = serverKeyType;
 
+        // Register SLURM configuration for docker slurm instance running on localhost with key ssh access
         HttpClient client = HttpClient.newHttpClient();
         String requestBody = String.format("<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Write_HPC_Settings</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">ssh_key_type</p1:Identifier><p0:Data><p0:LiteralData>ssh-rsa</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">ssl_key</p1:Identifier><p0:Data><p0:LiteralData></p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">host</p1:Identifier><p0:Data><p0:LiteralData>%s</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">user</p1:Identifier><p0:Data><p0:LiteralData>%s</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">java_binary_path</p1:Identifier><p0:Data><p0:LiteralData>/usr/lib/jvm/java-21-openjdk-amd64/bin/java</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">key</p1:Identifier><p0:Data><p0:LiteralData>%s</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">port</p1:Identifier><p0:Data><p0:LiteralData>%d</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>", config.host, config.user, config.sshKeyArmoredString, config.port);
         HttpRequest request = HttpRequest.newBuilder()
@@ -446,6 +448,19 @@ class NoiseModellingServerHttpTest {
                 .build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode());
+
+        // Load unit test input data tables
+        try(Connection connection = app.getUserDataSource(1).getConnection()) {
+            URL url = NoiseModellingServerHttpTest.class.getResource("buildings.shp");
+            assertNotNull(url);
+            SHPRead.importTable(connection, url.getFile(),"BUILDINGS" ,ValueBoolean.TRUE);
+            url = NoiseModellingServerHttpTest.class.getResource("lw_roads.shp");
+            assertNotNull(url);
+            SHPRead.importTable(connection, url.getFile(),"SOURCES" ,ValueBoolean.TRUE);
+            url = NoiseModellingServerHttpTest.class.getResource("receivers.shp");
+            assertNotNull(url);
+            SHPRead.importTable(connection, url.getFile(),"RECEIVERS" ,ValueBoolean.TRUE);
+        }
 
         requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Noise_level_from_source</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableSources</p1:Identifier><p0:Data><p0:LiteralData>SOURCES</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableReceivers</p1:Identifier><p0:Data><p0:LiteralData>RECEIVERS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
         request = HttpRequest.newBuilder()

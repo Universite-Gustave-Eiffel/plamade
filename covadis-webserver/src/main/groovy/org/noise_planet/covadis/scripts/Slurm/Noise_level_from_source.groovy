@@ -320,7 +320,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             createRemoteFile(bashCode, slurmSession, "${remoteWorkspace}/noisemodelling_batch.sh")
 
             // Fetch the job id from the output of the sbatch command
-            def response = slurmSession.runCommand("cd ${remoteWorkspace} && sbatch --array=0-31 noisemodelling_batch.sh", true).first()
+            def response = slurmSession.runCommand("cd ${remoteWorkspace} && sbatch --array=1-8 noisemodelling_batch.sh", true).first()
             def matcher = (response =~ /Submitted batch job (\d+)/)
             if (matcher) {
                 jobId = Integer.parseInt(matcher[0][1] as String) // [index of match][index of capture group]
@@ -348,8 +348,12 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
     // build arguments string for the local Noise_level_from_source.groovy script
     StringBuilder arguments = new StringBuilder()
     for(Map.Entry<String, Object> entry : inputsCopy.entrySet()) {
-        arguments.append("--").append(entry.key).append(" ")
-        arguments.append(entry.value).append(" ")
+        arguments.append("-").append(entry.key)
+        if(entry.value instanceof String) {
+            arguments.append(" \"").append(entry.value).append("\" ")
+        } else {
+            arguments.append(" ").append(entry.value).append(" ")
+        }
     }
 
 
@@ -358,30 +362,26 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
 # must be run in the same folder than the database
 # sbatch --array=0-11 noisemodelling_batch.sh
 
-echo "copy data and code to local node storage"
-mkdir -p /scratch/job."$$SLURM_JOB_ID"/
-rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/  || exit 1
+echo "copy data to local node storage"
+unzip h2database.zip -d /scratch/job."$$SLURM_JOB_ID"/  || exit 1
 
 echo "Prepare NoiseModelling run"
 
 cd /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 
-#unzip the database
-unzip h2database.zip
-
 #rename the h2 database
-mv *.mv.db h2gisdb.mv.db
+mv *.mv.db h2gisdb.mv.db || exit 1
 
 export JAVA_HOME=$javaHome
 
 echo "Filter receivers"
-bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/Slurm/FilterTaskReceivers.groovy --taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --tableReceivers $tableReceivers || exit 1
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $noisemodellingPath/scripts/Slurm/FilterTaskReceivers.groovy -taskId "$$SLURM_ARRAY_TASK_ID" -minTaskId "$$SLURM_ARRAY_TASK_MIN" -maxTaskId "$$SLURM_ARRAY_TASK_MAX" -tableReceivers $tableReceivers || exit 1
 
 echo "Run propagation"
-bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
 
 echo "Export results"
-bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy --exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".fgb --tableToExport RECEIVERS_LEVEL || exit 1
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy -exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".fgb -tableToExport RECEIVERS_LEVEL || exit 1
 /$
     return script
 }
