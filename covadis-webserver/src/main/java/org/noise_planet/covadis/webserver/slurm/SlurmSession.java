@@ -16,8 +16,7 @@ import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.keyprovider.KeyIdentityProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
-import org.apache.sshd.scp.client.ScpClient;
-import org.apache.sshd.scp.client.ScpClientCreator;
+import org.h2gis.api.ProgressVisitor;
 import org.noise_planet.covadis.webserver.utilities.LoggingOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.event.Level;
@@ -28,6 +27,7 @@ import java.security.KeyPair;
 import java.security.GeneralSecurityException;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLong;
 
 
@@ -274,5 +274,37 @@ public class SlurmSession implements AutoCloseable {
 
     public Logger  getLogger() {
         return logger;
+    }
+
+
+    /**
+     * Fetch the {@link SlurmConfig#jobId} progression
+     * @param slurmJobProgress
+     * @return True if the main job (all the tasks) is finished (succeed or error)
+     * @throws IOException
+     * @throws CancellationException
+     */
+    public boolean updateSlurmJobProgression(ProgressVisitor slurmJobProgress) throws IOException, CancellationException {
+        List<String> output = runCommand(String.format("scontrol show job %d", slurmConfig.jobId), false);
+        List<SlurmJobStatus> jobStatusList = SlurmUtilities.parseSlurmStatus(output);
+        int finishedStatusCount = 0;
+        for(SlurmJobStatus s : jobStatusList) {
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).finished) {
+                finishedStatusCount++;
+            }
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).error) {
+                // If one of the process fail, cancel the computation and set the computation as failed
+                runCommand(String.format("scancel %d", slurmConfig.jobId), false);
+                throw new CancellationException("One of the slurm task has failed and the job has been canceled");
+            }
+        }
+        // increase progress if needed
+        if(oldFinishedJobs != finishedStatusCount) {
+            for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
+                slurmJobProgress.endStep();
+            }
+            oldFinishedJobs = finishedStatusCount;
+        }
+        return finishedStatusCount == slurmConfig.maxTasksPerJobs;
     }
 }

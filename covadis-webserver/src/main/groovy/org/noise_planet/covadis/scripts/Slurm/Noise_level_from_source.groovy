@@ -12,11 +12,13 @@
 package org.noise_planet.covadis.scripts.Slurm
 
 import groovy.sql.Sql
+import groovy.transform.Field
 import org.apache.sshd.scp.client.ScpClientCreator
 import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
+import org.noise_planet.covadis.webserver.slurm.SlurmUtilities
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
@@ -273,6 +275,8 @@ outputs = [
         ]
 ]
 
+@Field
+int POLL_SLURM_STATUS_TIME = 40000;
 /**
  * Main run function
  * @param dataSource
@@ -283,51 +287,71 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
     def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_03_06/NoiseModellingCovadis-2.0.0-SNAPSHOT.zip"
     def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
+    // Create a logger with the thread name as it contains the Job identifier
     def logger = LoggerFactory.getLogger(jobIdentifier)
 
+    File exportDir
+    SlurmConfig slurmConfig
     try (Connection connection = dataSource.connection) {
         Sql sql = Sql.newInstance(connection)
         def res = sql.firstRow("SELECT * FROM SLURM_CONFIGURATION WHERE configuration_name = ?", inputs.configuration_name)
+        slurmConfig = new SlurmConfig(host: res.host,
+                port: res.port as Integer,
+                sshKeyArmoredString: res.private_key,
+                sshKeyPassword: inputs.key_password,
+                user: res.user_name,
+                serverKey: res.ssl_key,
+                serverKeyType: res.ssh_key_type,
+                javaBinaryPath: res.java_binary_path)
+        exportDir = exportDatabase(connection)
+        exportDir.deleteOnExit()
+    }
 
-        SlurmConfig slurmConfig = new SlurmConfig(
-            host: res.host,
-            port: res.port as Integer,
-            sshKeyArmoredString: res.private_key,
-            sshKeyPassword: inputs.key_password,
-            user: res.user_name,
-            serverKey: res.ssl_key,
-            serverKeyType: res.ssh_key_type,
-            javaBinaryPath: res.java_binary_path
-        )
+    try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
+        slurmSession.connect()
 
-        int jobId = -1
-        // Create a logger with the thread name as it contains the Job identifier
-        try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
-            slurmSession.connect()
+        validateJavaVersion(slurmSession, slurmConfig.javaBinaryPath)
+        setupNoiseModelling(slurmSession, noiseModellingDownloadURL, noiseModellingFolder)
 
-            validateJavaVersion(slurmSession, slurmConfig.javaBinaryPath)
-            setupNoiseModelling(slurmSession, noiseModellingDownloadURL, noiseModellingFolder)
+        slurmConfig.serverWorkspaceFolder = createRemoteWorkspace(slurmSession, jobIdentifier)
 
-            def exportDir = exportDatabase(connection)
-            String remoteWorkspace = createRemoteWorkspace(slurmSession, jobIdentifier)
+        uploadFile(slurmSession, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder+ "/h2database.zip")
 
-            uploadFile(slurmSession, new File(exportDir, "h2database.zip"), remoteWorkspace+ "/h2database.zip")
-            exportDir.deleteOnExit()
+        def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, "~/"+noiseModellingFolder, inputs, slurmConfig.serverWorkspaceFolder)
 
-            def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, "~/"+noiseModellingFolder, inputs, remoteWorkspace)
+        // upload bash script
+        createRemoteFile(bashCode, slurmSession, "${slurmConfig.serverWorkspaceFolder}/noisemodelling_batch.sh")
 
-            // upload bash script
-            createRemoteFile(bashCode, slurmSession, "${remoteWorkspace}/noisemodelling_batch.sh")
+        // Fetch the job id from the output of the sbatch command
+        def response = slurmSession.runCommand("cd ${slurmConfig.serverWorkspaceFolder} && sbatch --array=1-${slurmConfig.maxTasksPerJobs} noisemodelling_batch.sh", true).first()
+        def matcher = (response =~ /Submitted batch job (\d+)/)
+        if (matcher) {
+            slurmConfig.jobId = Integer.parseInt(matcher[0][1] as String) // [index of match][index of capture group]
+        } else {
+            return ["result": "No job ID found"]
+        }
+        logger.info("Slurm job submitted with id {}", slurmConfig.jobId)
+        // Capture logs of all the tasks
+        Map<String, Long> bytesReadInFiles = new HashMap<>();
 
-            // Fetch the job id from the output of the sbatch command
-            def response = slurmSession.runCommand("cd ${remoteWorkspace} && sbatch --array=1-8 noisemodelling_batch.sh", true).first()
-            def matcher = (response =~ /Submitted batch job (\d+)/)
-            if (matcher) {
-                jobId = Integer.parseInt(matcher[0][1] as String) // [index of match][index of capture group]
-            } else {
-                return ["result": "No job ID found"]
+        ProgressVisitor tasksProgress = progress.subProcess(slurmConfig.maxTasksPerJobs)
+        while(true) {
+            if (progress.isCanceled()) {
+                // User cancel the computation, cancel the job on the remote slurm cluster
+                slurmSession.runCommand(String.format("scancel %d", slurmConfig.jobId), true)
+                break;
             }
-            logger.info("Slurm job submitted with id {}", jobId)
+            long lastPullTime = System.currentTimeMillis();
+            // Log task outputs
+            SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles);
+
+            // Check status of jobs on cluster side
+            if (slurmSession.updateSlurmJobProgression(tasksProgress)) {
+                // All tasks done or the main task failed
+                break;
+            }
+
+            Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
         }
 
         // dummy table for test
@@ -336,6 +360,14 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
     }
 }
 
+/**
+ * This batch script is executed for each Task, so database is copied and output data renamed using the task identifier
+ * @param javaHome
+ * @param noisemodellingPath
+ * @param inputs
+ * @param workspacePath
+ * @return
+ */
 public static String generateSlurmBashScript(String javaHome, String noisemodellingPath, Map inputs, String workspacePath) {
 
     String tableReceivers = inputs['tableReceivers']

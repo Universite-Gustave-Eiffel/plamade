@@ -1,0 +1,222 @@
+JobId=53 ArrayJobId=53 ArrayTaskId=8 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=RUNNING Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_8.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_8.out
+   Power=
+
+
+JobId=60 ArrayJobId=53 ArrayTaskId=7 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=RUNNING Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_7.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_7.out
+   Power=
+
+
+JobId=59 ArrayJobId=53 ArrayTaskId=6 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=RUNNING Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_6.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_6.out
+   Power=
+
+
+JobId=58 ArrayJobId=53 ArrayTaskId=5 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=RUNNING Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_5.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_5.out
+   Power=
+
+
+JobId=57 ArrayJobId=53 ArrayTaskId=4 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=RUNNING Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_4.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_4.out
+   Power=
+
+
+JobId=56 ArrayJobId=53 ArrayTaskId=3 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=RUNNING Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_3.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_3.out
+   Power=
+
+
+JobId=55 ArrayJobId=53 ArrayTaskId=2 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=COMPLETED Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_2.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_2.out
+   Power=
+
+
+JobId=54 ArrayJobId=53 ArrayTaskId=1 JobName=noisemodelling_batch.sh
+   UserId=testuser(1001) GroupId=testuser(1001) MCS_label=N/A
+   Priority=4294901752 Nice=0 Account=(null) QOS=(null)
+   JobState=RUNNING Reason=None Dependency=(null)
+   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:00:45 TimeLimit=UNLIMITED TimeMin=N/A
+   SubmitTime=2026-03-10T11:31:42 EligibleTime=2026-03-10T11:31:42
+   AccrueTime=2026-03-10T11:31:42
+   StartTime=2026-03-10T11:31:42 EndTime=Unknown Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-10T11:31:42 Scheduler=Main
+   Partition=debug AllocNode:Sid=ef1b066d901f:101
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=ef1b066d901f
+   BatchHost=ef1b066d901f
+   NumNodes=1 NumCPUs=1 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   TRES=cpu=1,node=1,billing=1
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=0 MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=OK Contiguous=0 Licenses=(null) Network=(null)
+   Command=/home/testuser/workspace/2026_3_10.11.21_JOB_2/noisemodelling_batch.sh
+   WorkDir=/home/testuser/workspace/2026_3_10.11.21_JOB_2
+   StdErr=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_1.out
+   StdIn=/dev/null
+   StdOut=/home/testuser/workspace/2026_3_10.11.21_JOB_2/slurm-53_1.out
+   Power=
