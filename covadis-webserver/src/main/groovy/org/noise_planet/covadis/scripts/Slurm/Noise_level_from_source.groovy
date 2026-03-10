@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory
 import javax.sql.DataSource
 import java.nio.charset.Charset
 import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
 import java.time.LocalDateTime
@@ -300,6 +300,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             javaBinaryPath: res.java_binary_path
         )
 
+        int jobId = -1
         // Create a logger with the thread name as it contains the Job identifier
         try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
             slurmSession.connect()
@@ -310,14 +311,23 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             def exportDir = exportDatabase(connection)
             String remoteWorkspace = createRemoteWorkspace(slurmSession, jobIdentifier)
 
-            uploadDatabaseBackup(slurmSession, exportDir, remoteWorkspace)
+            uploadFile(slurmSession, new File(exportDir, "h2database.zip"), remoteWorkspace+ "/h2database.zip")
             exportDir.deleteOnExit()
 
             def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, "~/"+noiseModellingFolder, inputs, remoteWorkspace)
 
-            // upload bash script    // upload bash script
-            def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
-            scpClient.upload(new ByteArrayInputStream(bashCode.getBytes(Charset.defaultCharset())), "${remoteWorkspace}/noisemodelling_batch.sh", bashCode.length(), PosixFilePermissions.fromString("rwxr-x---"), ScpTimestampCommandDetails.parse())
+            // upload bash script
+            createRemoteFile(bashCode, slurmSession, "${remoteWorkspace}/noisemodelling_batch.sh")
+
+            // Fetch the job id from the output of the sbatch command
+            def response = slurmSession.runCommand("cd ${remoteWorkspace} && sbatch --array=0-31 noisemodelling_batch.sh", true).first()
+            def matcher = (response =~ /Submitted batch job (\d+)/)
+            if (matcher) {
+                jobId = Integer.parseInt(matcher[0][1] as String) // [index of match][index of capture group]
+            } else {
+                return ["result": "No job ID found"]
+            }
+            logger.info("Slurm job submitted with id {}", jobId)
         }
 
         // dummy table for test
@@ -349,11 +359,12 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
 # sbatch --array=0-11 noisemodelling_batch.sh
 
 echo "copy data and code to local node storage"
-rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/data/
+mkdir -p /scratch/job."$$SLURM_JOB_ID"/
+rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/  || exit 1
 
 echo "Prepare NoiseModelling run"
 
-cd /scratch/job."$$SLURM_JOB_ID"/data/
+cd /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 
 #unzip the database
 unzip h2database.zip
@@ -364,7 +375,7 @@ mv *.mv.db h2gisdb.mv.db
 export JAVA_HOME=$javaHome
 
 echo "Filter receivers"
-bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/wps/Slurm/FilterTaskReceivers.groovy --taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --tableReceivers $tableReceivers || exit 1
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/Slurm/FilterTaskReceivers.groovy --taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --tableReceivers $tableReceivers || exit 1
 
 echo "Run propagation"
 bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
@@ -406,9 +417,17 @@ private static String createRemoteWorkspace(SlurmSession slurmSession, String jo
     return remoteWorkspace
 }
 
-private static void uploadDatabaseBackup(SlurmSession slurmSession, File exportDir, String remoteWorkspace) {
+private static void uploadFile(SlurmSession slurmSession, File localFile, String remotePath) {
     def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
-    scpClient.upload("${exportDir.absolutePath}/h2database.zip", "${remoteWorkspace}/h2database.zip")
+    scpClient.upload(localFile.absolutePath, remotePath)
+}
+
+private static void createRemoteFile(String fileContent, SlurmSession slurmSession, String remoteFileName) {
+    def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
+    scpClient.upload(new ByteArrayInputStream(fileContent.getBytes(Charset.defaultCharset())),
+            remoteFileName, fileContent.length(), PosixFilePermissions.fromString("rwxr-x---"),
+            new ScpTimestampCommandDetails(FileTime.fromMillis(System.currentTimeMillis()),
+                    FileTime.fromMillis(System.currentTimeMillis())))
 }
 
 private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {

@@ -2,7 +2,7 @@ FROM nathanhess/slurm:base
 
 USER root
 
-# 1. Install Java 21, SSH, and Sudo
+# Install Java 21, SSH, and Sudo
 RUN apt-get update && apt-get install -y \
     openjdk-21-jdk \
     openssh-server \
@@ -11,11 +11,27 @@ RUN apt-get update && apt-get install -y \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Basic SSH setup
+# Basic SSH setup
 RUN mkdir -p /var/run/sshd && \
     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
-# 3. Create the initialization script
+# Create the global scratch directory
+RUN mkdir -p /scratch && chmod 777 /scratch
+
+# Add the Prolog script to the container
+COPY prolog.sh /etc/slurm/prolog.sh
+RUN chmod +x /etc/slurm/prolog.sh
+
+# Update slurm.conf to point to the Prolog script
+# We append the configuration to the end of the existing slurm.conf
+RUN echo "Prolog=/etc/slurm/prolog.sh" >> /etc/slurm/slurm.conf
+
+# Add an Epilog script to clean up after the job
+RUN echo '#!/bin/bash\nrm -rf /scratch/job_${SLURM_JOB_ID}\nrm -f $SLURM_SUBMIT_DIR/scratch' > /etc/slurm/epilog.sh && \
+    chmod +x /etc/slurm/epilog.sh && \
+    echo "Epilog=/etc/slurm/epilog.sh" >> /etc/slurm/slurm.conf
+
+# Create the initialization script
 RUN echo '#!/bin/bash\n\
 USERNAME=${USER_NAME:-testuser}\n\
 \n\
@@ -48,14 +64,14 @@ else\n\
     sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config\n\
 fi\n\
 \n\
-# 5. Start SSH service\n\
+# Start SSH service\n\
 service ssh start\n\
 \n\
-# 6. Execute the Slurm startup (not using exec so we can keep the script running)\n\
+# Execute the Slurm startup (not using exec so we can keep the script running)\n\
 /etc/startup.sh "$@"\n\
 \n\
 echo "All services started. Keeping container alive..."\n\
-# 7. Keep the container running forever\n\
+# Keep the container running forever\n\
 tail -f /dev/null' > /usr/local/bin/init-ssh-slurm.sh
 
 RUN chmod +x /usr/local/bin/init-ssh-slurm.sh

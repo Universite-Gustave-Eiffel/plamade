@@ -75,6 +75,43 @@ public class SlurmSession implements AutoCloseable {
     }
 
     /**
+     * Reformats an SSH key string that may have been altered by an editor,
+     * which can introduce unwanted spaces and remove newlines.
+     * The method attempts to restore the original format of the SSH key by identifying the BEGIN and END markers
+     * and reconstructing the key with proper newlines.
+     * @param rawKey The raw SSH key string that may have been modified by an editor.
+     * @return The reformatted SSH key string with proper newlines, or the original string if it cannot be reformatted.
+     */
+    protected static String reformatSSHKey(String rawKey) {
+        if (rawKey == null || rawKey.isEmpty()) {
+            return rawKey;
+        }
+
+        // 1. If it already has newlines, it's likely already correct
+        if (rawKey.contains("\n") || rawKey.contains("\r")) {
+            return rawKey;
+        }
+
+        // 2. Regex to identify the BEGIN marker, the middle content, and the END marker
+        // Supports: OPENSSH, RSA, DSA, EC, and PRIVATE KEY
+        String regex = "(-----BEGIN [A-Z ]+-----)(.*)(-----END [A-Z ]+-----)";
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regex);
+        java.util.regex.Matcher matcher = pattern.matcher(rawKey.trim());
+
+        if (matcher.find()) {
+            String header = matcher.group(1);
+            String content = matcher.group(2).replace(" ", ""); // Remove any spaces an editor might have added
+            String footer = matcher.group(3);
+
+            // 3. Reconstruct with proper Unix newlines (\n)
+            return header + "\n" + content + "\n" + footer;
+        }
+
+        return rawKey;
+    }
+
+    /**
      * Connects to the remote server and authenticates the SSH session.
      * @throws IOException If an error occurs during connection or authentication.
      * @throws GeneralSecurityException If an error occurs during security configuration.
@@ -83,7 +120,7 @@ public class SlurmSession implements AutoCloseable {
         // Opens authenticated SSH session to remote host
 
         // 1. Prepare the input stream
-        InputStream keyStream = new ByteArrayInputStream(slurmConfig.sshKeyArmoredString.getBytes(StandardCharsets.UTF_8));
+        InputStream keyStream = new ByteArrayInputStream(reformatSSHKey(slurmConfig.sshKeyArmoredString).getBytes(StandardCharsets.UTF_8));
 
         // 3. Define the Password Provider
         // The provider receives (SessionContext, NamedResource, int retryIndex)
