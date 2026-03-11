@@ -361,7 +361,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
         }
         // All the tasks are completed download results in a temporary directory
-        List<String> output = slurmSession.runCommand(String.format("find %s/*.fgb -type f -printf \"%%s,%%f\\n\"",
+        List<String> output = slurmSession.runCommand(String.format("find %s/*.geojson -type f -printf \"%%s,%%f\\n\"",
                 slurmConfig.serverWorkspaceFolder), false);
         List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
         List<String> remoteFiles = new ArrayList<>()
@@ -379,16 +379,16 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             // Import the first file as usual
             new Import_File().exec(connection, [pathFile : filesToImport.pop().getPath(), tableName : "RECEIVERS_LEVEL"], new EmptyProgressVisitor())
             // Link with external file for the others then copy the rows into the merged table
-            Sql sql = Sql.newInstance(connection)
-            int uniqueIndex = 1
-            while (!filesToImport.isEmpty()) {
-                File localFile = filesToImport.pop()
-                def tableName = "RECEIVERS_LEVEL_$uniqueIndex"
-                sql.execute("CALL FILE_TABLE('${localFile.getPath()}', '$tableName')".toString())
-                sql.execute("INSERT INTO RECEIVERS_LEVEL VALUES SELECT * FROM $tableName".toString())
-                sql.execute("DROP TABLE $tableName".toString())
-                uniqueIndex += 1
-            }
+//            Sql sql = Sql.newInstance(connection)
+//            int uniqueIndex = 1
+//            while (!filesToImport.isEmpty()) {
+//                File localFile = filesToImport.pop()
+//                def tableName = "RECEIVERS_LEVEL_$uniqueIndex"
+//                sql.execute("CALL FILE_TABLE('${localFile.getPath()}', '$tableName')".toString())
+//                sql.execute("INSERT INTO RECEIVERS_LEVEL VALUES SELECT * FROM $tableName".toString())
+//                sql.execute("DROP TABLE $tableName".toString())
+//                uniqueIndex += 1
+//            }
         }
         return ["result": "Setup completed"]
     }
@@ -447,7 +447,7 @@ echo "Run propagation"
 bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
 
 echo "Export results"
-bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy -exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".fgb -tableToExport RECEIVERS_LEVEL || exit 1
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy -exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".geojson -tableToExport RECEIVERS_LEVEL || exit 1
 /$
     return script
 }
