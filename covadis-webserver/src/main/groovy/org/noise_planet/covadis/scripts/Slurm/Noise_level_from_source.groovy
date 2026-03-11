@@ -15,7 +15,10 @@ import groovy.sql.Sql
 import groovy.transform.Field
 import org.apache.sshd.scp.client.ScpClientCreator
 import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
+import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+import org.noise_planet.covadis.scripts.Import_and_Export.Import_File
+import org.noise_planet.covadis.webserver.slurm.FileAttributes
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
 import org.noise_planet.covadis.webserver.slurm.SlurmUtilities
@@ -24,10 +27,13 @@ import org.slf4j.LoggerFactory
 import javax.sql.DataSource
 import java.nio.charset.Charset
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
+import java.sql.Statement
 import java.time.LocalDateTime
+import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicLong
 
 title = 'Computes the propagation from the sounds sources to the receivers'
@@ -330,6 +336,8 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             return ["result": "No job ID found"]
         }
         logger.info("Slurm job submitted with id {}", slurmConfig.jobId)
+        // Wait some time before fetching logs
+        Thread.sleep(1000)
         // Capture logs of all the tasks
         Map<String, Long> bytesReadInFiles = new HashMap<>();
 
@@ -338,7 +346,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             if (progress.isCanceled()) {
                 // User cancel the computation, cancel the job on the remote slurm cluster
                 slurmSession.runCommand(String.format("scancel %d", slurmConfig.jobId), true)
-                break;
+                throw new CancellationException("The job has been canceled as requested by the user")
             }
             long lastPullTime = System.currentTimeMillis();
             // Log task outputs
@@ -352,7 +360,36 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
 
             Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
         }
-
+        // All the tasks are completed download results in a temporary directory
+        List<String> output = slurmSession.runCommand(String.format("find %s/*.fgb -type f -printf \"%%s,%%f\\n\"",
+                slurmConfig.serverWorkspaceFolder), false);
+        List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
+        List<String> remoteFiles = new ArrayList<>()
+        for (FileAttributes file : files) {
+            remoteFiles.add(new File(slurmConfig.serverWorkspaceFolder ,file.fileName).getPath())
+        }
+        def temporaryDataDir = Files.createTempDirectory(getDateString())
+        downloadFiles(slurmSession, remoteFiles.toArray(new String[0]), temporaryDataDir)
+        // Transfer results into a single table
+        try (Connection connection = dataSource.connection) {
+            Queue<File> filesToImport = new ArrayDeque<>()
+            for (FileAttributes file : files) {
+                filesToImport.add(new File(temporaryDataDir.toFile() ,file.fileName))
+            }
+            // Import the first file as usual
+            new Import_File().exec(connection, [pathFile : filesToImport.pop().getPath(), tableName : "RECEIVERS_LEVEL"], new EmptyProgressVisitor())
+            // Link with external file for the others then copy the rows into the merged table
+            Sql sql = Sql.newInstance(connection)
+            int uniqueIndex = 1
+            while (!filesToImport.isEmpty()) {
+                File localFile = filesToImport.pop()
+                def tableName = "RECEIVERS_LEVEL_$uniqueIndex"
+                sql.execute("CALL FILE_TABLE('${localFile.getPath()}', '$tableName')".toString())
+                sql.execute("INSERT INTO RECEIVERS_LEVEL VALUES SELECT * FROM $tableName".toString())
+                sql.execute("DROP TABLE $tableName".toString())
+                uniqueIndex += 1
+            }
+        }
         return ["result": "Setup completed"]
     }
 }
@@ -449,6 +486,11 @@ private static String createRemoteWorkspace(SlurmSession slurmSession, String jo
 private static void uploadFile(SlurmSession slurmSession, File localFile, String remotePath) {
     def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
     scpClient.upload(localFile.absolutePath, remotePath)
+}
+
+static void downloadFiles(SlurmSession slurmSession, String[] remote, Path local) {
+    def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
+    scpClient.download(remote, local)
 }
 
 private static void createRemoteFile(String fileContent, SlurmSession slurmSession, String remoteFileName) {
