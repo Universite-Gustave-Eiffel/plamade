@@ -9,6 +9,8 @@
 
 package org.noise_planet.covadis.webserver;
 
+import net.opengis.wps10.ExecuteResponseType;
+import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.h2.value.ValueBoolean;
 import org.h2gis.functions.io.geojson.GeoJsonRead;
@@ -20,10 +22,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.JobStates;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringReader;
+import java.io.*;
 import java.net.URL;
 import java.net.http.*;
 import java.net.URI;
@@ -462,7 +461,7 @@ class NoiseModellingServerHttpTest {
             SHPRead.importTable(connection, url.getFile(),"RECEIVERS" ,ValueBoolean.TRUE);
         }
 
-        requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Noise_level_from_source</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableSources</p1:Identifier><p0:Data><p0:LiteralData>SOURCES</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableReceivers</p1:Identifier><p0:Data><p0:LiteralData>RECEIVERS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
+        requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Noise_level_from_source</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableSources</p1:Identifier><p0:Data><p0:LiteralData>SOURCES</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableReceivers</p1:Identifier><p0:Data><p0:LiteralData>RECEIVERS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:ResponseDocument></p0:ResponseDocument></p0:ResponseForm></p0:Execute>";
         request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL))
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
@@ -471,19 +470,27 @@ class NoiseModellingServerHttpTest {
         response = client.send(request, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode());
 
-        // Wait for the table RECEIVERS_LEVEL to appear
-        // This unit test will timeout after 2 minutes
+        ExecuteResponseType executeResponseType = OwsController.parseExecuteResponse(new ByteArrayInputStream(response.body().getBytes()));
+        String requestResponseUrl = executeResponseType.getStatusLocation();
+
+        // Polls status endpoint until process completes or fails
+        while (!(executeResponseType.getStatus().getProcessFailed() != null ||
+                executeResponseType.getStatus().getProcessSucceeded() != null)) {
+            Thread.sleep(500);
+            request = HttpRequest.newBuilder()
+                    .uri(URI.create(requestResponseUrl))
+                    .GET()
+                    .build();
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, response.statusCode());
+            executeResponseType = OwsController.parseExecuteResponse(new ByteArrayInputStream(response.body().getBytes()));
+        }
+
+        // Polls database for table existence and row count
         try(Connection connection = app.getUserDataSource(1).getConnection()) {
-            while(true) {
-                if(!JDBCUtilities.tableExists(connection, "RECEIVERS_LEVEL")) {
-                    Thread.sleep(500);
-                    continue;
-                }
-                Statement statement = connection.createStatement();
-                try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL")) {
-                    assertTrue(resultSet.next());
-                    break;
-                }
+            Statement statement = connection.createStatement();
+            try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL")) {
+                assertTrue(resultSet.next());
             }
         }
 

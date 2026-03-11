@@ -8,14 +8,18 @@ import org.geotools.xsd.Encoder;
 import org.jspecify.annotations.NonNull;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.webserver.Configuration;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 
+import javax.xml.datatype.DatatypeConfigurationException;
 import javax.xml.datatype.DatatypeFactory;
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.time.LocalDateTime;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -224,7 +228,11 @@ public class WpsXmlDocumentGenerator {
         return process;
     }
 
-    public static String generateExecuteResponseDocument(Job<?> job, Map<String, Object> jobData, Configuration webServerConfiguration) throws IOException {
+    /**
+     * Generates WPS execute response with status by job state
+     */
+    public static String generateExecuteResponseDocument(Job<?> job, Map<String, Object> jobData, Configuration webServerConfiguration)
+            throws IOException, DatatypeConfigurationException, SQLException, ParseException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ExecuteResponseType response = wpsf.createExecuteResponseType();
         response.setLang("en");
@@ -232,15 +240,12 @@ public class WpsXmlDocumentGenerator {
         if(job != null) {
             response.setProcess(getProcessBriefType(job.executionPlan.scriptMetadata));
         }
-        response.setStatusLocation(webServerConfiguration.getWebSiteFullUrl() + "/jobs/" + jobData.get("id"));
+        response.setStatusLocation(webServerConfiguration.getWebSiteFullUrl() + "/builder/jobs/" + jobData.get("id"));
         response.setStatus(wpsf.createStatusType());
-        Timestamp startDate = (Timestamp) jobData.get("startDate");
-        LocalDateTime startDateTime = startDate == null ? LocalDateTime.now() : startDate.toLocalDateTime();
-        XMLGregorianCalendar xmlGregorianCalendar = DatatypeFactory.newDefaultInstance()
-                .newXMLGregorianCalendar(startDateTime.getYear(), startDateTime.getMonthValue(),
-                        startDateTime.getDayOfMonth(), startDateTime.getHour(), startDateTime.getMinute(),
-                        startDateTime.getSecond(), 0, GregorianCalendar.ZONE_OFFSET);
-        response.getStatus().setCreationTime(xmlGregorianCalendar);
+        String startDate = jobData.get("startDate").toString();
+        // Converts timestamp to XMLGregorianCalendar for standardized serialization
+        response.getStatus().setCreationTime(DatabaseManagement.dateToXMLGregorianCalendar(startDate));
+        // Sets status details by job state
         switch (JobStates.valueOf(jobData.get("status").toString())) {
             case QUEUED:
                 response.getStatus().setProcessAccepted(JobStates.QUEUED.name());
@@ -248,22 +253,43 @@ public class WpsXmlDocumentGenerator {
             case RUNNING:
                 response.getStatus().setProcessStarted(wpsf.createProcessStartedType());
                 response.getStatus().getProcessStarted().setValue(JobStates.RUNNING.name());
-                response.getStatus().getProcessStarted().setPercentCompleted(
-                        BigInteger.valueOf(Double.valueOf(Double.parseDouble(
-                                (String) jobData.get("progression"))).intValue()));
+                // Extracts progression percentage for status encoding
+                response.getStatus().getProcessStarted().setPercentCompleted(job == null ? BigInteger.valueOf(0) : job.getProgression());
                 break;
             case COMPLETED:
-                response.getStatus().setProcessSucceeded(JobStates.COMPLETED.name());
+                response.getStatus().setProcessSucceeded(job != null ? job.getExecutionPlan().getOutputs() != null ? job.getExecutionPlan().getOutputs().toString() : "" : "");
                 break;
             case CANCELED:
             case FAILED:
                 response.getStatus().setProcessFailed(wpsf.createProcessFailedType());
-                response.getStatus().getProcessFailed().setExceptionReport(owsf.createExceptionReportType());
+                // Attaches exception report to failed process status; generates default if absent
+                if(job != null && job.getJobException() != null) {
+                    response.getStatus().getProcessFailed().setExceptionReport(generateExceptionDocument(job.getJobException()));
+                } else {
+                    response.getStatus().getProcessFailed().setExceptionReport(owsf.createExceptionReportType());
+                }
                 break;
         }
         Encoder encoder = new Encoder(new WPSConfiguration());
         encoder.encode(response, new QName("http://www.opengis.net/wps/1.0.0", "ExecuteResponse"), baos);
         return baos.toString();
 
+    }
+
+    /**
+     * Generates an exception report from stack trace details
+     * @return Exception report
+     */
+    public static ExceptionReportType generateExceptionDocument(Exception ex) {
+        ExceptionType e = owsf.createExceptionType();
+        e.setExceptionCode(ex.getMessage());
+        e.setLocator(ex.getClass().getName());
+        for (StackTraceElement traceElement : ex.getStackTrace()) {
+            e.getExceptionText().add(traceElement.toString());
+        }
+        ExceptionReportType report = Ows11Factory.eINSTANCE.createExceptionReportType();
+        report.setVersion("2.0");
+        report.getException().add(e);
+        return report;
     }
 }

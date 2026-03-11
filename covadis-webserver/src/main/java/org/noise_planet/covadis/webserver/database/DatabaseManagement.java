@@ -26,13 +26,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import javax.xml.datatype.DatatypeConfigurationException;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
 import java.io.File;
 import java.sql.*;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.*;
+import java.util.Date;
 
 /**
  * Handle the creation of datasource according to application configuration
@@ -41,6 +46,8 @@ import java.util.*;
 public class DatabaseManagement {
     public static final int DATABASE_VERSION = 1;
     public static final String ADMIN_EMAIL = "admin@localhost";
+    public static DateFormat mediumDateFormatEN =
+            new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
 
     /**
      * Create H2Database datasource
@@ -532,14 +539,28 @@ public class DatabaseManagement {
         }
         DecimalFormat f = (DecimalFormat)(DecimalFormat.getInstance(Locale.ROOT));
         f.applyPattern("#.### '%'");
-        DateFormat mediumDateFormatEN =
-                new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss");
         try (ResultSet rs = statement.executeQuery()) {
             while (rs.next()) {
                 table.add(parseJob(rs, mediumDateFormatEN, f));
             }
         }
         return table;
+    }
+
+    /**
+     *
+     * @param stringDate
+     * @throws SQLException
+     * @throws ParseException
+     * @throws DatatypeConfigurationException
+     */
+    public static XMLGregorianCalendar dateToXMLGregorianCalendar(String stringDate)
+            throws SQLException, ParseException, DatatypeConfigurationException {
+        Date date = mediumDateFormatEN.parse(stringDate);
+        GregorianCalendar gregorianCalendar = new GregorianCalendar();
+        gregorianCalendar.setTime(date);
+        return DatatypeFactory.newInstance()
+                .newXMLGregorianCalendar(gregorianCalendar);
     }
 
 

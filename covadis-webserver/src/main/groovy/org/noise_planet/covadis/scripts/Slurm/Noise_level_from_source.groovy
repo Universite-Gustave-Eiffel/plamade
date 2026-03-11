@@ -276,7 +276,7 @@ outputs = [
 ]
 
 @Field
-int POLL_SLURM_STATUS_TIME = 40000;
+int POLL_SLURM_STATUS_TIME = 5000;
 /**
  * Main run function
  * @param dataSource
@@ -289,7 +289,6 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
     String jobIdentifier = Thread.currentThread().name
     // Create a logger with the thread name as it contains the Job identifier
     def logger = LoggerFactory.getLogger(jobIdentifier)
-
     File exportDir
     SlurmConfig slurmConfig
     try (Connection connection = dataSource.connection) {
@@ -354,8 +353,6 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
         }
 
-        // dummy table for test
-        sql.execute("CREATE TABLE RECEIVERS_LEVEL(PK SERIAL) AS SELECT 1")
         return ["result": "Setup completed"]
     }
 }
