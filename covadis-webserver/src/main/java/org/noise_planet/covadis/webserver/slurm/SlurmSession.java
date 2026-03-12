@@ -302,9 +302,11 @@ public class SlurmSession implements AutoCloseable {
                 throw new CancellationException("One of the slurm task has failed and the job has been canceled");
             }
         }
-        // If all the tasks are finished, return true
-        return !taskIdToTaskState.isEmpty() && taskIdToTaskState.values().stream()
+        // If all the tasks are finished, return true. If there is no task, we consider that the job is finished.
+        // (we can not update the taskIdToTaskState map if there is no task, so we can not know if the job is finished or not,
+        // but we can consider that it is finished)
+        return !taskIdToTaskState.isEmpty() && (taskIdToTaskState.values().stream()
                 .allMatch(s -> slurmStateMap.containsKey(s.status)
-                        && slurmStateMap.get(s.status).finished);
+                        && slurmStateMap.get(s.status).finished) || jobStatusList.isEmpty());
     }
 }
