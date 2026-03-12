@@ -1,26 +1,23 @@
 package org.noise_planet.covadis.webserver.script;
 
+
 import net.opengis.ows11.*;
 import net.opengis.wps10.*;
 import org.geotools.wps.WPSConfiguration;
 import org.geotools.xsd.Encoder;
+import org.jspecify.annotations.NonNull;
 import org.locationtech.jts.geom.Geometry;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
+import org.noise_planet.covadis.webserver.Configuration;
+import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 
+import javax.xml.datatype.DatatypeConfigurationException;
 import javax.xml.namespace.QName;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.math.BigInteger;
+import java.sql.SQLException;
+import java.text.ParseException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -208,16 +205,86 @@ public class WpsXmlDocumentGenerator {
         capabilities.setProcessOfferings(processOfferings);
 
         for (ScriptMetadata script : scripts.values()) {
-            ProcessBriefType process = wpsf.createProcessBriefType();
-            process.setProcessVersion("1.0.0");
-            process.setIdentifier(codetype(script.id));
-            process.setTitle(languageString(script.title));
-            process.setAbstract(languageString(script.description));
+            ProcessBriefType process = getProcessBriefType(script);
             processOfferings.getProcess().add(process);
         }
 
         Encoder encoder = new Encoder(new WPSConfiguration());
         encoder.encode(capabilities, new QName("http://www.opengis.net/wps/1.0.0", "Capabilities"), baos);
         return baos.toString();
+    }
+
+    private static @NonNull ProcessBriefType getProcessBriefType(ScriptMetadata script) {
+        ProcessBriefType process = wpsf.createProcessBriefType();
+        process.setProcessVersion("1.0.0");
+        process.setIdentifier(codetype(script.id));
+        process.setTitle(languageString(script.title));
+        process.setAbstract(languageString(script.description));
+        return process;
+    }
+
+    /**
+     * Generates WPS execute response with status by job state
+     */
+    public static String generateExecuteResponseDocument(Job<?> job, Map<String, Object> jobData, Configuration webServerConfiguration)
+            throws IOException, DatatypeConfigurationException, SQLException, ParseException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ExecuteResponseType response = wpsf.createExecuteResponseType();
+        response.setLang("en");
+        response.setService("WPS");
+        if(job != null) {
+            response.setProcess(getProcessBriefType(job.executionPlan.scriptMetadata));
+        }
+        response.setStatusLocation(webServerConfiguration.getWebSiteFullUrl() + "/builder/jobs/" + jobData.get("id"));
+        response.setStatus(wpsf.createStatusType());
+        String startDate = jobData.get("startDate").toString();
+        // Converts timestamp to XMLGregorianCalendar for standardized serialization
+        response.getStatus().setCreationTime(DatabaseManagement.dateToXMLGregorianCalendar(startDate));
+        // Sets status details by job state
+        switch (JobStates.valueOf(jobData.get("status").toString())) {
+            case QUEUED:
+                response.getStatus().setProcessAccepted(JobStates.QUEUED.name());
+                break;
+            case RUNNING:
+                response.getStatus().setProcessStarted(wpsf.createProcessStartedType());
+                response.getStatus().getProcessStarted().setValue(JobStates.RUNNING.name());
+                // Extracts progression percentage for status encoding
+                response.getStatus().getProcessStarted().setPercentCompleted(job == null ? BigInteger.valueOf(0) : job.getProgression());
+                break;
+            case COMPLETED:
+                response.getStatus().setProcessSucceeded(job != null ? job.getExecutionPlan().getOutputs() != null ? job.getExecutionPlan().getOutputs().toString() : "" : "");
+                break;
+            case CANCELED:
+            case FAILED:
+                response.getStatus().setProcessFailed(wpsf.createProcessFailedType());
+                // Attaches exception report to failed process status; generates default if absent
+                if(job != null && job.getJobException() != null) {
+                    response.getStatus().getProcessFailed().setExceptionReport(generateExceptionDocument(job.getJobException()));
+                } else {
+                    response.getStatus().getProcessFailed().setExceptionReport(owsf.createExceptionReportType());
+                }
+                break;
+        }
+        Encoder encoder = new Encoder(new WPSConfiguration());
+        encoder.encode(response, new QName("http://www.opengis.net/wps/1.0.0", "ExecuteResponse"), baos);
+        return baos.toString();
+
+    }
+
+    /**
+     * Generates an exception report from stack trace details
+     * @return Exception report
+     */
+    public static ExceptionReportType generateExceptionDocument(Exception ex) {
+        ExceptionType e = owsf.createExceptionType();
+        e.setExceptionCode(ex.getMessage());
+        e.setLocator(ex.getClass().getName());
+        for (StackTraceElement traceElement : ex.getStackTrace()) {
+            e.getExceptionText().add(traceElement.toString());
+        }
+        ExceptionReportType report = Ows11Factory.eINSTANCE.createExceptionReportType();
+        report.setVersion("2.0");
+        report.getException().add(e);
+        return report;
     }
 }

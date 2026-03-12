@@ -12,17 +12,37 @@
 package org.noise_planet.covadis.scripts.Slurm
 
 import groovy.sql.Sql
+import groovy.transform.CompileStatic
+import groovy.transform.Field
+import org.apache.sshd.scp.client.ScpClient
 import org.apache.sshd.scp.client.ScpClientCreator
+import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
+import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+import org.noise_planet.covadis.scripts.Import_and_Export.Import_File
+import org.noise_planet.covadis.webserver.slurm.FileAttributes
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
+import org.noise_planet.covadis.webserver.slurm.SlurmUtilities
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.attribute.FileTime
+import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
+import java.sql.Statement
 import java.time.LocalDateTime
+import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicLong
+import com.fasterxml.jackson.core.JsonFactory
+import com.fasterxml.jackson.core.JsonToken
+import com.fasterxml.jackson.core.JsonEncoding
+
+import java.util.regex.Matcher
 
 title = 'Computes the propagation from the sounds sources to the receivers'
 description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table on a remote HPC cluster using Slurm for job management.' +
@@ -269,97 +289,164 @@ outputs = [
         ]
 ]
 
+@Field
+int POLL_SLURM_STATUS_TIME = 5000;
 /**
  * Main run function
  * @param dataSource
  * @param inputs
  * @return
  */
+@CompileStatic
 def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
-    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/releases/download/v5.0.1/NoiseModelling_without_gui-5.0.1.zip"
+    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_03_06/NoiseModellingCovadis-2.0.0-SNAPSHOT.zip"
     def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
+    // Create a logger with the thread name as it contains the Job identifier
     def logger = LoggerFactory.getLogger(jobIdentifier)
-
+    File exportDir
+    SlurmConfig slurmConfig
     try (Connection connection = dataSource.connection) {
         Sql sql = Sql.newInstance(connection)
         def res = sql.firstRow("SELECT * FROM SLURM_CONFIGURATION WHERE configuration_name = ?", inputs.configuration_name)
+        slurmConfig = new SlurmConfig(host: res.host,
+                port: res.port as Integer,
+                sshKeyArmoredString: res.private_key,
+                sshKeyPassword: inputs.key_password,
+                user: res.user_name,
+                serverKey: res.ssl_key,
+                serverKeyType: res.ssh_key_type,
+                javaBinaryPath: res.java_binary_path)
+        exportDir = exportDatabase(connection)
+        exportDir.deleteOnExit()
+    }
 
-        SlurmConfig slurmConfig = new SlurmConfig(
-            host: res.host,
-            port: res.port as Integer,
-            sshKeyArmoredString: res.private_key,
-            sshKeyPassword: inputs.key_password,
-            user: res.user_name,
-            serverKey: res.ssl_key,
-            serverKeyType: res.ssh_key_type,
-            javaBinaryPath: res.java_binary_path
-        )
+    try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
+        slurmSession.connect()
+        def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
 
-        // Create a logger with the thread name as it contains the Job identifier
-        try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
-            slurmSession.connect()
+        validateJavaVersion(slurmSession, slurmConfig.javaBinaryPath)
+        setupNoiseModelling(slurmSession, noiseModellingDownloadURL, noiseModellingFolder)
 
-            validateJavaVersion(slurmSession, slurmConfig.javaBinaryPath)
-            setupNoiseModelling(slurmSession, noiseModellingDownloadURL, noiseModellingFolder)
+        slurmConfig.serverWorkspaceFolder = createRemoteWorkspace(slurmSession, jobIdentifier)
 
-            def exportDir = exportDatabase(connection)
-            String remoteWorkspace = createRemoteWorkspace(slurmSession, jobIdentifier)
+        uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder+ "/h2database.zip")
 
-            uploadDatabaseBackup(slurmSession, exportDir, remoteWorkspace)
-            exportDir.deleteOnExit()
+        def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, "~/"+noiseModellingFolder, inputs, slurmConfig.serverWorkspaceFolder)
 
-            def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, noiseModellingFolder, inputs, remoteWorkspace)
-
-            return ["result": "Setup completed"]
+        // upload bash script
+        logger.info("Upload slurm bash script")
+        createRemoteFile(bashCode, scpClient, "${slurmConfig.serverWorkspaceFolder}/noisemodelling_batch.sh")
+        // upload groovy script
+        logger.info("Upload slurm main groovy script")
+        createRemoteFile(getClass().classLoader.getResource("scripts/Slurm/Main_Remote_Script.groovy").text, scpClient, "${slurmConfig.serverWorkspaceFolder}/Main_Remote_Script.groovy")
+        String command = "cd ${slurmConfig.serverWorkspaceFolder} && sbatch --array=1-${slurmConfig.maxTasksPerJobs} noisemodelling_batch.sh"
+        logger.info("Main groovy script uploaded, run command:\n$command")
+        // Fetch the job id from the output of the sbatch command
+        def response = slurmSession.runCommand(command, true).first()
+        Matcher matcher = (response =~ /Submitted batch job (\d+)/)
+        if (matcher) {
+            slurmConfig.jobId = Integer.parseInt(matcher.group(1) as String) // [index of match][index of capture group]
+        } else {
+            return ["result": "No job ID found"]
         }
+        logger.info("Slurm job submitted with id {}", slurmConfig.jobId)
+        // Wait some time before fetching logs
+        Thread.sleep(1000)
+        // Capture logs of all the tasks
+        Map<String, Long> bytesReadInFiles = new HashMap<>();
+
+        ProgressVisitor tasksProgress = progress.subProcess(slurmConfig.maxTasksPerJobs)
+        while(true) {
+            if (progress.isCanceled()) {
+                // User cancel the computation, cancel the job on the remote slurm cluster
+                slurmSession.runCommand(String.format("scancel %d", slurmConfig.jobId), true)
+                throw new CancellationException("The job has been canceled as requested by the user")
+            }
+            long lastPullTime = System.currentTimeMillis();
+            // Log task outputs
+            SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles);
+
+            // Check status of jobs on cluster side
+            if (slurmSession.updateSlurmJobProgression(tasksProgress)) {
+                // All tasks done or the main task failed
+                break;
+            }
+
+            Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
+        }
+        // All the tasks are completed download results in a temporary directory
+        List<String> output = slurmSession.runCommand(String.format("find %s/*.geojson -type f -printf \"%%s,%%f\\n\"",
+                slurmConfig.serverWorkspaceFolder), false);
+        List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
+        List<String> remoteFiles = new ArrayList<>()
+        for (FileAttributes file : files) {
+            remoteFiles.add(new File(slurmConfig.serverWorkspaceFolder ,file.fileName).getPath())
+        }
+        def temporaryDataDir = Files.createTempDirectory(getDateString())
+        logger.info("Download remote GeoJson files..")
+        downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir)
+        // merge geojson files
+        List<String> filesToImport = new ArrayList<>()
+        for (FileAttributes file : files) {
+            filesToImport.add(new File(temporaryDataDir.toFile() ,file.fileName).getPath())
+        }
+        def mergedFile =new File(temporaryDataDir.toFile() ,"RECEIVERS_LEVEL.geojson")
+        logger.info("Merge GeoJSON files to ${mergedFile.path}..")
+        mergeGeoJSONFiles(filesToImport, mergedFile)
+        // Transfer results into a single table
+        try (Connection connection = dataSource.connection) {
+            // Import the first file as usual
+            new Import_File().exec(connection, [pathFile : mergedFile.getPath(), tableName : "RECEIVERS_LEVEL"], new EmptyProgressVisitor())
+        }
+        return ["result": "Setup completed"]
     }
 }
 
+/**
+ * This batch script is executed for each Task, so database is copied and output data renamed using the task identifier
+ * @param javaHome
+ * @param noisemodellingPath
+ * @param inputs
+ * @param workspacePath
+ * @return
+ */
 public static String generateSlurmBashScript(String javaHome, String noisemodellingPath, Map inputs, String workspacePath) {
-
-    String tableReceivers = inputs['tableReceivers']
 
     // remove specific keys of this WPS process
     Map<String, Object> inputsCopy = new HashMap<>(inputs)
     inputsCopy.remove("key_password")
     inputsCopy.remove("configuration_name")
 
-    // build arguments string for the local Noise_level_from_source.groovy script
-    StringBuilder arguments = new StringBuilder()
-    for(Map.Entry<String, Object> entry : inputsCopy.entrySet()) {
-        arguments.append("--").append(entry.key).append(" ")
-        arguments.append(entry.value).append(" ")
-    }
 
+    // 1. Serialize Map to byte array
+    def baos = new ByteArrayOutputStream()
+    new ObjectOutputStream(baos).withCloseable { it.writeObject(inputsCopy) }
+    byte[] bytes = baos.toByteArray()
 
-    def script = $/
-    #! /bin/bash
+    // 2. Encode to Base64 String
+    String base64Encoded = bytes.encodeBase64().toString()
 
-    # run with this command
-    # must be run in the same folder than the database
-    # sbatch --array=0-11 noisemodelling_batch.sh
+    def script = $/#!/bin/sh
+# run with this command
+# must be run in the same folder than the database
+# sbatch --array=0-11 noisemodelling_batch.sh
 
-    echo "copy data and code to local node storage"
-    rsync -a $workspacePath /scratch/job."$$SLURM_JOB_ID"/data/
+echo "copy data to local node storage"
+unzip h2database.zip -d /scratch/job."$$SLURM_JOB_ID"/  || exit 1
 
-    echo "Prepare NoiseModelling run"
-    
-    cd /scratch/job."$$SLURM_JOB_ID"/data/
-    
-    unzip h2database.zip
-    
-    export JAVA_HOME=$javaHome
+echo "Prepare NoiseModelling run"
 
-    echo "Filter receivers"
-    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/wps/Slurm/FilterTaskReceivers.groovy --taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --tableReceivers $tableReceivers || exit 1
+cd /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 
-    echo "Run propagation"
-    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/NoiseModelling/Noise_level_from_source.groovy $arguments || exit 1
-    
-    echo "Export results"
-    bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/data/ -s $noisemodellingPath/scripts/Import_and_Export/Export_Table.groovy --exportPath $workspacePath/RECEIVERS_LEVEL_"$$SLURM_ARRAY_TASK_ID".fgb --tableToExport RECEIVERS_LEVEL || exit 1
-    /$
+#rename the h2 database
+mv *.mv.db h2gisdb.mv.db || exit 1
+
+export JAVA_HOME=$javaHome
+
+echo "Run main script.."
+bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $workspacePath/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" -minTaskId "$$SLURM_ARRAY_TASK_MIN" -maxTaskId "$$SLURM_ARRAY_TASK_MAX" -encodedNoiseLevelFromSourceInputs "$base64Encoded" -outputFolder $workspacePath || exit 1
+/$
     return script
 }
 
@@ -373,7 +460,7 @@ private static void validateJavaVersion(SlurmSession slurmSession, String javaBi
 private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl, String nmFolder) {
     if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
         slurmSession.runCommand("wget ${nmUrl}", true)
-        slurmSession.runCommand("unzip -fo ${nmFolder}.zip && rm ${nmFolder}.zip", true)
+        slurmSession.runCommand("unzip -o ${nmFolder}.zip -d ${nmFolder} && rm ${nmFolder}.zip", true)
         if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
             throw new IllegalStateException("NoiseModelling folder not found after unzipping")
         }
@@ -388,20 +475,121 @@ private static File exportDatabase(Connection connection) {
 
 private static String createRemoteWorkspace(SlurmSession slurmSession, String jobIdentifier) {
     def remoteWorkspace = "~/workspace/${getDateString()}_${jobIdentifier}"
-    slurmSession.runCommand("mkdir -p ${remoteWorkspace}", true)
+    String command = "mkdir -p -v ${remoteWorkspace}"
+    slurmSession.getLogger().info("Run command {}", command)
+    slurmSession.runCommand(command, true)
     return remoteWorkspace
 }
 
-private static void uploadDatabaseBackup(SlurmSession slurmSession, File exportDir, String remoteWorkspace) {
-    def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
-    scpClient.upload("${exportDir.absolutePath}/h2database.zip", "${remoteWorkspace}/h2database.zip")
+@CompileStatic
+void uploadFile(ScpClient scpClient, File localFile, String remotePath) {
+    scpClient.upload(localFile.absolutePath, remotePath)
+}
+
+@CompileStatic
+void downloadFiles(ScpClient scpClient, String[] remote, Path local) {
+    scpClient.download(remote, local)
+}
+
+@CompileStatic
+void createRemoteFile(String fileContent, ScpClient scpClient, String remoteFileName) {    // 1. Convert to bytes using a fixed Charset
+    byte[] data = fileContent.getBytes(StandardCharsets.UTF_8)
+
+    // 2. Use the length of the BYTE array, not the string length
+    long length = (long) data.length
+
+    long now = System.currentTimeMillis()
+    def timestamp = new ScpTimestampCommandDetails(
+            FileTime.fromMillis(now),
+            FileTime.fromMillis(now)
+    )
+
+    // 3. Use a fresh stream for the upload
+    new ByteArrayInputStream(data).withCloseable { is ->
+        scpClient.upload(
+                is,
+                remoteFileName,
+                length, // Byte length
+                PosixFilePermissions.fromString("rwxr-x---"),
+                timestamp
+        )
+    }
 }
 
 private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {
-    slurmSession.runCommand("[ -d $folder ] && echo \"Exists\" || echo \"Not found\"", true, new AtomicLong()).first() == "Exists"
+    String command = "[ -d $folder ] && echo \"Exists\" || echo \"Not found\""
+    slurmSession.getLogger().info("Run command {}", command)
+    slurmSession.runCommand(command, true, new AtomicLong()).first() == "Exists"
 }
 
 private static String getDateString() {
     def now = LocalDateTime.now()
     "${now.year}_${now.monthValue}_${now.dayOfMonth}.${now.hour}.${now.minute}"
+}
+
+/**
+ * Merge GeoJSON files
+ * @param inputFiles Input files to merge
+ * @param outputFile Merged output file destination
+ */
+@CompileStatic
+public void mergeGeoJSONFiles(List<String> inputFiles, File outputFile) {
+    def factory = new JsonFactory()
+
+    outputFile.withOutputStream { os ->
+        def gen = factory.createGenerator(os, JsonEncoding.UTF8)
+
+        gen.writeStartObject()
+        gen.writeStringField("type", "FeatureCollection")
+
+        boolean featuresArrayStarted = false
+
+        inputFiles.eachWithIndex { fileName, idx ->
+            def f = new File(fileName)
+            if (!f.exists())
+                return
+
+            def parser = factory.createParser(f)
+
+            while (parser.nextToken() != null) {
+                String fieldName = parser.currentName()
+
+                // 1. Capture CRS only from the FIRST file
+                if (idx == 0 && "crs" == fieldName) {
+                    gen.writeFieldName("crs")
+                    parser.nextToken() // Move to the start of the CRS object
+                    gen.copyCurrentStructure(parser)
+                }
+
+                // 2. Handle the "features" array
+                else if ("features" == fieldName && parser.currentToken() == JsonToken.START_ARRAY) {
+                    // If this is the first file we are processing, open the global features array
+                    if (!featuresArrayStarted) {
+                        gen.writeArrayFieldStart("features")
+                        featuresArrayStarted = true
+                    }
+
+                    // Stream every feature object from the current file into the output
+                    while (parser.nextToken() != JsonToken.END_ARRAY) {
+                        gen.copyCurrentStructure(parser)
+                    }
+                    // Stop parsing this file once we finish its features array
+                    break
+                }
+            }
+            parser.close()
+        }
+
+        // Close the features array and the root object
+        if (featuresArrayStarted) {
+            gen.writeEndArray()
+        } else {
+            // Fallback if no features were ever found
+            gen.writeArrayFieldStart("features")
+            gen.writeEndArray()
+        }
+
+        gen.writeEndObject()
+        gen.close()
+    }
 }

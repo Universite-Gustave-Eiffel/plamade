@@ -16,8 +16,7 @@ import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.keyprovider.KeyIdentityProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
-import org.apache.sshd.scp.client.ScpClient;
-import org.apache.sshd.scp.client.ScpClientCreator;
+import org.h2gis.api.ProgressVisitor;
 import org.noise_planet.covadis.webserver.utilities.LoggingOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.event.Level;
@@ -28,6 +27,7 @@ import java.security.KeyPair;
 import java.security.GeneralSecurityException;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLong;
 
 
@@ -75,6 +75,43 @@ public class SlurmSession implements AutoCloseable {
     }
 
     /**
+     * Reformats an SSH key string that may have been altered by an editor,
+     * which can introduce unwanted spaces and remove newlines.
+     * The method attempts to restore the original format of the SSH key by identifying the BEGIN and END markers
+     * and reconstructing the key with proper newlines.
+     * @param rawKey The raw SSH key string that may have been modified by an editor.
+     * @return The reformatted SSH key string with proper newlines, or the original string if it cannot be reformatted.
+     */
+    protected static String reformatSSHKey(String rawKey) {
+        if (rawKey == null || rawKey.isEmpty()) {
+            return rawKey;
+        }
+
+        // 1. If it already has newlines, it's likely already correct
+        if (rawKey.contains("\n") || rawKey.contains("\r")) {
+            return rawKey;
+        }
+
+        // 2. Regex to identify the BEGIN marker, the middle content, and the END marker
+        // Supports: OPENSSH, RSA, DSA, EC, and PRIVATE KEY
+        String regex = "(-----BEGIN [A-Z ]+-----)(.*)(-----END [A-Z ]+-----)";
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regex);
+        java.util.regex.Matcher matcher = pattern.matcher(rawKey.trim());
+
+        if (matcher.find()) {
+            String header = matcher.group(1);
+            String content = matcher.group(2).replace(" ", ""); // Remove any spaces an editor might have added
+            String footer = matcher.group(3);
+
+            // 3. Reconstruct with proper Unix newlines (\n)
+            return header + "\n" + content + "\n" + footer;
+        }
+
+        return rawKey;
+    }
+
+    /**
      * Connects to the remote server and authenticates the SSH session.
      * @throws IOException If an error occurs during connection or authentication.
      * @throws GeneralSecurityException If an error occurs during security configuration.
@@ -83,7 +120,7 @@ public class SlurmSession implements AutoCloseable {
         // Opens authenticated SSH session to remote host
 
         // 1. Prepare the input stream
-        InputStream keyStream = new ByteArrayInputStream(slurmConfig.sshKeyArmoredString.getBytes(StandardCharsets.UTF_8));
+        InputStream keyStream = new ByteArrayInputStream(reformatSSHKey(slurmConfig.sshKeyArmoredString).getBytes(StandardCharsets.UTF_8));
 
         // 3. Define the Password Provider
         // The provider receives (SessionContext, NamedResource, int retryIndex)
@@ -233,5 +270,41 @@ public class SlurmSession implements AutoCloseable {
     public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes)
             throws IOException {
         return runCommand(command, logResult, readBytes, SFTP_TIMEOUT);
+    }
+
+    public Logger  getLogger() {
+        return logger;
+    }
+
+
+    /**
+     * Fetch the {@link SlurmConfig#jobId} progression
+     * @param slurmJobProgress
+     * @return True if the main job (all the tasks) is finished (succeed or error)
+     * @throws IOException
+     * @throws CancellationException
+     */
+    public boolean updateSlurmJobProgression(ProgressVisitor slurmJobProgress) throws IOException, CancellationException {
+        List<String> output = runCommand(String.format("scontrol show job %d", slurmConfig.jobId), false);
+        List<SlurmJobStatus> jobStatusList = SlurmUtilities.parseSlurmStatus(output);
+        int finishedStatusCount = 0;
+        for(SlurmJobStatus s : jobStatusList) {
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).finished) {
+                finishedStatusCount++;
+            }
+            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).error) {
+                // If one of the process fail, cancel the computation and set the computation as failed
+                runCommand(String.format("scancel %d", slurmConfig.jobId), false);
+                throw new CancellationException("One of the slurm task has failed and the job has been canceled");
+            }
+        }
+        // increase progress if needed
+        if(oldFinishedJobs != finishedStatusCount) {
+            for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
+                slurmJobProgress.endStep();
+            }
+            oldFinishedJobs = finishedStatusCount;
+        }
+        return finishedStatusCount == slurmConfig.maxTasksPerJobs;
     }
 }

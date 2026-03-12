@@ -14,10 +14,11 @@ public class SlurmConfig {
     public String user;
     public String sshKeyPassword;
     public String sshKeyArmoredString;
-    public int maxJobs;
+    public int maxTasksPerJobs = 8;
     public String serverKey;
     public String serverKeyType;
-    public String serverTempFolder;
+    public String serverWorkspaceFolder;
+    public int jobId=-1;
     public String javaBinaryPath;
 }
 

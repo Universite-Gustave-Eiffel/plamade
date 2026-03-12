@@ -42,12 +42,14 @@ import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXException;
 
 import javax.sql.DataSource;
+import javax.xml.datatype.DatatypeConfigurationException;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.MessageFormat;
+import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -66,7 +68,6 @@ public class OwsController {
     public static final long KEEP_ALIVE_TIME = 0L;
     public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
     private static final int DEFAULT_ABORT_JOB_DELAY = 5;
-    private WpsXmlDocumentGenerator wpsXmlDocumentGenerator = new WpsXmlDocumentGenerator();
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -169,7 +170,7 @@ public class OwsController {
 
 
     public void returnExceptionDocument(Context ctx, Exception ex) throws IOException {
-        ExceptionReportType report = generateExceptionDocument(ex);
+        ExceptionReportType report = WpsXmlDocumentGenerator.generateExceptionDocument(ex);
 
         ProcessFailedType failedType = Wps10Factory.eINSTANCE.createProcessFailedType();
         failedType.setExceptionReport(report);
@@ -182,18 +183,7 @@ public class OwsController {
         ctx.status(500).result(encoder.encodeAsString(report, OWS.ExceptionReport));
     }
 
-    public ExceptionReportType generateExceptionDocument(Exception ex) {
-        ExceptionType e = Ows11Factory.eINSTANCE.createExceptionType();
-        e.setExceptionCode(ex.getMessage());
-        e.setLocator(ex.getClass().getName());
-        for (StackTraceElement traceElement : ex.getStackTrace()) {
-            e.getExceptionText().add(traceElement.toString());
-        }
-        ExceptionReportType report = Ows11Factory.eINSTANCE.createExceptionReportType();
-        report.setVersion("2.0");
-        report.getException().add(e);
-        return report;
-    }
+
 
     /**
      * Handles HTTP GET requests for the WPS (Web Processing Service) by managing
@@ -223,7 +213,7 @@ public class OwsController {
             ScriptMetadata target = wpsScripts.get(identifier);
 
             if (target != null) {
-                ctx.result(wpsXmlDocumentGenerator.generateDescribeProcessXML(target));
+                ctx.result(WpsXmlDocumentGenerator.generateDescribeProcessXML(target));
             } else {
                 ctx.status(404).result("<ows:Exception>Process not found: " + identifier + "</ows:Exception>");
             }
@@ -282,6 +272,28 @@ public class OwsController {
     }
 
     /**
+     * OGC compliant WPS, Build a ExecuteResponse according to the state of a Job
+     * @param ctx the context of the current HTTP request, providing access to query parameters,
+     * request and response handling, and allowing for status and body configuration
+     */
+    public void handleJobExecuteStatus(Context ctx) {
+        try(Connection connection = serverDataSource.getConnection()) {
+            User user = ctx.attribute("user");
+            int jobId = Integer.parseInt(ctx.pathParam("job_id"));
+            Map<String, Object> jobData = DatabaseManagement.getJob(connection, jobId);
+            if(hasUnauthorizedJobAccess(ctx, user, jobData)) {
+                return;
+            }
+            Job<?> job = jobExecutorService.getJob(jobId);
+            ctx.contentType("text/xml; charset=UTF-8");
+            ctx.result(WpsXmlDocumentGenerator.generateExecuteResponseDocument(job, jobData, configuration));
+        } catch (SQLException | IOException | ParseException | DatatypeConfigurationException e) {
+            logger.error(e.getLocalizedMessage(), e);
+            throw new InternalServerErrorResponse();
+        }
+    }
+
+    /**
      * Render job list HTML page
      * @param ctx web context
      */
@@ -300,6 +312,16 @@ public class OwsController {
     }
 
 
+    /**
+     * Parses an InputStream to extract and return an ExecuteType object.
+     *
+     * @param inputStream the input stream containing the request to be parsed
+     * @return an ExecuteType object if parsing is successful and the input corresponds to ExecuteType;
+     *         otherwise, returns null
+     * @throws IOException if an I/O error occurs during parsing
+     * @throws ParserConfigurationException if a configuration error occurs while setting up the parser
+     * @throws SAXException if an error occurs during XML parsing
+     */
     public static ExecuteType parseExecuteRequest(InputStream inputStream)
             throws IOException, ParserConfigurationException, SAXException {
         Parser parser = new Parser(new WPSConfiguration());
@@ -308,6 +330,26 @@ public class OwsController {
             return null;
         }
         return (ExecuteType) parsed;
+    }
+
+    /**
+     * Parses the given input stream to extract an ExecuteResponseType object.
+     *
+     * @param inputStream the input stream containing the data to be parsed
+     * @return an ExecuteResponseType instance if parsing is successful and the parsed object
+     *         is of the expected type, otherwise returns null
+     * @throws IOException if an I/O error occurs while reading the input stream
+     * @throws ParserConfigurationException if a parser configuration error occurs
+     * @throws SAXException if an XML parsing error occurs
+     */
+    public static ExecuteResponseType parseExecuteResponse(InputStream inputStream)
+            throws IOException, ParserConfigurationException, SAXException {
+        Parser parser = new Parser(new WPSConfiguration());
+        Object parsed = parser.parse(inputStream);
+        if (!(parsed instanceof ExecuteResponseType)) {
+            return null;
+        }
+        return (ExecuteResponseType) parsed;
     }
 
     /**
@@ -324,6 +366,11 @@ public class OwsController {
         if(execute == null) {
             throw new IOException("Invalid WPS request");
         }
+        return generateExecutionPlanFroExecuteType(execute, wpsScripts);
+    }
+
+    public static ExecutionPlan generateExecutionPlanFroExecuteType(ExecuteType execute, Map<String, ScriptMetadata> wpsScripts)
+            throws IOException, ParserConfigurationException, SAXException {
         return extractExecuteQuery(execute, wpsScripts);
     }
 
@@ -421,21 +468,37 @@ public class OwsController {
     public void handleWPSPost(Context ctx) {
         try {
             int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
-            ExecutionPlan executionPlan = generateExecutionPlanFromWPS(new ByteArrayInputStream(ctx.bodyAsBytes()), wpsScripts);
 
+            ExecuteType execute = parseExecuteRequest(new ByteArrayInputStream(ctx.bodyAsBytes()));
+            if(execute == null) {
+                throw new IOException("Invalid WPS request");
+            }
+            ExecutionPlan executionPlan = generateExecutionPlanFroExecuteType(execute, wpsScripts);
             int jobUserId = userId > 0 ? userId : 1; // user may not be logged in
+            DataSource userDataSource = fetchUserDataSource(jobUserId);
             Job<Object> job = new Job<>(jobUserId, executionPlan, serverDataSource,
-                    fetchUserDataSource(jobUserId) , configuration);
+                    userDataSource , configuration);
             Future<Object> result = jobExecutorService.submitJob(job);
             try {
                 Object jobResult = result.get(executionPlan.getScriptMetadata().executionTimeoutSeconds, TimeUnit.SECONDS);
                 processResult(ctx, jobResult);
             } catch (TimeoutException e) {
-                String url = ctx.contextPath() + "/job_logs/" + job.getId();
-                ctx.result(String.format(
-                        "Long running process, <a href=\"%s\" target=\"_blank\">please look at the job (id: %d)</a> output logs",
-                        url,
-                        job.getId()));
+                // Long process, switch to asynchronous call
+                if(execute.getResponseForm().getResponseDocument() == null) {
+                    String url = ctx.contextPath() + "/job_logs/" + job.getId();
+                    ctx.result(String.format(
+                            "Long running process, <a href=\"%s\" target=\"_blank\">please look at the job (id: %d)</a> output logs",
+                            url,
+                            job.getId()));
+                } else {
+                    // Request want a standard OGC ExecuteResponse document
+                    Map<String, Object> jobData;
+                    try (Connection connection = serverDataSource.getConnection()) {
+                        jobData = DatabaseManagement.getJob(connection, job.getId());
+                    }
+                    ctx.contentType("text/xml; charset=UTF-8");
+                    ctx.result(WpsXmlDocumentGenerator.generateExecuteResponseDocument(job, jobData, configuration));
+                }
             }
         } catch (Exception e) {
             logger.error("Error executing WPS {}", ctx.body(), e);

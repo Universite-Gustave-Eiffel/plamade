@@ -30,6 +30,27 @@
         <url>git@github.com:Universite-Gustave-Eiffel/plamade.git</url>
         <tag>HEAD</tag>
     </scm>
+    <profiles>
+        <profile>
+            <id>use-snapshots</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <repositories>
+                <repository>
+                    <name>Central Portal Snapshots</name>
+                    <id>central-portal-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <releases>
+                        <enabled>false</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>
@@ -178,17 +199,6 @@
             <url>https://repo1.maven.org/maven2</url>
         </repository>
         <repository>
-            <name>Central Portal Snapshots</name>
-            <id>central-portal-snapshots</id>
-            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
             <id>osgeo</id>
             <url>https://repo.osgeo.org/repository/release/</url>
             <releases>
@@ -219,6 +229,17 @@
                 <groupId>${project.groupId}</groupId>
                 <artifactId>noisemodelling-emission</artifactId>
                 <version>5.0.2-SNAPSHOT</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>5.10.2</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.auth0</groupId>
+                <artifactId>java-jwt</artifactId>
+                <version>[4.5.0, 5)</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>

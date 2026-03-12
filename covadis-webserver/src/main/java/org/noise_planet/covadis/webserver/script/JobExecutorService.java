@@ -41,6 +41,14 @@ public class JobExecutorService {
         return futureTask;
     }
 
+    /**
+     * @param id Job identifier
+     * @return The job instance or null if it does not exist
+     */
+    public Job<?> getJob(int id) {
+        return jobs.get(id);
+    }
+
     public boolean cancelJob(int jobId, int abortDelay) {
         Job<?> job = jobs.get(jobId);
         if (job != null) {

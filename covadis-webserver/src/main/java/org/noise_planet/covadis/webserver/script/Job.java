@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -47,6 +48,7 @@ public class Job<T> implements Callable<T> {
     protected Future<T> future;
     protected ProgressVisitor progressVisitor;
     protected ExecutionPlan executionPlan;
+    protected Exception jobException = null;
 
     public Job(int userId, ExecutionPlan executionPlan,
                DataSource serverDataSource, DataSource userDataSource, Configuration configuration) throws SQLException {
@@ -146,6 +148,7 @@ public class Job<T> implements Callable<T> {
         } catch (Exception ex) {
             setJobState(JobStates.FAILED);
             logger.error("Job failed", ex);
+            jobException = ex;
             throw new RuntimeException(ex);
         } finally {
             isRunning = false;
@@ -154,6 +157,49 @@ public class Job<T> implements Callable<T> {
         return returnData;
     }
 
+    /**
+     * Retrieves the execution plan associated with the job.
+     * The execution plan encapsulates the metadata, inputs, outputs,
+     * and other details required for script execution within the job.
+     *
+     * @return The execution plan instance linked to this job.
+     */
+    public ExecutionPlan getExecutionPlan() {
+        return executionPlan;
+    }
+
+    /**
+     * Retrieves the exception associated with the job, if any.
+     *
+     * @return The exception that occurred during the job execution, or null if no exception was thrown.
+     */
+    public Exception getJobException() {
+        return jobException;
+    }
+
+
+    /**
+     * Executes a Groovy script defined in the given execution plan. The script must have an `exec` method
+     * with one of the following signatures:
+     * - `exec(Connection connection, Map input)`
+     * - `exec(DataSource dataSource, Map input)`
+     * - `exec(Connection connection, Map input, ProgressVisitor progressVisitor)`
+     * - `exec(DataSource dataSource, Map input, ProgressVisitor progressVisitor)`
+     * <p>
+     * This method handles script execution by dynamically invoking the appropriate `exec` method
+     * and passing in the required arguments, which may include a database connection, input parameters,
+     * and a progress visitor. The outputs of the script, if any, are stored in the execution plan.
+     *
+     * @param currentPlan The execution plan that contains the script metadata, input parameters, and stores outputs.
+     * @param progressVisitor An instance of `ProgressVisitor` used for reporting progress during script execution.
+     * @param userDataSource The data source to provide a database connection for the script
+     *
+     * @return The result produced by the executed script, or null if no result is returned.
+     *
+     * @throws IOException If an I/O error occurs during script execution.
+     * @throws SQLException If a database access error occurs.
+     * @throws RuntimeException If the `exec` method's argument types are invalid or other runtime exceptions occur.
+     */
     public static Object runScript(ExecutionPlan currentPlan, ProgressVisitor progressVisitor, DataSource userDataSource) throws IOException, SQLException {
         Object returnData = null;
         GroovyShell shell = new GroovyShell();
@@ -232,5 +278,9 @@ public class Job<T> implements Callable<T> {
      */
     public int getId() {
         return jobId;
+    }
+
+    public BigInteger getProgression() {
+        return BigInteger.valueOf(Math.round(progressVisitor.getProgression()) * 100);
     }
 }
