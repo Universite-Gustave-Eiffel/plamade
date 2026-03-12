@@ -55,7 +55,6 @@ public class SlurmSession implements AutoCloseable {
     public static final int POLL_SLURM_STATUS_TIME = 40000;
 
     public static final String DEFAULT_BATCH_FILE_NAME = "noisemodelling_batch.sh";
-    protected int oldFinishedJobs = 0;
     protected Map<String, SlurmJobKnownStatus> slurmStateMap = new TreeMap<>();
     protected final SlurmConfig slurmConfig;
     protected SshClient client;
@@ -280,17 +279,22 @@ public class SlurmSession implements AutoCloseable {
     /**
      * Fetch the {@link SlurmConfig#jobId} progression
      * @param slurmJobProgress
+     * @param taskIdToTaskState a map that will be updated with the latest status of each task. The key is the task id and the value is the latest status of the task.
      * @return True if the main job (all the tasks) is finished (succeed or error)
      * @throws IOException
      * @throws CancellationException
      */
-    public boolean updateSlurmJobProgression(ProgressVisitor slurmJobProgress) throws IOException, CancellationException {
+    public boolean updateSlurmJobProgression(ProgressVisitor slurmJobProgress, Map<Integer, SlurmJobStatus> taskIdToTaskState) throws IOException, CancellationException {
         List<String> output = runCommand(String.format("scontrol show job %d", slurmConfig.jobId), false);
         List<SlurmJobStatus> jobStatusList = SlurmUtilities.parseSlurmStatus(output);
-        int finishedStatusCount = 0;
         for(SlurmJobStatus s : jobStatusList) {
-            if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).finished) {
-                finishedStatusCount++;
+            boolean oldFinished = taskIdToTaskState.containsKey(s.taskId) &&
+                    slurmStateMap.containsKey(taskIdToTaskState.get(s.taskId).status) &&
+                    slurmStateMap.get(taskIdToTaskState.get(s.taskId).status).finished;
+            taskIdToTaskState.merge(s.taskId, s, (oldStatus, newStatus) -> newStatus);
+            if(!oldFinished && slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).finished) {
+                // If the task is finished and was not finished before, increase the progress
+                slurmJobProgress.endStep();
             }
             if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).error) {
                 // If one of the process fail, cancel the computation and set the computation as failed
@@ -298,13 +302,9 @@ public class SlurmSession implements AutoCloseable {
                 throw new CancellationException("One of the slurm task has failed and the job has been canceled");
             }
         }
-        // increase progress if needed
-        if(oldFinishedJobs != finishedStatusCount) {
-            for(int i=0; i < (finishedStatusCount - oldFinishedJobs); i++) {
-                slurmJobProgress.endStep();
-            }
-            oldFinishedJobs = finishedStatusCount;
-        }
-        return finishedStatusCount == slurmConfig.maxTasksPerJobs;
+        // If all the tasks are finished, return true
+        return !taskIdToTaskState.isEmpty() && taskIdToTaskState.values().stream()
+                .allMatch(s -> slurmStateMap.containsKey(s.status)
+                        && slurmStateMap.get(s.status).finished);
     }
 }

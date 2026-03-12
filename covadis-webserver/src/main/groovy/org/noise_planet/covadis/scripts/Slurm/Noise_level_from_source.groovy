@@ -22,6 +22,7 @@ import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.scripts.Import_and_Export.Import_File
 import org.noise_planet.covadis.webserver.slurm.FileAttributes
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
+import org.noise_planet.covadis.webserver.slurm.SlurmJobStatus
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
 import org.noise_planet.covadis.webserver.slurm.SlurmUtilities
 import org.slf4j.LoggerFactory
@@ -357,6 +358,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
         Map<String, Long> bytesReadInFiles = new HashMap<>();
 
         ProgressVisitor tasksProgress = progress.subProcess(slurmConfig.maxTasksPerJobs)
+        Map<Integer, SlurmJobStatus> jobStatusMap = new HashMap<>()
         while(true) {
             if (progress.isCanceled()) {
                 // User cancel the computation, cancel the job on the remote slurm cluster
@@ -368,7 +370,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles);
 
             // Check status of jobs on cluster side
-            if (slurmSession.updateSlurmJobProgression(tasksProgress)) {
+            if (slurmSession.updateSlurmJobProgression(tasksProgress, jobStatusMap)) {
                 // All tasks done or the main task failed
                 break;
             }
