@@ -1,12 +1,10 @@
 package org.noise_planet.covadis.scripts;
 
 
-import org.h2gis.api.EmptyProgressVisitor;
 import org.junit.jupiter.api.Test;
-import org.noise_planet.covadis.scripts.Slurm.FilterTaskReceivers;
+import org.noise_planet.covadis.scripts.Slurm.Main_Remote_Script;
 
 import java.sql.SQLException;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -22,7 +20,7 @@ public class TestScript extends JDBCTestCase {
         }
         ps.executeBatch();
         connection.commit();
-        new FilterTaskReceivers().exec(connection, Map.of("taskId", 5, "minTaskId" , 0, "maxTaskId" , 31, "tableReceivers", "RECEIVERS"), new EmptyProgressVisitor());
+        new Main_Remote_Script().filterReceivers(connection, 0, 31, 5, "RECEIVERS");
         // Check the numbers of receivers is 5000 / 32
         var rs = connection.createStatement().executeQuery("SELECT COUNT(*) FROM receivers");
         rs.next();

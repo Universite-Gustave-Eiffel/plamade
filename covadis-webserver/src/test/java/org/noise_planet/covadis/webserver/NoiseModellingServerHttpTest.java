@@ -461,7 +461,18 @@ class NoiseModellingServerHttpTest {
             SHPRead.importTable(connection, url.getFile(),"RECEIVERS" ,ValueBoolean.TRUE);
         }
 
-        requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Noise_level_from_source</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableSources</p1:Identifier><p0:Data><p0:LiteralData>SOURCES</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableReceivers</p1:Identifier><p0:Data><p0:LiteralData>RECEIVERS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:ResponseDocument></p0:ResponseDocument></p0:ResponseForm></p0:Execute>";
+        // Count the number of receivers
+        int expectedReceiverCount;
+        try(Connection connection = app.getUserDataSource(1).getConnection()) {
+            try(Statement statement = connection.createStatement()) {
+                try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM RECEIVERS")) {
+                    assertTrue(resultSet.next());
+                    expectedReceiverCount = resultSet.getInt(1);
+                }
+            }
+        }
+
+        requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Noise_level_from_source</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableSources</p1:Identifier><p0:Data><p0:LiteralData>SOURCES</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableReceivers</p1:Identifier><p0:Data><p0:LiteralData>RECEIVERS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">frequencyFieldPrepend</p1:Identifier><p0:Data><p0:LiteralData>LW</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:ResponseDocument></p0:ResponseDocument></p0:ResponseForm></p0:Execute>";
         request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL))
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
@@ -489,8 +500,10 @@ class NoiseModellingServerHttpTest {
         // Polls database for table existence and row count
         try(Connection connection = app.getUserDataSource(1).getConnection()) {
             Statement statement = connection.createStatement();
-            try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL")) {
+            try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(DISTINCT IDRECEIVER) FROM RECEIVERS_LEVEL")) {
                 assertTrue(resultSet.next());
+                // number of receiver * Day Evening Night and DEN
+                assertEquals(expectedReceiverCount, resultSet.getInt(1));
             }
         }
 

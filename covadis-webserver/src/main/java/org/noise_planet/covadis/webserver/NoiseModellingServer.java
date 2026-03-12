@@ -17,6 +17,7 @@ import io.javalin.http.staticfiles.Location;
 import io.javalin.rendering.template.JavalinThymeleaf;
 import io.javalin.util.JavalinLogger;
 import io.javalin.websocket.WsConfig;
+import org.apache.commons.cli.Option;
 import org.apache.log4j.PropertyConfigurator;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.ScriptFileWatchedProcess;
@@ -111,6 +112,10 @@ public class NoiseModellingServer {
         try {
             // Read configuration from command line
             Configuration configuration = Configuration.createConfigurationFromArguments(args);
+            if(configuration == null) {
+                // Use called with --help or -h argument, just exit after displaying help
+                System.exit(0);
+            }
             // Initialize additional loggers
             Logging.configureFileLogger(configuration.workingDirectory, LOGGING_FILE_NAME);
             // Create WebServer instance

@@ -27,6 +27,7 @@ public class Configuration {
     public static final int DEFAULT_PORT = 8000;
     public static final String DEFAULT_APPLICATION_URL = "nmcovadis";
     public static final String DEFAULT_APPLICATION_PROXY_URL = "http://localhost";
+    public static final String NOISE_MODELLING_WEB_SERVER = "NoiseModelling Web Server";
     /** Application context url */
     String applicationRootUrl = DEFAULT_APPLICATION_URL;
     /** Proxy url of the application */
@@ -72,6 +73,9 @@ public class Configuration {
         workingDirOption.setArgName("folder path");
         options.addOption(workingDirOption);
 
+        Option helpOption = new Option("h", "help", false, "Show this help message");
+        options.addOption(helpOption);
+
         Option scriptPathOption = new Option("s", "script", true, "Path and file name of the script");
         scriptPathOption.setArgName("script path");
         options.addOption(scriptPathOption);
@@ -109,11 +113,16 @@ public class Configuration {
      */
     public static Configuration createConfigurationFromCommandLine(String[] args, Options options)
             throws IllegalArgumentException {
-
         Logger logger = LoggerFactory.getLogger(Configuration.class.getName());
+
         CommandLineParser commandLineParser = new DefaultParser();
         HelpFormatter helpFormatter = HelpFormatter.builder()
                 .setPrintWriter(new PrintWriter(new LoggerWriter(logger))).get();
+        // Check if -h or --help argument is present
+        if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            helpFormatter.printHelp(NOISE_MODELLING_WEB_SERVER, options);
+            return null;
+        }
         try {
             CommandLine commandLine = commandLineParser.parse(options, args, true);
             Configuration config = new Configuration(commandLine.hasOption("u"));
@@ -141,7 +150,7 @@ public class Configuration {
             }
             return config;
         } catch (ParseException ex) {
-            helpFormatter.printHelp("NoiseModelling Script Runner", options);
+            helpFormatter.printHelp(NOISE_MODELLING_WEB_SERVER, options);
             throw new IllegalArgumentException(ex.getMessage());
         }
     }

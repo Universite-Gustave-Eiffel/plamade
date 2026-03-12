@@ -11,17 +11,12 @@ import org.noise_planet.covadis.webserver.Configuration;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 
 import javax.xml.datatype.DatatypeConfigurationException;
-import javax.xml.datatype.DatatypeFactory;
-import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.text.ParseException;
-import java.time.LocalDateTime;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
 
