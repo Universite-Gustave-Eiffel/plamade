@@ -18,8 +18,64 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class FileUtilities {
+
+
+
+    /**
+     * Merges multiple .sql.gz files into a single .sql.gz file.
+     * The first file's create table instruction is preserved; later files only contribute data
+     * starting from the first "INSERT INTO" line.
+     *
+     * @param inputFiles List of paths to .sql.gz files
+     * @param outputFile The destination .sql.gz file
+     * @throws IOException If an I/O error occurs
+     */
+    public static void mergeSqlFiles(List<String> inputFiles, File outputFile) throws IOException {
+        // 1. Create the compressed output stream
+        try (FileOutputStream fos = new FileOutputStream(outputFile);
+             GZIPOutputStream gzos = new GZIPOutputStream(fos);
+             OutputStreamWriter osw = new OutputStreamWriter(gzos, StandardCharsets.UTF_8);
+             BufferedWriter writer = new BufferedWriter(osw)) {
+
+            for (int fileIndex = 0; fileIndex < inputFiles.size(); fileIndex++) {
+                File inputFile = new File(inputFiles.get(fileIndex));
+                if (!inputFile.exists()) {
+                    continue;
+                }
+
+                // 2. Open each input file as a compressed stream
+                try (FileInputStream fis = new FileInputStream(inputFile);
+                     GZIPInputStream gzis = new GZIPInputStream(fis);
+                     InputStreamReader isr = new InputStreamReader(gzis, StandardCharsets.UTF_8);
+                     BufferedReader reader = new BufferedReader(isr)) {
+
+                    // The first file (index 0) keeps everything (CREATE TABLE, etc.)
+                    // Subsequent files skip everything until the first INSERT INTO
+                    boolean foundStart = false;
+                    String line;
+
+                    while ((line = reader.readLine()) != null) {
+                        if (!foundStart && (line.startsWith("INSERT INTO") || (fileIndex==0 && line.startsWith("CREATE CACHED TABLE")))) {
+                            foundStart = true;
+                        }
+
+                        if (foundStart) {
+                            writer.write(line);
+                            writer.newLine();
+                        }
+                    }
+                }
+                // Flush after each file to ensure data is handed off to the GZIP stream
+                writer.flush();
+            }
+        }
+    }
 
     /**
      * Merge GeoJSON files

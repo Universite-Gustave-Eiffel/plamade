@@ -262,7 +262,15 @@ inputs = [
                 description: 'Frequency field name prepend. Ex. for 1000 Hz frequency the default column name is HZ1000.' +
                         '&#128736; Default value: <b>HZ</b>',
                 min        : 0, max: 1, type: String.class
-        ]
+        ],
+        confExportReceiverGeometry      : [
+                name       : 'Store receiver position',
+                title      : 'Store receiver position',
+                description: 'Store receiver position in output. The receivers points Z value is the altitude (if the digital elevation model is defined) </br>' +
+                        '&#128736; Default value: <b>true </b>',
+                min        : 0, max: 1,
+                type       : Boolean.class
+        ],
 ]
 
 outputs = [
@@ -451,7 +459,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     def parameters = pointNoiseMap.getNoiseMapDatabaseParameters()
 
     parameters.setMergeSources(!confExportSourceId)
-    parameters.exportReceiverPosition = true
+    parameters.exportReceiverPosition = input.getOrDefault("confExportReceiverGeometry", true) as Boolean
 
     if (input['tableSourcesEmission']) {
         // Use the right default database caps according to db type

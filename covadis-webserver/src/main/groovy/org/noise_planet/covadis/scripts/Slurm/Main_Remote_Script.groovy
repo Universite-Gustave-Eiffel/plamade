@@ -11,13 +11,18 @@
 package org.noise_planet.covadis.scripts.Slurm
 
 import groovy.sql.Sql
+import groovy.transform.CompileStatic
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
 import org.noise_planet.covadis.scripts.Import_and_Export.Export_Table
+import org.noise_planet.covadis.webserver.script.ExecutionPlan
+import org.noise_planet.covadis.webserver.script.Job
+import org.noise_planet.covadis.webserver.script.ScriptMetadata
 
+import javax.sql.DataSource
 import java.sql.Connection
 import java.sql.Statement
 
@@ -51,41 +56,47 @@ outputs = [result: [name       : 'Result output string',
                     title      : 'Result output string',
                     description: 'Result output string',
                     type       : String.class]]
+@CompileStatic
+def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
-def exec(Connection connection, Map input, ProgressVisitor progress) {
+    try(Connection connection = dataSource.getConnection()) {
+        Statement statement = connection.createStatement()
 
-    Statement statement = connection.createStatement()
+        /**
+         * SLURM_ARRAY_TASK_ID will be set to the job array index value.
+         * SLURM_ARRAY_TASK_COUNT will be set to the number of tasks in the job array.
+         * SLURM_ARRAY_TASK_MAX will be set to the highest job array index value.
+         * SLURM_ARRAY_TASK_MIN will be set to the lowest job array index value.
+         **/
+        String outputFolder = input['outputFolder'] as String
 
-    /**
-     * SLURM_ARRAY_TASK_ID will be set to the job array index value.
-     * SLURM_ARRAY_TASK_COUNT will be set to the number of tasks in the job array.
-     * SLURM_ARRAY_TASK_MAX will be set to the highest job array index value.
-     * SLURM_ARRAY_TASK_MIN will be set to the lowest job array index value.
-     **/
-    String outputFolder = input['outputFolder'] as String
+        // 1. Decode Base64 to bytes
+        byte[] decodedBytes = (input['encodedNoiseLevelFromSourceInputs'] as String).decodeBase64()
 
-    // 1. Decode Base64 to bytes
-    byte[] decodedBytes = (input['encodedNoiseLevelFromSourceInputs'] as String).decodeBase64()
+        // 2. Deserialize bytes back to Map
+        def bais = new ByteArrayInputStream(decodedBytes)
+        def decodedInputs = (Map) (new ObjectInputStream(bais).withCloseable { it.readObject() })
 
-    // 2. Deserialize bytes back to Map
-    def bais = new ByteArrayInputStream(decodedBytes)
-    def decodedInputs = (Map) (new ObjectInputStream(bais).withCloseable { it.readObject() })
+        String receivers_table_name = statement.enquoteIdentifier(decodedInputs['tableReceivers'] as String, false)
 
-    String receivers_table_name = statement.enquoteIdentifier(decodedInputs['tableReceivers'] as String, false)
+        def taskId = input['taskId'] as Integer
+        def minTaskId = input['minTaskId'] as Integer
+        def maxTaskId = input['maxTaskId'] as Integer
 
-    def taskId = input['taskId'] as Integer
-    def minTaskId = input['minTaskId'] as Integer
-    def maxTaskId = input['maxTaskId'] as Integer
+        // Remove receivers not to be processed by this task
+        filterReceivers(connection, minTaskId, maxTaskId, taskId, receivers_table_name)
 
-    // Remove receivers not to be processed by this task
-    filterReceivers(connection, minTaskId, maxTaskId, taskId, receivers_table_name)
+        // Run NoiseLevelFromSource with the limited set of receivers
+        ScriptMetadata scriptMetadata = new ScriptMetadata("NoiseModelling", new File(outputFolder, "Noise_level_from_source.groovy"));
+        ExecutionPlan executionPlan = new ExecutionPlan(decodedInputs, scriptMetadata);
+        Object result = Job.runScript(executionPlan, progress, dataSource);
+        // here if using original script
+        //new org.noise_planet.covadis.scripts.NoiseModelling.Noise_level_from_source().exec(connection, decodedInputs , progress)
 
-    // Run NoiseLevelFromSource with the limited set of receivers
-    new org.noise_planet.covadis.scripts.NoiseModelling.Noise_level_from_source().exec(connection, decodedInputs , progress)
-
-    // Export data
-    new Export_Table().exec(connection, [tableToExport: "RECEIVERS_LEVEL", exportPath: new File(outputFolder, "RECEIVERS_LEVEL_${taskId}.geojson")], progress)
-
+        // Export data
+        Sql sql = new Sql(connection)
+        sql.execute("SCRIPT NOPASSWORDS NOSETTINGS TO '$outputFolder/RECEIVERS_LEVEL_${taskId}.sql.gz' COMPRESSION GZIP TABLE RECEIVERS_LEVEL".toString())
+    }
     return ["result" : "RECEIVERS_LEVEL"]
 }
 
