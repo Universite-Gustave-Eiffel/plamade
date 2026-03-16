@@ -28,6 +28,8 @@ import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.secure.*;
+import org.noise_planet.covadis.webserver.utilities.FileUtilities;
+import org.noise_planet.covadis.webserver.utilities.LibraryInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -240,6 +242,15 @@ public class UserController {
             logger.error(e.getLocalizedMessage(), e);
             throw new InternalServerErrorResponse();
         }
+    }
+
+    /**
+     * Render user list HTML page
+     * @param ctx web context
+     */
+    public void about(Context ctx) {
+        List<LibraryInfo> libraries = FileUtilities.collectLibraryIdentifiers();
+        ctx.render("about", Map.of("libraries", libraries));
     }
 
     /**

@@ -323,7 +323,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
                 sshKeyArmoredString: res.private_key,
                 sshKeyPassword: inputs.key_password,
                 user: res.user_name,
-                maxTasksPerJobs: inputs.getOrDefault("slurm_task_count", 8),
+                maxTasksPerJobs: inputs.getOrDefault("slurm_task_count", 8) as Integer,
                 serverKey: res.ssl_key,
                 serverKeyType: res.ssh_key_type,
                 javaBinaryPath: res.java_binary_path)
