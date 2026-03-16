@@ -307,7 +307,8 @@ int POLL_SLURM_STATUS_TIME = 5000;
  * @return
  */
 @CompileStatic
-def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
+def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
+    ProgressVisitor progress = mainProgress.subProcess(3)
     def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_03_06/NoiseModellingCovadis-2.0.0-SNAPSHOT.zip"
     def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
@@ -398,19 +399,20 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
         }
         def temporaryDataDir = Files.createTempDirectory(getDateString())
         logger.info("Download remote sql files..")
-        downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir)
+        downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir, progress)
         // merge sql files
         List<String> filesToImport = new ArrayList<>()
         for (FileAttributes file : files) {
             filesToImport.add(new File(temporaryDataDir.toFile() ,file.fileName).getPath())
         }
         // Use GZIPOutputStream to create the compressed output file
-        def mergedFile =new File(temporaryDataDir.toFile() ,"RECEIVERS_LEVEL.sql.gz")
+        def mergedFile = new File(temporaryDataDir.toFile(), "RECEIVERS_LEVEL.sql.gz")
         logger.info("Merge sql files to ${mergedFile.path}..")
-        FileUtilities.mergeSqlFiles(filesToImport, mergedFile)
+        FileUtilities.mergeSqlFiles(filesToImport, mergedFile, progress)
         // Transfer results into a single table
         try (Connection connection = dataSource.connection) {
             // Import the first file as usual
+            logger.info("Load SQL file")
             connection.createStatement().execute("RUNSCRIPT FROM '${mergedFile.path}' COMPRESSION GZIP")
         }
         return ["result": "Setup completed"]
@@ -501,8 +503,12 @@ void uploadFile(ScpClient scpClient, File localFile, String remotePath) {
 }
 
 @CompileStatic
-void downloadFiles(ScpClient scpClient, String[] remote, Path local) {
-    scpClient.download(remote, local)
+void downloadFiles(ScpClient scpClient, String[] remote, Path local, ProgressVisitor progress) {
+    ProgressVisitor subProgress = progress.subProcess(remote.length)
+    for(String remoteFile : remote) {
+        scpClient.download(remoteFile, local)
+        subProgress.endStep()
+    }
 }
 
 @CompileStatic

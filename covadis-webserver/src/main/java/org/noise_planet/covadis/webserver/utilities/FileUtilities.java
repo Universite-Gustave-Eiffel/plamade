@@ -9,6 +9,8 @@
 package org.noise_planet.covadis.webserver.utilities;
 
 import com.fasterxml.jackson.core.*;
+import org.h2gis.api.ProgressVisitor;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -36,7 +38,7 @@ public class FileUtilities {
      * @param outputFile The destination .sql.gz file
      * @throws IOException If an I/O error occurs
      */
-    public static void mergeSqlFiles(List<String> inputFiles, File outputFile) throws IOException {
+    public static void mergeSqlFiles(List<String> inputFiles, File outputFile, ProgressVisitor progressVisitor) throws IOException {
         // Use a large buffer for bulk copying
         char[] buffer = new char[32768]; // 32KB buffer
 
@@ -44,7 +46,7 @@ public class FileUtilities {
              GZIPOutputStream gzos = new GZIPOutputStream(fos);
              OutputStreamWriter osw = new OutputStreamWriter(gzos, StandardCharsets.UTF_8);
              BufferedWriter writer = new BufferedWriter(osw)) {
-
+            ProgressVisitor subProgress = progressVisitor.subProcess(inputFiles.size());
             for (int fileIndex = 0; fileIndex < inputFiles.size(); fileIndex++) {
                 File inputFile = new File(inputFiles.get(fileIndex));
                 if (!inputFile.exists()) continue;
@@ -78,6 +80,7 @@ public class FileUtilities {
                 }
                 // Flush the writer after each file to keep the GZIP compression stream moving
                 writer.flush();
+                subProgress.endStep();
             }
         }
     }
