@@ -22,8 +22,10 @@ import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.scripts.Import_and_Export.Import_File
 import org.noise_planet.covadis.webserver.slurm.FileAttributes
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig
+import org.noise_planet.covadis.webserver.slurm.SlurmJobStatus
 import org.noise_planet.covadis.webserver.slurm.SlurmSession
 import org.noise_planet.covadis.webserver.slurm.SlurmUtilities
+import org.noise_planet.covadis.webserver.utilities.FileUtilities
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
@@ -357,6 +359,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
         Map<String, Long> bytesReadInFiles = new HashMap<>();
 
         ProgressVisitor tasksProgress = progress.subProcess(slurmConfig.maxTasksPerJobs)
+        Map<Integer, SlurmJobStatus> jobStatusMap = new HashMap<>()
         while(true) {
             if (progress.isCanceled()) {
                 // User cancel the computation, cancel the job on the remote slurm cluster
@@ -368,7 +371,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles);
 
             // Check status of jobs on cluster side
-            if (slurmSession.updateSlurmJobProgression(tasksProgress)) {
+            if (slurmSession.updateSlurmJobProgression(tasksProgress, jobStatusMap)) {
                 // All tasks done or the main task failed
                 break;
             }
@@ -393,7 +396,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
         }
         def mergedFile =new File(temporaryDataDir.toFile() ,"RECEIVERS_LEVEL.geojson")
         logger.info("Merge GeoJSON files to ${mergedFile.path}..")
-        mergeGeoJSONFiles(filesToImport, mergedFile)
+        FileUtilities.mergeGeoJSONFiles(filesToImport, mergedFile)
         // Transfer results into a single table
         try (Connection connection = dataSource.connection) {
             // Import the first file as usual
@@ -527,69 +530,3 @@ private static String getDateString() {
     "${now.year}_${now.monthValue}_${now.dayOfMonth}.${now.hour}.${now.minute}"
 }
 
-/**
- * Merge GeoJSON files
- * @param inputFiles Input files to merge
- * @param outputFile Merged output file destination
- */
-@CompileStatic
-public void mergeGeoJSONFiles(List<String> inputFiles, File outputFile) {
-    def factory = new JsonFactory()
-
-    outputFile.withOutputStream { os ->
-        def gen = factory.createGenerator(os, JsonEncoding.UTF8)
-
-        gen.writeStartObject()
-        gen.writeStringField("type", "FeatureCollection")
-
-        boolean featuresArrayStarted = false
-
-        inputFiles.eachWithIndex { fileName, idx ->
-            def f = new File(fileName)
-            if (!f.exists())
-                return
-
-            def parser = factory.createParser(f)
-
-            while (parser.nextToken() != null) {
-                String fieldName = parser.currentName()
-
-                // 1. Capture CRS only from the FIRST file
-                if (idx == 0 && "crs" == fieldName) {
-                    gen.writeFieldName("crs")
-                    parser.nextToken() // Move to the start of the CRS object
-                    gen.copyCurrentStructure(parser)
-                }
-
-                // 2. Handle the "features" array
-                else if ("features" == fieldName && parser.currentToken() == JsonToken.START_ARRAY) {
-                    // If this is the first file we are processing, open the global features array
-                    if (!featuresArrayStarted) {
-                        gen.writeArrayFieldStart("features")
-                        featuresArrayStarted = true
-                    }
-
-                    // Stream every feature object from the current file into the output
-                    while (parser.nextToken() != JsonToken.END_ARRAY) {
-                        gen.copyCurrentStructure(parser)
-                    }
-                    // Stop parsing this file once we finish its features array
-                    break
-                }
-            }
-            parser.close()
-        }
-
-        // Close the features array and the root object
-        if (featuresArrayStarted) {
-            gen.writeEndArray()
-        } else {
-            // Fallback if no features were ever found
-            gen.writeArrayFieldStart("features")
-            gen.writeEndArray()
-        }
-
-        gen.writeEndObject()
-        gen.close()
-    }
-}
