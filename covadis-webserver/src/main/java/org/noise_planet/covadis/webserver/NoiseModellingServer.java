@@ -261,6 +261,7 @@ public class NoiseModellingServer {
         app.get("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
         app.post("/edit_user/{userId}", userController::userEdit,  Role.ADMINISTRATOR);
         app.get("/logout", userController::logout, Role.ANYONE);
+        app.get("/about", userController::about, Role.ADMINISTRATOR);
     }
 
     /**

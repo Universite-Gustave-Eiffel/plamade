@@ -280,6 +280,13 @@ inputs = [
                 min        : 0, max: 1,
                 type       : String.class
         ],
+        slurm_task_count            : [
+                name       : 'Slurm task count',
+                title      : 'Slurm task count',
+                description: 'Number of parallel jobs for the computation on the Slurm server. Default value: <b>8</b>',
+                min        : 0, max: 1,
+                type       : Integer.class
+        ]
 ]
 
 outputs = [
@@ -316,6 +323,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
                 sshKeyArmoredString: res.private_key,
                 sshKeyPassword: inputs.key_password,
                 user: res.user_name,
+                maxTasksPerJobs: inputs.getOrDefault("slurm_task_count", 8) as Integer,
                 serverKey: res.ssl_key,
                 serverKeyType: res.ssh_key_type,
                 javaBinaryPath: res.java_binary_path)

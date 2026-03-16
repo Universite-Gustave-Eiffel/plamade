@@ -12,8 +12,6 @@
 package org.noise_planet.covadis.runner;
 
 import com.zaxxer.hikari.HikariDataSource;
-import groovy.lang.GroovyShell;
-import groovy.lang.Script;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -21,96 +19,53 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.apache.log4j.Level;
-import org.apache.log4j.PatternLayout;
 import org.apache.log4j.PropertyConfigurator;
-import org.apache.log4j.RollingFileAppender;
-import org.h2.util.OsgiDataSourceFactory;
-import org.h2gis.functions.factory.H2GISFunctions;
-import org.h2gis.utilities.wrapper.ConnectionWrapper;
 import org.noise_planet.covadis.webserver.NoiseModellingServer;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.ExecutionPlan;
 import org.noise_planet.covadis.webserver.script.Job;
 import org.noise_planet.covadis.webserver.script.ScriptMetadata;
+import org.noise_planet.covadis.webserver.utilities.FileUtilities;
+import org.noise_planet.covadis.webserver.utilities.LibraryInfo;
 import org.noise_planet.covadis.webserver.utilities.Logging;
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
 import java.io.File;
-import java.io.IOException;
-import java.net.URL;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.NumberFormat;
 import java.sql.Statement;
-import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
-
-import org.osgi.service.jdbc.DataSourceFactory;
 
 
 public class Main {
     public static final int SECONDS_BETWEEN_PROGRESSION_PRINT = 5;
 
-    public static void printBuildIdentifiers(Logger logger) {
-        try {
-            String columnFormat = "%-35.35s %-35.35s %-20.20s %-30.30s";
-            String[] columns = new String[]{"name", "last-modified", "version", "commit"};
-            Enumeration<URL> resources = Main.class.getClassLoader().getResources("META-INF/MANIFEST.MF");
-            StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append("Loaded libraries:\n");
-            stringBuilder.append(String.format(Locale.ROOT, columnFormat, (Object[]) columns));
-            stringBuilder.append("\n");
-            Map<String, ArrayList<String>> rows = new HashMap<>();
-            for (String column : columns) {
-                rows.put(column, new ArrayList<>());
-            }
-            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z", Locale.getDefault());
-            int nbRows = 0;
-            while (resources.hasMoreElements()) {
-                try {
-                    Manifest manifest = new Manifest(resources.nextElement().openStream());
-                    Attributes attributes = manifest.getMainAttributes();
-                    String bundleName = attributes.getValue("Bundle-Name");
-                    String bundleVersion = attributes.getValue("Bundle-Version");
-                    String gitCommitId = attributes.getValue("Implementation-Build");
-                    String lastModifier = attributes.getValue("Bnd-LastModified");
-                    if (bundleName != null) {
-                        nbRows++;
-                        rows.get(columns[0]).add(bundleName);
-                        if (lastModifier != null) {
-                            long lastModifiedLong = Long.parseLong(lastModifier);
-                            rows.get(columns[1]).add(simpleDateFormat.format(new Date(lastModifiedLong)));
-                        } else {
-                            rows.get(columns[1]).add(" - ");
-                        }
-                        rows.get(columns[2]).add(bundleVersion != null ? bundleVersion : " - ");
-                        rows.get(columns[3]).add(gitCommitId != null ? gitCommitId : " - ");
-                    }
-                } catch (IOException ex) {
-                    logger.error(ex.getLocalizedMessage(), ex);
-                }
-            }
-            for (int idRow = 0; idRow < nbRows; idRow++) {
-                String[] rowValues = new String[columns.length];
-                for (int idColumn = 0; idColumn < columns.length; idColumn++) {
-                    String column = columns[idColumn];
-                    rowValues[idColumn] = rows.get(column).get(idRow);
-                }
-                stringBuilder.append(String.format(Locale.ROOT, columnFormat, (Object[]) rowValues));
-                stringBuilder.append("\n");
-            }
-            logger.info(stringBuilder.toString());
-        } catch (IOException ex) {
-            logger.error("Error while accessing resources", ex);
+    /**
+     * Logs the collected libraries in a tabular format.
+     */
+    public static void printBuildIdentifiers(Logger logger, List<LibraryInfo> libraries) {
+        if (libraries.isEmpty()) {
+            logger.info("No library identifiers found.");
+            return;
         }
-    }
 
+        String columnFormat = "%-35.35s %-35.35s %-20.20s %-30.30s";
+        StringBuilder sb = new StringBuilder();
+        sb.append("Loaded libraries:\n");
+        sb.append(String.format(Locale.ROOT, columnFormat, "Name", "Last-Modified", "Version", "Commit"));
+        sb.append("\n");
+
+        for (LibraryInfo lib : libraries) {
+            sb.append(String.format(Locale.ROOT, columnFormat,
+                    lib.getName(), lib.getLastModified(), lib.getVersion(), lib.getCommit()));
+            sb.append("\n");
+        }
+
+        logger.info(sb.toString());
+    }
 
     public static void main(String... args) throws Exception {
         PropertyConfigurator.configure(
@@ -148,7 +103,8 @@ public class Main {
         // Check if -v option is invoked before parsing using commandLineParser
         for (String arg : args) {
             if (arg.equals("-v") || arg.equals("--version")) {
-                printBuildIdentifiers(logger);
+                List<LibraryInfo> libraryInfoList = FileUtilities.collectLibraryIdentifiers();
+                printBuildIdentifiers(logger, libraryInfoList);
                 return;
             }
         }
