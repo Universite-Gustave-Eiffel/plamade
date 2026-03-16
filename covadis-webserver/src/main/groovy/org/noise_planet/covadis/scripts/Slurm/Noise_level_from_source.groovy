@@ -20,31 +20,23 @@ import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.scripts.Import_and_Export.Import_File
-import org.noise_planet.covadis.webserver.slurm.FileAttributes
-import org.noise_planet.covadis.webserver.slurm.SlurmConfig
-import org.noise_planet.covadis.webserver.slurm.SlurmJobStatus
-import org.noise_planet.covadis.webserver.slurm.SlurmSession
-import org.noise_planet.covadis.webserver.slurm.SlurmUtilities
+import org.noise_planet.covadis.webserver.slurm.*
 import org.noise_planet.covadis.webserver.utilities.FileUtilities
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
-import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
-import java.sql.Statement
 import java.time.LocalDateTime
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicLong
-import com.fasterxml.jackson.core.JsonFactory
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.core.JsonEncoding
-
 import java.util.regex.Matcher
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 title = 'Computes the propagation from the sounds sources to the receivers'
 description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table on a remote HPC cluster using Slurm for job management.' +
@@ -267,6 +259,14 @@ inputs = [
                         '&#128736; Default value: <b>HZ</b>',
                 min        : 0, max: 1, type: String.class
         ],
+        confExportReceiverGeometry      : [
+                name       : 'Store receiver position',
+                title      : 'Store receiver position',
+                description: 'Store receiver position in output. The receivers points Z value is the altitude (if the digital elevation model is defined) </br>' +
+                        '&#128736; Default value: <b>true </b>',
+                min        : 0, max: 1,
+                type       : Boolean.class
+        ],
         configuration_name      : [
                 name       : 'SSH Configuration Identifier',
                 title      : 'SSH Configuration Identifier',
@@ -340,6 +340,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
 
         slurmConfig.serverWorkspaceFolder = createRemoteWorkspace(slurmSession, jobIdentifier)
 
+        logger.info("Export database..")
         uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder+ "/h2database.zip")
 
         def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, "~/"+noiseModellingFolder, inputs, slurmConfig.serverWorkspaceFolder)
@@ -350,6 +351,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
         // upload groovy script
         logger.info("Upload slurm main groovy script")
         createRemoteFile(getClass().classLoader.getResource("scripts/Slurm/Main_Remote_Script.groovy").text, scpClient, "${slurmConfig.serverWorkspaceFolder}/Main_Remote_Script.groovy")
+        createRemoteFile(getClass().classLoader.getResource("scripts/NoiseModelling/Noise_level_from_source.groovy").text, scpClient, "${slurmConfig.serverWorkspaceFolder}/Noise_level_from_source.groovy")
         String command = "cd ${slurmConfig.serverWorkspaceFolder} && sbatch --array=1-${slurmConfig.maxTasksPerJobs} noisemodelling_batch.sh"
         logger.info("Main groovy script uploaded, run command:\n$command")
         // Fetch the job id from the output of the sbatch command
@@ -387,7 +389,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
         }
         // All the tasks are completed download results in a temporary directory
-        List<String> output = slurmSession.runCommand(String.format("find %s/*.geojson -type f -printf \"%%s,%%f\\n\"",
+        List<String> output = slurmSession.runCommand(String.format("find %s/*.sql.gz -type f -printf \"%%s,%%f\\n\"",
                 slurmConfig.serverWorkspaceFolder), false);
         List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
         List<String> remoteFiles = new ArrayList<>()
@@ -395,20 +397,21 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor progress) {
             remoteFiles.add(new File(slurmConfig.serverWorkspaceFolder ,file.fileName).getPath())
         }
         def temporaryDataDir = Files.createTempDirectory(getDateString())
-        logger.info("Download remote GeoJson files..")
+        logger.info("Download remote sql files..")
         downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir)
-        // merge geojson files
+        // merge sql files
         List<String> filesToImport = new ArrayList<>()
         for (FileAttributes file : files) {
             filesToImport.add(new File(temporaryDataDir.toFile() ,file.fileName).getPath())
         }
-        def mergedFile =new File(temporaryDataDir.toFile() ,"RECEIVERS_LEVEL.geojson")
-        logger.info("Merge GeoJSON files to ${mergedFile.path}..")
-        FileUtilities.mergeGeoJSONFiles(filesToImport, mergedFile)
+        // Use GZIPOutputStream to create the compressed output file
+        def mergedFile =new File(temporaryDataDir.toFile() ,"RECEIVERS_LEVEL.sql.gz")
+        logger.info("Merge sql files to ${mergedFile.path}..")
+        FileUtilities.mergeSqlFiles(filesToImport, mergedFile)
         // Transfer results into a single table
         try (Connection connection = dataSource.connection) {
             // Import the first file as usual
-            new Import_File().exec(connection, [pathFile : mergedFile.getPath(), tableName : "RECEIVERS_LEVEL"], new EmptyProgressVisitor())
+            connection.createStatement().execute("RUNSCRIPT FROM '${mergedFile.path}' COMPRESSION GZIP")
         }
         return ["result": "Setup completed"]
     }
