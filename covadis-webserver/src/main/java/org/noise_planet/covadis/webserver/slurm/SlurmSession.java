@@ -302,8 +302,17 @@ public class SlurmSession implements AutoCloseable {
                 throw new CancellationException("One of the slurm task has failed and the job has been canceled");
             }
         }
+        // If all tasks are Queued print the current status of the tasks:
+        if (!taskIdToTaskState.isEmpty() && taskIdToTaskState.values().stream()
+                .allMatch(s -> "PENDING".equals(s.status))) {
+            logger.info("All tasks are currently queued (PENDING). Current status:");
+            for (Map.Entry<Integer, SlurmJobStatus> entry : taskIdToTaskState.entrySet()) {
+                logger.info("Task {}: {}", entry.getKey(), entry.getValue().status);
+            }
+        }
+
         // If all the tasks are finished, return true. If there is no task, we consider that the job is finished.
-        // (we can not update the taskIdToTaskState map if there is no task, so we can not know if the job is finished or not,
+        // (we cannot update the taskIdToTaskState map if there is no task, so we cannot know if the job is finished or not,
         // but we can consider that it is finished)
         return !taskIdToTaskState.isEmpty() && (taskIdToTaskState.values().stream()
                 .allMatch(s -> slurmStateMap.containsKey(s.status)
