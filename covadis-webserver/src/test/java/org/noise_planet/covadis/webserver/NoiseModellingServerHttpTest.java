@@ -472,7 +472,11 @@ class NoiseModellingServerHttpTest {
             }
         }
 
-        requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Slurm:Noise_level_from_source</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableSources</p1:Identifier><p0:Data><p0:LiteralData>SOURCES</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableReceivers</p1:Identifier><p0:Data><p0:LiteralData>RECEIVERS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">frequencyFieldPrepend</p1:Identifier><p0:Data><p0:LiteralData>LW</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS</p0:LiteralData></p0:Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">configuration_name</p1:Identifier><p0:Data><p0:LiteralData>local</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:ResponseDocument></p0:ResponseDocument></p0:ResponseForm></p0:Execute>";
+        URL xmlQuery = NoiseModellingServerHttpTest.class.getResource("wps_parse/slurmNoiseLevelFromSource.xml");
+        assertNotNull(xmlQuery);
+        try(InputStream inputStream = xmlQuery.openStream()) {
+            requestBody = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
         request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL))
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
