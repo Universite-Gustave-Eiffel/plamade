@@ -13,12 +13,14 @@ import net.opengis.wps10.ExecuteResponseType;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.h2.value.ValueBoolean;
+import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.geojson.GeoJsonRead;
 import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.functions.io.shp.SHPRead;
 import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import org.noise_planet.covadis.scripts.NoiseModelling.Noise_level_from_source;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.JobStates;
 
@@ -31,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.*;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -449,6 +452,7 @@ class NoiseModellingServerHttpTest {
         assertEquals(200, response.statusCode());
 
         // Load unit test input data tables
+        int expectedRows = 0;
         try(Connection connection = app.getUserDataSource(1).getConnection()) {
             URL url = NoiseModellingServerHttpTest.class.getResource("buildings.shp");
             assertNotNull(url);
@@ -459,16 +463,26 @@ class NoiseModellingServerHttpTest {
             url = NoiseModellingServerHttpTest.class.getResource("receivers.shp");
             assertNotNull(url);
             SHPRead.importTable(connection, url.getFile(),"RECEIVERS" ,ValueBoolean.TRUE);
-        }
+            // Run local noise modelling to get the expected number of rows in RECEIVERS LEVEL
+            Map<String, Object> input = new HashMap<>();
+            input.put("tableSources", "SOURCES");
+            input.put("tableBuilding", "BUILDINGS");
+            input.put("tableReceivers", "RECEIVERS");
+            input.put("frequencyFieldPrepend", "LW");
+            input.put("confExportReceiverGeometry", false);
+            input.put("confExportSourceId", true);
 
-        // Count the number of receivers
-        int expectedReceiverCount;
-        try(Connection connection = app.getUserDataSource(1).getConnection()) {
-            try(Statement statement = connection.createStatement()) {
-                try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM RECEIVERS")) {
-                    assertTrue(resultSet.next());
-                    expectedReceiverCount = resultSet.getInt(1);
+            new Noise_level_from_source().exec(connection, input, new EmptyProgressVisitor());
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT COUNT(DISTINCT IDRECEIVER) FROM RECEIVERS_LEVEL")) {
+                try(ResultSet rs = preparedStatement.executeQuery()) {
+                    assertTrue(rs.next());
+                    expectedRows = rs.getInt(1);
                 }
+            }
+            // Drop receivers table
+            try(Statement statement = connection.createStatement()) {
+                statement.execute("DROP TABLE RECEIVERS_LEVEL");
             }
         }
 
@@ -506,8 +520,8 @@ class NoiseModellingServerHttpTest {
             Statement statement = connection.createStatement();
             try(ResultSet resultSet = statement.executeQuery("SELECT COUNT(DISTINCT IDRECEIVER) FROM RECEIVERS_LEVEL")) {
                 assertTrue(resultSet.next());
-                // number of receiver * Day Evening Night and DEN
-                assertEquals(expectedReceiverCount, resultSet.getInt(1));
+                int rowCount = resultSet.getInt(1);
+                assertEquals(expectedRows, rowCount);
             }
         }
 

@@ -17,9 +17,7 @@ import groovy.transform.Field
 import org.apache.sshd.scp.client.ScpClient
 import org.apache.sshd.scp.client.ScpClientCreator
 import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
-import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.noise_planet.covadis.scripts.Import_and_Export.Import_File
 import org.noise_planet.covadis.webserver.slurm.*
 import org.noise_planet.covadis.webserver.utilities.FileUtilities
 import org.slf4j.LoggerFactory
@@ -35,8 +33,6 @@ import java.time.LocalDateTime
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicLong
 import java.util.regex.Matcher
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
 
 title = 'Computes the propagation from the sounds sources to the receivers'
 description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table on a remote HPC cluster using Slurm for job management.' +

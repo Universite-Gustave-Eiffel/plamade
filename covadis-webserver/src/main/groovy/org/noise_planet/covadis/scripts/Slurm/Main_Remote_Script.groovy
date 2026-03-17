@@ -21,9 +21,14 @@ import org.noise_planet.covadis.scripts.Import_and_Export.Export_Table
 import org.noise_planet.covadis.webserver.script.ExecutionPlan
 import org.noise_planet.covadis.webserver.script.Job
 import org.noise_planet.covadis.webserver.script.ScriptMetadata
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
 import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.ResultSet
+import java.sql.SQLException
 import java.sql.Statement
 
 title = 'Main remote script on Slurm Cluster'
@@ -92,6 +97,9 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
         Object result = Job.runScript(executionPlan, progress, dataSource);
         // here if using original script
         //new org.noise_planet.covadis.scripts.NoiseModelling.Noise_level_from_source().exec(connection, decodedInputs , progress)
+        // remove alias/ index / primary key
+        dropH2GISAliases(connection)
+        dropTableIndex(connection, "PUBLIC", "RECEIVERS_LEVEL")
 
         // Export data
         Sql sql = new Sql(connection)
@@ -99,7 +107,56 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
     }
     return ["result" : "RECEIVERS_LEVEL"]
 }
+public static void dropTableIndex(Connection conn, String schema, String tableName) throws SQLException {
+    String findIndexSql =
+            "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.INDEXES " +
+                    "WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ? " +
+                    "AND INDEX_TYPE_NAME != 'PRIMARY KEY' LIMIT 1";
 
+    try (PreparedStatement ps = conn.prepareStatement(findIndexSql)) {
+        ps.setString(1, tableName.toUpperCase());
+        ps.setString(2, schema.toUpperCase());
+
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String indexName = rs.getString("INDEX_NAME");
+                try (Statement stmt = conn.createStatement()) {
+                    // Always wrap names in double quotes for safety
+                    stmt.execute("DROP INDEX \"" + schema + "\".\"" + indexName + "\"");
+                    System.out.println("Dropped index: " + indexName);
+                }
+            }
+        }
+    }
+}
+public static void dropH2GISAliases(Connection conn) throws SQLException {
+    String query = "SELECT ROUTINE_SCHEMA, ROUTINE_NAME, ROUTINE_TYPE FROM INFORMATION_SCHEMA.ROUTINES " +
+            "WHERE ROUTINE_BODY = 'EXTERNAL' AND EXTERNAL_NAME LIKE 'org.h2gis.%'";
+
+    List<String> dropCommands = new ArrayList<>();
+
+    try (Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(query)) {
+        while (rs.next()) {
+            String schema = rs.getString("ROUTINE_SCHEMA");
+            String name = rs.getString("ROUTINE_NAME");
+            String routineType = rs.getString("ROUTINE_TYPE");
+            // Use DROP ALIAS for functions linked to Java methods
+            if(routineType == "FUNCTION" || routineType == "PROCEDURE") {
+                dropCommands.add("DROP ALIAS IF EXISTS \"" + schema + "\".\"" + name + "\"");
+            } else if(routineType == "AGGREGATE") {
+                dropCommands.add("DROP AGGREGATE IF EXISTS \"" + schema + "\".\"" + name + "\"");
+            }
+        }
+    }
+
+    // Execute the drops
+    try (Statement stmt = conn.createStatement()) {
+        for (String sql : dropCommands) {
+            stmt.execute(sql);
+        }
+    }
+}
 def filterReceivers(Connection connection, int minTaskId, int maxTaskId, int taskId, String receivers_table_name) {
 
     DBTypes dbType = DBUtils.getDBType(connection)
@@ -124,6 +181,8 @@ def filterReceivers(Connection connection, int minTaskId, int maxTaskId, int tas
     // delete receivers not to be processed by this task
     int firstReceiverPrimaryKey = sql.firstRow("SELECT ${pkNameAndIndex.first()} FROM $receivers_table_name ORDER BY ${pkNameAndIndex.first()} LIMIT 1 OFFSET $offset".toString())[0] as Integer
     int lastReceiverPrimaryKey = sql.firstRow("SELECT ${pkNameAndIndex.first()} FROM $receivers_table_name ORDER BY ${pkNameAndIndex.first()} LIMIT 1 OFFSET ${offset + limit - 1}".toString())[0] as Integer
+    Logger logger = LoggerFactory.getLogger("Main_Remote_Script")
+    logger.info("Task $taskId processing receivers with primary keys between $firstReceiverPrimaryKey and $lastReceiverPrimaryKey (total: $totalReceivers, per task: $receiversPerTask)")
     sql.execute("""DELETE FROM $receivers_table_name WHERE ${pkNameAndIndex.first()} < $firstReceiverPrimaryKey OR ${pkNameAndIndex.first()} > $lastReceiverPrimaryKey""".toString())
 
 }
