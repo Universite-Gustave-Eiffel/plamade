@@ -42,8 +42,8 @@ inputs = [
                 type: String.class
         ],
         tablePeriodAtmosphericSettings          : [
-                name       : 'Atmospheric settings table name',
-                title      : 'Atmospheric settings table name output for each time period',
+                name       : 'Table output name',
+                title      : 'Table output name',
                 description: 'Name of the Atmospheric settings table </br> </br>' +
                         'The table will contain the following columns: </br> <ul>' +
                         '<li> <b> PERIOD </b>: time period (VARCHAR PRIMARY KEY) </li> ' +
