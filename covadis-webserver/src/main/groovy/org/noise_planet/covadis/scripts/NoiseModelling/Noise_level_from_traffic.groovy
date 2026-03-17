@@ -131,7 +131,7 @@ inputs = [
         tablePeriodAtmosphericSettings          : [
                 name       : 'Atmospheric settings table name for each time period',
                 title      : 'Atmospheric settings table name for each time period',
-                description: 'Name of the Atmospheric settings table </br> </br>' +
+                description: 'Name of the Atmospheric settings table. You can use the processing GenerateAtmosphericSettingsTemplate in order to generate a template table </br> </br>' +
                         'The table must contain the following columns: </br> <ul>' +
                         '<li> <b> PERIOD </b>: time period (VARCHAR PRIMARY KEY) </li> ' +
                         '<li> <b> WINDROSE </b>: probability of occurrences of favourable propagation conditions (ARRAY(16)) </li> ' +
@@ -571,12 +571,9 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     // Run Calculations
     // --------------------------------------------
 
-    // Init ProgressLogger (loading bar)
-    RootProgressVisitor progressLogger = new RootProgressVisitor(1, true, 1)
-
     logger.info("Start calculation... ")
 
-    pointNoiseMap.run(connection, progressLogger)
+    pointNoiseMap.run(connection, progress)
 
     return "Calculation Done ! The table $pointNoiseMap.noiseMapDatabaseParameters.receiversLevelTable have been created."
 }

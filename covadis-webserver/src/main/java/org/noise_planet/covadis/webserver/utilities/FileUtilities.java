@@ -9,6 +9,8 @@
 package org.noise_planet.covadis.webserver.utilities;
 
 import com.fasterxml.jackson.core.*;
+import org.h2gis.api.ProgressVisitor;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -36,43 +38,49 @@ public class FileUtilities {
      * @param outputFile The destination .sql.gz file
      * @throws IOException If an I/O error occurs
      */
-    public static void mergeSqlFiles(List<String> inputFiles, File outputFile) throws IOException {
-        // 1. Create the compressed output stream
+    public static void mergeSqlFiles(List<String> inputFiles, File outputFile, ProgressVisitor progressVisitor) throws IOException {
+        // Use a large buffer for bulk copying
+        char[] buffer = new char[32768]; // 32KB buffer
+
         try (FileOutputStream fos = new FileOutputStream(outputFile);
              GZIPOutputStream gzos = new GZIPOutputStream(fos);
              OutputStreamWriter osw = new OutputStreamWriter(gzos, StandardCharsets.UTF_8);
              BufferedWriter writer = new BufferedWriter(osw)) {
-
+            ProgressVisitor subProgress = progressVisitor.subProcess(inputFiles.size());
             for (int fileIndex = 0; fileIndex < inputFiles.size(); fileIndex++) {
                 File inputFile = new File(inputFiles.get(fileIndex));
-                if (!inputFile.exists()) {
-                    continue;
-                }
+                if (!inputFile.exists()) continue;
 
-                // 2. Open each input file as a compressed stream
-                try (FileInputStream fis = new FileInputStream(inputFile);
-                     GZIPInputStream gzis = new GZIPInputStream(fis);
+                try (GZIPInputStream gzis = new GZIPInputStream(new FileInputStream(inputFile));
                      InputStreamReader isr = new InputStreamReader(gzis, StandardCharsets.UTF_8);
                      BufferedReader reader = new BufferedReader(isr)) {
 
-                    // The first file (index 0) keeps everything (CREATE TABLE, etc.)
-                    // Subsequent files skip everything until the first INSERT INTO
-                    boolean foundStart = false;
                     String line;
-
                     while ((line = reader.readLine()) != null) {
-                        if (!foundStart && (line.startsWith("INSERT INTO") || (fileIndex==0 && line.startsWith("CREATE CACHED TABLE")))) {
-                            foundStart = true;
-                        }
+                        // Logic to identify the starting line
+                        boolean isMatch = line.startsWith("INSERT INTO") ||
+                                (fileIndex == 0 && line.startsWith("CREATE CACHED TABLE"));
 
-                        if (foundStart) {
+                        if (isMatch) {
+                            // 1. Write the first matching line
                             writer.write(line);
-                            writer.newLine();
+                            writer.write('\n'); // Standardize on Unix newline for SQL
+
+                            // 2. FAST BULK TRANSFER:
+                            // Stop reading line-by-line and copy the remaining stream in chunks.
+                            int charsRead;
+                            while ((charsRead = reader.read(buffer)) != -1) {
+                                writer.write(buffer, 0, charsRead);
+                            }
+
+                            // Exit the line-by-line loop and proceed to the next file
+                            break;
                         }
                     }
                 }
-                // Flush after each file to ensure data is handed off to the GZIP stream
+                // Flush the writer after each file to keep the GZIP compression stream moving
                 writer.flush();
+                subProgress.endStep();
             }
         }
     }
