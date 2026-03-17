@@ -311,10 +311,10 @@ public class SlurmSession implements AutoCloseable {
             }
         }
 
-        // If all the tasks are finished, return true. If there is no task, we consider that the job is finished.
-        // (we cannot update the taskIdToTaskState map if there is no task, so we cannot know if the job is finished or not,
-        // but we can consider that it is finished)
-        return !taskIdToTaskState.isEmpty() && (taskIdToTaskState.values().stream()
+        // If all the tasks are finished, return true. If there is no task returned, we consider that the job is finished.
+        // (we cannot update the taskIdToTaskState map if there is no task returned by the command, so we cannot know if the job is finished or not,
+        // but we can consider that it is finished because it has been cleaned by slurm)
+        return taskIdToTaskState.size() == slurmConfig.maxTasksPerJobs && (taskIdToTaskState.values().stream()
                 .allMatch(s -> slurmStateMap.containsKey(s.status)
                         && slurmStateMap.get(s.status).finished) || jobStatusList.isEmpty());
     }
