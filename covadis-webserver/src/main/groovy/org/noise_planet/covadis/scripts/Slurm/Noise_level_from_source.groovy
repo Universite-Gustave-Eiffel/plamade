@@ -405,8 +405,11 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         def mergedFile = new File(temporaryDataDir.toFile(), "RECEIVERS_LEVEL.sql.gz")
         logger.info("Merge sql files to ${mergedFile.path}..")
         FileUtilities.mergeSqlFiles(filesToImport, mergedFile, progress)
+
         // Transfer results into a single table
         try (Connection connection = dataSource.connection) {
+            // Drop current output table if it already exists
+            connection.createStatement().execute("DROP TABLE IF EXISTS RECEIVERS_LEVEL")
             // Import the first file as usual
             logger.info("Load SQL file")
             connection.createStatement().execute("RUNSCRIPT FROM '${mergedFile.path}' COMPRESSION GZIP")
