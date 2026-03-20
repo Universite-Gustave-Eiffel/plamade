@@ -63360,39 +63360,60 @@ wps.ui.prototype.checkSubLinkForDelete = function(link, process) {
 };
 
 wps.ui.prototype.deleteSelection = function() {
-  var redraw = false;
-  if (this.selectedLink !== null) {
-    var src = this.findNodeById(this.selectedLink.source);
-    var dst = this.findNodeById(this.selectedLink.target);
-    var input = src.type === 'input' ? src : dst;
-    this.editor_.setValue(false, false, undefined, input);
-    this.nodes.splice(this.nodes.indexOf(this.selectedLink), 1);
-    this.selectedLink = null;
-    redraw = true;
-  }
-  var selection = d3.selectAll(".node_selected");
-  if (selection[0].length > 0) {
-    var node = selection.datum();
-    if (node.type === 'process') {
-      this.deleteInputMap(node.id);
-      $('.input-map').detach();
-      $('.output-map').detach();
-      $('#tab-inputs').html('');
-      $('#tab-results').html('');
-      this.nodes.splice(this.nodes.indexOf(node), 1);
-      for (var i=this.nodes.length-1; i>=0; --i) {
-        if (this.nodes[i] instanceof wps.ui.link && this.checkSubLinkForDelete(this.nodes[i], node.id)) {
-          this.nodes.splice(i, 1);
-        } else if (this.nodes[i]._parent === node.id) {
-          this.nodes.splice(i, 1);
-        }
-      }
+    var redraw = false;
+    var me = this;
+
+    // 1. Handle Link deletion (original logic)
+    if (this.selectedLink !== null) {
+        var src = this.findNodeById(this.selectedLink.source);
+        var dst = this.findNodeById(this.selectedLink.target);
+        var input = src.type === 'input' ? src : dst;
+        this.editor_.setValue(false, false, undefined, input);
+        this.nodes.splice(this.nodes.indexOf(this.selectedLink), 1);
+        this.selectedLink = null;
+        redraw = true;
     }
-    redraw = true;
-  }
-  if (redraw) {
-    this.redraw();
-  }
+
+    // 2. Handle Node deletion (Updated to handle multiple selected nodes)
+    var selection = d3.selectAll(".node_selected");
+    if (!selection.empty()) {
+        // Convert selection to data array to avoid issues while modifying the DOM/nodes
+        selection.each(function(node) {
+            // Check if node still exists in the list (might have been deleted by its parent process in this same loop)
+            var nodeIndex = me.nodes.indexOf(node);
+            if (nodeIndex === -1) return;
+
+            if (node.type === 'process') {
+                // Clean up UI maps and tabs
+                me.deleteInputMap(node.id);
+                $('.input-map').detach();
+                $('.output-map').detach();
+                $('#tab-inputs').html('');
+                $('#tab-results').html('');
+
+                // Remove the process itself
+                me.nodes.splice(me.nodes.indexOf(node), 1);
+
+                // Remove all children (inputs/outputs) and links associated with this process
+                for (var i = me.nodes.length - 1; i >= 0; --i) {
+                    var n = me.nodes[i];
+                    if (n instanceof wps.ui.link && me.checkSubLinkForDelete(n, node.id)) {
+                        me.nodes.splice(i, 1);
+                    } else if (n._parent === node.id) {
+                        me.nodes.splice(i, 1);
+                    }
+                }
+                redraw = true;
+            }
+            // Note: In this UI, inputs/outputs are tied to processes.
+            // We don't delete individual inputs via the delete key normally,
+            // but if you wanted to allow it, you would add logic here.
+        });
+    }
+
+    if (redraw) {
+        this.redraw();
+    }
 };
 
 wps.ui.prototype.zoomIn = function(evt) {
@@ -63988,38 +64009,66 @@ wps.ui.prototype.updateSelection = function() {
 };
 
 wps.ui.nodeMouseDown = function(ui, d) {
-  var me = ui;
-  me.mousedownNode = d;
-  var now = Date.now();
-  me.clickElapsed = now-me.clickTime;
-  me.clickTime = now;
-  if (!d.selected) {
-    me.clearSelection();
-  }
-  me.mousedownNode.selected = true;
-  me.movingSet.push({n:me.mousedownNode});
-  me.selectedLink = null;
-  if (d3.event.button != 2) {
-    // MOVING
-    me.mouseMode = 1;
-    var mouse = d3.touches(this)[0]||d3.mouse(this);
-    mouse[0] += d.x-d.w/2;
-    mouse[1] += d.y-d.h/2;
-    for (var i in me.movingSet) {
-      me.movingSet[i].ox = me.movingSet[i].n.x;
-      me.movingSet[i].oy = me.movingSet[i].n.y;
-      me.movingSet[i].dx = me.movingSet[i].n.x-mouse[0];
-      me.movingSet[i].dy = me.movingSet[i].n.y-mouse[1];
+    var me = ui;
+    me.mousedownNode = d;
+    var now = Date.now();
+    me.clickElapsed = now - me.clickTime;
+    me.clickTime = now;
+
+    if (!d.selected) {
+        me.clearSelection();
     }
-    me.mouseOffset = d3.mouse(document.body);
-    if (isNaN(me.mouseOffset[0])) {
-      me.mouseOffset = d3.touches(document.body)[0];
+
+    // Mark clicked node as selected and dirty
+    d.selected = true;
+    d.dirty = true;
+
+    // Initialize the set of things that will move
+    me.movingSet = [];
+    me.movingSet.push({n: d});
+
+    // If we clicked a process, find all associated inputs and outputs
+    if (d.type === 'process') {
+        for (var i = 0; i < me.nodes.length; i++) {
+            var node = me.nodes[i];
+            // Only add valid nodes (not links) that belong to this process
+            if (node.id !== d.id && node._parent === d.id && node.type) {
+                node.selected = true;
+                node.dirty = true;
+                me.movingSet.push({n: node});
+            }
+        }
     }
-  }
-  d.dirty = true;
-  me.updateSelection();
-  me.redraw();
-  d3.event.stopPropagation();
+
+    me.selectedLink = null;
+
+    if (d3.event.button != 2) {
+        me.mouseMode = 1; // MOVING
+
+        /**
+         * FIX: Get mouse position relative to the workspace (vis)
+         * instead of 'this' (the node). This prevents NaN values.
+         */
+        var mousePos = d3.mouse(me.vis.node());
+
+        for (var j = 0; j < me.movingSet.length; j++) {
+            var moveItem = me.movingSet[j];
+            moveItem.ox = moveItem.n.x;
+            moveItem.oy = moveItem.n.y;
+            // Calculate offset between node center and mouse
+            moveItem.dx = moveItem.n.x - mousePos[0];
+            moveItem.dy = moveItem.n.y - mousePos[1];
+        }
+
+        me.mouseOffset = d3.mouse(document.body);
+        if (isNaN(me.mouseOffset[0])) {
+            me.mouseOffset = d3.touches(document.body)[0];
+        }
+    }
+
+    me.updateSelection();
+    me.redraw();
+    d3.event.stopPropagation();
 };
 
 wps.ui.prototype.createProcessRect = function(node) {
