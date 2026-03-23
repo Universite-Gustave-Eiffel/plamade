@@ -63112,8 +63112,20 @@ wps.ui.prototype.clear = function(ui) {
 wps.ui.prototype.execute = function(ui) {
   var hasSelected = false;
   var selection = d3.selectAll(".node_selected");
-  if (selection[0].length > 0) {
-    var node = selection.datum();
+  if (!selection.empty()) {
+    var node = null;
+    // Search the selection for a node of type 'process'
+    selection.each(function(d) {
+      if (d.type === 'process') {
+          node = d;
+      }
+    });
+
+    // If no process node was found in the selection (e.g., only a link was selected),
+    // fall back to the first available node and find its parent
+    if (!node) {
+      node = selection.datum();
+    }
     hasSelected = true;
     var processId = node.type === 'process' ? node.id : node._parent;
     if (ui.findNodeById(processId).complete !== true) {
@@ -63975,13 +63987,19 @@ wps.ui.prototype.updateNode = function(d, ui) {
 };
 
 wps.ui.prototype.clearSelection = function() {
-  for (var i in this.movingSet) {
-    var n = this.movingSet[i];
-    n.n.dirty = true;
-    n.n.selected = false;
-  }
-  this.movingSet = [];
-  this.selectedLink = null;
+    // 1. Iterate through ALL nodes to ensure visual consistency
+    for (var i = 0; i < this.nodes.length; i++) {
+        var n = this.nodes[i];
+        // If the node was selected, mark it for a redraw and deselect it
+        if (n.selected) {
+            n.selected = false;
+            n.dirty = true;
+        }
+    }
+
+    // 2. Clear the technical selection tracking
+    this.movingSet = [];
+    this.selectedLink = null;
 };
 
 wps.ui.nodeMouseUp = function(ui, d) {
@@ -63999,13 +64017,26 @@ wps.ui.nodeMouseUp = function(ui, d) {
 };
 
 wps.ui.prototype.updateSelection = function() {
-  if (this.mousedownNode) {
-    if (this.inputMaps[this.mousedownNode._parent]) {
-      if (this.inputMaps[this.mousedownNode._parent].vector) {
-        this.inputMaps[this.mousedownNode._parent].vector.changed();
-      }
+    var me = this;
+    if (this.mousedownNode) {
+        // If a process is selected, update maps for all its children
+        if (this.mousedownNode.type === 'process') {
+            if (this.inputMaps[this.mousedownNode.id]) {
+                if (this.inputMaps[this.mousedownNode.id].vector) {
+                    this.inputMaps[this.mousedownNode.id].vector.changed();
+                }
+            }
+        }
+        // If an input/output is selected, update the map of its parent process
+        else if (this.mousedownNode._parent) {
+            var parentId = this.mousedownNode._parent;
+            if (this.inputMaps[parentId]) {
+                if (this.inputMaps[parentId].vector) {
+                    this.inputMaps[parentId].vector.changed();
+                }
+            }
+        }
     }
-  }
 };
 
 wps.ui.nodeMouseDown = function(ui, d) {
