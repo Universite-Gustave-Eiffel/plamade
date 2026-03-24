@@ -63643,10 +63643,20 @@ wps.ui.prototype.createDropTarget = function () {
                     outputX = mousePos[0] + (processW / 2) + horizontalGutter + (maxOutputW / 2);
                     // --- END DYNAMIC CALCULATIONS ---
                     if (info.dataInputs && info.dataInputs.input) {
-                        //sort inputs
                         info.dataInputs.input.sort(function(a, b) {
+                            // 1. Check Mandatory Status (minOccurs > 0)
+                            var isMandatoryA = (a.minOccurs > 0);
+                            var isMandatoryB = (b.minOccurs > 0);
+
+                            // If one is mandatory and the other isn't, mandatory goes first
+                            if (isMandatoryA !== isMandatoryB) {
+                                return isMandatoryA ? -1 : 1;
+                            }
+
+                            // 2. Secondary Sort: Alphabetical by Title
                             var titleA = (a.title && a.title.value) ? a.title.value.toLowerCase() : "";
                             var titleB = (b.title && b.title.value) ? b.title.value.toLowerCase() : "";
+
                             return titleA.localeCompare(titleB);
                         });
                     }
