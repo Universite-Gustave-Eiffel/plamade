@@ -63596,23 +63596,64 @@ wps.ui.prototype.createDropTarget = function () {
         drop: function (event, ui) {
             d3.event = event;
             var selected_tool = $(ui.draggable[0]).data('type');
-            var process = me.client_.getProcess(me.defaultServer_, selected_tool, {
-                callback: function (info, error, statusText) {
+            var process = me.client_.getProcess(me.defaultServer_, selected_tool, {callback: function(info, error, statusText) {
                     if (error === true) {
                         $('#tab-results').html('Error getting process description, details: ' + statusText);
                         me.activateTab('tab-results');
                         return;
                     }
-                    var mousePos = d3.touches(this)[0] || d3.mouse(this);
+
+                    var mousePos = d3.touches(this)[0]||d3.mouse(this);
                     mousePos[1] += this.scrollTop;
                     mousePos[0] += this.scrollLeft;
                     mousePos[1] /= me.scaleFactor;
                     mousePos[0] /= me.scaleFactor;
-                    mousePos[0] = Math.max(mousePos[0], 300);
+
+                    // --- DYNAMIC SPACING CALCULATIONS ---
+                    var horizontalGutter = 100; // Min space between the process block and its ports
+                    var processLabel = selected_tool;
+                    var processW = me.calculateTextWidth(processLabel);
+
+                    // Calculate the maximum width among all inputs
+                    var maxInputW = 0;
+                    for (var i = 0; i < info.dataInputs.input.length; i++) {
+                        var inputW = me.calculateTextWidth(info.dataInputs.input[i].title.value);
+                        if (inputW > maxInputW) maxInputW = inputW;
+                    }
+                    maxInputW = Math.max(maxInputW, me.nodeWidth);
+
+                    // Calculate the maximum width among all outputs
+                    var maxOutputW = 0;
+                    for (var i = 0; i < info.processOutputs.output.length; i++) {
+                        var outputW = me.calculateTextWidth(info.processOutputs.output[i].title.value);
+                        if (outputW > maxOutputW) maxOutputW = outputW;
+                    }
+                    maxOutputW = Math.max(maxOutputW, me.nodeWidth);
+
+                    // Calculate X positions so they don't overlap regardless of text length
+                    // Positions are centers of nodes
+                    var inputX = mousePos[0] - (processW / 2) - horizontalGutter - (maxInputW / 2);
+                    var outputX = mousePos[0] + (processW / 2) + horizontalGutter + (maxOutputW / 2);
+
+                    // Prevent inputs from falling off the left side of the workspace
+                    var leftEdgeOffset = (mousePos[0] - inputX) + (maxInputW / 2) + 20;
+                    mousePos[0] = Math.max(mousePos[0], leftEdgeOffset);
+                    // Recalculate after potential shift
+                    inputX = mousePos[0] - (processW / 2) - horizontalGutter - (maxInputW / 2);
+                    outputX = mousePos[0] + (processW / 2) + horizontalGutter + (maxOutputW / 2);
+                    // --- END DYNAMIC CALCULATIONS ---
+                    if (info.dataInputs && info.dataInputs.input) {
+                        //sort inputs
+                        info.dataInputs.input.sort(function(a, b) {
+                            var titleA = (a.title && a.title.value) ? a.title.value.toLowerCase() : "";
+                            var titleB = (b.title && b.title.value) ? b.title.value.toLowerCase() : "";
+                            return titleA.localeCompare(titleB);
+                        });
+                    }
                     var config = {
                         x: mousePos[0],
                         y: mousePos[1],
-                        w: this.nodeWidth,
+                        w: processW,
                         type: 'process',
                         dirty: true,
                         _info: info,
@@ -63622,74 +63663,64 @@ wps.ui.prototype.createDropTarget = function () {
                     };
                     var nn = new wps.ui.node(config);
                     me.processes[nn.id] = process;
-                    var link, i, ii, delta = 50, span = delta * nn.inputs, deltaY = (span - delta) / 2;
+
+                    var link, i, ii, delta = 35, span = delta * nn.inputs, deltaY = (span-delta)/2;
                     var startY = mousePos[1];
-                    for (i = 0, ii = nn.inputs; i < ii; ++i) {
-                        for (var j = 0, jj = Math.max(info.dataInputs.input[i].minOccurs, 1); j < jj; ++j) {
+
+                    for (i=0, ii=nn.inputs; i<ii; ++i) {
+                        var inputInfo = info.dataInputs.input[i];
+                        for (var j=0, jj=Math.max(inputInfo.minOccurs, 1); j<jj; ++j) {
                             var inputConfig = {
-                                x: mousePos[0] - 200,
-                                y: startY - deltaY,
-                                w: this.nodeWidth,
+                                x: inputX, // Use calculated dynamic X
+                                y: startY-deltaY,
+                                w: me.calculateTextWidth(inputInfo.title.value), // Individual width
                                 inputs: 1,
                                 outputs: 1,
                                 _parent: nn.id,
                                 dirty: true,
                                 type: 'input',
-                                _info: info.dataInputs.input[i],
-                                required: (info.dataInputs.input[i].minOccurs > 0),
+                                _info: inputInfo,
+                                required: (inputInfo.minOccurs > 0),
                                 complete: false,
-                                label: info.dataInputs.input[i].title.value
+                                label: inputInfo.title.value
                             };
+
                             if (inputConfig.y < 15) {
                                 startY = 100 + deltaY;
-                                inputConfig.y = startY - deltaY;
+                                inputConfig.y = startY-deltaY;
                             }
                             var input = new wps.ui.node(inputConfig);
                             deltaY -= delta;
                             me.nodes.push(input);
-                            // create a link as well between input and process
-                            link = new wps.ui.link({
-                                source: input.id,
-                                target: nn.id,
-                                _parent: nn.id
-                            });
+                            link = new wps.ui.link({source: input.id, target: nn.id, _parent: nn.id});
                             me.nodes.push(link);
                         }
                     }
-                    for (i = 0, ii = nn.outputs; i < ii; ++i) {
+
+                    for (i=0, ii=nn.outputs; i<ii; ++i) {
+                        var outputInfo = info.processOutputs.output[i];
                         var outputConfig = {
-                            x: mousePos[0] + 200,
+                            x: outputX, // Use calculated dynamic X
                             y: mousePos[1],
-                            w: this.nodeWidth,
+                            w: me.calculateTextWidth(outputInfo.title.value), // Individual width
                             inputs: 1,
                             outputs: 1,
                             dirty: true,
                             type: 'output',
                             _parent: nn.id,
-                            _info: info.processOutputs.output[i],
-                            label: info.processOutputs.output[i].title.value
+                            _info: outputInfo,
+                            label: outputInfo.title.value
                         };
                         var output = new wps.ui.node(outputConfig);
                         me.nodes.push(output);
-                        // create a link as well between process and output
-                        link = new wps.ui.link({
-                            source: nn.id,
-                            _parent: nn.id,
-                            target: output.id
-                        });
+                        link = new wps.ui.link({source: nn.id, _parent: nn.id, target: output.id});
                         me.nodes.push(link);
                     }
+
                     me.nodes.push(nn);
-
-                    // Register the process object (required for parentComplete to work)
-                    me.processes[nn.id] = process;
-
-                    // Check if the process is complete immediately after creation
-                    // This handles processes where all inputs are optional (minOccurs=0)
                     me.parentComplete(nn.id);
                     me.redraw();
-                }, scope: this
-            });
+                }, scope: this});
         }
     });
 };
