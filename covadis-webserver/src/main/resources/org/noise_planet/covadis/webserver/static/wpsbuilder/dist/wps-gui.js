@@ -63663,7 +63663,6 @@ wps.ui.prototype.createDropTarget = function () {
                         // Recalculate Right Edge after shift
                         inputRightEdgeX = mousePos[0] - (processW / 2) - horizontalGutter;
                     }
-                    var outputLeftEdgeX = mousePos[0] + (processW / 2) + horizontalGutter;
                     // Sorting
                     if (info.dataInputs && info.dataInputs.input) {
                         info.dataInputs.input.sort(function(a, b) {
