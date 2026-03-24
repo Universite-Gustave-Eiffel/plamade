@@ -63610,7 +63610,7 @@ wps.ui.prototype.createDropTarget = function () {
                     mousePos[0] /= me.scaleFactor;
 
                     // --- DYNAMIC SPACING CALCULATIONS ---
-                    var horizontalGutter = 100; // Min space between the process block and its ports
+                    var horizontalGutter = 40; // Min space between the process block and its ports
                     var processLabel = selected_tool;
                     var processW = me.calculateTextWidth(processLabel);
 
@@ -63642,6 +63642,29 @@ wps.ui.prototype.createDropTarget = function () {
                     inputX = mousePos[0] - (processW / 2) - horizontalGutter - (maxInputW / 2);
                     outputX = mousePos[0] + (processW / 2) + horizontalGutter + (maxOutputW / 2);
                     // --- END DYNAMIC CALCULATIONS ---
+
+                    // We want the left-most edge of the longest label to be at x=20
+                    // LeftEdge = mouseX - (processW/2) - gutter - maxInputW
+                    var currentLeftEdge = mousePos[0] - (processW / 2) - horizontalGutter - maxInputW;
+
+                    if (currentLeftEdge < 20) {
+                        // Push the process block just enough to keep the longest label on screen
+                        mousePos[0] = 20 + maxInputW + horizontalGutter + (processW / 2);
+                    }
+
+                    // This is the vertical line where the right sides of all input blocks will touch
+                    var inputRightEdgeX = mousePos[0] - (processW / 2) - horizontalGutter;
+
+                    // --- BOUNDARY CHECK ---
+                    // Ensure the widest input doesn't go off the left side of the screen
+                    if (inputRightEdgeX - maxInputW < 20) {
+                        var shift = 20 - (inputRightEdgeX - maxInputW);
+                        mousePos[0] += shift;
+                        // Recalculate Right Edge after shift
+                        inputRightEdgeX = mousePos[0] - (processW / 2) - horizontalGutter;
+                    }
+                    var outputLeftEdgeX = mousePos[0] + (processW / 2) + horizontalGutter;
+                    // Sorting
                     if (info.dataInputs && info.dataInputs.input) {
                         info.dataInputs.input.sort(function(a, b) {
                             // 1. Check Mandatory Status (minOccurs > 0)
@@ -63680,10 +63703,13 @@ wps.ui.prototype.createDropTarget = function () {
                     for (i=0, ii=nn.inputs; i<ii; ++i) {
                         var inputInfo = info.dataInputs.input[i];
                         for (var j=0, jj=Math.max(inputInfo.minOccurs, 1); j<jj; ++j) {
+                            var currentNodeW = me.calculateTextWidth(inputInfo.title.value);
+
                             var inputConfig = {
-                                x: inputX, // Use calculated dynamic X
-                                y: startY-deltaY,
-                                w: me.calculateTextWidth(inputInfo.title.value), // Individual width
+                                // Center = RightBoundary - (Half Width)
+                                x: inputRightEdgeX - (currentNodeW / 2), // Aligns ports in a straight line
+                                y: startY - deltaY,
+                                w: currentNodeW,
                                 inputs: 1,
                                 outputs: 1,
                                 _parent: nn.id,
