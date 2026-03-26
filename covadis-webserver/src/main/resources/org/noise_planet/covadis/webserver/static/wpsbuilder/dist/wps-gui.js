@@ -62688,27 +62688,38 @@ wps.ui.prototype.recurse = function(node) {
   }
 };
 
-wps.ui.prototype.parentComplete = function(node) {
-  var processId = node._parent;
-  var process = this.processes[processId], parentNode;
-  var values = {};
-  for (var i=0, ii=this.nodes.length; i<ii; ++i) {
-    var n = this.nodes[i];
-    if (n.type === "input" && n.value !== undefined && n._parent === processId) {
-      if (typeof n.value === "string" && n.value.indexOf(wps.SUBPROCESS) !== -1) {
-        values[n._info.identifier.value] = n.complete ? n.value : undefined;
-      } else {
-        values[n._info.identifier.value] = n.value;
-      }
+wps.ui.prototype.parentComplete = function(nodeOrId) {
+    var processId = (typeof nodeOrId === "string") ? nodeOrId : nodeOrId._parent;
+    var process = this.processes[processId], parentNode;
+    var values = {};
+
+    for (var i = 0, ii = this.nodes.length; i < ii; ++i) {
+        var n = this.nodes[i];
+        if (n.type === "input" && n.value !== undefined && n._parent === processId) {
+            if (typeof n.value === "string" && n.value.indexOf(wps.SUBPROCESS) !== -1) {
+                values[n._info.identifier.value] = n.complete ? n.value : undefined;
+            } else {
+                values[n._info.identifier.value] = n.value;
+            }
+        }
+        if (n.id === processId) {
+            parentNode = n;
+        }
     }
-    if (n.id === processId) {
-      parentNode = n;
+
+    if (parentNode && process) {
+        var oldStatus = parentNode.complete;
+        var newStatus = process.isComplete(values);
+
+        // Only update if the status actually changed
+        if (oldStatus !== newStatus) {
+            parentNode.complete = newStatus;
+            parentNode.dirty = true; // Mark for redraw because status changed
+        }
+        // IMPORTANT: If parentNode.dirty was already true (e.g. it was just created),
+        // we do NOT set it to false here.
     }
-  }
-  var old = parentNode.complete;
-  parentNode.complete = process.isComplete(values);
-  parentNode.dirty = (old !== parentNode.complete);
-  return parentNode;
+    return parentNode;
 };
 
 wps.ui.prototype.afterSetValue = function(node) {
@@ -63112,8 +63123,20 @@ wps.ui.prototype.clear = function(ui) {
 wps.ui.prototype.execute = function(ui) {
   var hasSelected = false;
   var selection = d3.selectAll(".node_selected");
-  if (selection[0].length > 0) {
-    var node = selection.datum();
+  if (!selection.empty()) {
+    var node = null;
+    // Search the selection for a node of type 'process'
+    selection.each(function(d) {
+      if (d.type === 'process') {
+          node = d;
+      }
+    });
+
+    // If no process node was found in the selection (e.g., only a link was selected),
+    // fall back to the first available node and find its parent
+    if (!node) {
+      node = selection.datum();
+    }
     hasSelected = true;
     var processId = node.type === 'process' ? node.id : node._parent;
     if (ui.findNodeById(processId).complete !== true) {
@@ -63360,39 +63383,60 @@ wps.ui.prototype.checkSubLinkForDelete = function(link, process) {
 };
 
 wps.ui.prototype.deleteSelection = function() {
-  var redraw = false;
-  if (this.selectedLink !== null) {
-    var src = this.findNodeById(this.selectedLink.source);
-    var dst = this.findNodeById(this.selectedLink.target);
-    var input = src.type === 'input' ? src : dst;
-    this.editor_.setValue(false, false, undefined, input);
-    this.nodes.splice(this.nodes.indexOf(this.selectedLink), 1);
-    this.selectedLink = null;
-    redraw = true;
-  }
-  var selection = d3.selectAll(".node_selected");
-  if (selection[0].length > 0) {
-    var node = selection.datum();
-    if (node.type === 'process') {
-      this.deleteInputMap(node.id);
-      $('.input-map').detach();
-      $('.output-map').detach();
-      $('#tab-inputs').html('');
-      $('#tab-results').html('');
-      this.nodes.splice(this.nodes.indexOf(node), 1);
-      for (var i=this.nodes.length-1; i>=0; --i) {
-        if (this.nodes[i] instanceof wps.ui.link && this.checkSubLinkForDelete(this.nodes[i], node.id)) {
-          this.nodes.splice(i, 1);
-        } else if (this.nodes[i]._parent === node.id) {
-          this.nodes.splice(i, 1);
-        }
-      }
+    var redraw = false;
+    var me = this;
+
+    // 1. Handle Link deletion (original logic)
+    if (this.selectedLink !== null) {
+        var src = this.findNodeById(this.selectedLink.source);
+        var dst = this.findNodeById(this.selectedLink.target);
+        var input = src.type === 'input' ? src : dst;
+        this.editor_.setValue(false, false, undefined, input);
+        this.nodes.splice(this.nodes.indexOf(this.selectedLink), 1);
+        this.selectedLink = null;
+        redraw = true;
     }
-    redraw = true;
-  }
-  if (redraw) {
-    this.redraw();
-  }
+
+    // 2. Handle Node deletion (Updated to handle multiple selected nodes)
+    var selection = d3.selectAll(".node_selected");
+    if (!selection.empty()) {
+        // Convert selection to data array to avoid issues while modifying the DOM/nodes
+        selection.each(function(node) {
+            // Check if node still exists in the list (might have been deleted by its parent process in this same loop)
+            var nodeIndex = me.nodes.indexOf(node);
+            if (nodeIndex === -1) return;
+
+            if (node.type === 'process') {
+                // Clean up UI maps and tabs
+                me.deleteInputMap(node.id);
+                $('.input-map').detach();
+                $('.output-map').detach();
+                $('#tab-inputs').html('');
+                $('#tab-results').html('');
+
+                // Remove the process itself
+                me.nodes.splice(me.nodes.indexOf(node), 1);
+
+                // Remove all children (inputs/outputs) and links associated with this process
+                for (var i = me.nodes.length - 1; i >= 0; --i) {
+                    var n = me.nodes[i];
+                    if (n instanceof wps.ui.link && me.checkSubLinkForDelete(n, node.id)) {
+                        me.nodes.splice(i, 1);
+                    } else if (n._parent === node.id) {
+                        me.nodes.splice(i, 1);
+                    }
+                }
+                redraw = true;
+            }
+            // Note: In this UI, inputs/outputs are tied to processes.
+            // We don't delete individual inputs via the delete key normally,
+            // but if you wanted to allow it, you would add logic here.
+        });
+    }
+
+    if (redraw) {
+        this.redraw();
+    }
 };
 
 wps.ui.prototype.zoomIn = function(evt) {
@@ -63545,100 +63589,175 @@ wps.ui.prototype.createCanvas = function() {
   this.dragLine = this.vis.append("svg:path").attr("class", "drag_line");
 };
 
-wps.ui.prototype.createDropTarget = function() {
-  var me = this;
-  this.dropZone_.droppable({
-    accept:".palette_node",
-    drop: function( event, ui ) {
-      d3.event = event;
-      var selected_tool = $(ui.draggable[0]).data('type');
-      var process = me.client_.getProcess(me.defaultServer_, selected_tool, {callback: function(info, error, statusText) {
-        if (error === true) {
-          $('#tab-results').html('Error getting process description, details: ' + statusText);
-          me.activateTab('tab-results');
-          return;
+wps.ui.prototype.createDropTarget = function () {
+    var me = this;
+    this.dropZone_.droppable({
+        accept: ".palette_node",
+        drop: function (event, ui) {
+            d3.event = event;
+            var selected_tool = $(ui.draggable[0]).data('type');
+            var process = me.client_.getProcess(me.defaultServer_, selected_tool, {callback: function(info, error, statusText) {
+                    if (error === true) {
+                        $('#tab-results').html('Error getting process description, details: ' + statusText);
+                        me.activateTab('tab-results');
+                        return;
+                    }
+
+                    var mousePos = d3.touches(this)[0]||d3.mouse(this);
+                    mousePos[1] += this.scrollTop;
+                    mousePos[0] += this.scrollLeft;
+                    mousePos[1] /= me.scaleFactor;
+                    mousePos[0] /= me.scaleFactor;
+
+                    // --- DYNAMIC SPACING CALCULATIONS ---
+                    var horizontalGutter = 40; // Min space between the process block and its ports
+                    var processLabel = selected_tool;
+                    var processW = me.calculateTextWidth(processLabel);
+
+                    // Calculate the maximum width among all inputs
+                    var maxInputW = 0;
+                    for (var i = 0; i < info.dataInputs.input.length; i++) {
+                        var inputW = me.calculateTextWidth(info.dataInputs.input[i].title.value);
+                        if (inputW > maxInputW) maxInputW = inputW;
+                    }
+                    maxInputW = Math.max(maxInputW, me.nodeWidth);
+
+                    // Calculate the maximum width among all outputs
+                    var maxOutputW = 0;
+                    for (var i = 0; i < info.processOutputs.output.length; i++) {
+                        var outputW = me.calculateTextWidth(info.processOutputs.output[i].title.value);
+                        if (outputW > maxOutputW) maxOutputW = outputW;
+                    }
+                    maxOutputW = Math.max(maxOutputW, me.nodeWidth);
+
+                    // Calculate X positions so they don't overlap regardless of text length
+                    // Positions are centers of nodes
+                    var inputX = mousePos[0] - (processW / 2) - horizontalGutter - (maxInputW / 2);
+                    var outputX = mousePos[0] + (processW / 2) + horizontalGutter + (maxOutputW / 2);
+
+                    // Prevent inputs from falling off the left side of the workspace
+                    var leftEdgeOffset = (mousePos[0] - inputX) + (maxInputW / 2) + 20;
+                    mousePos[0] = Math.max(mousePos[0], leftEdgeOffset);
+                    // Recalculate after potential shift
+                    inputX = mousePos[0] - (processW / 2) - horizontalGutter - (maxInputW / 2);
+                    outputX = mousePos[0] + (processW / 2) + horizontalGutter + (maxOutputW / 2);
+                    // --- END DYNAMIC CALCULATIONS ---
+
+                    // We want the left-most edge of the longest label to be at x=20
+                    // LeftEdge = mouseX - (processW/2) - gutter - maxInputW
+                    var currentLeftEdge = mousePos[0] - (processW / 2) - horizontalGutter - maxInputW;
+
+                    if (currentLeftEdge < 20) {
+                        // Push the process block just enough to keep the longest label on screen
+                        mousePos[0] = 20 + maxInputW + horizontalGutter + (processW / 2);
+                    }
+
+                    // This is the vertical line where the right sides of all input blocks will touch
+                    var inputRightEdgeX = mousePos[0] - (processW / 2) - horizontalGutter;
+
+                    // --- BOUNDARY CHECK ---
+                    // Ensure the widest input doesn't go off the left side of the screen
+                    if (inputRightEdgeX - maxInputW < 20) {
+                        var shift = 20 - (inputRightEdgeX - maxInputW);
+                        mousePos[0] += shift;
+                        // Recalculate Right Edge after shift
+                        inputRightEdgeX = mousePos[0] - (processW / 2) - horizontalGutter;
+                    }
+                    // Sorting
+                    if (info.dataInputs && info.dataInputs.input) {
+                        info.dataInputs.input.sort(function(a, b) {
+                            // 1. Check Mandatory Status (minOccurs > 0)
+                            var isMandatoryA = (a.minOccurs > 0);
+                            var isMandatoryB = (b.minOccurs > 0);
+
+                            // If one is mandatory and the other isn't, mandatory goes first
+                            if (isMandatoryA !== isMandatoryB) {
+                                return isMandatoryA ? -1 : 1;
+                            }
+
+                            // 2. Secondary Sort: Alphabetical by Title
+                            var titleA = (a.title && a.title.value) ? a.title.value.toLowerCase() : "";
+                            var titleB = (b.title && b.title.value) ? b.title.value.toLowerCase() : "";
+
+                            return titleA.localeCompare(titleB);
+                        });
+                    }
+                    var config = {
+                        x: mousePos[0],
+                        y: mousePos[1],
+                        w: processW,
+                        type: 'process',
+                        dirty: true,
+                        _info: info,
+                        inputs: info.dataInputs.input.length,
+                        outputs: info.processOutputs.output.length,
+                        label: selected_tool
+                    };
+                    var nn = new wps.ui.node(config);
+                    me.processes[nn.id] = process;
+
+                    var link, i, ii, delta = 35, span = delta * nn.inputs, deltaY = (span-delta)/2;
+                    var startY = mousePos[1];
+
+                    for (i=0, ii=nn.inputs; i<ii; ++i) {
+                        var inputInfo = info.dataInputs.input[i];
+                        for (var j=0, jj=Math.max(inputInfo.minOccurs, 1); j<jj; ++j) {
+                            var currentNodeW = me.calculateTextWidth(inputInfo.title.value);
+
+                            var inputConfig = {
+                                // Center = RightBoundary - (Half Width)
+                                x: inputRightEdgeX - (currentNodeW / 2), // Aligns ports in a straight line
+                                y: startY - deltaY,
+                                w: currentNodeW,
+                                inputs: 1,
+                                outputs: 1,
+                                _parent: nn.id,
+                                dirty: true,
+                                type: 'input',
+                                _info: inputInfo,
+                                required: (inputInfo.minOccurs > 0),
+                                complete: false,
+                                label: inputInfo.title.value
+                            };
+
+                            if (inputConfig.y < 15) {
+                                startY = 100 + deltaY;
+                                inputConfig.y = startY-deltaY;
+                            }
+                            var input = new wps.ui.node(inputConfig);
+                            deltaY -= delta;
+                            me.nodes.push(input);
+                            link = new wps.ui.link({source: input.id, target: nn.id, _parent: nn.id});
+                            me.nodes.push(link);
+                        }
+                    }
+
+                    for (i=0, ii=nn.outputs; i<ii; ++i) {
+                        var outputInfo = info.processOutputs.output[i];
+                        var outputConfig = {
+                            x: outputX, // Use calculated dynamic X
+                            y: mousePos[1],
+                            w: me.calculateTextWidth(outputInfo.title.value), // Individual width
+                            inputs: 1,
+                            outputs: 1,
+                            dirty: true,
+                            type: 'output',
+                            _parent: nn.id,
+                            _info: outputInfo,
+                            label: outputInfo.title.value
+                        };
+                        var output = new wps.ui.node(outputConfig);
+                        me.nodes.push(output);
+                        link = new wps.ui.link({source: nn.id, _parent: nn.id, target: output.id});
+                        me.nodes.push(link);
+                    }
+
+                    me.nodes.push(nn);
+                    me.parentComplete(nn.id);
+                    me.redraw();
+                }, scope: this});
         }
-        var mousePos = d3.touches(this)[0]||d3.mouse(this);
-        mousePos[1] += this.scrollTop;
-        mousePos[0] += this.scrollLeft;
-        mousePos[1] /= me.scaleFactor;
-        mousePos[0] /= me.scaleFactor;
-        mousePos[0] = Math.max(mousePos[0], 300);
-        var config = {
-          x: mousePos[0],
-          y: mousePos[1],
-          w: this.nodeWidth,
-          type: 'process',
-          dirty: true,
-          _info: info,
-          inputs: info.dataInputs.input.length,
-          outputs: info.processOutputs.output.length,
-          label: selected_tool
-        };
-        var nn = new wps.ui.node(config);
-        me.processes[nn.id] = process;
-        var link, i, ii, delta = 50, span = delta * nn.inputs, deltaY = (span-delta)/2;
-        var startY = mousePos[1];
-        for (i=0, ii=nn.inputs; i<ii; ++i) {
-          for (var j=0, jj=Math.max(info.dataInputs.input[i].minOccurs, 1); j<jj; ++j) {
-            var inputConfig = {
-              x: mousePos[0]-200,
-              y: startY-deltaY,
-              w: this.nodeWidth,
-              inputs: 1,
-              outputs: 1,
-              _parent: nn.id,
-              dirty: true,
-              type: 'input',
-              _info: info.dataInputs.input[i],
-              required: (info.dataInputs.input[i].minOccurs > 0),
-              complete: false,
-              label: info.dataInputs.input[i].title.value
-            };
-            if (inputConfig.y < 15) {
-              startY = 100 + deltaY;
-              inputConfig.y = startY-deltaY;
-            }
-            var input = new wps.ui.node(inputConfig);
-            deltaY -= delta;
-            me.nodes.push(input);
-            // create a link as well between input and process
-            link = new wps.ui.link({
-              source: input.id,
-              target: nn.id,
-              _parent: nn.id
-            });
-            me.nodes.push(link);
-          }
-        }
-        for (i=0, ii=nn.outputs; i<ii; ++i) {
-          var outputConfig = {
-            x: mousePos[0]+200,
-            y: mousePos[1],
-            w: this.nodeWidth,
-            inputs: 1,
-            outputs: 1,
-            dirty: true,
-            type: 'output',
-            _parent: nn.id,
-            _info: info.processOutputs.output[i],
-            label: info.processOutputs.output[i].title.value
-          };
-          var output = new wps.ui.node(outputConfig);
-          me.nodes.push(output);
-          // create a link as well between process and output
-          link = new wps.ui.link({
-            source: nn.id,
-            _parent: nn.id,
-            target: output.id
-          });
-          me.nodes.push(link);
-        }
-        me.nodes.push(nn);
-        me.redraw();
-      }, scope: this});
-    }
-  });
+    });
 };
 
 wps.ui.prototype.createLinkPaths = function() {
@@ -63954,13 +64073,19 @@ wps.ui.prototype.updateNode = function(d, ui) {
 };
 
 wps.ui.prototype.clearSelection = function() {
-  for (var i in this.movingSet) {
-    var n = this.movingSet[i];
-    n.n.dirty = true;
-    n.n.selected = false;
-  }
-  this.movingSet = [];
-  this.selectedLink = null;
+    // 1. Iterate through ALL nodes to ensure visual consistency
+    for (var i = 0; i < this.nodes.length; i++) {
+        var n = this.nodes[i];
+        // If the node was selected, mark it for a redraw and deselect it
+        if (n.selected) {
+            n.selected = false;
+            n.dirty = true;
+        }
+    }
+
+    // 2. Clear the technical selection tracking
+    this.movingSet = [];
+    this.selectedLink = null;
 };
 
 wps.ui.nodeMouseUp = function(ui, d) {
@@ -63978,48 +64103,89 @@ wps.ui.nodeMouseUp = function(ui, d) {
 };
 
 wps.ui.prototype.updateSelection = function() {
-  if (this.mousedownNode) {
-    if (this.inputMaps[this.mousedownNode._parent]) {
-      if (this.inputMaps[this.mousedownNode._parent].vector) {
-        this.inputMaps[this.mousedownNode._parent].vector.changed();
-      }
+    var me = this;
+    if (this.mousedownNode) {
+        // If a process is selected, update maps for all its children
+        if (this.mousedownNode.type === 'process') {
+            if (this.inputMaps[this.mousedownNode.id]) {
+                if (this.inputMaps[this.mousedownNode.id].vector) {
+                    this.inputMaps[this.mousedownNode.id].vector.changed();
+                }
+            }
+        }
+        // If an input/output is selected, update the map of its parent process
+        else if (this.mousedownNode._parent) {
+            var parentId = this.mousedownNode._parent;
+            if (this.inputMaps[parentId]) {
+                if (this.inputMaps[parentId].vector) {
+                    this.inputMaps[parentId].vector.changed();
+                }
+            }
+        }
     }
-  }
 };
 
 wps.ui.nodeMouseDown = function(ui, d) {
-  var me = ui;
-  me.mousedownNode = d;
-  var now = Date.now();
-  me.clickElapsed = now-me.clickTime;
-  me.clickTime = now;
-  if (!d.selected) {
-    me.clearSelection();
-  }
-  me.mousedownNode.selected = true;
-  me.movingSet.push({n:me.mousedownNode});
-  me.selectedLink = null;
-  if (d3.event.button != 2) {
-    // MOVING
-    me.mouseMode = 1;
-    var mouse = d3.touches(this)[0]||d3.mouse(this);
-    mouse[0] += d.x-d.w/2;
-    mouse[1] += d.y-d.h/2;
-    for (var i in me.movingSet) {
-      me.movingSet[i].ox = me.movingSet[i].n.x;
-      me.movingSet[i].oy = me.movingSet[i].n.y;
-      me.movingSet[i].dx = me.movingSet[i].n.x-mouse[0];
-      me.movingSet[i].dy = me.movingSet[i].n.y-mouse[1];
+    var me = ui;
+    me.mousedownNode = d;
+    var now = Date.now();
+    me.clickElapsed = now - me.clickTime;
+    me.clickTime = now;
+
+    if (!d.selected) {
+        me.clearSelection();
     }
-    me.mouseOffset = d3.mouse(document.body);
-    if (isNaN(me.mouseOffset[0])) {
-      me.mouseOffset = d3.touches(document.body)[0];
+
+    // Mark clicked node as selected and dirty
+    d.selected = true;
+    d.dirty = true;
+
+    // Initialize the set of things that will move
+    me.movingSet = [];
+    me.movingSet.push({n: d});
+
+    // If we clicked a process, find all associated inputs and outputs
+    if (d.type === 'process') {
+        for (var i = 0; i < me.nodes.length; i++) {
+            var node = me.nodes[i];
+            // Only add valid nodes (not links) that belong to this process
+            if (node.id !== d.id && node._parent === d.id && node.type) {
+                node.selected = true;
+                node.dirty = true;
+                me.movingSet.push({n: node});
+            }
+        }
     }
-  }
-  d.dirty = true;
-  me.updateSelection();
-  me.redraw();
-  d3.event.stopPropagation();
+
+    me.selectedLink = null;
+
+    if (d3.event.button != 2) {
+        me.mouseMode = 1; // MOVING
+
+        /**
+         * FIX: Get mouse position relative to the workspace (vis)
+         * instead of 'this' (the node). This prevents NaN values.
+         */
+        var mousePos = d3.mouse(me.vis.node());
+
+        for (var j = 0; j < me.movingSet.length; j++) {
+            var moveItem = me.movingSet[j];
+            moveItem.ox = moveItem.n.x;
+            moveItem.oy = moveItem.n.y;
+            // Calculate offset between node center and mouse
+            moveItem.dx = moveItem.n.x - mousePos[0];
+            moveItem.dy = moveItem.n.y - mousePos[1];
+        }
+
+        me.mouseOffset = d3.mouse(document.body);
+        if (isNaN(me.mouseOffset[0])) {
+            me.mouseOffset = d3.touches(document.body)[0];
+        }
+    }
+
+    me.updateSelection();
+    me.redraw();
+    d3.event.stopPropagation();
 };
 
 wps.ui.prototype.createProcessRect = function(node) {
