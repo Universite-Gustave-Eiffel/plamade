@@ -232,15 +232,23 @@ a.brand span {
 .navbar-inner > .container-fluid {
     padding-right: 10px;
     padding-left: 20px;
-    padding-top: 8px;
+    padding-top: 0;
+    padding-bottom: 0;
     position: relative;
-
+    display: flex;
+    align-items: center;
+    height: 80px;
 }
 
 .navbar-inner > .container-fluid > .btn-group {
-    margin-top: 12px;
-    margin-bottom: 12px;
-    vertical-align: text-bottom;
+    margin-top: 0;
+    margin-bottom: 0;
+    vertical-align: middle;
+}
+
+.navbar-inner > .container-fluid > .btn-group.pull-right {
+    margin-left: auto;
+    float: none;
 }
 
 #workspace {

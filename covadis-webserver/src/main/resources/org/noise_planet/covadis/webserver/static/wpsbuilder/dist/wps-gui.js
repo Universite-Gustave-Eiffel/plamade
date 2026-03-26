@@ -64235,11 +64235,12 @@ wps.ui.prototype.createSearch = function() {
 };
 
 wps.ui.prototype.createProcessCategory = function(group) {
+  var groupLabel = group.replace(/_/g, ' ');
   var category = $('<div class="palette-category"><div class="palette-header">' +
-    '<i class="glyphicon glyphicon-chevron-down expanded"></i><span>' +
-    group + '</span></div></div>');
+    '<i class="glyphicon glyphicon-chevron-down"></i><span>' +
+    groupLabel + '</span></div></div>');
   this.parentContainer_.append(category);
-  var content = $('<div class="palette-content"></div>');
+  var content = $('<div class="palette-content" style="display:none"></div>');
   $(category).append(content);
   $(category).children('.palette-header').click(function(e) {
     $(this).next().slideToggle();
@@ -64253,7 +64254,7 @@ wps.ui.prototype.createProcess = function(process) {
   var summary = offering._abstract.value;
   var title = offering.title.value;
   var id = offering.identifier.value;
-  var d = $('<div class="palette_node ui-draggable">' + id.split(':')[1] + '</div>');
+  var d = $('<div class="palette_node ui-draggable">' + id.split(':')[1].replace(/_/g, ' ') + '</div>');
   $(d).data('type', id);
   $(d).popover({
     title: title,
