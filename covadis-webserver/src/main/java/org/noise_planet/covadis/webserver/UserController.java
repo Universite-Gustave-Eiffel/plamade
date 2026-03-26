@@ -250,6 +250,8 @@ public class UserController {
      */
     public void about(Context ctx) {
         List<LibraryInfo> libraries = FileUtilities.collectLibraryIdentifiers();
+        // Sort by last modified column
+        libraries.sort(Comparator.comparingLong(LibraryInfo::getLastModifiedTimeStamp).reversed());
         ctx.render("about", Map.of("libraries", libraries));
     }
 
