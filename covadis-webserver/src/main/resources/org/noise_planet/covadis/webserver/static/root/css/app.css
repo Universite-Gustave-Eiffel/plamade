@@ -10,13 +10,10 @@
 
 .console-text {
     font-family: "Multi-size, regular Misc-Fixed", "Courier New", monospace;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
     padding: 1em;
-    font-size: 12px;
+    font-size: 14px;
+    white-space: pre;
     color: var(--text);
-    line-height: 1.6;
 }
 
 .code {
