@@ -186,17 +186,6 @@
                 <targetPath>scripts</targetPath>
                 <filtering>false</filtering>
             </resource>
-            <!-- ColoringNoise theme: copy css/ folder into wpsbuilder static assets -->
-            <resource>
-                <directory>${project.basedir}/../css</directory>
-                <includes>
-                    <include>style.css</include>
-                    <include>*.png</include>
-                    <include>fonts/**</include>
-                </includes>
-                <targetPath>org/noise_planet/covadis/webserver/static/wpsbuilder/dist/themes/coloringnoise</targetPath>
-                <filtering>false</filtering>
-            </resource>
         </resources>
         <plugins>
             <!-- GMavenPlus plugin for compiling Groovy -->
