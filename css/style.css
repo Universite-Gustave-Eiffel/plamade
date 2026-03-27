@@ -71,8 +71,8 @@
   --sidebar-w: clamp(260px, 28vw, 360px);
   --gutter:    12px;
 
-  --radius:    10px;
-  --radius-sm: 8px;
+  --radius:    5px;
+  --radius-sm: 5px;
 
   /* Type scale */
   --text-xs:   11px;
@@ -215,7 +215,7 @@ a.brand span{
 
 /* Buttons (works with legacy Bootstrap class names) */
 .btn{
-  border-radius: 10px !important;
+  border-radius: 5px !important;
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(255,255,255,0.10);
   color: #fff;
@@ -243,14 +243,14 @@ a.brand span{
 
 /* Dropdown menu polish */
 .dropdown-menu{
-  border-radius: 12px !important;
+  border-radius: 5px !important;
   border: 1px solid var(--border) !important;
   box-shadow: var(--shadow) !important;
   padding: 6px !important;
   background: var(--surface) !important;
 }
 .dropdown-menu > li > a{
-  border-radius: 10px;
+  border-radius: 5px;
   padding: var(--space-2) var(--space-3);
   transition: background var(--duration) var(--ease);
 }
@@ -429,7 +429,7 @@ a.brand span{
   right: 10px;
   width: 28px;
   height: 28px;
-  border-radius: 10px;
+  border-radius: 5px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
@@ -457,8 +457,8 @@ a.brand span{
   font-size: var(--text-sm);
   background: var(--surface);
   margin: 4px auto;
-  height: 5px;
-  border-radius: 12px;
+  height: 32px;
+  border-radius: 5px;
   border: 1px solid var(--border);
   box-shadow: 0 1px 0 rgba(2, 6, 23, 0.03);
   background-position: 8px 50%;
@@ -488,7 +488,7 @@ a.brand span{
   top: 12px;
   left: -6px;
   background: var(--surface);
-  border-radius: 6px;
+  border-radius: 5px;
   width: 12px;
   height: 12px;
   border: 1px solid rgba(51, 65, 85, 0.20);
@@ -507,7 +507,7 @@ a.brand span{
   background-color: rgba(15, 23, 42, 0.45);
   color: #fff;
   outline: none;
-  border-radius: 10px;
+  border-radius: 5px;
 }
 
 /* ---------- Labels ---------- */
@@ -659,7 +659,7 @@ g.link_unknown path.link_line{
 /* ---------- Forms / inputs ---------- */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select, textarea{
-  border-radius: 10px;
+  border-radius: 5px;
   border: 1px solid var(--border);
   padding: var(--space-2) var(--space-3);
   background: #fff;
@@ -830,7 +830,7 @@ ul.red-ui-tabs li.active a.red-ui-tab-label:hover{
 }
 ul.red-ui-tabs li.red-ui-add-tab{
   width: 25px;
-  border-top-right-radius: 15px;
+  border-top-right-radius: 5px;
   line-height: 22px;
 }
 ul.red-ui-tabs li.red-ui-add-tab a{
@@ -957,7 +957,7 @@ i.spinner{
   border: 2px solid rgba(255,255,255,0.22) !important;
   font-weight: 700;
   font-size: var(--text-md);
-  padding: 8px 22px;
+  padding: 30px 22px;
   letter-spacing: 0.3px;
   box-shadow: 0 4px 16px rgba(59, 80, 104, 0.35);
   transition: transform var(--duration) var(--ease),
@@ -1161,7 +1161,7 @@ div.form-row-abstract{
 }
 .form-row input, .form-control{
   width: 70%;
-  border-radius: 10px !important;
+  border-radius: 5px !important;
   border: 1px solid var(--border) !important;
   background: #fff !important;
   color: var(--text) !important;
