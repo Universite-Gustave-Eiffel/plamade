@@ -63717,7 +63717,7 @@ wps.ui.prototype.createDropTarget = function () {
                                 _info: inputInfo,
                                 required: (inputInfo.minOccurs > 0),
                                 complete: false,
-                                label: inputInfo.title.value
+                                label: inputInfo.title.value.replace(/_/g, ' ')
                             };
 
                             if (inputConfig.y < 15) {
@@ -63744,7 +63744,7 @@ wps.ui.prototype.createDropTarget = function () {
                             type: 'output',
                             _parent: nn.id,
                             _info: outputInfo,
-                            label: outputInfo.title.value
+                            label: outputInfo.title.value.replace(/_/g, ' ')
                         };
                         var output = new wps.ui.node(outputConfig);
                         me.nodes.push(output);
@@ -63851,7 +63851,7 @@ wps.ui.prototype.createExtraInputNode = function() {
     type: 'input',
     _info: selected_node._info,
     complete: false,
-    label: selected_node._info.identifier.value
+    label: selected_node._info.identifier.value.replace(/_/g, ' ')
   };
   var input = new wps.ui.node(inputConfig);
   this.nodes.push(input);
@@ -64034,7 +64034,7 @@ wps.ui.prototype.updateNode = function(d, ui) {
       classed("node_required", function(d) { return d.required; }).
       classed("node_selected",function(d) { return d.selected; });
       thisNode.selectAll('text.node_label').text(function(d,i){
-        return d.label || "";
+        return (d.label || "").replace(/_/g, ' ');
       }).
         attr('y', function(d){return (d.h/2)-1;}).
         attr('class',function(d){
