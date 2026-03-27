@@ -275,8 +275,11 @@ a:hover{ text-decoration: underline; }
   box-shadow: 0 4px 16px rgba(59, 80, 104, 0.35);
 }
 .pure-button-primary:disabled{
-  opacity: 0.45;
+  background: var(--surface-3);
+  color: var(--muted);
+  box-shadow: none;
   cursor: not-allowed;
+  opacity: 1;
 }
 
 /* ---------- Forms ---------- */
@@ -404,10 +407,10 @@ a:hover{ text-decoration: underline; }
 .job-table-container{
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0;
+  padding: 0 0 1em;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  overflow: visible;
   margin: 1em auto;
   max-width: 800px;
 }
