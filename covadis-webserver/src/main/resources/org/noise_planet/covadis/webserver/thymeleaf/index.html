@@ -10,7 +10,7 @@
         <p th:if="${user == null}" class="splash-subhead">
             Click on Get Started in order to proceed to authentication
         </p>
-        <img src="img/logo_noisemap_alone_small.png">
+        <img th:src="@{/builder/dist/wpsbuilder-header.png}" alt="NoiseModelling">
         <p th:if="${user == null}">
             <a href="builder/" class="pure-button pure-button-primary">Get Started</a>
         </p>

@@ -957,7 +957,7 @@ i.spinner{
   border: 2px solid rgba(255,255,255,0.22) !important;
   font-weight: 700;
   font-size: var(--text-md);
-  padding: 30px 22px;
+  padding: 8px 22px;
   letter-spacing: 0.3px;
   box-shadow: 0 4px 16px rgba(59, 80, 104, 0.35);
   transition: transform var(--duration) var(--ease),
