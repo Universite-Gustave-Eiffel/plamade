@@ -457,7 +457,7 @@ a.brand span{
   font-size: var(--text-sm);
   background: var(--surface);
   margin: 4px auto;
-  height: 32px;
+  height: 5px;
   border-radius: 12px;
   border: 1px solid var(--border);
   box-shadow: 0 1px 0 rgba(2, 6, 23, 0.03);
@@ -469,7 +469,9 @@ a.brand span{
   position: relative;
   display: flex;
   align-items: center;
-  padding-left: 34px;
+  justify-content: flex-start;
+  text-align: left;
+  padding-left: 10px;
   padding-right: 10px;
   color: var(--text);
   transition: border-color var(--duration) var(--ease),
