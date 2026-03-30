@@ -134,20 +134,19 @@
             parentContainer: $('.palette-scroll'),
             dropZone: $("#chart")
           });
-          // these are the old deprecated categories
-          var skip = ['JTS', 'gs', 'gt'];
-          var descriptions = {
-            'geo': 'Single Geometry',
-            'ras': 'Raster',
-            'vec': 'Vector Feature Collection'
-          };
-          for (var group in groups) {
-            if (skip.indexOf(group) === -1) {
-              var description = descriptions[group] ? descriptions[group] : group;
-              var content = wpsui.createProcessCategory(description);
-              for (var i=0, ii=groups[group].length; i<ii; ++i) {
-                $(content).append(wpsui.createProcess(groups[group][i]));
-              }
+
+          // Sort groups alphabetically
+          const sortedGroups = Object.keys(groups).sort();
+          for (let group of sortedGroups) {
+            let content = wpsui.createProcessCategory(group);
+            // Sort processes alphabetically by identifier.value
+            groups[group].sort((a, b) => {
+              const idA = a.value.identifier.value.toUpperCase();
+              const idB = b.value.identifier.value.toUpperCase();
+              return idA.localeCompare(idB);
+            });
+            for (let i=0, ii=groups[group].length; i<ii; ++i) {
+              $(content).append(wpsui.createProcess(groups[group][i]));
             }
           }
         });

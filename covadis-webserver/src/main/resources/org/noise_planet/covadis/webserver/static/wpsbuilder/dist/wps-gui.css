@@ -316,7 +316,6 @@ a.brand span {
     overflow: hidden;
     background: #f3f3f3;
     text-align: center;
-    height: 35px;
     padding: 6px;
     border-top: 1px solid #999;
     box-sizing:border-box;
@@ -335,7 +334,7 @@ a.brand span {
 /* bartvde change to glyphicon */
 #palette-search i.glyphicon-remove {
     position: absolute;
-    right: 10px;
+    right: 14px;
     top: 12px;
 }
 

@@ -678,16 +678,6 @@ input.input-append-left{
 }
 
 /* ---------- Palette search ---------- */
-#palette-search{
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding: 6px 10px;
-  height: 35px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
 #palette-search input{
   width: calc(100% - 30px);
   border: 1px solid var(--border);
@@ -709,11 +699,6 @@ input.input-append-left{
 }
 #palette-search i.glyphicon-remove{
   color: var(--muted);
-}
-#palette-search-clear{
-  position: absolute;
-  top: 10px;
-  right: 14px;
 }
 #palette-search-input::-ms-clear{
   display: none;

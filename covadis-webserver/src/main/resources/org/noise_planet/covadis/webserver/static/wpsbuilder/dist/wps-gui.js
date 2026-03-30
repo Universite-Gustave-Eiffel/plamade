@@ -64237,10 +64237,10 @@ wps.ui.prototype.createSearch = function() {
 wps.ui.prototype.createProcessCategory = function(group) {
   var groupLabel = group.replace(/_/g, ' ');
   var category = $('<div class="palette-category"><div class="palette-header">' +
-    '<i class="glyphicon glyphicon-chevron-down"></i><span>' +
+    '<i class="glyphicon glyphicon-chevron-down expanded"></i><span>' +
     groupLabel + '</span></div></div>');
   this.parentContainer_.append(category);
-  var content = $('<div class="palette-content" style="display:none"></div>');
+  var content = $('<div class="palette-content"></div>');
   $(category).append(content);
   $(category).children('.palette-header').click(function(e) {
     $(this).next().slideToggle();
