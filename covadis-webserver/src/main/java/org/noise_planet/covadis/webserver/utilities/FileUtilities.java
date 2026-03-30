@@ -184,7 +184,8 @@ public class FileUtilities {
                             } catch (NumberFormatException ignored) {}
                         }
 
-                        libraries.add(new LibraryInfo(bundleName, formattedDate, version, commit));
+                        libraries.add(new LibraryInfo(bundleName, formattedDate, version, commit,
+                                lastModRaw == null ? 0 : Long.parseLong(lastModRaw)));
                     }
                 } catch (IOException e) {
                     // Log internally or skip individual failed manifest reads

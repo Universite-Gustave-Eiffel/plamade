@@ -19,16 +19,19 @@ public class LibraryInfo {
     private final String lastModified;
     private final String version;
     private final String commit;
+    private final long lastModifiedTimeStamp;
 
-    public LibraryInfo(String name, String lastModified, String version, String commit) {
+    public LibraryInfo(String name, String lastModified, String version, String commit, long lastModifiedTimeStamp) {
         this.name = name != null ? name : "Unknown";
         this.lastModified = lastModified != null ? lastModified : " - ";
         this.version = version != null ? version : " - ";
         this.commit = commit != null ? commit : " - ";
+        this.lastModifiedTimeStamp = lastModifiedTimeStamp;
     }
 
     public String getName() { return name; }
     public String getLastModified() { return lastModified; }
     public String getVersion() { return version; }
     public String getCommit() { return commit; }
+    public long getLastModifiedTimeStamp() { return lastModifiedTimeStamp; }
 }
