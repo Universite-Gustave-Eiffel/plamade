@@ -474,16 +474,17 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         logger.info(String.format(Locale.ROOT, "Loaded directivity from %s table", tableSourceDirectivity))
     }
 
-    if (input['tableSourceEmission']) {
+    if (input.containsKey('tableSourceEmission')) {
         // Use the right default database caps according to db type
         String tableSourceEmission = TableLocation.capsIdentifier(input['tableSourceEmission'] as String, dbType)
         pointNoiseMap.setSourcesEmissionTableName(tableSourceEmission)
     }
 
-    sql.execute("drop table if exists " + TableLocation.parse(pointNoiseMap.noiseMapDatabaseParameters.receiversLevelTable))
+    sql.execute("drop table if exists " + TableLocation.parse(pointNoiseMap.noiseMapDatabaseParameters.receiversLevelTable, dbType))
 
-    if (input['confRaysName'] && !((input['confRaysName'] as String).isEmpty())) {
-        parameters.setRaysTable(input['confRaysName'] as String)
+    String confRaysName = input.getOrDefault('confRaysName', '') as String
+    if (confRaysName) {
+        parameters.setRaysTable(confRaysName)
         parameters.setExportRaysMethod(NoiseMapDatabaseParameters.ExportRaysMethods.TO_RAYS_TABLE)
         parameters.exportAttenuationMatrix = true
         parameters.exportCnossosPathWithAttenuation = true
@@ -521,11 +522,11 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     // Building height field name
     pointNoiseMap.setHeightField("HEIGHT")
     // Import table with Snow, Forest, Grass, Pasture field polygons. Attribute G is associated with each polygon
-    if (ground_table_name != "") {
+    if (ground_table_name) {
         pointNoiseMap.setSoilTableName(ground_table_name)
     }
     // Point cloud height above sea level POINT(X Y Z)
-    if (dem_table_name != "") {
+    if (dem_table_name) {
         pointNoiseMap.setDemTable(dem_table_name)
     }
 
