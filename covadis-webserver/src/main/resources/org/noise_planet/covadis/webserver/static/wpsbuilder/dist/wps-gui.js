@@ -62521,8 +62521,8 @@ wps.ui = function(options) {
   this.initializeSplitter();
   $('#file-open').click($.proxy(wps.ui.load, null, this));
   $('#file-save').click($.proxy(this.save, null, this));
-  $('#export-clipboard').click($.proxy(this.exportClipboard, null, this));
-  $('#import-clipboard').click($.proxy(this.importClipboard, null, this));
+  $('#save-project').click($.proxy(this.saveProject, null, this));
+  $('#open-project').click($.proxy(this.openProject, null, this));
   $( "#dialog" ).dialog({
     modal: true,
     autoOpen: false,
@@ -62745,34 +62745,55 @@ wps.ui.prototype.afterSetValue = function(node) {
   this.redraw();
 };
 
-wps.ui.prototype.exportClipboard = function(ui) {
+wps.ui.prototype.saveProject = function(ui) {
   var nodes = [];
   for (var i=0, ii=ui.nodes.length; i<ii; ++i) {
     nodes.push(ui.nodes[i].getState());
   }
-  var html = '<div class="form-row">';
-  html += '<label for="node-input-export" style="width:100%"><i class="glyphicon glyphicon-share"> Nodes:</i></label>';
-  html += '<textarea readonly class="wpsgui form-control" id="node-input-export" rows="5"></textarea>';
-  html += '</div>';
-  html += '<div class="form-tips"> Select the text above and copy to the clipboard.</div>';
-  $("#dialog-form").html(html);
-  $("#dialog").dialog("option", "title", "Export to clipboard").dialog( "open" );
-  // bootstrap's hide class has important, so we need to remove it
-  $("#dialog").removeClass('hide');
-  $("#node-input-export").val(JSON.stringify(nodes));
-  $("#node-input-export").focus();
+  var now = new Date();
+  var pad = function(n) { return n < 10 ? '0' + n : n; };
+  var filename = 'NM_project_' + now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + '_' + pad(now.getHours()) + '-' + pad(now.getMinutes()) + '-' + pad(now.getSeconds()) + '.json';
+  var blob = new Blob([JSON.stringify(nodes, null, 2)], {type: 'application/json'});
+  if (window.showSaveFilePicker) {
+    window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [{
+        description: 'JSON Project File',
+        accept: {'application/json': ['.json']}
+      }]
+    }).then(function(handle) {
+      return handle.createWritable();
+    }).then(function(writable) {
+      writable.write(blob);
+      return writable.close();
+    }).catch(function(err) {
+      if (err.name !== 'AbortError') console.error(err);
+    });
+  } else {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
 };
 
-wps.ui.prototype.importClipboard = function(ui) {
-  var html = '<div class="form-row">';
-  html += '<label for="node-input-import" style="width:100%"><i class="glyphicon glyphicon-share"> Nodes:</i></label>';
-  html += '<textarea placeholder="Paste nodes here" class="form-control" id="node-input-import" rows="5"></textarea>';
-  html += '</div>';
-  $("#dialog-form").html(html);
-  $("#node-input-import").val("");
-  $("#dialog").dialog("option", "title", "Import from clipboard").dialog( "open" );
-  // bootstrap's hide class has important, so we need to remove it
-  $("#dialog").removeClass('hide');
+wps.ui.prototype.openProject = function(ui) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      wps.ui.load(ui, null, ev.target.result);
+    };
+    reader.readAsText(file);
+  };
+  input.click();
 };
 
 wps.ui.prototype.checkInput = function(nodeId, name, id) {
