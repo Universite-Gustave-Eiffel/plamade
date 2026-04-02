@@ -11,7 +11,8 @@
     <link rel="stylesheet" type="text/css" href="dist/wps-gui.css" />
     <link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="components/jquery-ui/themes/flick/jquery-ui.css" />
-    <link rel="stylesheet" href="components/font-awesome/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="components/font-awesome/css/all.min.css" />
+    <link rel="stylesheet" href="components/font-awesome/css/v4-shims.min.css" />
     <link rel="stylesheet" type="text/css" href="dist/themes/coloringnoise/style.css" />
   </head>
   <body>
@@ -25,14 +26,20 @@
               <i class="fa fa-file fa-fw"></i>File <span class="caret"></span>
             </button>
             <ul class="wpsgui dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
-              <li role="presentation"><a role="menuitem" id="open-project" tabindex="-1"
-                  href="#"><i class="fa fa-folder-open fa-fw"></i>Open project</a></li>         
-              <li role="presentation"><a role="menuitem" id="save-project" tabindex="-1"
-                  href="#"><i class="fa fa-download fa-fw"></i>Save project</a></li>
               <li role="presentation"><a role="menuitem" id="file-open" tabindex="-1" href="#"><i
                     class="fa fa-folder-open-o fa-fw"></i>Open from local browser storage</a></li>
               <li role="presentation"><a role="menuitem" id="file-save" tabindex="-1" href="#"><i
-                    class="fa fa-save fa-fw"></i>Save to local browser storage</a></li>     
+                    class="fa fa-save fa-fw"></i>Save to local browser storage</a></li>
+              <li role="presentation" class="divider"></li>
+              <li role="presentation"><a role="menuitem" id="open-project" tabindex="-1"
+                  href="#"><i class="fa fa-folder-open fa-fw"></i>Open project</a></li>
+              <li role="presentation"><a role="menuitem" id="save-project" tabindex="-1"
+                  href="#"><i class="fa fa-download fa-fw"></i>Save project</a></li>
+              <li role="presentation" class="divider"></li>
+              <li role="presentation"><a role="menuitem" id="open-project-db" tabindex="-1"
+                  href="#"><i class="fa fa-database fa-fw"></i>Open project with database</a></li>
+              <li role="presentation"><a role="menuitem" id="save-project-db" tabindex="-1"
+                  href="#"><i class="fa fa-database fa-fw"></i>Save project with database</a></li>
             </ul>
           </div>
           <div class="btn-group btn-clear-div">
@@ -109,6 +116,7 @@
     <div id="dialog" class="hide"><form id="dialog-form" class="form-horizontal"></form></div>
 
     <script src="vendor/ol.js"></script>
+    <script src="components/jszip/jszip.min.js"></script>
     <script src="dist/wps-gui.js"></script>
     <script>
 

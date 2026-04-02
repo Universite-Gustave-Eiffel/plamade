@@ -830,6 +830,101 @@ public class OwsController {
     }
 
     /**
+     * Handles the export of the user's H2 database as a zip file.
+     * Uses H2's BACKUP TO command to create a safe binary backup.
+     * The backup is streamed to the client as application/octet-stream.
+     *
+     * @param ctx the Javalin HTTP context
+     */
+    public void handleDatabaseExport(Context ctx) {
+        try {
+            int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
+            if (userId <= 0) {
+                ctx.status(401).result("Authentication required");
+                return;
+            }
+            DataSource dataSource = fetchUserDataSource(userId);
+            java.nio.file.Path tempDir = java.nio.file.Files.createTempDirectory("nm_db_export_");
+            java.io.File backupFile = tempDir.resolve("database.zip").toFile();
+            try (Connection connection = dataSource.getConnection()) {
+                connection.createStatement().execute("BACKUP TO '" + backupFile.getAbsolutePath().replace("'", "''") + "'");
+            }
+            ctx.contentType("application/octet-stream");
+            ctx.header("Content-Disposition", "attachment; filename=\"database.zip\"");
+            ctx.result(java.nio.file.Files.newInputStream(backupFile.toPath()));
+            // Schedule cleanup after response is sent
+            ctx.attribute("tempDir", tempDir);
+            ctx.attribute("backupFile", backupFile);
+        } catch (Exception e) {
+            logger.error("Error exporting database", e);
+            ctx.status(500).result("Error exporting database: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles the import of an H2 database backup.
+     * Closes the existing user connection pool, replaces the database file
+     * with the uploaded backup, and lets the pool reconnect on next access.
+     * No SQL is executed from the uploaded file — only file replacement.
+     *
+     * @param ctx the Javalin HTTP context
+     */
+    public void handleDatabaseImport(Context ctx) {
+        try {
+            int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
+            if (userId <= 0) {
+                ctx.status(401).result("Authentication required");
+                return;
+            }
+            var uploadedFile = ctx.uploadedFile("database");
+            if (uploadedFile == null) {
+                ctx.status(400).result("No database file uploaded");
+                return;
+            }
+            // Close existing connection pool for this user
+            DataSource existingDS = userDataSources.remove(userId);
+            if (existingDS instanceof com.zaxxer.hikari.HikariDataSource) {
+                ((com.zaxxer.hikari.HikariDataSource) existingDS).close();
+            }
+            // Extract the H2 backup zip to a temp directory and find the .mv.db file
+            String dbName = getUserDatabaseName(userId);
+            java.io.File targetDbFile = new java.io.File(configuration.getWorkingDirectory(), dbName + ".mv.db");
+            java.nio.file.Path tempDir = java.nio.file.Files.createTempDirectory("nm_db_import_");
+            java.io.File tempZip = tempDir.resolve("uploaded.zip").toFile();
+            // Save uploaded file
+            try (InputStream is = uploadedFile.content();
+                 OutputStream os = new FileOutputStream(tempZip)) {
+                is.transferTo(os);
+            }
+            // Extract .mv.db from the H2 backup zip
+            boolean foundDb = false;
+            try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new FileInputStream(tempZip))) {
+                java.util.zip.ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    if (entry.getName().endsWith(".mv.db")) {
+                        try (OutputStream os = new FileOutputStream(targetDbFile)) {
+                            zis.transferTo(os);
+                        }
+                        foundDb = true;
+                        break;
+                    }
+                }
+            }
+            // Cleanup temp files
+            tempZip.delete();
+            tempDir.toFile().delete();
+            if (!foundDb) {
+                ctx.status(400).result("Invalid database backup: no .mv.db file found in zip");
+                return;
+            }
+            ctx.result("Database imported successfully");
+        } catch (Exception e) {
+            logger.error("Error importing database", e);
+            ctx.status(500).result("Error importing database: " + e.getMessage());
+        }
+    }
+
+    /**
      * Shuts down the server by stopping the job executor service.
      */
     public void shutdown() {

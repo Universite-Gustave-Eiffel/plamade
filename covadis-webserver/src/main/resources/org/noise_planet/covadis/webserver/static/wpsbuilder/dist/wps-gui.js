@@ -62523,6 +62523,8 @@ wps.ui = function(options) {
   $('#file-save').click($.proxy(this.save, null, this));
   $('#save-project').click($.proxy(this.saveProject, null, this));
   $('#open-project').click($.proxy(this.openProject, null, this));
+  $('#save-project-db').click($.proxy(this.saveProjectWithDatabase, null, this));
+  $('#open-project-db').click($.proxy(this.openProjectWithDatabase, null, this));
   $( "#dialog" ).dialog({
     modal: true,
     autoOpen: false,
@@ -62792,6 +62794,99 @@ wps.ui.prototype.openProject = function(ui) {
       wps.ui.load(ui, null, ev.target.result);
     };
     reader.readAsText(file);
+  };
+  input.click();
+};
+
+wps.ui.prototype.saveProjectWithDatabase = function(ui) {
+  var nodes = [];
+  for (var i=0, ii=ui.nodes.length; i<ii; ++i) {
+    nodes.push(ui.nodes[i].getState());
+  }
+  var now = new Date();
+  var pad = function(n) { return n < 10 ? '0' + n : n; };
+  var filename = 'NM_project_db_' + now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + '_' + pad(now.getHours()) + '-' + pad(now.getMinutes()) + '-' + pad(now.getSeconds()) + '.zip';
+  fetch('database/export')
+    .then(function(response) {
+      if (!response.ok) throw new Error('Database export failed: ' + response.statusText);
+      return response.blob();
+    })
+    .then(function(dbBlob) {
+      var zip = new JSZip();
+      zip.file('project.json', JSON.stringify(nodes, null, 2));
+      zip.file('database.zip', dbBlob);
+      return zip.generateAsync({type: 'blob'});
+    })
+    .then(function(content) {
+      if (window.showSaveFilePicker) {
+        window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'NoiseModelling Project with Database',
+            accept: {'application/zip': ['.zip']}
+          }]
+        }).then(function(handle) {
+          return handle.createWritable();
+        }).then(function(writable) {
+          writable.write(content);
+          return writable.close();
+        }).catch(function(err) {
+          if (err.name !== 'AbortError') console.error(err);
+        });
+      } else {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      }
+    })
+    .catch(function(err) {
+      alert('Error saving project with database: ' + err.message);
+    });
+};
+
+wps.ui.prototype.openProjectWithDatabase = function(ui) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.zip';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    JSZip.loadAsync(file).then(function(zip) {
+      var projectFile = zip.file('project.json');
+      var dbFile = zip.file('database.zip');
+      if (!projectFile) {
+        alert('Invalid project file: missing project.json');
+        return;
+      }
+      var loadProject = projectFile.async('string').then(function(content) {
+        wps.ui.load(ui, null, content);
+      });
+      var loadDb;
+      if (dbFile) {
+        loadDb = dbFile.async('blob').then(function(dbBlob) {
+          var formData = new FormData();
+          formData.append('database', dbBlob, 'database.zip');
+          return fetch('database/import', {
+            method: 'POST',
+            body: formData
+          }).then(function(response) {
+            if (!response.ok) throw new Error('Database import failed: ' + response.statusText);
+            return response.text();
+          });
+        });
+      } else {
+        loadDb = Promise.resolve();
+      }
+      return Promise.all([loadProject, loadDb]);
+    }).then(function() {
+      alert('Project and database loaded successfully');
+    }).catch(function(err) {
+      alert('Error loading project with database: ' + err.message);
+    });
   };
   input.click();
 };
