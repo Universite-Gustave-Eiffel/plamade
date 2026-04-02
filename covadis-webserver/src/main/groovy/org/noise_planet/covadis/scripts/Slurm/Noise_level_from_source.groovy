@@ -305,7 +305,7 @@ int POLL_SLURM_STATUS_TIME = 5000;
 @CompileStatic
 def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
     ProgressVisitor progress = mainProgress.subProcess(3)
-    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_03_06/NoiseModellingCovadis-2.0.0-SNAPSHOT.zip"
+    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_04_01/NoiseModellingCovadis_2.0.0-SNAPSHOT.zip"
     def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
     // Create a logger with the thread name as it contains the Job identifier
