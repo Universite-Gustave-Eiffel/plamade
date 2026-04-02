@@ -45,9 +45,15 @@ import javax.sql.DataSource;
 import javax.xml.datatype.DatatypeConfigurationException;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Comparator;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import com.zaxxer.hikari.HikariDataSource;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.*;
@@ -68,6 +74,7 @@ public class OwsController {
     public static final long KEEP_ALIVE_TIME = 0L;
     public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
     private static final int DEFAULT_ABORT_JOB_DELAY = 5;
+    private static final long MAX_UPLOAD_SIZE = 500L * 1024 * 1024; // 500 MB
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -837,27 +844,30 @@ public class OwsController {
      * @param ctx the Javalin HTTP context
      */
     public void handleDatabaseExport(Context ctx) {
+        Path tempDir = null;
         try {
-            int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
-            if (userId <= 0) {
-                ctx.status(401).result("Authentication required");
-                return;
-            }
+            User user = ctx.attribute("user");
+            int userId = user.getIdentifier();
             DataSource dataSource = fetchUserDataSource(userId);
-            java.nio.file.Path tempDir = java.nio.file.Files.createTempDirectory("nm_db_export_");
-            java.io.File backupFile = tempDir.resolve("database.zip").toFile();
+            tempDir = Files.createTempDirectory("nm_db_export_");
+            File backupFile = tempDir.resolve("database.zip").toFile();
             try (Connection connection = dataSource.getConnection()) {
                 connection.createStatement().execute("BACKUP TO '" + backupFile.getAbsolutePath().replace("'", "''") + "'");
             }
+            byte[] data = Files.readAllBytes(backupFile.toPath());
             ctx.contentType("application/octet-stream");
             ctx.header("Content-Disposition", "attachment; filename=\"database.zip\"");
-            ctx.result(java.nio.file.Files.newInputStream(backupFile.toPath()));
-            // Schedule cleanup after response is sent
-            ctx.attribute("tempDir", tempDir);
-            ctx.attribute("backupFile", backupFile);
+            ctx.result(data);
         } catch (Exception e) {
             logger.error("Error exporting database", e);
             ctx.status(500).result("Error exporting database: " + e.getMessage());
+        } finally {
+            if (tempDir != null) {
+                try (Stream<Path> paths = Files.walk(tempDir)) {
+                    paths.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 
@@ -870,27 +880,29 @@ public class OwsController {
      * @param ctx the Javalin HTTP context
      */
     public void handleDatabaseImport(Context ctx) {
+        Path tempDir = null;
         try {
-            int userId = JavalinJWT.getUserIdentifierFromContext(ctx, provider);
-            if (userId <= 0) {
-                ctx.status(401).result("Authentication required");
-                return;
-            }
+            User user = ctx.attribute("user");
+            int userId = user.getIdentifier();
             var uploadedFile = ctx.uploadedFile("database");
             if (uploadedFile == null) {
                 ctx.status(400).result("No database file uploaded");
                 return;
             }
+            if (uploadedFile.size() > MAX_UPLOAD_SIZE) {
+                ctx.status(413).result("Upload too large (max 500 MB)");
+                return;
+            }
             // Close existing connection pool for this user
             DataSource existingDS = userDataSources.remove(userId);
-            if (existingDS instanceof com.zaxxer.hikari.HikariDataSource) {
-                ((com.zaxxer.hikari.HikariDataSource) existingDS).close();
+            if (existingDS instanceof HikariDataSource) {
+                ((HikariDataSource) existingDS).close();
             }
             // Extract the H2 backup zip to a temp directory and find the .mv.db file
             String dbName = getUserDatabaseName(userId);
-            java.io.File targetDbFile = new java.io.File(configuration.getWorkingDirectory(), dbName + ".mv.db");
-            java.nio.file.Path tempDir = java.nio.file.Files.createTempDirectory("nm_db_import_");
-            java.io.File tempZip = tempDir.resolve("uploaded.zip").toFile();
+            File targetDbFile = new File(configuration.getWorkingDirectory(), dbName + ".mv.db");
+            tempDir = Files.createTempDirectory("nm_db_import_");
+            File tempZip = tempDir.resolve("uploaded.zip").toFile();
             // Save uploaded file
             try (InputStream is = uploadedFile.content();
                  OutputStream os = new FileOutputStream(tempZip)) {
@@ -898,10 +910,12 @@ public class OwsController {
             }
             // Extract .mv.db from the H2 backup zip
             boolean foundDb = false;
-            try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new FileInputStream(tempZip))) {
-                java.util.zip.ZipEntry entry;
+            try (ZipInputStream zis = new ZipInputStream(new FileInputStream(tempZip))) {
+                ZipEntry entry;
                 while ((entry = zis.getNextEntry()) != null) {
-                    if (entry.getName().endsWith(".mv.db")) {
+                    // Zip Slip protection: use only the file name, ignore directory components
+                    String entryName = Path.of(entry.getName()).getFileName().toString();
+                    if (entryName.endsWith(".mv.db")) {
                         try (OutputStream os = new FileOutputStream(targetDbFile)) {
                             zis.transferTo(os);
                         }
@@ -910,9 +924,6 @@ public class OwsController {
                     }
                 }
             }
-            // Cleanup temp files
-            tempZip.delete();
-            tempDir.toFile().delete();
             if (!foundDb) {
                 ctx.status(400).result("Invalid database backup: no .mv.db file found in zip");
                 return;
@@ -921,6 +932,13 @@ public class OwsController {
         } catch (Exception e) {
             logger.error("Error importing database", e);
             ctx.status(500).result("Error importing database: " + e.getMessage());
+        } finally {
+            if (tempDir != null) {
+                try (Stream<Path> paths = Files.walk(tempDir)) {
+                    paths.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 

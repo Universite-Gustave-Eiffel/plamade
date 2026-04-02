@@ -62858,13 +62858,18 @@ wps.ui.prototype.openProjectWithDatabase = function(ui) {
     JSZip.loadAsync(file).then(function(zip) {
       var projectFile = zip.file('project.json');
       var dbFile = zip.file('database.zip');
-      if (!projectFile) {
-        alert('Invalid project file: missing project.json');
+      if (!projectFile && !dbFile) {
+        alert('Invalid archive: neither project.json nor database.zip found');
         return;
       }
-      var loadProject = projectFile.async('string').then(function(content) {
-        wps.ui.load(ui, null, content);
-      });
+      var loadProject;
+      if (projectFile) {
+        loadProject = projectFile.async('string').then(function(content) {
+          wps.ui.load(ui, null, content);
+        });
+      } else {
+        loadProject = Promise.resolve();
+      }
       var loadDb;
       if (dbFile) {
         loadDb = dbFile.async('blob').then(function(dbBlob) {
@@ -62881,9 +62886,14 @@ wps.ui.prototype.openProjectWithDatabase = function(ui) {
       } else {
         loadDb = Promise.resolve();
       }
-      return Promise.all([loadProject, loadDb]);
-    }).then(function() {
-      alert('Project and database loaded successfully');
+      return Promise.all([loadProject, loadDb]).then(function() {
+        return {hasProject: !!projectFile, hasDb: !!dbFile};
+      });
+    }).then(function(result) {
+      var parts = [];
+      if (result.hasProject) parts.push('project');
+      if (result.hasDb) parts.push('database');
+      alert(parts.join(' and ') + ' loaded successfully');
     }).catch(function(err) {
       alert('Error loading project with database: ' + err.message);
     });
