@@ -26,11 +26,6 @@
               <i class="fa fa-file fa-fw"></i>File <span class="caret"></span>
             </button>
             <ul class="wpsgui dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
-              <li role="presentation"><a role="menuitem" id="file-open" tabindex="-1" href="#"><i
-                    class="fa fa-folder-open-o fa-fw"></i>Open from local browser storage</a></li>
-              <li role="presentation"><a role="menuitem" id="file-save" tabindex="-1" href="#"><i
-                    class="fa fa-save fa-fw"></i>Save to local browser storage</a></li>
-              <li role="presentation" class="divider"></li>
               <li role="presentation"><a role="menuitem" id="open-project" tabindex="-1"
                   href="#"><i class="fa fa-folder-open fa-fw"></i>Open project</a></li>
               <li role="presentation"><a role="menuitem" id="save-project" tabindex="-1"
@@ -155,6 +150,76 @@
             for (let i=0, ii=groups[group].length; i<ii; ++i) {
               $(content).append(wpsui.createProcess(groups[group][i]));
             }
+          }
+
+          // Auto-load project from browser storage on startup
+          wps.ui.load(wpsui);
+          // Hide the notification for auto-load
+          $('.open-success').stop(true, true).hide();
+
+          // Auto-save helper
+          function autoSave() {
+            wpsui.save(wpsui);
+            // Hide the "Saved successfully" notification for auto-saves
+            $('.save-success').stop(true, true).hide();
+          }
+
+          // Patch wps.ui.load to always auto-save to browser storage after loading
+          var origLoad = wps.ui.load;
+          wps.ui.load = function(ui, evt, nodes) {
+            origLoad.call(this, ui, evt, nodes);
+            autoSave();
+          };
+
+          // Patch canvasMouseUp to auto-save after moving nodes
+          var origCanvasMouseUp = wps.ui.canvasMouseUp;
+          wps.ui.canvasMouseUp = function(ui) {
+            var wasMoveMode = (ui.mouseMode === 3);
+            origCanvasMouseUp.call(this, ui);
+            if (wasMoveMode) {
+              autoSave();
+            }
+          };
+          // Re-bindcanvas events with patched handler
+          wpsui.vis.on("mouseup", $.proxy(wps.ui.canvasMouseUp, null, wpsui));
+
+          // Patch deleteSelection to auto-save after deletion
+          var origDeleteSelection = wps.ui.prototype.deleteSelection;
+          wps.ui.prototype.deleteSelection = function() {
+            origDeleteSelection.call(this);
+            autoSave();
+          };
+
+          // Patch clear to auto-save (empty state) after clearing
+          var origClear = wps.ui.prototype.clear;
+          wps.ui.prototype.clear = function(ui) {
+            origClear.call(this, ui);
+            autoSave();
+          };
+
+          // Patch createDropTarget to auto-save after dropping a new process
+          var origCreateDropTarget = wps.ui.prototype.createDropTarget;
+          wps.ui.prototype.createDropTarget = function() {
+            var me = this;
+            origCreateDropTarget.call(this);
+            // Re-wrap the droppable to add auto-save on drop completion
+            var origDrop = this.dropZone_.droppable("option", "drop");
+            this.dropZone_.droppable("option", "drop", function(event, ui) {
+              origDrop.call(this, event, ui);
+              // Auto-save after a short delay to let the async process callback complete
+              setTimeout(autoSave, 1000);
+            });
+          };
+          // Re-create drop target with patched version
+          wpsui.createDropTarget();
+
+          // Patch portMouseUp to auto-save after creating a link
+          var origPortMouseUp = wps.ui.portMouseUp;
+          if (origPortMouseUp) {
+            wps.ui.portMouseUp = function(ui, d) {
+              origPortMouseUp.call(this, ui, d);
+              autoSave();
+            };
           }
         });
     </script>
