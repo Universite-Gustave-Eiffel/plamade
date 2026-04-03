@@ -59,9 +59,11 @@ public class SlurmUtilities {
                 if(file.fileSize > alreadyReadBytes) {
                     AtomicLong readBytes = new AtomicLong(0L);
                     // the command "tail -c +N" will skip N bytes and read the remaining bytes
-                    logger.info("--------" + file.fileName + "--------");
-                    session.runCommand(String.format("tail -c +%d %s/%s", alreadyReadBytes, remoteJobFolder ,file.fileName), true, readBytes);
+                    StringBuilder stringBuilder = new StringBuilder("--------" + file.fileName + "--------");
+                    List<String> lines = session.runCommand(String.format("tail -c +%d %s/%s", alreadyReadBytes, remoteJobFolder ,file.fileName), false, readBytes);
+                    lines.forEach(line -> stringBuilder.append("\n").append(line));
                     bytesReadInFiles.put(file.fileName, alreadyReadBytes + readBytes.get());
+                    logger.info(stringBuilder.toString());
                 }
             }
         } catch (IOException e) {
