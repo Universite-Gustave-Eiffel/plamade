@@ -62655,6 +62655,8 @@ wps.ui.load = function(ui, evt, nodes) {
     ui.redraw();
     if (local) {
       $('.open-success').fadeIn().delay(1500).fadeOut();
+    } else {
+      ui.autoSave();
     }
   }
 };
@@ -62962,6 +62964,14 @@ wps.ui.prototype.save = function(ui) {
   $('.save-success').fadeIn().delay(1500).fadeOut();
 };
 
+wps.ui.prototype.autoSave = function() {
+  var nodes = [];
+  for (var i=0, ii=this.nodes.length; i<ii; ++i) {
+    nodes.push(this.nodes[i].getState());
+  }
+  localStorage.setItem(this.localStorageKey, JSON.stringify(nodes));
+};
+
 wps.ui.prototype.resizeTabs = function() {
   var ul = $('#sidebar-tabs');
   var tabs = ul.find("li.red-ui-tab");
@@ -63243,6 +63253,7 @@ wps.ui.prototype.clear = function(ui) {
   $('#tab-xml pre code').html('');
   $("#palette-search-input").val("");
   wps.ui.filterChange();
+  ui.autoSave();
   ui.redraw();
 };
 
@@ -63561,6 +63572,7 @@ wps.ui.prototype.deleteSelection = function() {
     }
 
     if (redraw) {
+        this.autoSave();
         this.redraw();
     }
 };
@@ -63673,6 +63685,7 @@ wps.ui.canvasMouseUp = function(ui) {
       delete me.movingSet[i].ox;
       delete me.movingSet[i].oy;
     }
+    me.autoSave();
   }
   me.redraw();
   me.resetMouseVars();
@@ -63880,6 +63893,7 @@ wps.ui.prototype.createDropTarget = function () {
 
                     me.nodes.push(nn);
                     me.parentComplete(nn.id);
+                    me.autoSave();
                     me.redraw();
                 }, scope: this});
         }
@@ -64118,6 +64132,7 @@ wps.ui.portMouseUp = function(ui, portType, portIndex, d) {
       ui.nodes.push(link);
     }
     ui.selectedLink = null;
+    ui.autoSave();
     ui.redraw();
   }
 };
