@@ -45,9 +45,15 @@ import javax.sql.DataSource;
 import javax.xml.datatype.DatatypeConfigurationException;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Comparator;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import com.zaxxer.hikari.HikariDataSource;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.*;
@@ -68,6 +74,7 @@ public class OwsController {
     public static final long KEEP_ALIVE_TIME = 0L;
     public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
     private static final int DEFAULT_ABORT_JOB_DELAY = 5;
+    private static final long MAX_UPLOAD_SIZE = 500L * 1024 * 1024; // 500 MB
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -827,6 +834,112 @@ public class OwsController {
                 }
             }
         });
+    }
+
+    /**
+     * Handles the export of the user's H2 database as a zip file.
+     * Uses H2's BACKUP TO command to create a safe binary backup.
+     * The backup is streamed to the client as application/octet-stream.
+     *
+     * @param ctx the Javalin HTTP context
+     */
+    public void handleDatabaseExport(Context ctx) {
+        Path tempDir = null;
+        try {
+            User user = ctx.attribute("user");
+            int userId = user.getIdentifier();
+            DataSource dataSource = fetchUserDataSource(userId);
+            tempDir = Files.createTempDirectory("nm_db_export_");
+            File backupFile = tempDir.resolve("database.zip").toFile();
+            try (Connection connection = dataSource.getConnection()) {
+                connection.createStatement().execute("BACKUP TO '" + backupFile.getAbsolutePath().replace("'", "''") + "'");
+            }
+            byte[] data = Files.readAllBytes(backupFile.toPath());
+            ctx.contentType("application/octet-stream");
+            ctx.header("Content-Disposition", "attachment; filename=\"database.zip\"");
+            ctx.result(data);
+        } catch (Exception e) {
+            logger.error("Error exporting database", e);
+            ctx.status(500).result("Error exporting database: " + e.getMessage());
+        } finally {
+            if (tempDir != null) {
+                try (Stream<Path> paths = Files.walk(tempDir)) {
+                    paths.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    /**
+     * Handles the import of an H2 database backup.
+     * Closes the existing user connection pool, replaces the database file
+     * with the uploaded backup, and lets the pool reconnect on next access.
+     * No SQL is executed from the uploaded file — only file replacement.
+     *
+     * @param ctx the Javalin HTTP context
+     */
+    public void handleDatabaseImport(Context ctx) {
+        Path tempDir = null;
+        try {
+            User user = ctx.attribute("user");
+            int userId = user.getIdentifier();
+            var uploadedFile = ctx.uploadedFile("database");
+            if (uploadedFile == null) {
+                ctx.status(400).result("No database file uploaded");
+                return;
+            }
+            if (uploadedFile.size() > MAX_UPLOAD_SIZE) {
+                ctx.status(413).result("Upload too large (max 500 MB)");
+                return;
+            }
+            // Close existing connection pool for this user
+            DataSource existingDS = userDataSources.remove(userId);
+            if (existingDS instanceof HikariDataSource) {
+                ((HikariDataSource) existingDS).close();
+            }
+            // Extract the H2 backup zip to a temp directory and find the .mv.db file
+            String dbName = getUserDatabaseName(userId);
+            File targetDbFile = new File(configuration.getWorkingDirectory(), dbName + ".mv.db");
+            tempDir = Files.createTempDirectory("nm_db_import_");
+            File tempZip = tempDir.resolve("uploaded.zip").toFile();
+            // Save uploaded file
+            try (InputStream is = uploadedFile.content();
+                 OutputStream os = new FileOutputStream(tempZip)) {
+                is.transferTo(os);
+            }
+            // Extract .mv.db from the H2 backup zip
+            boolean foundDb = false;
+            try (ZipInputStream zis = new ZipInputStream(new FileInputStream(tempZip))) {
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    // Zip Slip protection: use only the file name, ignore directory components
+                    String entryName = Path.of(entry.getName()).getFileName().toString();
+                    if (entryName.endsWith(".mv.db")) {
+                        try (OutputStream os = new FileOutputStream(targetDbFile)) {
+                            zis.transferTo(os);
+                        }
+                        foundDb = true;
+                        break;
+                    }
+                }
+            }
+            if (!foundDb) {
+                ctx.status(400).result("Invalid database backup: no .mv.db file found in zip");
+                return;
+            }
+            ctx.result("Database imported successfully");
+        } catch (Exception e) {
+            logger.error("Error importing database", e);
+            ctx.status(500).result("Error importing database: " + e.getMessage());
+        } finally {
+            if (tempDir != null) {
+                try (Stream<Path> paths = Files.walk(tempDir)) {
+                    paths.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+                } catch (IOException ignored) {
+                }
+            }
+        }
     }
 
     /**

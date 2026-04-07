@@ -221,6 +221,8 @@ public class NoiseModellingServer {
         app.get("/builder/ows", owsController::handleGet, Role.RUNNER);
         app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
         app.get("/builder/jobs/{job_id}", owsController::handleJobExecuteStatus, Role.RUNNER);
+        app.get("/builder/database/export", owsController::handleDatabaseExport, Role.RUNNER);
+        app.post("/builder/database/import", owsController::handleDatabaseImport, Role.RUNNER);
     }
 
     protected void installExceptionHandlers() {
