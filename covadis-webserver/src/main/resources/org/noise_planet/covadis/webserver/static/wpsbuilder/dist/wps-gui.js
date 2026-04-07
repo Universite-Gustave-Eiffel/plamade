@@ -62521,8 +62521,10 @@ wps.ui = function(options) {
   this.initializeSplitter();
   $('#file-open').click($.proxy(wps.ui.load, null, this));
   $('#file-save').click($.proxy(this.save, null, this));
-  $('#export-clipboard').click($.proxy(this.exportClipboard, null, this));
-  $('#import-clipboard').click($.proxy(this.importClipboard, null, this));
+  $('#save-project').click($.proxy(this.saveProject, null, this));
+  $('#open-project').click($.proxy(this.openProject, null, this));
+  $('#save-project-db').click($.proxy(this.saveProjectWithDatabase, null, this));
+  $('#open-project-db').click($.proxy(this.openProjectWithDatabase, null, this));
   $( "#dialog" ).dialog({
     modal: true,
     autoOpen: false,
@@ -62653,6 +62655,8 @@ wps.ui.load = function(ui, evt, nodes) {
     ui.redraw();
     if (local) {
       $('.open-success').fadeIn().delay(1500).fadeOut();
+    } else {
+      ui.autoSave();
     }
   }
 };
@@ -62745,34 +62749,158 @@ wps.ui.prototype.afterSetValue = function(node) {
   this.redraw();
 };
 
-wps.ui.prototype.exportClipboard = function(ui) {
+wps.ui.prototype.saveProject = function(ui) {
   var nodes = [];
   for (var i=0, ii=ui.nodes.length; i<ii; ++i) {
     nodes.push(ui.nodes[i].getState());
   }
-  var html = '<div class="form-row">';
-  html += '<label for="node-input-export" style="width:100%"><i class="glyphicon glyphicon-share"> Nodes:</i></label>';
-  html += '<textarea readonly class="wpsgui form-control" id="node-input-export" rows="5"></textarea>';
-  html += '</div>';
-  html += '<div class="form-tips"> Select the text above and copy to the clipboard.</div>';
-  $("#dialog-form").html(html);
-  $("#dialog").dialog("option", "title", "Export to clipboard").dialog( "open" );
-  // bootstrap's hide class has important, so we need to remove it
-  $("#dialog").removeClass('hide');
-  $("#node-input-export").val(JSON.stringify(nodes));
-  $("#node-input-export").focus();
+  var now = new Date();
+  var pad = function(n) { return n < 10 ? '0' + n : n; };
+  var filename = 'NM_project_' + now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + '_' + pad(now.getHours()) + '-' + pad(now.getMinutes()) + '-' + pad(now.getSeconds()) + '.json';
+  var blob = new Blob([JSON.stringify(nodes, null, 2)], {type: 'application/json'});
+  if (window.showSaveFilePicker) {
+    window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [{
+        description: 'JSON Project File',
+        accept: {'application/json': ['.json']}
+      }]
+    }).then(function(handle) {
+      return handle.createWritable();
+    }).then(function(writable) {
+      writable.write(blob);
+      return writable.close();
+    }).catch(function(err) {
+      if (err.name !== 'AbortError') console.error(err);
+    });
+  } else {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
 };
 
-wps.ui.prototype.importClipboard = function(ui) {
-  var html = '<div class="form-row">';
-  html += '<label for="node-input-import" style="width:100%"><i class="glyphicon glyphicon-share"> Nodes:</i></label>';
-  html += '<textarea placeholder="Paste nodes here" class="form-control" id="node-input-import" rows="5"></textarea>';
-  html += '</div>';
-  $("#dialog-form").html(html);
-  $("#node-input-import").val("");
-  $("#dialog").dialog("option", "title", "Import from clipboard").dialog( "open" );
-  // bootstrap's hide class has important, so we need to remove it
-  $("#dialog").removeClass('hide');
+wps.ui.prototype.openProject = function(ui) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      wps.ui.load(ui, null, ev.target.result);
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+};
+
+wps.ui.prototype.saveProjectWithDatabase = function(ui) {
+  var nodes = [];
+  for (var i=0, ii=ui.nodes.length; i<ii; ++i) {
+    nodes.push(ui.nodes[i].getState());
+  }
+  var now = new Date();
+  var pad = function(n) { return n < 10 ? '0' + n : n; };
+  var filename = 'NM_project_db_' + now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + '_' + pad(now.getHours()) + '-' + pad(now.getMinutes()) + '-' + pad(now.getSeconds()) + '.zip';
+  fetch('database/export')
+    .then(function(response) {
+      if (!response.ok) throw new Error('Database export failed: ' + response.statusText);
+      return response.blob();
+    })
+    .then(function(dbBlob) {
+      var zip = new JSZip();
+      zip.file('project.json', JSON.stringify(nodes, null, 2));
+      zip.file('database.zip', dbBlob);
+      return zip.generateAsync({type: 'blob'});
+    })
+    .then(function(content) {
+      if (window.showSaveFilePicker) {
+        window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'NoiseModelling Project with Database',
+            accept: {'application/zip': ['.zip']}
+          }]
+        }).then(function(handle) {
+          return handle.createWritable();
+        }).then(function(writable) {
+          writable.write(content);
+          return writable.close();
+        }).catch(function(err) {
+          if (err.name !== 'AbortError') console.error(err);
+        });
+      } else {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      }
+    })
+    .catch(function(err) {
+      alert('Error saving project with database: ' + err.message);
+    });
+};
+
+wps.ui.prototype.openProjectWithDatabase = function(ui) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.zip';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    JSZip.loadAsync(file).then(function(zip) {
+      var projectFile = zip.file('project.json');
+      var dbFile = zip.file('database.zip');
+      if (!projectFile && !dbFile) {
+        alert('Invalid archive: neither project.json nor database.zip found');
+        return;
+      }
+      var loadProject;
+      if (projectFile) {
+        loadProject = projectFile.async('string').then(function(content) {
+          wps.ui.load(ui, null, content);
+        });
+      } else {
+        loadProject = Promise.resolve();
+      }
+      var loadDb;
+      if (dbFile) {
+        loadDb = dbFile.async('blob').then(function(dbBlob) {
+          var formData = new FormData();
+          formData.append('database', dbBlob, 'database.zip');
+          return fetch('database/import', {
+            method: 'POST',
+            body: formData
+          }).then(function(response) {
+            if (!response.ok) throw new Error('Database import failed: ' + response.statusText);
+            return response.text();
+          });
+        });
+      } else {
+        loadDb = Promise.resolve();
+      }
+      return Promise.all([loadProject, loadDb]).then(function() {
+        return {hasProject: !!projectFile, hasDb: !!dbFile};
+      });
+    }).then(function(result) {
+      var parts = [];
+      if (result.hasProject) parts.push('project');
+      if (result.hasDb) parts.push('database');
+      alert(parts.join(' and ') + ' loaded successfully');
+    }).catch(function(err) {
+      alert('Error loading project with database: ' + err.message);
+    });
+  };
+  input.click();
 };
 
 wps.ui.prototype.checkInput = function(nodeId, name, id) {
@@ -62834,6 +62962,14 @@ wps.ui.prototype.save = function(ui) {
   }
   localStorage.setItem(ui.localStorageKey, JSON.stringify(nodes));
   $('.save-success').fadeIn().delay(1500).fadeOut();
+};
+
+wps.ui.prototype.autoSave = function() {
+  var nodes = [];
+  for (var i=0, ii=this.nodes.length; i<ii; ++i) {
+    nodes.push(this.nodes[i].getState());
+  }
+  localStorage.setItem(this.localStorageKey, JSON.stringify(nodes));
 };
 
 wps.ui.prototype.resizeTabs = function() {
@@ -63117,6 +63253,7 @@ wps.ui.prototype.clear = function(ui) {
   $('#tab-xml pre code').html('');
   $("#palette-search-input").val("");
   wps.ui.filterChange();
+  ui.autoSave();
   ui.redraw();
 };
 
@@ -63435,6 +63572,7 @@ wps.ui.prototype.deleteSelection = function() {
     }
 
     if (redraw) {
+        this.autoSave();
         this.redraw();
     }
 };
@@ -63547,6 +63685,7 @@ wps.ui.canvasMouseUp = function(ui) {
       delete me.movingSet[i].ox;
       delete me.movingSet[i].oy;
     }
+    me.autoSave();
   }
   me.redraw();
   me.resetMouseVars();
@@ -63754,6 +63893,7 @@ wps.ui.prototype.createDropTarget = function () {
 
                     me.nodes.push(nn);
                     me.parentComplete(nn.id);
+                    me.autoSave();
                     me.redraw();
                 }, scope: this});
         }
@@ -63992,6 +64132,7 @@ wps.ui.portMouseUp = function(ui, portType, portIndex, d) {
       ui.nodes.push(link);
     }
     ui.selectedLink = null;
+    ui.autoSave();
     ui.redraw();
   }
 };
