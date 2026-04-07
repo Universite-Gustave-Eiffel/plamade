@@ -389,7 +389,18 @@ public class UserController {
      */
     @NotNull
     public File getDatabaseFile(User user) {
-        return new File(configuration.workingDirectory,
-                OwsController.getUserDatabaseName(user.getIdentifier()) + ".mv.db");
+        return getDatabaseFile(user.getIdentifier(), configuration.getWorkingDirectory());
+    }
+
+
+    /**
+     * Retrieves the database file associated with the specified user.
+     *
+     * @param userId The identifier of the user for whom the database file is being retrieved.
+     * @param workingDirectory The working directory where the database file is located.
+     * @return A File instance representing the user's database file.
+     */
+    public static File getDatabaseFile(int userId, String workingDirectory) {
+        return new File(workingDirectory, OwsController.getUserDatabaseName(userId) + ".mv.db");
     }
 }
