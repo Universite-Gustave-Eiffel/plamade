@@ -11,6 +11,7 @@
 package org.noise_planet.covadis.webserver;
 
 import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 import io.javalin.http.InternalServerErrorResponse;
 import io.javalin.websocket.WsCloseContext;
 import io.javalin.websocket.WsConnectContext;
@@ -49,6 +50,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Comparator;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -75,6 +77,7 @@ public class OwsController {
     public static final int MAXIMUM_LINES_TO_FETCH = 1_000;
     private static final int DEFAULT_ABORT_JOB_DELAY = 5;
     private static final long MAX_UPLOAD_SIZE = 500L * 1024 * 1024; // 500 MB
+    private static final int MAX_UPLOAD_TIMEOUT = 10;
     private final Logger logger = LoggerFactory.getLogger(OwsController.class);
     private final JWTProvider<User> provider;
     private Map<Integer, DataSource> userDataSources = Collections.synchronizedMap(new HashMap<Integer, DataSource>());
@@ -848,11 +851,23 @@ public class OwsController {
         try {
             User user = ctx.attribute("user");
             int userId = user.getIdentifier();
+            File targetDbFile = UserController.getDatabaseFile(userId, configuration.getWorkingDirectory());
+            // Check if the database size is inferior than MAX_UPLOAD_SIZE
+            long dbSize = Files.size(targetDbFile.toPath());
+            if(dbSize > MAX_UPLOAD_SIZE) {
+                String message = "Database size is too big, max size is " + MAX_UPLOAD_SIZE + " bytes";
+                logger.error(message);
+                ctx.status(HttpStatus.CONTENT_TOO_LARGE).result(message);
+            }
             DataSource dataSource = fetchUserDataSource(userId);
             tempDir = Files.createTempDirectory("nm_db_export_");
             File backupFile = tempDir.resolve("database.zip").toFile();
+            // Add a timeout for the execution of the dump
             try (Connection connection = dataSource.getConnection()) {
-                connection.createStatement().execute("BACKUP TO '" + backupFile.getAbsolutePath().replace("'", "''") + "'");
+                Statement st = connection.createStatement();
+                st.setQueryTimeout(MAX_UPLOAD_TIMEOUT);
+                st.execute("BACKUP TO '" + backupFile.getAbsolutePath().replace("'", "''") + "'");
+                st.setQueryTimeout(0);
             }
             byte[] data = Files.readAllBytes(backupFile.toPath());
             ctx.contentType("application/octet-stream");
@@ -899,8 +914,7 @@ public class OwsController {
                 ((HikariDataSource) existingDS).close();
             }
             // Extract the H2 backup zip to a temp directory and find the .mv.db file
-            String dbName = getUserDatabaseName(userId);
-            File targetDbFile = new File(configuration.getWorkingDirectory(), dbName + ".mv.db");
+            File targetDbFile = UserController.getDatabaseFile(userId, configuration.getWorkingDirectory());
             tempDir = Files.createTempDirectory("nm_db_import_");
             File tempZip = tempDir.resolve("uploaded.zip").toFile();
             // Save uploaded file
