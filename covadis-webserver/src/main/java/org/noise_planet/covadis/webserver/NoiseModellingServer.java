@@ -19,6 +19,7 @@ import io.javalin.util.JavalinLogger;
 import io.javalin.websocket.WsConfig;
 import org.apache.commons.cli.Option;
 import org.apache.log4j.PropertyConfigurator;
+import org.noise_planet.covadis.VersionUtils;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.ScriptFileWatchedProcess;
 import org.noise_planet.covadis.webserver.secure.*;
@@ -196,6 +197,9 @@ public class NoiseModellingServer {
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
+        app.get("/builder", ctx -> ctx.redirect(ctx.contextPath() + "/builder/index.html"), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.get("/builder/", ctx -> ctx.redirect(ctx.contextPath() + "/builder/index.html"), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.get("/builder/index.html", ctx -> ctx.render("wpsbuilder_index", Map.of("version", "NoiseModelling " + VersionUtils.getVersion())), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
         /*
          * A decode handler which captures the value of a JWT from an
          * authorization header in the form of "Bearer {jwt}". The handler
