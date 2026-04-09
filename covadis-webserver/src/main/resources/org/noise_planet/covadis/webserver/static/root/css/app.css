@@ -54,7 +54,6 @@ figcaption {
     line-height: 1.5;
     color: var(--muted);
     margin-top: 1.5em;
-    max-width: 500px;
 }
 
 .clickable-header {
