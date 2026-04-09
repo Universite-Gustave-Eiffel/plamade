@@ -11,6 +11,7 @@
 package org.noise_planet.covadis.webserver;
 
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import io.javalin.http.Handler;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
@@ -182,6 +183,7 @@ public class NoiseModellingServer {
         JavalinLogger.startupInfo = false; // disable startup info
         app = Javalin.create(config -> {
             config.router.contextPath = rootPath;
+            config.router.ignoreTrailingSlashes = false;
             config.staticFiles.add(staticFileConfig -> {
                 staticFileConfig.location = Location.CLASSPATH;
                 staticFileConfig.hostedPath = "/builder";
@@ -197,9 +199,9 @@ public class NoiseModellingServer {
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
 
-        app.get("/builder", ctx -> ctx.redirect(ctx.contextPath() + "/builder/index.html"), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
-        app.get("/builder/", ctx -> ctx.redirect(ctx.contextPath() + "/builder/index.html"), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
-        app.get("/builder/index.html", ctx -> ctx.render("wpsbuilder_index", Map.of("version", "NoiseModelling " + VersionUtils.getVersion())), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.get("/builder/", this::handleBuilderIndex, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.get("/builder", ctx -> ctx.redirect(ctx.contextPath() + "/builder/"), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+
         /*
          * A decode handler which captures the value of a JWT from an
          * authorization header in the form of "Bearer {jwt}". The handler
@@ -219,6 +221,10 @@ public class NoiseModellingServer {
         installJobsRoutes();
         installUserManagementRoutes();
         installExceptionHandlers();
+    }
+
+    protected void handleBuilderIndex(Context ctx) {
+        ctx.render("wpsbuilder_index", Map.of("version", "NoiseModelling " + VersionUtils.getVersion()));
     }
 
     protected void installWpsRoutes() {
