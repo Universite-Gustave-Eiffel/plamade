@@ -13,6 +13,8 @@ import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -57,6 +59,17 @@ public class JobExecutorService {
             scheduledExecutorService.schedule(() -> {
                 if (job.isRunning() && job.getFuture() != null) {
                     logger.warn("Aborting job {} after {} seconds.", jobId, abortDelay);
+                    // Release/Close the connections of this datasource
+                    // to avoid corruption of the database
+                    if(job.userDataSource instanceof Closeable) {
+                        try {
+                            ((Closeable) job.userDataSource).close();
+                            // Wait 1s
+                            Thread.sleep(1_000);
+                        } catch (IOException | InterruptedException e) {
+                            // Ignore
+                        }
+                    }
                     job.getFuture().cancel(true);
                 }
             }, abortDelay, TimeUnit.SECONDS);
