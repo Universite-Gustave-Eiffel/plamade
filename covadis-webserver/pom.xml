@@ -169,12 +169,20 @@
     </dependencies>
     <build>
         <resources>
-            <!-- keep standard project resources -->
+            <!-- update version.properties -->
             <resource>
                 <directory>${project.basedir}/src/main/resources</directory>
                 <includes>
-                    <include>**/*</include>
+                    <include>org/noise_planet/covadis/version.properties</include>
                 </includes>
+                <filtering>true</filtering>
+            </resource>
+            <!-- leave unchanged -->
+            <resource>
+                <directory>${project.basedir}/src/main/resources</directory>
+                <excludes>
+                    <exclude>org/noise_planet/covadis/version.properties</exclude>
+                </excludes>
                 <filtering>false</filtering>
             </resource>
             <!-- Add groovy script source code as project resources -->

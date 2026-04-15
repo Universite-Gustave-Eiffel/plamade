@@ -11,6 +11,7 @@
 package org.noise_planet.covadis.webserver;
 
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import io.javalin.http.Handler;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
@@ -19,6 +20,7 @@ import io.javalin.util.JavalinLogger;
 import io.javalin.websocket.WsConfig;
 import org.apache.commons.cli.Option;
 import org.apache.log4j.PropertyConfigurator;
+import org.noise_planet.covadis.VersionUtils;
 import org.noise_planet.covadis.webserver.database.DatabaseManagement;
 import org.noise_planet.covadis.webserver.script.ScriptFileWatchedProcess;
 import org.noise_planet.covadis.webserver.secure.*;
@@ -181,6 +183,7 @@ public class NoiseModellingServer {
         JavalinLogger.startupInfo = false; // disable startup info
         app = Javalin.create(config -> {
             config.router.contextPath = rootPath;
+            config.router.ignoreTrailingSlashes = false;
             config.staticFiles.add(staticFileConfig -> {
                 staticFileConfig.location = Location.CLASSPATH;
                 staticFileConfig.hostedPath = "/builder";
@@ -195,6 +198,9 @@ public class NoiseModellingServer {
             });
             config.fileRenderer(new JavalinThymeleaf(ThymeleafConfig.buildTemplateConfiguration()));
         });
+
+        app.get("/builder/", this::handleBuilderIndex, configuration.unsecure ? Role.ANYONE : Role.RUNNER);
+        app.get("/builder", ctx -> ctx.redirect(ctx.contextPath() + "/builder/"), configuration.unsecure ? Role.ANYONE : Role.RUNNER);
 
         /*
          * A decode handler which captures the value of a JWT from an
@@ -217,12 +223,18 @@ public class NoiseModellingServer {
         installExceptionHandlers();
     }
 
+    protected void handleBuilderIndex(Context ctx) {
+        ctx.render("wpsbuilder_index", Map.of("version", "NoiseModelling " + VersionUtils.getVersion()));
+    }
+
+    /**
+     * Web Processing Service (WPS) API
+     */
     protected void installWpsRoutes() {
         app.get("/builder/ows", owsController::handleGet, Role.RUNNER);
         app.post("/builder/ows", owsController::handleWPSPost, Role.RUNNER);
+        // Job status using web processing service ExecuteResponseDocument
         app.get("/builder/jobs/{job_id}", owsController::handleJobExecuteStatus, Role.RUNNER);
-        app.get("/builder/database/export", owsController::handleDatabaseExport, Role.RUNNER);
-        app.post("/builder/database/import", owsController::handleDatabaseImport, Role.RUNNER);
     }
 
     protected void installExceptionHandlers() {
@@ -243,6 +255,9 @@ public class NoiseModellingServer {
         });
     }
 
+    /**
+     * Routes for job management and custom WPS Builder operations
+     */
     protected void installJobsRoutes() {
         app.get("/job_logs/{job_id}", owsController::jobLogs, Role.RUNNER);
         app.ws("/job_logs_stream/{job_id}", this::manageLogsWebSocket, Role.RUNNER);
@@ -250,6 +265,8 @@ public class NoiseModellingServer {
         app.post("/jobs/delete_all", owsController::jobDeleteAll, Role.RUNNER);
         app.post("/jobs/cancel/{job_id}", owsController::jobCancel, Role.RUNNER);
         app.get("/jobs", owsController::jobList, Role.RUNNER);
+        app.get("/builder/database/export", owsController::handleDatabaseExport, Role.RUNNER);
+        app.post("/builder/database/import", owsController::handleDatabaseImport, Role.RUNNER);
     }
 
     protected void installUserManagementRoutes() {
