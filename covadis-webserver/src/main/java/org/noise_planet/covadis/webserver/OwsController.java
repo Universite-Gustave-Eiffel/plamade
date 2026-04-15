@@ -858,6 +858,7 @@ public class OwsController {
                 String message = "Database size is too big, max size is " + MAX_UPLOAD_SIZE + " bytes";
                 logger.error(message);
                 ctx.status(HttpStatus.CONTENT_TOO_LARGE).result(message);
+                return;
             }
             DataSource dataSource = fetchUserDataSource(userId);
             tempDir = Files.createTempDirectory("nm_db_export_");
