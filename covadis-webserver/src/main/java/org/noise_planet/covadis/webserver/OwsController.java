@@ -723,7 +723,22 @@ public class OwsController {
                         // to avoid corruption of the database
                         if(userDataSources.get(job.getUserId()) instanceof Closeable) {
                             try {
-                                ((Closeable) userDataSources.get(job.getUserId())).close();
+                                DataSource dataSource = userDataSources.get(job.getUserId());
+                                if (dataSource instanceof Closeable) {
+                                    // Execute SHUTDOWN command with timeout
+                                    try (Connection conn = dataSource.getConnection(); Statement stmt =
+                                            conn.createStatement()) {
+                                        stmt.setQueryTimeout(5); // 5 seconds timeout
+                                        stmt.execute("SHUTDOWN");
+                                    } catch (SQLException e) {
+                                        logger.warn("SHUTDOWN command failed or timed out for user {}",
+                                                job.getUserId(), e);
+                                    }
+                                }
+                                // Close the datasource
+                                if (userDataSources.get(job.getUserId()) instanceof Closeable) {
+                                    ((Closeable) userDataSources.get(job.getUserId())).close();
+                                }
                                 // Remove the dead datasource from the cache
                                 userDataSources.remove(job.getUserId());
                                 // Wait 1s
