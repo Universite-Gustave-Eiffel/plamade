@@ -50,7 +50,7 @@ jobs:
       # 4. Start Compose
       - name: Start Docker Compose
         run: |
-          docker-compose -f nm-unittest-services/docker-compose.yml up -d
+          docker compose -f nm-unittest-services/docker-compose.yml up -d
         working-directory: nm-unittest-services
       - name: Run tests
         run: bash nm-unittest-services/run_ssh_test.sh
