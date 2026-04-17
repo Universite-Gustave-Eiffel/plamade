@@ -25,8 +25,32 @@ jobs:
           server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - name: Start Services (Docker Compose)
-        run: docker compose up -d --build
+      # 1. Set up Docker Buildx (required for advanced caching)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 2. Build the image using GHA Cache
+      # This will build the image and "load" it into the local Docker daemon
+      - name: Build and cache Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./nm-unittest-services
+          file: ./nm-unittest-services/Dockerfile
+          tags: nm-unittest-services:latest
+          outputs: type=docker,dest=/tmp/image.tar # Build and export to tar
+          # The secret sauce:
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 3. Load the image into the Docker daemon
+      - name: Load image
+        run: |
+          docker load --input /tmp/image.tar
+
+      # 4. Start Compose
+      - name: Start Docker Compose
+        run: |
+          docker-compose -f nm-unittest-services/docker-compose.yml up -d
         working-directory: nm-unittest-services
       - name: Run tests
         run: bash nm-unittest-services/run_ssh_test.sh

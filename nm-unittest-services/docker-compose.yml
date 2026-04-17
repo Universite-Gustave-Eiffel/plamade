@@ -18,6 +18,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   sshd:
+    image: nm-unittest-services:latest # Match the tag in the CI.yml
     build: .
     environment:
       PUID: 1000
