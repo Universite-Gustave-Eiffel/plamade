@@ -39,6 +39,9 @@ mkdir $APP_DIR/workspace
 chown -R noisemodelling:noisemodelling $APP_DIR/workspace
 EOF
 
+# Switch to the non-root user
+USER noisemodelling
+
 EXPOSE 8000
 
 ENTRYPOINT ["sh", "-c", "exec /srv/noisemodelling/bin/WebServer -b -w /srv/noisemodelling/workspace -s /srv/noisemodelling/scripts ${PROXY_BASE_URL:+-l \"$PROXY_BASE_URL\"} ${ROOT_URL+-r \"$ROOT_URL\"} ${UNSECURE_MODE+-u} ${DB_ENCRYPTION_SECRET:+-e \"$DB_ENCRYPTION_SECRET\"}"]
