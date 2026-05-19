@@ -91,11 +91,7 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
         filterReceivers(connection, minTaskId, maxTaskId, taskId, receivers_table_name)
 
         // Run NoiseLevelFromSource with the limited set of receivers
-        ScriptMetadata scriptMetadata = new ScriptMetadata("NoiseModelling", new File(outputFolder, "Noise_level_from_source.groovy").toURI(), new File(outputFolder).toURI());
-        ExecutionPlan executionPlan = new ExecutionPlan(decodedInputs, scriptMetadata);
-        Object result = Job.runScript(executionPlan, progress, dataSource);
-        // here if using original script
-        //new org.noise_planet.covadis.scripts.NoiseModelling.Noise_level_from_source().exec(connection, decodedInputs , progress)
+        new org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source().exec(connection, decodedInputs, progress)
         // remove alias/ index / primary key
         dropH2GISAliases(connection)
         dropTableIndex(connection, "PUBLIC", "RECEIVERS_LEVEL")
