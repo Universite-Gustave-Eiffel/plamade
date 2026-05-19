@@ -328,6 +328,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         exportDir.deleteOnExit()
     }
 
+    logger.info("Connecting to slurm server {}@{}:{} with ssh key authentication", slurmConfig.user, slurmConfig.host, slurmConfig.port)
     try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
         slurmSession.connect()
         def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
