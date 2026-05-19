@@ -305,7 +305,8 @@ int POLL_SLURM_STATUS_TIME = 5000;
 @CompileStatic
 def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
     ProgressVisitor progress = mainProgress.subProcess(3)
-    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_04_01/NoiseModellingCovadis_2.0.0-SNAPSHOT.zip"
+    // singularity pull noisemodelling.sif docker://ghcr.io/universite-gustave-eiffel/noisemodelling:main
+    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/NoiseModelling/actions/runs/26088423518/artifacts/7080031291"
     def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
     String jobIdentifier = Thread.currentThread().name
     // Create a logger with the thread name as it contains the Job identifier
@@ -458,10 +459,9 @@ cd /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 #rename the h2 database
 mv *.mv.db h2gisdb.mv.db || exit 1
 
-export JAVA_HOME=$javaHome
-
 echo "Run main script.."
-bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $workspacePath/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" -minTaskId "$$SLURM_ARRAY_TASK_MIN" -maxTaskId "$$SLURM_ARRAY_TASK_MAX" -encodedNoiseLevelFromSourceInputs "$base64Encoded" -outputFolder $workspacePath || exit 1
+singularity exec --bind /scratch/job."$$SLURM_JOB_ID":/data ~/noisemodelling.sif /srv/noisemodelling/bin/ScriptRunner -w /data -s Main_Remote_Script.groovy
+# bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $workspacePath/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" -minTaskId "$$SLURM_ARRAY_TASK_MIN" -maxTaskId "$$SLURM_ARRAY_TASK_MAX" -encodedNoiseLevelFromSourceInputs "$base64Encoded" -outputFolder $workspacePath || exit 1
 /$
     return script
 }

@@ -25,7 +25,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.GeneralSecurityException;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -121,23 +120,30 @@ public class SlurmSession implements AutoCloseable {
         // 1. Prepare the input stream
         InputStream keyStream = new ByteArrayInputStream(reformatSSHKey(slurmConfig.sshKeyArmoredString).getBytes(StandardCharsets.UTF_8));
 
-        // 3. Define the Password Provider
+        // 2. Define the Password Provider
         // The provider receives (SessionContext, NamedResource, int retryIndex)
         FilePasswordProvider passwordProvider = (session, resource, retryIndex) -> slurmConfig.sshKeyPassword;
-        // 2. Load the KeyPair
+
+        // 3. Load the KeyPair
         Iterable<KeyPair> keyPairs = SecurityUtils.loadKeyPairIdentities(
                 null,
                 null,
                 keyStream,
                 (slurmConfig.sshKeyPassword == null || slurmConfig.sshKeyPassword.isEmpty()) ? null : passwordProvider
         );
+
         client = SshClient.setUpDefaultClient();
         try {
-            // Set the KeyIdentityProvider with the loaded keys
-            client.setKeyIdentityProvider(KeyIdentityProvider.wrapKeyPairs(keyPairs));
+            // Wrap the key pairs in a custom provider to only use the provided keys
+            KeyIdentityProvider wrappedProvider = KeyIdentityProvider.wrapKeyPairs(keyPairs);
+
+            // CRITICAL: Set the KeyIdentityProvider BEFORE starting the client
+            // This must replace the default provider to prevent SSHD from loading ~/.ssh keys
+            client.setKeyIdentityProvider(wrappedProvider);
 
             client.start();
-            // Configure known hosts
+
+            // Configure server key verification
             client.setServerKeyVerifier((clientSession, remoteAddress, serverKey) -> {
                 String serverKeyAlgorithm = serverKey.getAlgorithm();
                 String encodedKey = Base64.getEncoder().encodeToString(serverKey.getEncoded());
@@ -161,6 +167,12 @@ public class SlurmSession implements AutoCloseable {
             session = client.connect(slurmConfig.user, slurmConfig.host, slurmConfig.port)
                     .verify(SFTP_TIMEOUT).getSession();
 
+            // CRITICAL: Set the identity provider on the session BEFORE authentication
+            // This ensures only our provided keys are used during authentication
+            session.setKeyIdentityProvider(wrappedProvider);
+
+            // Authenticate using ONLY publickey method with our provided keys
+            // This prevents SSHD from trying other authentication methods or loading default keys
             session.auth().verify(SFTP_TIMEOUT);
             logger.info("Successfully connected to the server {}", slurmConfig.host);
         } catch (Throwable t) {
@@ -248,7 +260,6 @@ public class SlurmSession implements AutoCloseable {
      *
      * @param command The command string to be executed on the remote server.
      * @param logResult Indicates whether the output of the command should be logged.
-     * @param readBytes An {@code AtomicLong} instance that will be updated to reflect the number of bytes read during execution.
      * @return A list of strings, where each string represents a line of output from the executed command.
      * @throws IOException If an error occurs during command execution or communication over the SSH channel.
      */
