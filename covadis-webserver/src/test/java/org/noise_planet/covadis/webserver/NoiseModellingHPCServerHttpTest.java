@@ -20,7 +20,6 @@
 package org.noise_planet.covadis.webserver;
 
 import net.opengis.wps10.ExecuteResponseType;
-import org.apache.log4j.PropertyConfigurator;
 import org.h2.value.ValueBoolean;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.shp.SHPRead;
@@ -36,7 +35,6 @@ import java.nio.file.Path;
 import java.sql.*;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
