@@ -2,14 +2,21 @@ FROM nathanhess/slurm:base
 
 USER root
 
-# Install Java 21, SSH, and Sudo
+# Install Java 21, SSH, apptainer, and Sudo
 RUN apt-get update && apt-get install -y \
     openjdk-21-jdk \
     openssh-server \
     unzip \
     rsync \
     sudo \
+    software-properties-common \
+    curl \
+    && add-apt-repository -y ppa:apptainer/ppa \
+    && apt-get update && apt-get install -y apptainer-suid \
     && rm -rf /var/lib/apt/lists/*
+
+# (Optional) Verify installation
+RUN apptainer --version
 
 # Basic SSH setup
 RUN mkdir -p /var/run/sshd && \
@@ -64,6 +71,8 @@ else\n\
     sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config\n\
 fi\n\
 \n\
+# Enable User Namespaces for apptainer \n\
+sysctl -w kernel.unprivileged_userns_clone=1 || true \n\
 # Start SSH service\n\
 service ssh start\n\
 \n\

@@ -305,8 +305,7 @@ int POLL_SLURM_STATUS_TIME = 5000;
 @CompileStatic
 def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
     ProgressVisitor progress = mainProgress.subProcess(3)
-    def noiseModellingDownloadURL = "https://github.com/Universite-Gustave-Eiffel/plamade/releases/download/v2.0.0-SNAPSHOT_2026_04_01/NoiseModellingCovadis_2.0.0-SNAPSHOT.zip"
-    def noiseModellingFolder = noiseModellingDownloadURL.substring(noiseModellingDownloadURL.lastIndexOf('/') + 1, noiseModellingDownloadURL.lastIndexOf('.zip'))
+    def noiseModellingDownloadURL = "docker://ghcr.io/universite-gustave-eiffel/noisemodelling:main"
     String jobIdentifier = Thread.currentThread().name
     // Create a logger with the thread name as it contains the Job identifier
     def logger = LoggerFactory.getLogger(jobIdentifier)
@@ -328,19 +327,19 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         exportDir.deleteOnExit()
     }
 
+    logger.info("Connecting to slurm server {}@{}:{} with ssh key authentication", slurmConfig.user, slurmConfig.host, slurmConfig.port)
     try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
         slurmSession.connect()
         def scpClient = ScpClientCreator.instance().createScpClient(slurmSession.getSession())
 
-        validateJavaVersion(slurmSession, slurmConfig.javaBinaryPath)
-        setupNoiseModelling(slurmSession, noiseModellingDownloadURL, noiseModellingFolder)
+        setupNoiseModelling(slurmSession, noiseModellingDownloadURL)
 
         slurmConfig.serverWorkspaceFolder = createRemoteWorkspace(slurmSession, jobIdentifier)
 
         logger.info("Export database..")
         uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder+ "/h2database.zip")
 
-        def bashCode = generateSlurmBashScript(new File(slurmConfig.javaBinaryPath).parentFile.parent, "~/"+noiseModellingFolder, inputs, slurmConfig.serverWorkspaceFolder)
+        def bashCode = generateSlurmBashScript("~/noisemodelling.sif", inputs, slurmConfig.serverWorkspaceFolder)
 
         // upload bash script
         logger.info("Upload slurm bash script")
@@ -348,7 +347,6 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         // upload groovy script
         logger.info("Upload slurm main groovy script")
         createRemoteFile(getClass().classLoader.getResource("scripts/Slurm/Main_Remote_Script.groovy").text, scpClient, "${slurmConfig.serverWorkspaceFolder}/Main_Remote_Script.groovy")
-        createRemoteFile(getClass().classLoader.getResource("scripts/NoiseModelling/Noise_level_from_source.groovy").text, scpClient, "${slurmConfig.serverWorkspaceFolder}/Noise_level_from_source.groovy")
         String command = "cd ${slurmConfig.serverWorkspaceFolder} && sbatch --array=1-${slurmConfig.maxTasksPerJobs} noisemodelling_batch.sh"
         logger.info("Main groovy script uploaded, run command:\n$command")
         // Fetch the job id from the output of the sbatch command
@@ -426,7 +424,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
  * @param workspacePath
  * @return
  */
-public static String generateSlurmBashScript(String javaHome, String noisemodellingPath, Map inputs, String workspacePath) {
+public static String generateSlurmBashScript(String noisemodellingPath, Map inputs, String workspacePath) {
 
     // remove specific keys of this WPS process
     Map<String, Object> inputsCopy = new HashMap<>(inputs)
@@ -449,6 +447,7 @@ public static String generateSlurmBashScript(String javaHome, String noisemodell
 
 echo "copy data to local node storage"
 unzip h2database.zip -d /scratch/job."$$SLURM_JOB_ID"/  || exit 1
+cp Main_Remote_Script.groovy /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 
 echo "Prepare NoiseModelling run"
 
@@ -457,27 +456,17 @@ cd /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 #rename the h2 database
 mv *.mv.db h2gisdb.mv.db || exit 1
 
-export JAVA_HOME=$javaHome
-
 echo "Run main script.."
-bash $noisemodellingPath/bin/ScriptRunner -w /scratch/job."$$SLURM_JOB_ID"/ -s $workspacePath/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" -minTaskId "$$SLURM_ARRAY_TASK_MIN" -maxTaskId "$$SLURM_ARRAY_TASK_MAX" -encodedNoiseLevelFromSourceInputs "$base64Encoded" -outputFolder $workspacePath || exit 1
+singularity exec --bind $workspacePath:/output --bind /scratch/job."$$SLURM_JOB_ID":/data ~/noisemodelling.sif /srv/noisemodelling/bin/ScriptRunner -w /data -s /data/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --encodedNoiseLevelFromSourceInputs "$base64Encoded" --outputFolder /output/ || exit 1
 /$
     return script
 }
 
-private static void validateJavaVersion(SlurmSession slurmSession, String javaBinaryPath) {
-    def outputs = slurmSession.runCommand("${javaBinaryPath} --version", true)
-    def mainVersion = (outputs.first() =~ /\d+/)[0] as Integer
-    if (mainVersion < 11) throw new IllegalStateException("Java version $mainVersion < 11")
-    slurmSession.runCommand("export JAVA_HOME=${new File(javaBinaryPath).parentFile.parent}", true)
-}
-
-private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl, String nmFolder) {
-    if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
-        slurmSession.runCommand("wget ${nmUrl}", true)
-        slurmSession.runCommand("unzip -o ${nmFolder}.zip -d ${nmFolder} && rm ${nmFolder}.zip", true)
-        if (!isRemoteFolderExists(slurmSession, "~/${nmFolder}")) {
-            throw new IllegalStateException("NoiseModelling folder not found after unzipping")
+private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl) {
+    if (!isRemoteFileExists(slurmSession, "~/noisemodelling.sif")) {
+        slurmSession.runCommand("singularity pull ~/noisemodelling.sif $nmUrl", true)
+        if (!isRemoteFileExists(slurmSession, "~/noisemodelling.sif")) {
+            throw new IllegalStateException("NoiseModelling image not found after pulling it")
         }
     }
 }
@@ -535,8 +524,8 @@ void createRemoteFile(String fileContent, ScpClient scpClient, String remoteFile
     }
 }
 
-private static boolean isRemoteFolderExists(SlurmSession slurmSession, String folder) {
-    String command = "[ -d $folder ] && echo \"Exists\" || echo \"Not found\""
+private static boolean isRemoteFileExists(SlurmSession slurmSession, String folder) {
+    String command = "[ -f $folder ] && echo \"Exists\" || echo \"Not found\""
     slurmSession.getLogger().info("Run command {}", command)
     slurmSession.runCommand(command, true, new AtomicLong()).first() == "Exists"
 }

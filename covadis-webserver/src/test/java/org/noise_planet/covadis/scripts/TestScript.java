@@ -20,7 +20,7 @@ public class TestScript extends JDBCTestCase {
         }
         ps.executeBatch();
         connection.commit();
-        new Main_Remote_Script().filterReceivers(connection, 0, 31, 5, "RECEIVERS");
+        Main_Remote_Script.filterReceivers(connection, 0, 31, 5, "RECEIVERS");
         // Check the numbers of receivers is 5000 / 32
         var rs = connection.createStatement().executeQuery("SELECT COUNT(*) FROM receivers");
         rs.next();

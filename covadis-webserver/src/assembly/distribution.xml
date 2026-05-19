@@ -10,6 +10,23 @@
 
     <includeBaseDirectory>true</includeBaseDirectory>
 
+    <dependencySets>
+        <!-- Extract scripts from noisemodelling-scripts dependency -->
+        <dependencySet>
+            <includes>
+                <include>org.noise-planet:noisemodelling-scripts</include>
+            </includes>
+            <outputDirectory>/</outputDirectory>
+            <unpack>true</unpack>
+            <unpackOptions>
+                <includes>
+                    <include>scripts/**/*</include>
+                </includes>
+            </unpackOptions>
+            <useTransitiveDependencies>false</useTransitiveDependencies>
+        </dependencySet>
+    </dependencySets>
+
     <fileSets>
         <!-- Include appassembler-generated scripts and lib directory -->
         <fileSet>
