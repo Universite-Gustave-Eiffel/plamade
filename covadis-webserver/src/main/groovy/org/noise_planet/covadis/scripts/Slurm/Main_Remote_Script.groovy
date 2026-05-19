@@ -17,10 +17,9 @@ import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
-import org.noise_planet.covadis.scripts.Import_and_Export.Export_Table
-import org.noise_planet.covadis.webserver.script.ExecutionPlan
-import org.noise_planet.covadis.webserver.script.Job
-import org.noise_planet.covadis.webserver.script.ScriptMetadata
+import org.noise_planet.noisemodelling.webserver.script.ExecutionPlan
+import org.noise_planet.noisemodelling.webserver.script.Job
+import org.noise_planet.noisemodelling.webserver.script.ScriptMetadata
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -34,23 +33,23 @@ import java.sql.Statement
 title = 'Main remote script on Slurm Cluster'
 description = 'Main remote script on Slurm Cluster to run NoiseModelling on multiple nodes'
 
-inputs = [taskId        : [name       : 'Task identifier',
-                           title      : 'Task identifier',
-                           description: 'job array index value.Read it from SLURM_ARRAY_TASK_ID.',
-                           type       : Integer.class],
-          minTaskId     : [name       : 'Min Task identifier',
-                           title      : 'Min Task identifier',
-                           description: 'job array min value. Read it from SLURM_ARRAY_TASK_MIN.',
-                           type       : Integer.class],
-          maxTaskId     : [name       : 'Max Task identifier',
-                           title      : 'Max Task identifier',
-                           description: 'job array max value. Read it from SLURM_ARRAY_TASK_MAX.',
-                           type       : Integer.class],
+inputs = [taskId                           : [name       : 'Task identifier',
+                                              title      : 'Task identifier',
+                                              description: 'job array index value.Read it from SLURM_ARRAY_TASK_ID.',
+                                              type       : Integer.class],
+          minTaskId                        : [name       : 'Min Task identifier',
+                                              title      : 'Min Task identifier',
+                                              description: 'job array min value. Read it from SLURM_ARRAY_TASK_MIN.',
+                                              type       : Integer.class],
+          maxTaskId                        : [name       : 'Max Task identifier',
+                                              title      : 'Max Task identifier',
+                                              description: 'job array max value. Read it from SLURM_ARRAY_TASK_MAX.',
+                                              type       : Integer.class],
           encodedNoiseLevelFromSourceInputs: [name       : 'Encoded inputs',
-                           title      : 'Encoded inputs',
-                           description: 'Base64 encoded inputs of the Noise_level_from_source.groovy script',
-                           type       : String.class],
-          outputFolder: [name       : 'Export data folder',
+                                              title      : 'Encoded inputs',
+                                              description: 'Base64 encoded inputs of the Noise_level_from_source.groovy script',
+                                              type       : String.class],
+          outputFolder                     : [name       : 'Export data folder',
                                               title      : 'Export data folder',
                                               description: 'Location to save the RECEIVERS_LEVEL table',
                                               type       : String.class],
@@ -92,7 +91,7 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
         filterReceivers(connection, minTaskId, maxTaskId, taskId, receivers_table_name)
 
         // Run NoiseLevelFromSource with the limited set of receivers
-        ScriptMetadata scriptMetadata = new ScriptMetadata("NoiseModelling", new File(outputFolder, "Noise_level_from_source.groovy"));
+        ScriptMetadata scriptMetadata = new ScriptMetadata("NoiseModelling", new File(outputFolder, "Noise_level_from_source.groovy").toURI(), new File(outputFolder).toURI());
         ExecutionPlan executionPlan = new ExecutionPlan(decodedInputs, scriptMetadata);
         Object result = Job.runScript(executionPlan, progress, dataSource);
         // here if using original script
@@ -107,7 +106,8 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
     }
     return ["result" : "RECEIVERS_LEVEL"]
 }
-public static void dropTableIndex(Connection conn, String schema, String tableName) throws SQLException {
+
+static void dropTableIndex(Connection conn, String schema, String tableName) throws SQLException {
     String findIndexSql =
             "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.INDEXES " +
                     "WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ? " +
@@ -157,7 +157,8 @@ public static void dropH2GISAliases(Connection conn) throws SQLException {
         }
     }
 }
-def filterReceivers(Connection connection, int minTaskId, int maxTaskId, int taskId, String receivers_table_name) {
+
+static def filterReceivers(Connection connection, int minTaskId, int maxTaskId, int taskId, String receivers_table_name) {
 
     DBTypes dbType = DBUtils.getDBType(connection)
 

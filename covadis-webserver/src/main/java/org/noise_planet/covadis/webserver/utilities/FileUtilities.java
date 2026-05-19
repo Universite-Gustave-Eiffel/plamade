@@ -15,19 +15,13 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
-import java.net.URL;
-import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 public class FileUtilities {
-
-
 
     /**
      * Merges multiple .sql.gz files into a single .sql.gz file.
@@ -153,50 +147,5 @@ public class FileUtilities {
 
             gen.writeEndObject();
         }
-    }
-
-
-    /**
-     * Collects library information from ClassLoader manifests.
-     */
-    public static List<LibraryInfo> collectLibraryIdentifiers() {
-        List<LibraryInfo> libraries = new ArrayList<>();
-        SimpleDateFormat sdf = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z", Locale.getDefault());
-
-        try {
-            Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources("META-INF/MANIFEST.MF");
-
-            while (resources.hasMoreElements()) {
-                try (var inputStream = resources.nextElement().openStream()) {
-                    Manifest manifest = new Manifest(inputStream);
-                    Attributes attributes = manifest.getMainAttributes();
-
-                    String bundleName = attributes.getValue("Bundle-Name");
-                    if (bundleName != null) {
-                        String version = attributes.getValue("Bundle-Version");
-                        String commit = attributes.getValue("Implementation-Build");
-                        String lastModRaw = attributes.getValue("Bnd-LastModified");
-
-                        String formattedDate = null;
-                        if (lastModRaw != null) {
-                            try {
-                                formattedDate = sdf.format(new Date(Long.parseLong(lastModRaw)));
-                            } catch (NumberFormatException ignored) {}
-                        }
-
-                        libraries.add(new LibraryInfo(bundleName, formattedDate, version, commit,
-                                lastModRaw == null ? 0 : Long.parseLong(lastModRaw)));
-                    }
-                } catch (IOException e) {
-                    // Log internally or skip individual failed manifest reads
-                }
-            }
-        } catch (IOException e) {
-            // Error finding resources
-        }
-
-        // Sort by name
-        libraries.sort(Comparator.comparing(LibraryInfo::getName));
-        return libraries;
     }
 }

@@ -35,6 +35,10 @@
             <artifactId>noisemodelling-propagation</artifactId>
         </dependency>
         <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>noisemodelling-scripts</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
@@ -247,11 +251,11 @@
                 <configuration>
                     <programs>
                         <program>
-                            <mainClass>org.noise_planet.covadis.webserver.NoiseModellingServer</mainClass>
+                            <mainClass>org.noise_planet.covadis.webserver.NoiseModellingHPCServer</mainClass>
                             <id>WebServer</id>
                         </program>
                         <program>
-                            <mainClass>org.noise_planet.covadis.runner.Main</mainClass>
+                            <mainClass>org.noise_planet.noisemodelling.runner.Main</mainClass>
                             <id>ScriptRunner</id>
                         </program>
                     </programs>

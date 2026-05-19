@@ -1,3 +1,13 @@
+/*
+ * NoiseModelling is a library capable of producing noise maps. It can be freely used either for research and education, as well as by experts in a professional use.
+ *
+ * NoiseModelling is distributed under GPL 3 license. You can read a copy of this License in the file LICENCE provided with this software.
+ *
+ * Official webpage : http://noise-planet.org/noisemodelling.html
+ *  Contact: contact@noise-planet.org
+ *
+ */
+
 /**
  * NoiseModelling is a library capable of producing noise maps. It can be freely used either for research and education, as well as by experts in a professional use.
  * <p>
@@ -10,44 +20,35 @@
 package org.noise_planet.covadis.webserver;
 
 import net.opengis.wps10.ExecuteResponseType;
-import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.h2.value.ValueBoolean;
 import org.h2gis.api.EmptyProgressVisitor;
-import org.h2gis.functions.io.geojson.GeoJsonRead;
-import org.h2gis.functions.io.geojson.GeoJsonWrite;
 import org.h2gis.functions.io.shp.SHPRead;
-import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
-import org.noise_planet.covadis.scripts.NoiseModelling.Noise_level_from_source;
-import org.noise_planet.covadis.webserver.database.DatabaseManagement;
-import org.noise_planet.covadis.webserver.script.JobStates;
 
 import java.io.*;
 import java.net.URL;
 import java.net.http.*;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.*;
-import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
-import org.xml.sax.InputSource;
+import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source;
+import org.noise_planet.noisemodelling.webserver.Configuration;
+import org.noise_planet.noisemodelling.webserver.OwsController;
+import org.noise_planet.noisemodelling.webserver.utilities.Logging;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class NoiseModellingServerHttpTest {
+class NoiseModellingHPCServerHttpTest {
 
     /**
      * A Javalin instance used to manage the HTTP server lifecycle and handle HTTP routes
@@ -55,12 +56,12 @@ class NoiseModellingServerHttpTest {
      *
      * This static variable is initialized and configured in the {@code setUp} method,
      * and is responsible for serving HTTP routes used by the test cases defined in the
-     * {@link NoiseModellingServerHttpTest} class.
+     * {@link NoiseModellingHPCServerHttpTest} class.
      *
      * It supports the execution of various HTTP-based operations such as handling requests
      * for WPS capabilities, process descriptions, and WPS execution, as verified in the test methods.
      */
-    private static NoiseModellingServer app;
+    private static NoiseModellingHPCServer app;
 
     /**
      * The default port number on which the HTTP server will listen.
@@ -96,11 +97,10 @@ class NoiseModellingServerHttpTest {
      */
     @BeforeAll
     public static void setUp(@TempDir Path temporaryDirectory) throws IOException, SQLException {
-        PropertyConfigurator.configure(
-                Objects.requireNonNull(NoiseModellingServerHttpTest.class.getResource("log4j.properties")));
+        Logging.initConsoleLogging();
         Configuration configuration = new Configuration(true);
         configuration.setWorkingDirectory(temporaryDirectory.toString());
-        app = new NoiseModellingServer(configuration);
+        app = new NoiseModellingHPCServer(configuration);
         app.startServer(false);
     }
 
@@ -128,193 +128,6 @@ class NoiseModellingServerHttpTest {
         if (app != null) {
             try(Connection connection = app.getServerDataSource().getConnection()) {
                 connection.createStatement().execute("TRUNCATE TABLE JOBS");
-            }
-        }
-    }
-
-    @Test
-    @Order(1)
-    void testGetWPSCapabilities() throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        String serviceParam = URLEncoder.encode("WPS", StandardCharsets.UTF_8);
-        String requestParam = URLEncoder.encode("GetCapabilities", StandardCharsets.UTF_8);
-        URI uri = URI.create(BASE_URL + "?service=" + serviceParam + "&VERSION=1.0.0&request=" + requestParam);
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(uri)
-                .GET()
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        assertEquals(200, response.statusCode());
-        String body = response.body();
-        assertNotNull(body);
-        // Check if XML is valid - will throw an exception if not valid
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        builder.parse(new InputSource(new StringReader(body)));
-        
-        assertTrue(body.contains("<wps:Capabilities "));
-        assertTrue(body.contains("Database_Manager:Display_Database"));
-    }
-
-    /**
-     * Tests the DescribeProcess operation of the Web Processing Service (WPS).
-     *
-     * This method performs the following steps:
-     * - Creates an HTTP GET request for the WPS DescribeProcess operation by specifying
-     *   the service as "WPS", the request type as "DescribeProcess", and an identifier
-     *   representing the process "Geometric_Tools:Screen_to_building".
-     * - Sends the request using {@link HttpClient} and retrieves the response.
-     * - Validates that the HTTP response status code is 200 (OK).
-     * - Ensures that the response body is not null.
-     * - Checks that the response body contains:
-     *   - The XML element `<wps:ProcessDescriptions>`.
-     *   - A description for the process, mentioning "Convert screens to building format."
-     *   - Detailed information about the process functionality, including conversions and
-     *     optional merging with a building table layer.
-     *
-     * @throws Exception if an error occurs during the HTTP request, response handling, or validation steps.
-     */
-    @Test
-    @Order(2)
-    void testGetWPSDescribeProcess() throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        String serviceParam = URLEncoder.encode("WPS", StandardCharsets.UTF_8);
-        String requestParam = URLEncoder.encode("DescribeProcess", StandardCharsets.UTF_8);
-        URI uri = URI.create(BASE_URL + "?service=" + serviceParam + "&VERSION=1.0.0&request=" + requestParam + "&identifier=Receivers:Delaunay_Grid");
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(uri)
-                .GET()
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        assertEquals(200, response.statusCode());
-        String body = response.body();
-        assertNotNull(body);
-        // Check if XML is valid - will throw an exception if not valid
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        builder.parse(new InputSource(new StringReader(body)));
-        // Check content
-        assertTrue(body.contains("<wps:ProcessDescriptions "));
-        assertTrue(body.contains("Receivers:Delaunay_Grid"));
-    }
-
-    /**
-     * Tests the Execute operation of the Web Processing Service (WPS) using a POST request.
-     *
-     * This method performs the following actions:
-     * - Constructs an HTTP POST request with an XML payload for executing the
-     *   "Database_Manager:Clean_Database" process.
-     * - Sends the request to the WPS server using {@link HttpClient}.
-     * - Validates that the HTTP response status code is 200 (OK).
-     * - Ensures that the response body is not null.
-     * - Verifies that the response body contains the expected "result" element.
-     *
-     * The XML payload specifies the WPS service, version, process identifier, input
-     * parameters, and raw data output format for the Execute operation.
-     *
-     * @throws Exception if an error occurs during the HTTP request, response handling, or validation steps.
-     */
-    @Test
-    @Order(3)
-    void testPostWPSExecute() throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        String requestBody ="<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" " +
-                "service=\"WPS\" version=\"1.0.0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">Database_Manager:Clean_Database</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">areYouSure</p1:Identifier><p0:Data><p0:LiteralData>true</p0:LiteralData></p0:Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1.1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL))
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .header("Content-Type", "text/xml")
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        assertEquals(200, response.statusCode());
-        assertNotNull(response.body());
-        assertTrue(response.body().contains("dropped"));
-
-        try(Connection connection = app.getServerDataSource().getConnection()) {
-            List<Map<String, Object>> jobs = DatabaseManagement.getJobs(connection, -1);
-            assertEquals(1, jobs.size());
-            assertEquals("Database_Manager:Clean_Database", jobs.get(0).get("script").toString());
-            assertEquals(JobStates.COMPLETED.name(), jobs.get(0).get("status").toString());
-        }
-    }
-
-
-
-    /**
-     * Test Delaunay script
-     *
-     * @throws Exception if an error occurs during the HTTP request, response handling, or validation steps.
-     */
-    @Test
-    @Order(4)
-    void testPostWPSDelaunayExecute() throws Exception {
-        // Insert Data
-        try(Connection connection = app.getUserDataSource(1).getConnection()) {
-            GeoJsonRead.importTable(connection,
-                    NoiseModellingServerHttpTest.class.getResource("wpsinput/BUILDINGS_LOW_HEIGHT.geojson").getFile(),
-                    ValueBoolean.TRUE);
-            try(Statement statement = connection.createStatement()) {
-                statement.execute("CREATE TABLE ROADS(id integer primary key, geom geometry(LineStringZ, 2154))");
-                statement.execute("INSERT INTO ROADS VALUES(1, ST_GeomFromText('LINESTRING Z (491283" +
-                        ".47973571467446163 6772700.14766194019466639 0, 491298.31839100952493027 6772724" +
-                        ".17215146496891975 0, 491352.2851671117823571 6772724.08382613584399223 0, 491352" +
-                        ".2851671117823571 6772724.08382613584399223 0)', 2154))");
-            }
-        }
-        HttpClient client = HttpClient.newHttpClient();
-        String requestBody = "<p0:Execute xmlns:p0=\"http://www.opengis.net/wps/1.0.0\" service=\"WPS\" version=\"1.0" +
-                ".0\"><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
-                ".1\">Receivers:Delaunay_Grid</p1:Identifier><p0:DataInputs><p0:Input><p1:Identifier " +
-                "xmlns:p1=\"http://www.opengis.net/ows/1" +
-                ".1\">tableBuilding</p1:Identifier><p0:Data><p0:LiteralData>BUILDINGS_LOW_HEIGHT</p0:LiteralData></p0:Data></p0" +
-                ":Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
-                ".1\">sourcesTableName</p1:Identifier><p0:Data><p0:LiteralData>ROADS</p0:LiteralData></p0:Data></p0" +
-                ":Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
-                ".1\">exportTrianglesGeometries</p1:Identifier><p0:Data><p0:LiteralData>true</p0:LiteralData></p0" +
-                ":Data></p0:Input><p0:Input><p1:Identifier xmlns:p1=\"http://www.opengis.net/ows/1" +
-                ".1\">isoSurfaceInBuildings</p1:Identifier><p0:Data><p0:LiteralData>false</p0:LiteralData></p0" +
-                ":Data></p0:Input></p0:DataInputs><p0:ResponseForm><p0:RawDataOutput><p1:Identifier " +
-                "xmlns:p1=\"http://www.opengis.net/ows/1" +
-                ".1\">result</p1:Identifier></p0:RawDataOutput></p0:ResponseForm></p0:Execute>";
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL))
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .header("Content-Type", "text/xml")
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        assertEquals(200, response.statusCode());
-
-        try(Connection connection = app.getUserDataSource(1).getConnection()) {
-            // debug export table triangles as geojson
-            // GeoJsonWrite.exportTable(connection, "target/TRIANGLES.geojson", "TRIANGLES");
-            // Check if there is a triangle at the location of the building in x,y location 491303.97 6772708.80
-            // No triangle should be under the buildings
-            try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM TRIANGLES WHERE " +
-                    "ST_Contains(the_geom, ST_GeomFromText('POINT(491303.97 6772708.80)', 2154))")) {
-                try(ResultSet rs = preparedStatement.executeQuery()) {
-                    assertFalse(rs.next());
-                }
-            }
-            // An area with a triangle at 491308.588, 6772710.399
-            try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM TRIANGLES WHERE " +
-                    "ST_Contains(the_geom, ST_GeomFromText('POINT(491325.310 6772704.089)', 2154))")) {
-                try(ResultSet rs = preparedStatement.executeQuery()) {
-                    assertTrue(rs.next());
-                }
             }
         }
     }
@@ -388,34 +201,6 @@ class NoiseModellingServerHttpTest {
         }
     }
 
-
-    @Test
-    void testPostWPSChainedExecution() throws Exception {
-        try(InputStream inputStream = TestParseWPSQueries.class.getResourceAsStream("wps_parse/chainedExecute1.xml")) {
-            assertNotNull(inputStream);
-            String requestBody = new String(inputStream.readAllBytes());
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(BASE_URL))
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .header("Content-Type", "text/xml")
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            assertEquals(200, response.statusCode());
-            // Check if BUILDINGS_LOW_HEIGHT table exists
-
-            try(Connection connection = app.getUserDataSource(1).getConnection()) {
-                try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1 FROM BUILDINGS_LOW_HEIGHT")) {
-                    try(ResultSet rs = preparedStatement.executeQuery()) {
-                        assertTrue(rs.next());
-                    }
-                }
-            }
-            // Check if the content of the buildings_low_height table is printed as html in response body
-            assertTrue(response.body().contains("The total number of rows is 9"));
-        }
-    }
-
     @Test
     @Timeout(value = 2, unit = TimeUnit.MINUTES)
     public void testWPSRunRemoteNoiseModelling() throws Exception {
@@ -454,13 +239,13 @@ class NoiseModellingServerHttpTest {
         // Load unit test input data tables
         int expectedRows = 0;
         try(Connection connection = app.getUserDataSource(1).getConnection()) {
-            URL url = NoiseModellingServerHttpTest.class.getResource("buildings.shp");
+            URL url = NoiseModellingHPCServerHttpTest.class.getResource("buildings.shp");
             assertNotNull(url);
             SHPRead.importTable(connection, url.getFile(),"BUILDINGS" ,ValueBoolean.TRUE);
-            url = NoiseModellingServerHttpTest.class.getResource("lw_roads.shp");
+            url = NoiseModellingHPCServerHttpTest.class.getResource("lw_roads.shp");
             assertNotNull(url);
             SHPRead.importTable(connection, url.getFile(),"SOURCES" ,ValueBoolean.TRUE);
-            url = NoiseModellingServerHttpTest.class.getResource("receivers.shp");
+            url = NoiseModellingHPCServerHttpTest.class.getResource("receivers.shp");
             assertNotNull(url);
             SHPRead.importTable(connection, url.getFile(),"RECEIVERS" ,ValueBoolean.TRUE);
             // Run local noise modelling to get the expected number of rows in RECEIVERS LEVEL
@@ -486,7 +271,7 @@ class NoiseModellingServerHttpTest {
             }
         }
 
-        URL xmlQuery = NoiseModellingServerHttpTest.class.getResource("wps_parse/slurmNoiseLevelFromSource.xml");
+        URL xmlQuery = NoiseModellingHPCServerHttpTest.class.getResource("wps_parse/slurmNoiseLevelFromSource.xml");
         assertNotNull(xmlQuery);
         try(InputStream inputStream = xmlQuery.openStream()) {
             requestBody = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
