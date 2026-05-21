@@ -14,17 +14,21 @@ RUN apt-get update && apt-get install -y \
     && rm -f /etc/profile.d/modules.sh /usr/share/modules/init/bash \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# 2. Universal Apptainer Configuration for Docker/GHA/Mac
+# - We allow SetUID (more stable on Linux/GHA)
+# - We keep Overlay disabled (more stable for nested Docker/Mac)
 RUN sed -i 's/^allow setuid =.*/allow setuid = yes/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^enable overlay =.*/enable overlay = no/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^mount dev =.*/mount dev = yes/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^bind path =.*/bind path = /' /etc/apptainer/apptainer.conf
 
-# 2. HPC Simulation Logic
+# 3. HPC Simulation Logic (Hiding Singularity)
+# We ONLY remove the singularity symlink. We leave apptainer untouched in /usr/bin.
 RUN rm -f /usr/bin/singularity && \
     mkdir -p /usr/local/bin && chmod 777 /usr/local/bin
 
-# 3. Create 'module' command
-# It creates a symlink in /usr/local/bin, which we know is in your SSH PATH.
+# 4. Create 'module' command
+# It creates a symlink in /usr/local/bin, which we know is in the PATH.
 RUN printf '#!/bin/bash\n\
 case "$1" in\n\
   load)\n\
@@ -41,7 +45,7 @@ case "$1" in\n\
     echo "Module command emulated for singularity" ;;\n\
 esac\n' > /usr/local/bin/module && chmod +x /usr/local/bin/module
 
-# 4. SSH & Slurm Configuration
+# 5. SSH & Slurm Configuration
 RUN mkdir -p /var/run/sshd /scratch && chmod 777 /scratch \
     && echo "PermitUserEnvironment yes" >> /etc/ssh/sshd_config \
     && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config \
@@ -52,7 +56,7 @@ RUN mkdir -p /var/run/sshd /scratch && chmod 777 /scratch \
 COPY prolog.sh /etc/slurm/prolog.sh
 RUN chmod +x /etc/slurm/prolog.sh && echo "Prolog=/etc/slurm/prolog.sh" >> /etc/slurm/slurm.conf
 
-# 5. Initialization Script
+# 6. Initialization Script
 RUN printf '#!/bin/bash\n\
 USERNAME=${USER_NAME:-testuser}\n\
 USER_HOME=/home/$USERNAME\n\
@@ -67,12 +71,10 @@ if [ -n "$PUBLIC_KEY" ]; then\n\
     chmod 600 "$USER_HOME/.ssh/authorized_keys"\n\
 fi\n\
 [ "$SUDO_ACCESS" = "true" ] && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME\n\
+# Ensure unprivileged namespaces are enabled (Host must allow this)\n\
 sysctl -w kernel.unprivileged_userns_clone=1 || true\n\
 service ssh start\n\
 /etc/startup.sh "$@"\n\
 tail -f /dev/null\n' > /usr/local/bin/init-ssh-slurm.sh && chmod +x /usr/local/bin/init-ssh-slurm.sh
-
-RUN sed -i '/APPTAINER_BIND/d' /usr/local/bin/init-ssh-slurm.sh || true
-RUN sed -i '/APPTAINER_BINDPATH/d' /usr/local/bin/init-ssh-slurm.sh || true
 
 ENTRYPOINT ["/usr/local/bin/init-ssh-slurm.sh"]
