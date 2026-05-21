@@ -14,16 +14,18 @@ RUN apt-get update && apt-get install -y \
     && rm -f /etc/profile.d/modules.sh /usr/share/modules/init/bash \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Universal Apptainer Configuration for GHA and Mac
-# - We re-enable setuid (Essential for GitHub Actions/Linux stability)
-# - We disable overlay (Essential for nested Docker stability)
+# 2. Universal Apptainer Configuration
+# - We enable setuid (most stable for GHA/Linux privileged Docker)
+# - We disable overlay (essential for nested Docker/Mac compatibility)
 RUN sed -i 's/^allow setuid =.*/allow setuid = yes/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^enable overlay =.*/enable overlay = no/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^mount dev =.*/mount dev = yes/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^bind path =.*/bind path = /' /etc/apptainer/apptainer.conf
 
-# 3. FIX: Explicitly set SUID bit on the starter (sometimes lost during Docker build)
-RUN chmod u+s /usr/lib/apptainer/bin/starter-suid
+# 3. FIX: Locate the starter-suid and set the SUID bit
+# Using find ensures the build doesn't fail if the path changes slightly
+RUN STARTER_PATH=$(find /usr -name starter-suid | head -n 1) && \
+    if [ -n "$STARTER_PATH" ]; then chmod u+s "$STARTER_PATH"; fi
 
 # 4. HPC Simulation Logic (Hide singularity)
 RUN rm -f /usr/bin/singularity && chmod 777 /usr/local/bin
@@ -63,10 +65,9 @@ USER_HOME=/home/$USERNAME\n\
 if ! id -u "$USERNAME" >/dev/null 2>&1; then\n\
     useradd -m -s /bin/bash "$USERNAME"\n\
     mkdir -p "$USER_HOME/.ssh"\n\
-    # --- FIX: Define UID/GID mappings for User Namespaces ---\n\
+    # Fix for namespaces on Linux/GHA\n\
     echo "$USERNAME:100000:65536" >> /etc/subuid\n\
     echo "$USERNAME:100000:65536" >> /etc/subgid\n\
-    # -------------------------------------------------------\n\
     chown -R "$USERNAME:$USERNAME" "$USER_HOME/.ssh"\n\
 fi\n\
 if [ -n "$PUBLIC_KEY" ]; then\n\
