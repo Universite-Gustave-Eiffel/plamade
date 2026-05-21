@@ -2,88 +2,78 @@ FROM nathanhess/slurm:base
 
 USER root
 
-# Install Java 21, SSH, apptainer, and Sudo
+# 1. Install packages and force system shell to Bash
 RUN apt-get update && apt-get install -y \
-    openjdk-21-jdk \
-    openssh-server \
-    unzip \
-    rsync \
-    sudo \
-    software-properties-common \
-    curl \
+    openssh-server unzip rsync sudo software-properties-common curl sed \
     && add-apt-repository -y ppa:apptainer/ppa \
-    && apt-get update && apt-get install -y apptainer-suid \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get update && apt-get install -y \
+    environment-modules \
+    apptainer \
+    && echo "dash dash/sh boolean false" | debconf-set-selections \
+    && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash \
+    # IMPORTANT: Remove the real module system so our script takes priority
+    && rm -f /etc/profile.d/modules.sh /usr/share/modules/init/bash \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# (Optional) Verify installation
-RUN apptainer --version
+RUN sed -i 's/^allow setuid =.*/allow setuid = no/' /etc/apptainer/apptainer.conf && \
+    sed -i 's/^enable overlay =.*/enable overlay = no/' /etc/apptainer/apptainer.conf && \
+    sed -i 's/^mount dev =.*/mount dev = yes/' /etc/apptainer/apptainer.conf && \
+    sed -i 's/^bind path =.*/bind path = /' /etc/apptainer/apptainer.conf
 
-# Basic SSH setup
-RUN mkdir -p /var/run/sshd && \
-    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+# 2. HPC Simulation Logic
+# Remove default singularity. Make /usr/local/bin writable so 'testuser' can create symlinks.
+RUN rm -f /usr/bin/singularity && chmod 777 /usr/local/bin
 
-# Create the global scratch directory
-RUN mkdir -p /scratch && chmod 777 /scratch
+# 3. Create 'module' command
+# It creates a symlink in /usr/local/bin, which we know is in your SSH PATH.
+RUN printf '#!/bin/bash\n\
+case "$1" in\n\
+  load)\n\
+    if [[ "$2" == *"singularity"* ]]; then\n\
+        ln -sf /usr/bin/apptainer /usr/local/bin/singularity\n\
+        echo "Module $2 loaded (emulated)"\n\
+    else\n\
+        echo "ERROR: Unable to locate a modulefile for $2"\n\
+        exit 1\n\
+    fi ;;\n\
+  unload)\n\
+    rm -f /usr/local/bin/singularity ;;\n\
+  *)\n\
+    echo "Module command emulated for singularity" ;;\n\
+esac\n' > /usr/local/bin/module && chmod +x /usr/local/bin/module
 
-# Add the Prolog script to the container
+# 4. SSH & Slurm Configuration
+RUN mkdir -p /var/run/sshd /scratch && chmod 777 /scratch \
+    && echo "PermitUserEnvironment yes" >> /etc/ssh/sshd_config \
+    && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config \
+    && printf '#!/bin/bash\nrm -rf /scratch/job.${SLURM_JOB_ID}\n' > /etc/slurm/epilog.sh \
+    && chmod +x /etc/slurm/epilog.sh \
+    && echo "Epilog=/etc/slurm/epilog.sh" >> /etc/slurm/slurm.conf
+
 COPY prolog.sh /etc/slurm/prolog.sh
-RUN chmod +x /etc/slurm/prolog.sh
+RUN chmod +x /etc/slurm/prolog.sh && echo "Prolog=/etc/slurm/prolog.sh" >> /etc/slurm/slurm.conf
 
-# Update slurm.conf to point to the Prolog script
-# We append the configuration to the end of the existing slurm.conf
-RUN echo "Prolog=/etc/slurm/prolog.sh" >> /etc/slurm/slurm.conf
-
-# Add an Epilog script to clean up after the job
-RUN echo '#!/bin/bash\nrm -rf /scratch/job.${SLURM_JOB_ID}' > /etc/slurm/epilog.sh && \
-    chmod +x /etc/slurm/epilog.sh && \
-    echo "Epilog=/etc/slurm/epilog.sh" >> /etc/slurm/slurm.conf
-
-# Create the initialization script
-RUN echo '#!/bin/bash\n\
+# 5. Initialization Script
+RUN printf '#!/bin/bash\n\
 USERNAME=${USER_NAME:-testuser}\n\
-\n\
-# 1. Create User if it doesn't exist\n\
+USER_HOME=/home/$USERNAME\n\
 if ! id -u "$USERNAME" >/dev/null 2>&1; then\n\
     useradd -m -s /bin/bash "$USERNAME"\n\
-    echo "User $USERNAME created."\n\
-fi\n\
-\n\
-# 2. Handle Sudo Access\n\
-if [ "$SUDO_ACCESS" = "true" ]; then\n\
-    echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME\n\
-fi\n\
-\n\
-# 3. Handle SSH Key\n\
-if [ -n "$PUBLIC_KEY" ]; then\n\
-    USER_HOME=$(eval echo ~$USERNAME)\n\
     mkdir -p "$USER_HOME/.ssh"\n\
-    echo "$PUBLIC_KEY" > "$USER_HOME/.ssh/authorized_keys"\n\
     chown -R "$USERNAME:$USERNAME" "$USER_HOME/.ssh"\n\
-    chmod 700 "$USER_HOME/.ssh"\n\
+fi\n\
+if [ -n "$PUBLIC_KEY" ]; then\n\
+    echo "$PUBLIC_KEY" > "$USER_HOME/.ssh/authorized_keys"\n\
+    chown "$USERNAME:$USERNAME" "$USER_HOME/.ssh/authorized_keys"\n\
     chmod 600 "$USER_HOME/.ssh/authorized_keys"\n\
-    echo "SSH Public Key injected for $USERNAME."\n\
 fi\n\
-\n\
-# 4. Handle Password Access\n\
-if [ "$PASSWORD_ACCESS" = "false" ]; then\n\
-    sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config\n\
-else\n\
-    sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config\n\
-fi\n\
-\n\
-# Enable User Namespaces for apptainer \n\
-sysctl -w kernel.unprivileged_userns_clone=1 || true \n\
-# Start SSH service\n\
+[ "$SUDO_ACCESS" = "true" ] && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME\n\
+sysctl -w kernel.unprivileged_userns_clone=1 || true\n\
 service ssh start\n\
-\n\
-# Execute the Slurm startup (not using exec so we can keep the script running)\n\
 /etc/startup.sh "$@"\n\
-\n\
-echo "All services started. Keeping container alive..."\n\
-# Keep the container running forever\n\
-tail -f /dev/null' > /usr/local/bin/init-ssh-slurm.sh
+tail -f /dev/null\n' > /usr/local/bin/init-ssh-slurm.sh && chmod +x /usr/local/bin/init-ssh-slurm.sh
 
-RUN chmod +x /usr/local/bin/init-ssh-slurm.sh
+RUN sed -i '/APPTAINER_BIND/d' /usr/local/bin/init-ssh-slurm.sh || true
+RUN sed -i '/APPTAINER_BINDPATH/d' /usr/local/bin/init-ssh-slurm.sh || true
 
-USER root
 ENTRYPOINT ["/usr/local/bin/init-ssh-slurm.sh"]

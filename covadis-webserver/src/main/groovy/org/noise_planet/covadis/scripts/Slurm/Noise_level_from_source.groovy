@@ -440,7 +440,10 @@ public static String generateSlurmBashScript(String noisemodellingPath, Map inpu
     // 2. Encode to Base64 String
     String base64Encoded = bytes.encodeBase64().toString()
 
-    def script = $/#!/bin/sh
+    def script = $/#!/bin/bash
+
+module load singularity/singularity-3.9.5
+
 # run with this command
 # must be run in the same folder than the database
 # sbatch --array=0-11 noisemodelling_batch.sh
@@ -464,6 +467,7 @@ singularity exec --bind $workspacePath:/output --bind /scratch/job."$$SLURM_JOB_
 
 private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl) {
     if (!isRemoteFileExists(slurmSession, "~/noisemodelling.sif")) {
+        slurmSession.runCommand("module load singularity/singularity-3.9.5", true)
         slurmSession.runCommand("singularity pull ~/noisemodelling.sif $nmUrl", true)
         if (!isRemoteFileExists(slurmSession, "~/noisemodelling.sif")) {
             throw new IllegalStateException("NoiseModelling image not found after pulling it")
