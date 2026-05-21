@@ -11,18 +11,17 @@ RUN apt-get update && apt-get install -y \
     apptainer \
     && echo "dash dash/sh boolean false" | debconf-set-selections \
     && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash \
-    # IMPORTANT: Remove the real module system so our script takes priority
     && rm -f /etc/profile.d/modules.sh /usr/share/modules/init/bash \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN sed -i 's/^allow setuid =.*/allow setuid = no/' /etc/apptainer/apptainer.conf && \
+RUN sed -i 's/^allow setuid =.*/allow setuid = yes/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^enable overlay =.*/enable overlay = no/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^mount dev =.*/mount dev = yes/' /etc/apptainer/apptainer.conf && \
     sed -i 's/^bind path =.*/bind path = /' /etc/apptainer/apptainer.conf
 
 # 2. HPC Simulation Logic
-# Remove default singularity. Make /usr/local/bin writable so 'testuser' can create symlinks.
-RUN rm -f /usr/bin/singularity && chmod 777 /usr/local/bin
+RUN rm -f /usr/bin/singularity && \
+    mkdir -p /usr/local/bin && chmod 777 /usr/local/bin
 
 # 3. Create 'module' command
 # It creates a symlink in /usr/local/bin, which we know is in your SSH PATH.
