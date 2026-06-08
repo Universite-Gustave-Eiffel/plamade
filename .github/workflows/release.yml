@@ -24,11 +24,11 @@ jobs:
           # Use default GITHUB_TOKEN; it has permission to push to non-protected branches
           fetch-depth: 0
 
-      - name: Setup java 11
+      - name: Setup java 25
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '25'
           cache: 'maven'
           server-id: central
           server-username: MAVEN_USERNAME
