@@ -46,7 +46,7 @@ import org.noise_planet.noisemodelling.webserver.utilities.Logging;
 import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class NoiseModellingHPCServerHttpTest {
+public class NoiseModellingHPCServerHttpTest {
 
     /**
      * A Javalin instance used to manage the HTTP server lifecycle and handle HTTP routes

@@ -8,7 +8,9 @@ import org.h2gis.functions.factory.H2GISFunctions;
 import org.h2gis.postgis_jts.ConnectionWrapper;
 import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.noise_planet.noisemodelling.webserver.utilities.Logging;
 import org.osgi.service.jdbc.DataSourceFactory;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.slf4j.Logger;
@@ -81,5 +83,9 @@ public class JDBCTestCase {
         } catch (SQLException e) {
             // ignore
         }
+    }
+    @BeforeAll
+    public static void init() {
+        Logging.initConsoleLogging();
     }
 }
