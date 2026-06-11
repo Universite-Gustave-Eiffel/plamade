@@ -466,12 +466,10 @@ singularity exec --bind $workspacePath:/output --bind /scratch/job."$$SLURM_JOB_
 }
 
 private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl) {
+    slurmSession.runCommand("module load singularity/singularity-3.9.5", true)
+    slurmSession.runCommand("singularity pull --force ~/noisemodelling.sif $nmUrl", true)
     if (!isRemoteFileExists(slurmSession, "~/noisemodelling.sif")) {
-        slurmSession.runCommand("module load singularity/singularity-3.9.5", true)
-        slurmSession.runCommand("singularity pull ~/noisemodelling.sif $nmUrl", true)
-        if (!isRemoteFileExists(slurmSession, "~/noisemodelling.sif")) {
-            throw new IllegalStateException("NoiseModelling image not found after pulling it")
-        }
+        throw new IllegalStateException("NoiseModelling image not found after pulling it")
     }
 }
 
