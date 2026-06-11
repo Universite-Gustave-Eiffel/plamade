@@ -457,7 +457,9 @@ echo "Prepare NoiseModelling run"
 cd /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 
 #rename the h2 database
-mv *.mv.db h2gisdb.mv.db || exit 1
+if [ ! -f h2gisdb.mv.db ]; then
+    mv *.mv.db h2gisdb.mv.db || exit 1
+fi
 
 echo "Run main script.."
 singularity exec --bind $workspacePath:/output --bind /scratch/job."$$SLURM_JOB_ID":/data ~/noisemodelling.sif /srv/noisemodelling/bin/ScriptRunner -w /data -s /data/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --encodedNoiseLevelFromSourceInputs "$base64Encoded" --outputFolder /output/ || exit 1
