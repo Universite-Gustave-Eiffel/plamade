@@ -1,6 +1,5 @@
 package org.noise_planet.covadis.scripts.CBS
 
-
 import groovy.sql.Sql
 import groovy.transform.CompileStatic
 import org.h2gis.api.ProgressVisitor
@@ -9,18 +8,17 @@ import org.h2gis.utilities.*
 import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
 import org.h2gis.utilities.wrapper.ConnectionWrapper
+import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.noisemodelling.jdbc.EmissionTableGenerator
 import org.noise_planet.noisemodelling.pathfinder.utils.AcousticIndicatorsFunctions
 import org.noise_planet.noisemodelling.webserver.utilities.Logging
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.noise_planet.covadis.webserver.database.PostGISUtilities
 
 import javax.sql.DataSource
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
-import java.sql.SQLException
 import java.util.stream.Collectors
 
 title = 'Create sources table in PostGIS database'
@@ -64,6 +62,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         // Create EMISSION TABLE
         def lwTableName = "cbs_uge_output.routier_emission_$projectionName"
         createLWRoads(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName], progress)
+
+        sql.execute("ALTER TABLE $lwTableName OWNER TO cbs_uge_group;")
 
         // Return results
         return Logging.formatSqlQueryResult(sql, "SELECT * FROM $lwTableName LIMIT 10" as String, 120)
@@ -124,6 +124,7 @@ def createMergeTrafficTable(String projectionName, Sql sql){
         ALTER TABLE $trafficOutputTableName ALTER COLUMN "ID_TRONCON" SET NOT NULL;
         ALTER TABLE $trafficOutputTableName ADD PRIMARY KEY("ID_TRONCON");
         CREATE INDEX ON $trafficOutputTableName USING GIST("THE_GEOM");
+        ALTER TABLE $trafficOutputTableName OWNER TO cbs_uge_group;
         """ as String
 
     // Run query on external database
