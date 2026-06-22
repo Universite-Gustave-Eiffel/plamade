@@ -109,10 +109,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 skipCellNoSourcesMinimalDistance: input['skipCellNoSourcesMinimalDistance'] as Double,
                 maxArea: input['maxArea'] as Double,
                 outputTableName: input['outputTableName'] as String,
-                isoSurfaceInBuildings: input['isoSurfaceInBuildings'] as Boolean])
+                isoSurfaceInBuildings: input['isoSurfaceInBuildings'] as Boolean], progress)
 
-    } catch (SQLException e) {
-        logger.error("Error connecting to PostgreSQL database: ${e.message}")
     }
 
     // Return results
