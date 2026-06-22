@@ -57,21 +57,19 @@ inputs = [
                 default: 'localhost',
                 type: String.class
         ],
-        outputTableName    : [
-                name       : 'outputTableName',
-                title      : 'Name of output table',
-                description: 'Name of the output table.</br> </br>' +
-                        'Do not write the name of a table that contains a space',
-                default    : 'LW_ROADS',
-                type       : String.class
-        ],
+        projectionName: [
+                description: "Projection name",
+                title: "Projection name",
+                allowedValues: ["hexa", "guad", "guya", "mart", "reun"],
+                type: String.class
+        ]
 
 ]
 
 outputs = [result: [name: 'Result output string', title: 'Result output string', description: 'Result table name. Can be used as input for another WPS process', type: String.class]]
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
-    Logger logger = LoggerFactory.getLogger("tutorial")
+    Logger logger = LoggerFactory.getLogger(this.class)
 
     try (DataSource dataSource = PostGISUtilities.createPostgisDataSource(
             input['pgUser'] as String,
@@ -82,10 +80,33 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pgConnection.setAutoCommit(true)
         Sql sql = new Sql(pgConnection)
         logger.info("Create merged traffic table")
-        sql.execute("DROP TABLE IF EXISTS cbs_uge_output.routier_trafic")
         // Generate Traffic table that will be used as an input
-        def mergeTrafficSql = """
-        CREATE TABLE cbs_uge_output.routier_trafic AS SELECT geom2154 as "THE_GEOM",
+        def projectionName = input.projectionName as String
+        def trafficTableName = createMergeTrafficTable(projectionName, sql)
+
+        // Create EMISSION TABLE
+        def lwTableName = "cbs_uge_output.routier_emission_$projectionName"
+        createLWRoads(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName], progress)
+
+        // Return results
+        return Logging.formatSqlQueryResult(sql, "SELECT * FROM $lwTableName LIMIT 10" as String, 120)
+    } catch (SQLException e) {
+        logger.error("Error connecting to PostgreSQL database: ${e.message}")
+    }
+
+
+}
+
+def createMergeTrafficTable(String projectionName, Sql sql){
+    Logger logger = LoggerFactory.getLogger(this.class)
+
+    def trafficOutputTableName = "cbs_uge_output.routier_trafic_$projectionName"
+    def projectionNameToProjectSRID = ["hexa": 2154, "guad": 5490, "guya": 2972, "mart": 5490, "reun": 2975]
+    def geometryField = "geom${projectionNameToProjectSRID[projectionName]}"
+
+    def mergeTrafficSql = """
+        DROP TABLE IF EXISTS $trafficOutputTableName;
+        CREATE TABLE $trafficOutputTableName AS SELECT $geometryField as "THE_GEOM",
         a.idtroncon as "ID_TRONCON",
         a.idroute as "ID_ROUTE",
         b.tmhvld as "LV_D",
@@ -116,39 +137,27 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
           END) as "WAY",
          a.uueid as "UUEID"
         FROM
-         cbs_uge_input.n_routier_troncon_l_hexa a,
-         cbs_uge_input.n_routier_trafic_hexa b,
-         cbs_uge_input.n_routier_vitesse_hexa c
+         cbs_uge_input.n_routier_troncon_l_$projectionName a,
+         cbs_uge_input.n_routier_trafic_$projectionName b,
+         cbs_uge_input.n_routier_vitesse_$projectionName c
         WHERE
-         ST_LENGTH(geom2154) > 0 and
+         ST_LENGTH($geometryField) > 0 and
          a.idtroncon=b.idtroncon and
          b.idtroncon=c.idtroncon and
          b.tmhvld >= 0 AND b.tmhvls >= 0 AND b.tmhvln >= 0 AND
          (b.pcentpl = 0 OR b.pcentpl >= b.pcentmpl) AND
          (b.pcent2r = 0 OR b.pcent2r >= b.pcent2r4a) AND
          (b.pcent2r = 0 OR b.pcent2r >= b.pcent2r4b);
+        ALTER TABLE $trafficOutputTableName ALTER COLUMN "ID_TRONCON" SET NOT NULL;
+        ALTER TABLE $trafficOutputTableName ADD PRIMARY KEY("ID_TRONCON");
+        CREATE INDEX ON $trafficOutputTableName USING GIST("THE_GEOM");
         """ as String
 
-        // Run query on external database
-        logger.info("Execute {}", mergeTrafficSql)
-        sql.execute(mergeTrafficSql)
-        logger.info("Inserted $sql.updateCount rows in cbs_uge_output.routier_trafic")
-
-        sql.execute("""
-            ALTER TABLE cbs_uge_output.routier_trafic ALTER COLUMN "ID_TRONCON" SET NOT NULL;
-            ALTER TABLE cbs_uge_output.routier_trafic ADD PRIMARY KEY("ID_TRONCON");
-            CREATE INDEX ON cbs_uge_output.routier_trafic USING GIST("THE_GEOM");
-            """)
-        // Create EMISSION TABLE
-        createLWRoads(pgConnection, [tableRoads : "cbs_uge_output.routier_trafic", outputTable:"cbs_uge_output.routier_emission"], progress)
-
-        // Return results
-        return Logging.formatSqlQueryResult(sql, "SELECT * FROM cbs_uge_output.routier_trafic LIMIT 10" as String, 120)
-    } catch (SQLException e) {
-        logger.error("Error connecting to PostgreSQL database: ${e.message}")
-    }
-
-
+    // Run query on external database
+    logger.info("Execute {}", mergeTrafficSql)
+    sql.execute(mergeTrafficSql)
+    logger.info("Inserted $sql.updateCount rows in $trafficOutputTableName")
+    return trafficOutputTableName
 }
 
 @CompileStatic
