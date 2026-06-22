@@ -3,6 +3,7 @@ package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
 import org.h2gis.api.ProgressVisitor
+import org.h2gis.utilities.JDBCUtilities
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
 import org.slf4j.Logger
@@ -16,36 +17,6 @@ title = 'Create receivers table in PostGIS database'
 description = 'Create receivers table in PostGIS database'
 
 inputs = [
-        pgUser: [
-                description: "PostgreSQL user name",
-                title: "PostgreSQL user name",
-                default: 'noisemodelling',
-                type: String.class
-        ],
-        pgPassword: [
-                description: "PostgreSQL user password",
-                title: "PostgreSQL user password",
-                default: 'noisemodelling',
-                type: String.class
-        ],
-        pgPort: [
-                description: "PostgreSQL port",
-                title: "PostgreSQL port",
-                default: 5432,
-                type: Integer.class
-        ],
-        pgDatabase: [
-                description: "PostgreSQL database name",
-                title: "PostgreSQL database name",
-                default: 'noisemodelling_db',
-                type: String.class
-        ],
-        pgHost: [
-                description: "PostgreSQL host",
-                title: "PostgreSQL host",
-                default: 'localhost',
-                type: String.class
-        ],
         fenceTableName: [
                 name       : 'Fence table name',
                 title      : 'Fence table name',
@@ -114,10 +85,18 @@ outputs = [result: [name: 'Result output string', title: 'Result output string',
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger("tutorial")
 
+    // Fetch PostGIS connection settings from the configuration table
+    Sql h2sql = new Sql(connection)
+    if(!JDBCUtilities.tableExists(connection, "POSTGIS_CONFIGURATION")) {
+        throw new RuntimeException("The table POSTGIS_CONFIGURATION does not exist. Please run the Write_PostGIS_Settings process first to create and fill this table with the connection settings to the PostGIS database.")
+    }
+
+    def postgisConfig = h2sql.firstRow("SELECT * FROM POSTGIS_CONFIGURATION")
+
     try (DataSource dataSource = PostGISUtilities.createPostgisDataSource(
-            input['pgUser'] as String,
-            input['pgPassword'] as String,
-            input['pgPort'].toString(), input['pgDatabase'] as String, input['pgHost'] as String);
+            postgisConfig['user_name'] as String,
+            postgisConfig['password'] as String,
+            postgisConfig['port'].toString(), postgisConfig['database_name'] as String, postgisConfig['host'] as String);
          Connection pgConnection = dataSource.getConnection()) {
         logger.info("Connected to PostgreSQL database")
         Sql sql = new Sql(pgConnection)
