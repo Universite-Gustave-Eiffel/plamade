@@ -67,11 +67,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
         // Return results
         return Logging.formatSqlQueryResult(sql, "SELECT * FROM $lwTableName LIMIT 10" as String, 120)
-    } catch (SQLException e) {
-        logger.error("Error connecting to PostgreSQL database: ${e.message}")
     }
-
-
 }
 
 def createMergeTrafficTable(String projectionName, Sql sql){
@@ -106,7 +102,7 @@ def createMergeTrafficTable(String projectionName, Sql sql){
          c.vitessepl as "HGV_SPD_D", c.vitessepl as "HGV_SPD_E", c.vitessepl as "HGV_SPD_N",
          c.vitesse4a as "WAV_SPD_D", c.vitesse4a as "WAV_SPD_E", c.vitesse4a as "WAV_SPD_N",
          c.vitesse4b as "WBV_SPD_D", c.vitesse4b as "WBV_SPD_E", c.vitesse4b as "WBV_SPD_N",
-         ROUND((a.zfin-a.zdeb)/ ST_LENGTH(a.geom2154)*100) as "SLOPE",
+         ROUND((a.zfin-a.zdeb)/ ST_LENGTH(a.$geometryField)*100) as "SLOPE",
          'FR_R2' as "PVMT",
          (CASE  WHEN a.sens = '01' THEN '01'
            WHEN a.sens = '02' THEN '02'
