@@ -63,7 +63,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         def lwTableName = "cbs_uge_output.routier_emission_$projectionName"
         createLWRoads(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName], progress)
 
-        sql.execute("ALTER TABLE $lwTableName OWNER TO cbs_uge_group;")
+        sql.execute("ALTER TABLE $lwTableName OWNER TO cbs_uge_group;" as String)
 
         // Return results
         return Logging.formatSqlQueryResult(sql, "SELECT * FROM $lwTableName LIMIT 10" as String, 120)
