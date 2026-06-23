@@ -78,6 +78,28 @@ inputs = [
                 default    : false,
                 type        : Boolean.class
         ],
+        fenceNegativeBuffer             : [
+                name       : 'Negative buffer',
+                title      : 'Negative buffer',
+                description: 'Reduce the fence(parameter, or sound sources and buildings extent)' +
+                        ' used to generate receivers positions. You should set here the maximum propagation distance (in meters) (FLOAT)',
+                default    : 0,
+                type       : Double.class
+        ],
+        exportTrianglesGeometries: [
+                name        : 'In the triangles table, export triangles geometries',
+                title       : 'In the triangles table, export triangles geometries',
+                description : 'If enabled, the TRIANGLES table will contain the geometry of each triangle',
+                default    : false,
+                type        : Boolean.class
+        ],
+        outputTableNameTriangles    : [
+                name       : 'outputTableNameTriangles',
+                title      : 'Name of triangles output table',
+                description: 'Name of the triangles output table.',
+                default    : 'TRIANGLES',
+                type       : String.class
+        ]
 ]
 
 outputs = [result: [name: 'Result output string', title: 'Result output string', description: 'Result table name. Can be used as input for another WPS process', type: String.class]]
@@ -109,7 +131,10 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 skipCellNoSourcesMinimalDistance: input['skipCellNoSourcesMinimalDistance'] as Double,
                 maxArea: input['maxArea'] as Double,
                 outputTableName: input['outputTableName'] as String,
-                isoSurfaceInBuildings: input['isoSurfaceInBuildings'] as Boolean], progress)
+                isoSurfaceInBuildings: input['isoSurfaceInBuildings'] as Boolean,
+                fenceNegativeBuffer: input['fenceNegativeBuffer'] as Double,
+                exportTrianglesGeometries: input['exportTrianglesGeometries'] as Boolean,
+                outputTableNameTriangles: input['outputTableNameTriangles'] as String], progress)
 
     }
 
