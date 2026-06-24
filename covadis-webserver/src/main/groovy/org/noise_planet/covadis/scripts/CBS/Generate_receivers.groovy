@@ -22,14 +22,24 @@ inputs = [
                 title      : 'Maximum cell size',
                 description: 'Maximum distance used to split the domain into sub-domains (in meters) (FLOAT).</br><br>' +
                         'In a logic of optimization of processing times, it allows to limit the number of objects (buildings, roads, …) stored in memory during the Delaunay triangulation',
-                default    : 600,
+                default    : 2000,
+                type       : Double.class
+        ],
+        roadWidth          : [
+                name       : 'Road width',
+                title      : 'Road width',
+                description: 'Set Road Width (in meters) (FLOAT).</br> </br>' +
+                        'No receivers closer than road width distance will be created.</br>' +
+                        ' </br> You can set 0 m if you don\'t want to insert roads in the output but still want' +
+                        ' to skip cells without sources using the \'Skip cell no sources minimal distance\' parameter',
+                default    : 2.0d,
                 type       : Double.class
         ],
         skipCellNoSourcesMinimalDistance        : [
                 name       : 'Skip cell no sources minimal distance',
                 title      : 'Skip cell no sources minimal distance',
                 description: 'If provided, a sub-domain will not be computed if no sources geometries are near x meters from the sub-domain area',
-                min        : 0, max: 1,
+                default    : 2000.0d,
                 type       : Double.class
         ],
         maxArea            : [
@@ -38,7 +48,7 @@ inputs = [
                 description: 'Set Maximum Area (in m2) (FLOAT).</br> </br>' +
                         'No triangles larger than provided area will be created.</br>' +
                         'Smaller area will create more receivers',
-                default    : 2500,
+                default    : 500.0d,
                 type       : Double.class
         ],
         isoSurfaceInBuildings: [
@@ -97,6 +107,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 isoSurfaceInBuildings: input['isoSurfaceInBuildings'] as Boolean,
                 fenceNegativeBuffer: input['fenceNegativeBuffer'] as Double,
                 exportTrianglesGeometries: input['exportTrianglesGeometries'] as Boolean,
+                roadWidth: input['roadWidth'] as Double,
                 outputTableNameTriangles: "cbs_uge_output.triangles_${projectionName}"], progress)
 
         sql.execute("ALTER TABLE ${"cbs_uge_output.receivers_${projectionName}"} OWNER TO cbs_uge_group;" as String)
