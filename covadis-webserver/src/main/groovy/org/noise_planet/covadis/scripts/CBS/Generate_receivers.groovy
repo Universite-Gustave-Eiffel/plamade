@@ -99,8 +99,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 exportTrianglesGeometries: input['exportTrianglesGeometries'] as Boolean,
                 outputTableNameTriangles: "cbs_uge_output.triangles_${projectionName}"], progress)
 
-        sql.execute("ALTER TABLE ${"cbs_uge_output.receivers_${projectionName}"} OWNER TO cbs_uge_group;")
-        sql.execute("ALTER TABLE ${"cbs_uge_output.triangles_${projectionName}"} OWNER TO cbs_uge_group;")
+        sql.execute("ALTER TABLE ${"cbs_uge_output.receivers_${projectionName}"} OWNER TO cbs_uge_group;" as String)
+        sql.execute("ALTER TABLE ${"cbs_uge_output.triangles_${projectionName}"} OWNER TO cbs_uge_group;" as String)
 
     }
 
