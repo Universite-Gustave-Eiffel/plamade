@@ -17,28 +17,6 @@ title = 'Create receivers table in PostGIS database'
 description = 'Create receivers table in PostGIS database'
 
 inputs = [
-        fenceTableName: [
-                name       : 'Fence table name',
-                title      : 'Fence table name',
-                description: 'Use the extent of a geometry table (e.g., from a shapefile) to limit receiver area',
-                min        : 0, max: 1,
-                type       : String.class
-        ],
-        tableBuilding      : [
-                name       : 'Buildings table name',
-                title      : 'Buildings table name',
-                description: 'Name of the Buildings table. </br><br>' +
-                        'The table must contain: <ul>' +
-                        '<li> <b> THE_GEOM </b> : the 2D geometry of the building (POLYGON or MULTIPOLYGON)</li></ul>',
-                type       : String.class
-        ],
-        sourcesTableName   : [
-                name       : 'Sources table name',
-                title      : 'Sources table name',
-                description: 'Name of the Road table.</br><br>' +
-                        'Receivers will not be created on the specified road width',
-                type       : String.class
-        ],
         maxCellDist        : [
                 name       : 'Maximum cell size',
                 title      : 'Maximum cell size',
@@ -63,14 +41,6 @@ inputs = [
                 default    : 2500,
                 type       : Double.class
         ],
-        outputTableName    : [
-                name       : 'outputTableName',
-                title      : 'Name of output table',
-                description: 'Name of the output table.</br> </br>' +
-                        'Do not write the name of a table that contains a space',
-                default    : 'RECEIVERS',
-                type       : String.class
-        ],
         isoSurfaceInBuildings: [
                 name        : 'Create IsoSurfaces over buildings',
                 title       : 'Create IsoSurfaces over buildings',
@@ -78,27 +48,11 @@ inputs = [
                 default    : false,
                 type        : Boolean.class
         ],
-        fenceNegativeBuffer             : [
-                name       : 'Negative buffer',
-                title      : 'Negative buffer',
-                description: 'Reduce the fence(parameter, or sound sources and buildings extent)' +
-                        ' used to generate receivers positions. You should set here the maximum propagation distance (in meters) (FLOAT)',
-                default    : 0,
-                type       : Double.class
-        ],
-        exportTrianglesGeometries: [
-                name        : 'In the triangles table, export triangles geometries',
-                title       : 'In the triangles table, export triangles geometries',
-                description : 'If enabled, the TRIANGLES table will contain the geometry of each triangle',
-                default    : false,
-                type        : Boolean.class
-        ],
-        outputTableNameTriangles    : [
-                name       : 'outputTableNameTriangles',
-                title      : 'Name of triangles output table',
-                description: 'Name of the triangles output table.',
-                default    : 'TRIANGLES',
-                type       : String.class
+        projectionName: [
+                description: "Projection name",
+                title: "Projection name",
+                allowedValues: ["hexa", "guad", "guya", "mart", "reun"],
+                type: String.class
         ]
 ]
 
@@ -122,22 +76,23 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
          Connection pgConnection = dataSource.getConnection()) {
         logger.info("Connected to PostgreSQL database")
         Sql sql = new Sql(pgConnection)
+        def projectionName = input.projectionName as String
 
         new Delaunay_Grid().exec(pgConnection, [
-                fenceTableName: input['fenceTableName'] as String,
-                tableBuilding: input['tableBuilding'] as String,
-                sourcesTableName: input['sourcesTableName'] as String,
+                fenceTableName: "cbs_uge_input.c_naturesol_${projectionName}",
+                tableBuilding: "cbs_uge_input.c_batiment_s_${projectionName}",
+                sourcesTableName: "cbs_uge_output.routier_emission_${projectionName}",
                 maxCellDist: input['maxCellDist'] as Double,
                 skipCellNoSourcesMinimalDistance: input['skipCellNoSourcesMinimalDistance'] as Double,
                 maxArea: input['maxArea'] as Double,
-                outputTableName: input['outputTableName'] as String,
+                outputTableName: "cbs_uge_output.receivers_${projectionName}",
                 isoSurfaceInBuildings: input['isoSurfaceInBuildings'] as Boolean,
                 fenceNegativeBuffer: input['fenceNegativeBuffer'] as Double,
                 exportTrianglesGeometries: input['exportTrianglesGeometries'] as Boolean,
-                outputTableNameTriangles: input['outputTableNameTriangles'] as String], progress)
+                outputTableNameTriangles: "cbs_uge_output.triangles_${projectionName}"], progress)
 
-        sql.execute("ALTER TABLE ${input['outputTableName'] as String} OWNER TO cbs_uge_group;")
-        sql.execute("ALTER TABLE ${input['outputTableNameTriangles'] as String} OWNER TO cbs_uge_group;")
+        sql.execute("ALTER TABLE ${"cbs_uge_output.receivers_${projectionName}"} OWNER TO cbs_uge_group;")
+        sql.execute("ALTER TABLE ${"cbs_uge_output.triangles_${projectionName}"} OWNER TO cbs_uge_group;")
 
     }
 
