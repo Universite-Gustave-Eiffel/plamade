@@ -136,6 +136,9 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 exportTrianglesGeometries: input['exportTrianglesGeometries'] as Boolean,
                 outputTableNameTriangles: input['outputTableNameTriangles'] as String], progress)
 
+        sql.execute("ALTER TABLE ${input['outputTableName'] as String} OWNER TO cbs_uge_group;")
+        sql.execute("ALTER TABLE ${input['outputTableNameTriangles'] as String} OWNER TO cbs_uge_group;")
+
     }
 
     // Return results
