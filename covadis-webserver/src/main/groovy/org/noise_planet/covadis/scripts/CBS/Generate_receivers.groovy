@@ -48,6 +48,14 @@ inputs = [
                 default    : false,
                 type        : Boolean.class
         ],
+        fenceNegativeBuffer             : [
+                name       : 'Negative buffer',
+                title      : 'Negative buffer',
+                description: 'Reduce the fence(parameter, or sound sources and buildings extent)' +
+                        ' used to generate receivers positions. You should set here the maximum propagation distance (in meters) (FLOAT)',
+                default    : 0,
+                type       : Double.class
+        ],
         projectionName: [
                 description: "Projection name",
                 title: "Projection name",
