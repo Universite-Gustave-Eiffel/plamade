@@ -96,6 +96,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         Sql sql = new Sql(pgConnection)
         def projectionName = input.projectionName as String
 
+
+        def receiversOutputTableName = "cbs_uge_output.receivers_${projectionName}"
         new Delaunay_Grid().exec(pgConnection, [
                 fenceTableName: "cbs_uge_input.c_naturesol_${projectionName}",
                 tableBuilding: "cbs_uge_input.c_batiment_s_${projectionName}",
@@ -103,14 +105,14 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 maxCellDist: input['maxCellDist'] as Double,
                 skipCellNoSourcesMinimalDistance: input['skipCellNoSourcesMinimalDistance'] as Double,
                 maxArea: input['maxArea'] as Double,
-                outputTableName: "cbs_uge_output.receivers_${projectionName}",
+                outputTableName: receiversOutputTableName,
                 isoSurfaceInBuildings: input['isoSurfaceInBuildings'] as Boolean,
                 fenceNegativeBuffer: input['fenceNegativeBuffer'] as Double,
                 exportTrianglesGeometries: input['exportTrianglesGeometries'] as Boolean,
                 roadWidth: input['roadWidth'] as Double,
                 outputTableNameTriangles: "cbs_uge_output.triangles_${projectionName}"], progress)
 
-        sql.execute("ALTER TABLE ${"cbs_uge_output.receivers_${projectionName}"} OWNER TO cbs_uge_group;" as String)
+        sql.execute("ALTER TABLE $receiversOutputTableName OWNER TO cbs_uge_group;" as String)
         sql.execute("ALTER TABLE ${"cbs_uge_output.triangles_${projectionName}"} OWNER TO cbs_uge_group;" as String)
 
     }

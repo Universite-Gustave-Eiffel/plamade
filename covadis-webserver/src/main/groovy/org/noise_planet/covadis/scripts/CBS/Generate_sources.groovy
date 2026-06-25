@@ -63,7 +63,13 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         def lwTableName = "cbs_uge_output.routier_emission_$projectionName"
         createLWRoads(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName], progress)
 
+        // Post work on the lwTableName
         sql.execute("ALTER TABLE $lwTableName OWNER TO cbs_uge_group;" as String)
+        // Fetch other fields using the primary key
+        sql.execute("ALTER TABLE $lwTableName add column uueid varchar(20) NOT NULL;" as String)
+        sql.execute("UPDATE $lwTableName SET uueid = (SELECT uueid FROM $trafficTableName tf WHERE pk = tf.pk);" as String)
+        sql.execute("ALTER TABLE $lwTableName add column pos_sol varchar(20) NOT NULL;" as String)
+        sql.execute("UPDATE $lwTableName SET pos_sol = (SELECT pos_sol FROM $trafficTableName tf WHERE pk = tf.pk);" as String)
 
         // Return results
         return Logging.formatSqlQueryResult(sql, "SELECT * FROM $lwTableName LIMIT 10" as String, 120)
@@ -74,12 +80,52 @@ def createMergeTrafficTable(String projectionName, Sql sql){
     Logger logger = LoggerFactory.getLogger(this.class)
 
     def trafficOutputTableName = "cbs_uge_output.routier_trafic_$projectionName"
-    def projectionNameToProjectSRID = ["hexa": 2154, "guad": 5490, "guya": 2972, "mart": 5490, "reun": 2975]
+    Object projectionNameToProjectSRID = getSRIDFromTableExtensionName()
     def geometryField = "geom${projectionNameToProjectSRID[projectionName]}"
 
     def mergeTrafficSql = """
         DROP TABLE IF EXISTS $trafficOutputTableName;
-        CREATE TABLE $trafficOutputTableName AS SELECT $geometryField as THE_GEOM,
+        CREATE TABLE $trafficOutputTableName
+(the_geom public.geometry(LINESTRINGZ, ${projectionNameToProjectSRID[projectionName]}) NULL,
+id_troncon varchar NOT NULL,
+id_route varchar(50) NULL,
+lv_d int4 NULL,
+lv_e int4 NULL,
+lv_n int4 NULL,
+mv_d float8 NULL,
+mv_e float8 NULL,
+mv_n float8 NULL,
+hgv_d float8 NULL,
+hgv_e float8 NULL,
+hgv_n float8 NULL,
+wav_d float8 NULL,
+wav_e float8 NULL,
+wav_n float8 NULL,
+wbv_d float8 NULL,
+wbv_e float8 NULL,
+wbv_n float8 NULL,
+lv_spd_d numeric NULL,
+lv_spd_e numeric NULL,
+lv_spd_n numeric NULL,
+mv_spd_d numeric NULL,
+mv_spd_e numeric NULL,
+mv_spd_n numeric NULL,
+hgv_spd_d numeric NULL,
+hgv_spd_e numeric NULL,
+hgv_spd_n numeric NULL,
+wav_spd_d numeric(11) NULL,
+wav_spd_e numeric(11) NULL,
+wav_spd_n numeric(11) NULL,
+wbv_spd_d numeric(11) NULL,
+wbv_spd_e numeric(11) NULL,
+wbv_spd_n numeric(11) NULL,
+slope float8 NULL,
+pvmt text NULL,
+way text NULL,
+uueid varchar(20) NULL,
+pos_sol varchar(20) NULL
+)
+ AS SELECT $geometryField as THE_GEOM,
         a.idtroncon as ID_TRONCON,
         a.idroute as ID_ROUTE,
         b.tmhvld as LV_D,
@@ -108,7 +154,8 @@ def createMergeTrafficTable(String projectionName, Sql sql){
            WHEN a.sens = '02' THEN '02'
            ELSE '03'
           END) as WAY,
-         a.uueid as UUEID
+         a.uueid as UUEID,
+         a.pos_sol
         FROM
          cbs_uge_input.n_routier_troncon_l_$projectionName a,
          cbs_uge_input.n_routier_trafic_$projectionName b,
@@ -133,6 +180,10 @@ def createMergeTrafficTable(String projectionName, Sql sql){
     sql.execute(mergeTrafficSql)
     logger.info("Inserted $sql.updateCount rows in $trafficOutputTableName")
     return trafficOutputTableName
+}
+
+static Map getSRIDFromTableExtensionName() {
+    return  ["hexa": 2154, "guad": 5490, "guya": 2972, "mart": 5490, "reun": 2975]
 }
 
 @CompileStatic
