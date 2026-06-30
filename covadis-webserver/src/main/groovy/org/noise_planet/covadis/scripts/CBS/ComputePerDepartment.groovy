@@ -10,8 +10,8 @@ import org.slf4j.LoggerFactory
 import javax.sql.DataSource
 import java.sql.Connection
 
-title = 'Create sources table in PostGIS database'
-description = 'Create sources table in PostGIS database'
+title = 'Full NoiseModelling computation that merge all UUEID into a single result for a department'
+description = 'Full NoiseModelling computation that merge all UUEID into a single result for a department'
 
 inputs = [
         projectionName: [
@@ -21,11 +21,10 @@ inputs = [
                 allowedValues: ["hexa", "guad", "guya", "mart", "reun"],
                 type: String.class
         ] ,
-        uueid_pattern: [
-                title: "UUEID pattern",
-                name: "UUEID pattern",
-                description: "UUEID pattern on roads to extract. <p>A percent sign % - represents zero, one, or multiple characters</p>" +
-                        "<p>A underscore sign _ - represents a single character</p>",
+        department: [
+                title: "Department code",
+                name: "Department code",
+                description: "Department code (insee_dep) eg. 2A, 44, 971",
                 type: String.class
         ],
         conf: [
