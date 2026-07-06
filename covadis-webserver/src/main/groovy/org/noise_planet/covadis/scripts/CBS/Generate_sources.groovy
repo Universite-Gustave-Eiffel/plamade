@@ -89,7 +89,7 @@ def createMergeTrafficTable(String projectionName, Sql sql){
     def mergeTrafficSql = """
         DROP TABLE IF EXISTS $trafficOutputTableName;
         CREATE TABLE $trafficOutputTableName
-(the_geom public.geometry(LINESTRINGZ, ${projectionNameToProjectSRID[projectionName]}) NULL,
+(the_geom public.geometry(MULTILINESTRINGZ, ${projectionNameToProjectSRID[projectionName]}) NULL,
 id_troncon varchar NOT NULL,
 id_route varchar(50) NULL,
 lv_d int4 NULL,
