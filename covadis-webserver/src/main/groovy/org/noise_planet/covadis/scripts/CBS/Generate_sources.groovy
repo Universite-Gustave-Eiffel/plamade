@@ -131,7 +131,7 @@ temp_d numeric(11) NULL,
 temp_n numeric(11) NULL,
 temp_e numeric(11) NULL
 );
-INSERT INTO $trafficOutputTableName SELECT geom as THE_GEOM,
+INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(geom) as THE_GEOM,
         a.idtroncon as ID_TRONCON,
         a.idroute as ID_ROUTE,
         b.tmhvld as LV_D,
