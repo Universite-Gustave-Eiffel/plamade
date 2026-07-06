@@ -155,11 +155,25 @@ pos_sol varchar(20) NULL
            ELSE '03'
           END) as WAY,
          a.uueid as UUEID,
-         a.pos_sol
+         a.pos_sol AS POS_SOL,
+         d.temp_6_18 as TEMP_D,
+         d.temp_22_6 as TEMP_N,
+         d.temp_18_22 as TEMP_E
         FROM
-         cbs_uge_input.n_routier_troncon_l_$projectionName a,
-         cbs_uge_input.n_routier_trafic_$projectionName b,
-         cbs_uge_input.n_routier_vitesse_$projectionName c
+         cbs_uge_input.n_routier_troncon_l_${projectionName} a
+         CROSS JOIN LATERAL (
+            SELECT 
+                s.temp_6_18, 
+                s.temp_22_6, 
+                s.temp_18_22
+            FROM 
+                cbs_uge_input.nm_stations_${projectionName} s
+            ORDER BY 
+                s.the_geom <-> a.geom
+            LIMIT 1
+        ) AS d,
+         cbs_uge_input.n_routier_trafic_${projectionName} b,
+         cbs_uge_input.n_routier_vitesse_${projectionName} c
         WHERE
          ST_LENGTH($geometryField) > 0 and
          a.idtroncon=b.idtroncon and
