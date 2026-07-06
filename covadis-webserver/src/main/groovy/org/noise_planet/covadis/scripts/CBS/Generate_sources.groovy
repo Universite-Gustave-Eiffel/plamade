@@ -66,9 +66,9 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         // Post work on the lwTableName
         sql.execute("ALTER TABLE $lwTableName OWNER TO cbs_uge_group;" as String)
         // Fetch other fields using the primary key
-        sql.execute("ALTER TABLE $lwTableName add column uueid varchar(20) NOT NULL;" as String)
+        sql.execute("ALTER TABLE $lwTableName add column uueid varchar(20) NOT NULL DEFAULT '';" as String)
         sql.execute("UPDATE $lwTableName SET uueid = (SELECT uueid FROM $trafficTableName tf WHERE pk = tf.pk);" as String)
-        sql.execute("ALTER TABLE $lwTableName add column pos_sol varchar(20) NOT NULL;" as String)
+        sql.execute("ALTER TABLE $lwTableName add column pos_sol varchar(20) NOT NULL DEFAULT '';" as String)
         sql.execute("UPDATE $lwTableName SET pos_sol = (SELECT pos_sol FROM $trafficTableName tf WHERE pk = tf.pk);" as String)
 
         // Return results
@@ -121,7 +121,7 @@ wbv_spd_n numeric(11) NULL,
 slope float8 NULL,
 pvmt text NULL,
 way text NULL,
-uueid varchar(20) NULL,
+uueid varchar(20) NOT NULL,
 pos_sol varchar(20) NULL,
 temp_d numeric(11) NULL,
 temp_n numeric(11) NULL,
