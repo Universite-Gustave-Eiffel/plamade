@@ -126,8 +126,8 @@ pos_sol varchar(20) NULL,
 temp_d numeric(11) NULL,
 temp_n numeric(11) NULL,
 temp_e numeric(11) NULL
-)
- AS SELECT geom as THE_GEOM,
+);
+INSERT INTO $trafficOutputTableName SELECT geom as THE_GEOM,
         a.idtroncon as ID_TRONCON,
         a.idroute as ID_ROUTE,
         b.tmhvld as LV_D,
@@ -189,6 +189,58 @@ temp_e numeric(11) NULL
         CREATE UNIQUE INDEX ON $trafficOutputTableName (ID_TRONCON);
         CREATE INDEX ON $trafficOutputTableName USING GIST(THE_GEOM);
         ALTER TABLE $trafficOutputTableName OWNER TO cbs_uge_group;
+
+        COMMENT ON COLUMN ${trafficOutputTableName}.id_troncon IS 'Identifiant unique du tronçon (PK)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.id_route IS 'Identifiant de la route parente';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.lv_d IS 'Hourly average light vehicle count (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.lv_e IS 'Hourly average light vehicle count (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.lv_n IS 'Hourly average light vehicle count (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.mv_d IS 'Hourly average medium heavy vehicles, delivery vans > 3.5 tons, buses, etc. (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.mv_e IS 'Hourly average medium heavy vehicles, delivery vans > 3.5 tons, buses, etc. (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.mv_n IS 'Hourly average medium heavy vehicles, delivery vans > 3.5 tons, buses, etc. (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.hgv_d IS 'Hourly average heavy duty vehicles, touring cars, buses, with 3+ axles (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.hgv_e IS 'Hourly average heavy duty vehicles, touring cars, buses, with 3+ axles (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.hgv_n IS 'Hourly average heavy duty vehicles, touring cars, buses, with 3+ axles (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.wav_d IS 'Hourly average mopeds, tricycles or quads ≤ 50 cc count (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wav_e IS 'Hourly average mopeds, tricycles or quads ≤ 50 cc count (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wav_n IS 'Hourly average mopeds, tricycles or quads ≤ 50 cc count (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.wbv_d IS 'Hourly average motorcycles, tricycles or quads > 50 cc count (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wbv_e IS 'Hourly average motorcycles, tricycles or quads > 50 cc count (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wbv_n IS 'Hourly average motorcycles, tricycles or quads > 50 cc count (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.lv_spd_d IS 'Hourly average light vehicle speed (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.lv_spd_e IS 'Hourly average light vehicle speed (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.lv_spd_n IS 'Hourly average light vehicle speed (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.mv_spd_d IS 'Hourly average medium heavy vehicles speed (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.mv_spd_e IS 'Hourly average medium heavy vehicles speed (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.mv_spd_n IS 'Hourly average medium heavy vehicles speed (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.hgv_spd_d IS 'Hourly average heavy duty vehicles speed (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.hgv_spd_e IS 'Hourly average heavy duty vehicles speed (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.hgv_spd_n IS 'Hourly average heavy duty vehicles speed (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.wav_spd_d IS 'Hourly average mopeds, tricycles or quads ≤ 50 cc speed (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wav_spd_e IS 'Hourly average mopeds, tricycles or quads ≤ 50 cc speed (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wav_spd_n IS 'Hourly average mopeds, tricycles or quads ≤ 50 cc speed (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.wbv_spd_d IS 'Hourly average motorcycles, tricycles or quads > 50 cc speed (6-18h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wbv_spd_e IS 'Hourly average motorcycles, tricycles or quads > 50 cc speed (18-22h)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.wbv_spd_n IS 'Hourly average motorcycles, tricycles or quads > 50 cc speed (22-6h)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.slope IS 'Slope (in %) of the road section';
+        COMMENT ON COLUMN ${trafficOutputTableName}.pvmt IS 'CNOSSOS road pavement identifier (ex: NL05)(default NL08)';
+        COMMENT ON COLUMN ${trafficOutputTableName}.way IS 'Traffic flow: 1=One way (with slope), 2=One way (inverse slope), 3=Bi-directional';
+        COMMENT ON COLUMN ${trafficOutputTableName}.pos_sol IS 'Position index relative to the ground (ex: -5 to +5)';
+        
+        COMMENT ON COLUMN ${trafficOutputTableName}.temp_d IS 'Temperature Day (6-18h) from nearest station';
+        COMMENT ON COLUMN ${trafficOutputTableName}.temp_e IS 'Temperature Evening (18-22h) from nearest station';
+        COMMENT ON COLUMN ${trafficOutputTableName}.temp_n IS 'Temperature Night (22-6h) from nearest station';
         """ as String
 
     // Run query on external database
