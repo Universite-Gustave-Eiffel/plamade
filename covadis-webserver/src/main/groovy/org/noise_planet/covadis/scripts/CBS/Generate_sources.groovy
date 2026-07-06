@@ -81,7 +81,6 @@ def createMergeTrafficTable(String projectionName, Sql sql){
 
     def trafficOutputTableName = "cbs_uge_output.routier_trafic_$projectionName"
     Object projectionNameToProjectSRID = getSRIDFromTableExtensionName()
-    def geometryField = "geom${projectionNameToProjectSRID[projectionName]}"
 
     def mergeTrafficSql = """
         DROP TABLE IF EXISTS $trafficOutputTableName;
@@ -123,9 +122,12 @@ slope float8 NULL,
 pvmt text NULL,
 way text NULL,
 uueid varchar(20) NULL,
-pos_sol varchar(20) NULL
+pos_sol varchar(20) NULL,
+temp_d numeric(11) NULL,
+temp_n numeric(11) NULL,
+temp_e numeric(11) NULL
 )
- AS SELECT $geometryField as THE_GEOM,
+ AS SELECT geom as THE_GEOM,
         a.idtroncon as ID_TRONCON,
         a.idroute as ID_ROUTE,
         b.tmhvld as LV_D,
@@ -148,7 +150,7 @@ pos_sol varchar(20) NULL
          c.vitessepl as HGV_SPD_D, c.vitessepl as HGV_SPD_E, c.vitessepl as HGV_SPD_N,
          c.vitesse4a as WAV_SPD_D, c.vitesse4a as WAV_SPD_E, c.vitesse4a as WAV_SPD_N,
          c.vitesse4b as WBV_SPD_D, c.vitesse4b as WBV_SPD_E, c.vitesse4b as WBV_SPD_N,
-         ROUND((a.zfin-a.zdeb)/ ST_LENGTH(a.$geometryField)*100) as SLOPE,
+         ROUND((a.zfin-a.zdeb)/ ST_LENGTH(a.geom)*100) as SLOPE,
          'FR_R2' as PVMT,
          (CASE  WHEN a.sens = '01' THEN '01'
            WHEN a.sens = '02' THEN '02'
@@ -175,7 +177,7 @@ pos_sol varchar(20) NULL
          cbs_uge_input.n_routier_trafic_${projectionName} b,
          cbs_uge_input.n_routier_vitesse_${projectionName} c
         WHERE
-         ST_LENGTH($geometryField) > 0 and
+         ST_LENGTH(geom) > 0 and
          a.idtroncon=b.idtroncon and
          b.idtroncon=c.idtroncon and
          b.tmhvld >= 0 AND b.tmhvls >= 0 AND b.tmhvln >= 0 AND
