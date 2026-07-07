@@ -1,16 +1,9 @@
 package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
-import groovy.transform.CompileStatic
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.functions.spatial.edit.ST_UpdateZ
-import org.h2gis.utilities.*
-import org.h2gis.utilities.dbtypes.DBTypes
-import org.h2gis.utilities.dbtypes.DBUtils
-import org.h2gis.utilities.wrapper.ConnectionWrapper
+import org.h2gis.utilities.JDBCUtilities
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
-import org.noise_planet.noisemodelling.jdbc.EmissionTableGenerator
-import org.noise_planet.noisemodelling.pathfinder.utils.AcousticIndicatorsFunctions
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Road_Emission_from_Traffic
 import org.noise_planet.noisemodelling.webserver.utilities.Logging
 import org.slf4j.Logger
@@ -18,9 +11,6 @@ import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
 import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.util.stream.Collectors
 
 title = 'Create sources table in PostGIS database'
 description = 'Create sources table in PostGIS database'
