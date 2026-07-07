@@ -11,6 +11,7 @@ import org.h2gis.utilities.wrapper.ConnectionWrapper
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.noisemodelling.jdbc.EmissionTableGenerator
 import org.noise_planet.noisemodelling.pathfinder.utils.AcousticIndicatorsFunctions
+import org.noise_planet.noisemodelling.scripts.NoiseModelling.Road_Emission_from_Traffic
 import org.noise_planet.noisemodelling.webserver.utilities.Logging
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -61,7 +62,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
         // Create EMISSION TABLE
         def lwTableName = "cbs_uge_output.routier_emission_$projectionName"
-        createLWRoads(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName], progress)
+        new Road_Emission_from_Traffic().exec(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName], progress)
 
         // Post work on the lwTableName
         sql.execute("ALTER TABLE $lwTableName OWNER TO cbs_uge_group;" as String)
@@ -89,7 +90,7 @@ def createMergeTrafficTable(String projectionName, Sql sql){
     def mergeTrafficSql = """
         DROP TABLE IF EXISTS $trafficOutputTableName;
         CREATE TABLE $trafficOutputTableName
-(the_geom public.geometry(MULTILINESTRINGZ, ${projectionNameToProjectSRID[projectionName]}) NULL,
+(the_geom public.geometry(LINESTRINGZ, ${projectionNameToProjectSRID[projectionName]}) NOT NULL,
 id_troncon varchar NOT NULL,
 id_route varchar(50) NULL,
 lv_d int4 NULL,
@@ -131,7 +132,7 @@ temp_d numeric(11) NULL,
 temp_n numeric(11) NULL,
 temp_e numeric(11) NULL
 );
-INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(geom) as THE_GEOM,
+INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as THE_GEOM,
         a.idtroncon as ID_TRONCON,
         a.idroute as ID_ROUTE,
         b.tmhvld as LV_D,
@@ -257,203 +258,4 @@ INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(geom) as THE_GEOM,
 
 static Map getSRIDFromTableExtensionName() {
     return  ["hexa": 2154, "guad": 5490, "guya": 2972, "mart": 5490, "reun": 2975]
-}
-
-@CompileStatic
-def createLWRoads(Connection connection, Map input, ProgressVisitor progress) {
-
-    int coefficientVersion =  input.getOrDefault("coefficientVersion",2) as Integer
-
-
-    DBTypes dbType = DBUtils.getDBType(connection)
-
-    def outputTableName = TableLocation.capsIdentifier(input.getOrDefault("outputTable", "lw_roads") as String, dbType)
-
-    //Need to change the ConnectionWrapper to WpsConnectionWrapper to work under postGIS database
-    if(!connection.isWrapperFor(ConnectionWrapper.class)) {
-        connection = new ConnectionWrapper(connection)
-    }
-
-    // output string, the information given back to the user
-    String resultString = null
-
-    // Create a logger to display messages in the geoserver logs and in the command prompt.
-    Logger logger = LoggerFactory.getLogger("org.noise_planet.noisemodelling")
-
-    // print to command window
-    logger.info('Start : Road Emission from DEN')
-    logger.info("inputs {}", input) // log inputs of the run
-
-
-    // -------------------
-    // Get every inputs
-    // -------------------
-
-    String sources_table_name = input['tableRoads']
-    TableLocation sourceTableIdentifier = TableLocation.parse(sources_table_name, dbType)
-
-    // do it case-insensitive
-    sources_table_name = sources_table_name.toUpperCase()
-
-    //Get optional geometry field of the source table
-    List<String> geomFields = GeometryTableUtilities.getGeometryColumnNames(connection, sourceTableIdentifier)
-
-    //Get the primary key field of the source table
-    Tuple<String, Integer> primaryKeyColumn = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(connection, TableLocation.parse( sources_table_name, dbType))
-
-    // -------------------
-    // Init table LW_ROADS
-    // -------------------
-
-    // Create a sql connection to interact with the database in SQL
-    Sql sql = new Sql(connection)
-
-    def lowerCaseColumnNames = JDBCUtilities.getColumnNames(connection, sourceTableIdentifier).stream()
-            .map { it.toLowerCase() }
-            .collect(Collectors.toList())
-
-    // If there is a period field, it means that we will not found the D E N fields before traffic fields names
-    boolean hasPeriodField = lowerCaseColumnNames.contains("period")
-    boolean hasIdSourceField = lowerCaseColumnNames.contains("idsource")
-
-    // drop table LW_ROADS if exists and the create and prepare the table
-    sql.execute("drop table if exists $outputTableName;" as String)
-
-    // Use lists to collect the column definitions and column names
-    def createDefinitions = []
-    def columnNames = []
-
-    if (primaryKeyColumn != null) {
-        def pkName = primaryKeyColumn.first()
-        createDefinitions << "${pkName} integer not null"
-        columnNames << pkName
-    }
-
-    if (hasIdSourceField) {
-        createDefinitions << "IDSOURCE integer"
-        columnNames << "IDSOURCE"
-    }
-
-    if (geomFields.size() > 0) {
-        def geomName = geomFields.get(0)
-        columnNames << geomName
-
-        def tupMeta = GeometryTableUtilities.getFirstColumnMetaData(connection, sourceTableIdentifier)
-        if (tupMeta != null) {
-            tupMeta.second().setHasZ(true)
-            createDefinitions << "$geomName ${tupMeta.second().SQL}"
-            logger.warn("The geometry field ${geomName} z value will be forced to 0.05m height.")
-        }
-    }
-
-    if (!hasPeriodField) {
-        ["D", "E", "N"].each { period ->
-            ["63", "125", "250", "500", "1000", "2000", "4000", "8000"].each { freq ->
-                def col = "HZ${period}${freq}"
-                createDefinitions << "${col} double precision"
-                columnNames << col
-            }
-        }
-    } else {
-        createDefinitions << "PERIOD varchar"
-        columnNames << "PERIOD"
-
-        ["63", "125", "250", "500", "1000", "2000", "4000", "8000"].each { freq ->
-            def col = "HZ${freq}"
-            createDefinitions << "${col} double precision"
-            columnNames << col
-        }
-    }
-
-    // 1. Create the Table Query
-    // join() adds commas only between elements
-    def createTableQuery = "CREATE TABLE $outputTableName (${createDefinitions.join(", ")});"
-    sql.execute(createTableQuery as String)
-
-    // 2. Prepared Insert Query
-    int fieldCount = columnNames.size()
-    // Create a list of '?' characters equal to the number of fields
-    def placeholders = (["?"] * fieldCount).join(", ")
-
-    def qry = "INSERT INTO $outputTableName (" + columnNames.join(", ") + ") VALUES (" + placeholders + ");"
-
-    // --------------------------------------
-    // Start calculation and fill the table
-    // --------------------------------------
-
-    // Get size of the table (number of road segments
-    PreparedStatement st = connection.prepareStatement("SELECT COUNT(*) AS total FROM " + sources_table_name)
-    ResultSet rs1 = st.executeQuery().unwrap(ResultSet.class)
-    int nbRoads = 0
-    while (rs1.next()) {
-        nbRoads = rs1.getInt("total")
-        logger.info('The table '+sources_table_name+' has ' + nbRoads + ' lines.')
-    }
-    ProgressVisitor subProgress = progress.subProcess(nbRoads)
-
-    sql.withBatch(100, qry) { ps ->
-        st = connection.prepareStatement("SELECT * FROM " + sources_table_name)
-        st.setFetchSize(500);
-        st.setFetchDirection(ResultSet.FETCH_FORWARD)
-        SpatialResultSet rs = st.executeQuery().unwrap(SpatialResultSet.class)
-
-        Map<String, Integer> sourceFieldsCache = new HashMap<>()
-        while (rs.next() && !progress.isCanceled()) {
-            List<Object> parameters = new ArrayList<>()
-            if(primaryKeyColumn != null) {
-                parameters.add(rs.getInt(primaryKeyColumn.first()))
-            }
-            if(hasIdSourceField) {
-                parameters.add(rs.getInt("IDSOURCE"))
-            }
-            if(geomFields.size() > 0) {
-                parameters.add(ST_UpdateZ.updateZ(rs.getGeometry(geomFields.get(0)), 0.05d))
-            }
-            if(hasPeriodField) {
-                parameters.add(rs.getString("PERIOD"))
-                // Slope value will be overwritten if the slope field is present
-                double slope = EmissionTableGenerator.getSlope(rs)
-                double[] emissionValues = EmissionTableGenerator.getEmissionFromTrafficTable(rs, "", slope, coefficientVersion, sourceFieldsCache)
-                for(double val : emissionValues) {
-                    parameters.add(val)
-                }
-            } else {
-                double[][] results = EmissionTableGenerator.computeLw(rs, coefficientVersion, sourceFieldsCache)
-                def lday = AcousticIndicatorsFunctions.wToDb(results[0])
-                def levening = AcousticIndicatorsFunctions.wToDb(results[1])
-                def lnight = AcousticIndicatorsFunctions.wToDb(results[2])
-                for(def val : lday) {
-                    parameters.add(val)
-                }
-                for(def val : levening) {
-                    parameters.add(val)
-                }
-                for(def val : lnight) {
-                    parameters.add(val)
-                }
-            }
-            ps.addBatch(parameters)
-            subProgress.endStep()
-        }
-    }
-
-    if(primaryKeyColumn != null) {
-        // Set primary key to the road table
-        sql.execute("ALTER TABLE $outputTableName ADD PRIMARY KEY (${primaryKeyColumn.first()});  " as String)
-    }
-
-    // Create spatial index
-    if(geomFields.size() > 0) {
-        logger.info("Create spatial index on the geometry field ${geomFields.get(0)}")
-        JDBCUtilities.createSpatialIndex(connection, TableLocation.parse(outputTableName, dbType), geomFields.get(0))
-    }
-
-    resultString = "Calculation Done ! The table $outputTableName has been created."
-
-    // print to command window
-    logger.info('\nResult : ' + resultString)
-    logger.info("End : $outputTableName from Emission")
-
-    // print to WPS Builder
-    return [result: outputTableName]
 }
