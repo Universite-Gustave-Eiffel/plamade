@@ -54,7 +54,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     def postgisConfig = h2sql.firstRow("SELECT * FROM POSTGIS_CONFIGURATION")
 
     def mainConfiguration = [:]
-    Envelope computationEnvelope = new Envelope()
+    Geometry extractionEnvelopeGeometry = null
     try (DataSource dataSource = PostGISUtilities.createPostgisDataSource(
             postgisConfig['user_name'] as String,
             postgisConfig['password'] as String,
@@ -83,15 +83,45 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         //	CONSTRAINT nm_conf_pkey PRIMARY KEY (confid)
         //);
         mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}")
-        def res = sql.firstRow("""SELECT 
-             st_expand(st_envelope(st_collect(the_geom)), ${mainConfiguration.confmaxsrcdist + mainConfiguration.confmaxrefldist}) geomenv
-             FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg WHERE uueid LIKE '${input.uueid_pattern}';""" as String)
-        if(res == null) {
-            throw new IllegalArgumentException("No match for the provided uueid pattern uueid LIKE '${input.uueid_pattern}'")
+
+        List<String> uueids = new ArrayList<>()
+        sql.rows("SELECT DISTINCT uueid from cbs_uge_output.routier_emission_${input.projectionName}" as String).each {
+            row ->
+                uueids.add(row.uueid as String)
         }
-        computationEnvelope = (res.geomenv as Geometry).getEnvelopeInternal()
+        ProgressVisitor stepsProgress = progress.subProcess(uueids.size()) // long running sub tasks
+
+        if(uueids.isEmpty()) {
+            throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}")
+        }
+
+        uueids.each {
+            computeForUUEID(it, connection, pgConnection, stepsProgress, input, mainConfiguration)
+        }
 
         // Return results
         return [result : "OK"]
     }
+
+
+}
+
+def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration) {
+    ProgressVisitor stepsProgress = progress.subProcess(3) // long running sub tasks
+    def pgSql = new Sql(pgConnection)
+    def res = pgSql.firstRow("""SELECT 
+             st_simplify(st_buffer(st_convexhull(st_collect(the_geom)), ${mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
+             FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg WHERE uueid LIKE '$uueid';""" as String)
+    if(res == null) {
+        throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
+    }
+    def extractionEnvelopeGeometry = res.geomenv as Geometry
+
+    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, b.pop_bat as pop
+             FROM cbs_uge_input.c_batiment_s_${input.projectionName} b 
+                INNER JOIN cbs_uge_input.c_population_${input.projectionName} p ON b.idbat = c.idbat  
+             WHERE ST_Intersect(geom3d, '$extractionEnvelopeGeometry'::geometry)"""
+
+    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($tableQuery)" as String, tableName: "BUILDINGS_GEOM"], stepsProgress)
+
 }

@@ -43,7 +43,7 @@ inputs = [
                 title        : 'Intermediate file format',
                 description  : 'This function will first write the content of the table using this file format, for non geometric table you should switch to dbf or json format',
                 allowedValues: ["shp", "fgb", "dbf", "json", "geojson"],
-                default      : 'fgb',
+                default      : 'geojson',
                 type         : String.class
         ],
         ifTableExists: [
@@ -101,5 +101,5 @@ static def encodeLongToBase32(long number) {
     byte[] bytes = buffer.array();
 
     Base32 base32 = new Base32();
-    return base32.encodeToString(bytes);
+    return base32.encodeToString(bytes).replace("=", "");
 }
