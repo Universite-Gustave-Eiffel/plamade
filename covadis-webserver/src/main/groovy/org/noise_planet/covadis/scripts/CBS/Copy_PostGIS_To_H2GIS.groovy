@@ -78,8 +78,9 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         logger.info("Connected to PostgreSQL database")
         ProgressVisitor importProgress = progress.subProcess(2)
         File tempDir = File.createTempDir("nmcbs")
+        def fileExtension = input.getOrDefault("intermediateFileFormat", "geojson")
         File tempFile = new File(
-                tempDir, "${encodeLongToBase32(System.currentTimeMillis())}.${input.intermediateFileFormat}")
+                tempDir, "${encodeLongToBase32(System.currentTimeMillis())}.${fileExtension}")
         // Export the PostGIS table to a local file
         new Export_Table().exec(pgConnection, [exportPath: tempFile.absolutePath, tableToExport: input.tableToExport],
                 importProgress)
