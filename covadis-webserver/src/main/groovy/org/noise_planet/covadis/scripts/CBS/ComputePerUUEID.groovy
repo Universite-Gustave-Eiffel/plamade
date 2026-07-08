@@ -3,10 +3,7 @@ package org.noise_planet.covadis.scripts.CBS
 import groovy.sql.Sql
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
-import org.locationtech.jts.geom.Envelope
 import org.locationtech.jts.geom.Geometry
-import org.locationtech.jts.geom.GeometryFactory
-import org.locationtech.jts.geom.Polygon
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -28,7 +25,7 @@ inputs = [
         uueid_pattern: [
                 title: "UUEID pattern",
                 name: "UUEID pattern",
-                description: "UUEID pattern on roads to extract. <p>A percent sign % - represents zero, one, or multiple characters</p>" +
+                description: "UUEID pattern on roads to extract. eg. RD_FR_00_044% <p>A percent sign % - represents zero, one, or multiple characters</p>" +
                         "<p>A underscore sign _ - represents a single character</p>",
                 type: String.class
         ],
@@ -82,10 +79,10 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         //	wall_alpha float4 NULL,
         //	CONSTRAINT nm_conf_pkey PRIMARY KEY (confid)
         //);
-        mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}")
+        mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}" as String)
 
         List<String> uueids = new ArrayList<>()
-        sql.rows("SELECT DISTINCT uueid from cbs_uge_output.routier_emission_${input.projectionName}" as String).each {
+        sql.rows("SELECT DISTINCT uueid from cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '${input.uueid_pattern}'" as String).each {
             row ->
                 uueids.add(row.uueid as String)
         }
@@ -109,6 +106,10 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration) {
     ProgressVisitor stepsProgress = progress.subProcess(3) // long running sub tasks
     def pgSql = new Sql(pgConnection)
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Computing for UUEID: $uueid")
+
+    // Compute envelope of the simulation
     def res = pgSql.firstRow("""SELECT 
              st_simplify(st_buffer(st_convexhull(st_collect(the_geom)), ${mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
              FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg WHERE uueid LIKE '$uueid';""" as String)
@@ -117,11 +118,41 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     }
     def extractionEnvelopeGeometry = res.geomenv as Geometry
 
-    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, b.pop_bat as pop
-             FROM cbs_uge_input.c_batiment_s_${input.projectionName} b 
-                INNER JOIN cbs_uge_input.c_population_${input.projectionName} p ON b.idbat = c.idbat  
-             WHERE ST_Intersect(geom3d, '$extractionEnvelopeGeometry'::geometry)"""
+    processBuildings(input, extractionEnvelopeGeometry, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
-    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($tableQuery)" as String, tableName: "BUILDINGS_GEOM"], stepsProgress)
-
+    processRoads(input, uueid, h2Connection, stepsProgress)
 }
+
+def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch roads..")
+    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid'"""
+    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($roadsQuery)" as String, tableName: "LW_ROADS"], stepsProgress)
+}
+
+def processBuildings(Map input, Geometry extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch buildings..")
+    def projectionName=input.projectionName
+    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, p.pop_bat as pop
+             FROM cbs_uge_input.c_batiment_s_${projectionName} b 
+                INNER JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
+             WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry)"""
+
+    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($tableQuery)" as String, tableName: "BUILDINGS"], stepsProgress)
+
+    Sql sql = new Sql(h2Connection)
+    sql.execute("""ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;""" as String)
+
+    def erpsQuery = """SELECT idbat, b.erps_nature from cbs_uge_input.c_batimentsensible_${projectionName} b, cbs_uge_input.c_correspond_batiment_batimentsensible_${projectionName} a  WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry) AND a.iderps = b.iderps"""
+
+    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS"], stepsProgress)
+
+    def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
+
+    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($noiseBarrierQuery)" as String, tableName: "BUILDINGS_BARRIERS"], stepsProgress)
+
+    sql.execute("""INSERT INTO BUILDINGS(the_geom, height) SELECT the_geom, height from BUILDINGS_BARRIERS""")
+}
+
+
