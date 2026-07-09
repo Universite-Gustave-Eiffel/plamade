@@ -7,6 +7,7 @@ import org.h2gis.functions.spatial.convert.ST_AsWKT
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
+import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -132,7 +133,7 @@ def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisit
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
     def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid'"""
-    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($roadsQuery)" as String, tableName: "LW_ROADS"], stepsProgress)
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadsQuery)" as String, tableName: "LW_ROADS"], stepsProgress)
 }
 
 def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
@@ -144,20 +145,25 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
                 INNER JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
              WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry)"""
 
-    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($tableQuery)" as String, tableName: "BUILDINGS"], stepsProgress)
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($tableQuery)" as String, tableName: "BUILDINGS"], stepsProgress)
 
     Sql sql = new Sql(h2Connection)
     sql.execute("""ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;""" as String)
 
     def erpsQuery = """SELECT idbat, b.erps_nature from cbs_uge_input.c_batimentsensible_${projectionName} b, cbs_uge_input.c_correspond_batiment_batimentsensible_${projectionName} a  WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry) AND a.iderps = b.iderps"""
 
-    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS", intermediateFileFormat : "json"], stepsProgress)
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS", intermediateFileFormat : "json"], stepsProgress)
 
     def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
-    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($noiseBarrierQuery)" as String, tableName: "BUILDINGS_BARRIERS"], stepsProgress)
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($noiseBarrierQuery)" as String, tableName: "BUILDINGS_BARRIERS"], stepsProgress)
 
     sql.execute("""INSERT INTO BUILDINGS(the_geom, height) SELECT the_geom, height from BUILDINGS_BARRIERS""")
 }
 
-
+//static Object execScript(Script script, Connection connection, Map inputs, ProgressVisitor progress) {
+//    Logger logger = LoggerFactory.getLogger(this.class)
+//    inputs = ScriptUtilities.fillDefaultValues(script.class, inputs);
+//    logger.info("Run script: {} with inputs {}", script.getClass().getSimpleName(), inputs);
+//    script.exec(connection, inputs, progress)
+//}

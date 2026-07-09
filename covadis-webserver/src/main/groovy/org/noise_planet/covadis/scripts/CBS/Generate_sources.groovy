@@ -1,9 +1,11 @@
 package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
+import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
+import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Road_Emission_from_Traffic
 import org.noise_planet.noisemodelling.webserver.utilities.Logging
 import org.slf4j.Logger
@@ -239,10 +241,9 @@ INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(ST_CollectionHomogenize(g
         COMMENT ON COLUMN ${trafficOutputTableName}.temp_n IS 'Temperature Night (22-6h) from nearest station';
         """ as String
 
-    // Run query on external database
-    logger.info("Execute {}", mergeTrafficSql)
-    sql.execute(mergeTrafficSql)
-    logger.info("Inserted $sql.updateCount rows in $trafficOutputTableName")
+    new Execute_Query().exec(sql.connection,
+            Map.of("sqlQueries", mergeTrafficSql, "outputFormat", "json"),
+            new EmptyProgressVisitor());
     return trafficOutputTableName
 }
 
