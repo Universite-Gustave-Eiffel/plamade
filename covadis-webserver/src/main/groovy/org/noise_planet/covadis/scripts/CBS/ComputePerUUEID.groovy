@@ -1,7 +1,9 @@
 package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
+import org.h2.value.ValueGeometry
 import org.h2gis.api.ProgressVisitor
+import org.h2gis.functions.spatial.convert.ST_AsWKT
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
@@ -116,7 +118,10 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     if(res == null) {
         throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
     }
-    def extractionEnvelopeGeometry = res.geomenv as Geometry
+
+    def extractionEnvelopeGeometry = ValueGeometry.getFromGeometry(res.geomenv as Geometry).string
+
+    logger.info("SRID: {}", (res.geomenv as Geometry).getSRID())
 
     processBuildings(input, extractionEnvelopeGeometry, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
@@ -130,7 +135,7 @@ def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisit
     new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($roadsQuery)" as String, tableName: "LW_ROADS"], stepsProgress)
 }
 
-def processBuildings(Map input, Geometry extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
+def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
     def projectionName=input.projectionName
