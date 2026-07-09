@@ -33,24 +33,27 @@ public class TestCBSScript extends JDBCTestCase {
     DataSource pgDataSource;
     boolean forceRecreateData = true;
 
-    @Test
-    @Order(1)
-    public void initDb() throws SQLException, IOException {
-        assumePostGISAvailable();
-        // Initialize database for non-H2GIS databases
-        pgDataSource = getPostGISDatasourceFromEnv();
-        try (Connection pgConnection = pgDataSource.getConnection()) {
-            // Check if the schema cbs_uge_output exists:
-            Statement statement = pgConnection.createStatement();
-            try (ResultSet rs = statement.executeQuery("SELECT * FROM information_schema.schemata WHERE schema_name = 'cbs_uge_input'")) {
-                if (forceRecreateData || !rs.next()) {
-                    // Schema does not exist
-                    runSqlFile(pgConnection, "database/cbs_structure.sql");
-                    runSqlFile(pgConnection, "database/c_batiment_s_hexa.sql.zip");
 
-                }
-            }
-        }
+    @BeforeEach
+    public void writePgConfigurationInH2MemDb() throws SQLException {
+        assumePostGISAvailable();
+        String pgUser = Optional.ofNullable(System.getenv("POSTGRES_USER")).orElse("noisemodelling");
+        String pgPass = Optional.ofNullable(System.getenv("POSTGRES_PASSWORD")).orElse("noisemodelling");
+        String pgPort = Optional.ofNullable(System.getenv("POSTGRES_PORT")).orElse("5432");
+        String pgDb = Optional.ofNullable(System.getenv("POSTGRES_DB")).orElse("noisemodelling_db");
+        String pgHost = Optional.ofNullable(System.getenv("POSTGRES_HOST")).orElse("localhost");
+        new Write_PostGIS_Settings().exec(connection, Map.of(
+                "pgUser", pgUser,
+                "pgPassword", pgPass,
+                "pgPort", pgPort,
+                "pgDatabase", pgDb,
+                "pgHost", pgHost));
+        assertTrue(JDBCUtilities.tableExists(connection, "POSTGIS_CONFIGURATION"));
+    }
+
+    private static void assumePostGISAvailable() {
+        String pgHost = System.getenv("POSTGRES_HOST");
+        Assumptions.assumeTrue(pgHost != null && !pgHost.isEmpty(), "POSTGRES_HOST is not defined, skipping PostGIS test");
     }
 
     private static void runSqlFile(Connection pgConnection, String sqlPath) throws IOException {
@@ -86,33 +89,31 @@ public class TestCBSScript extends JDBCTestCase {
         }
     }
 
-    @BeforeEach
-    public void testWritePostGISConfiguration() throws SQLException {
+    @Test
+    @Order(1)
+    public void initDb() throws SQLException, IOException {
         assumePostGISAvailable();
-        String pgUser = Optional.ofNullable(System.getenv("POSTGRES_USER")).orElse("noisemodelling");
-        String pgPass = Optional.ofNullable(System.getenv("POSTGRES_PASSWORD")).orElse("noisemodelling");
-        String pgPort = Optional.ofNullable(System.getenv("POSTGRES_PORT")).orElse("5432");
-        String pgDb = Optional.ofNullable(System.getenv("POSTGRES_DB")).orElse("noisemodelling_db");
-        String pgHost = Optional.ofNullable(System.getenv("POSTGRES_HOST")).orElse("localhost");
-        new Write_PostGIS_Settings().exec(connection, Map.of(
-                "pgUser", pgUser,
-                "pgPassword", pgPass,
-                "pgPort", pgPort,
-                "pgDatabase", pgDb,
-                "pgHost", pgHost));
-        assertTrue(JDBCUtilities.tableExists(connection, "POSTGIS_CONFIGURATION"));
-    }
+        // Initialize database for non-H2GIS databases
+        pgDataSource = getPostGISDatasourceFromEnv();
+        try (Connection pgConnection = pgDataSource.getConnection()) {
+            // Check if the schema cbs_uge_output exists:
+            Statement statement = pgConnection.createStatement();
+            try (ResultSet rs = statement.executeQuery("SELECT * FROM information_schema.schemata WHERE schema_name = 'cbs_uge_input'")) {
+                if (forceRecreateData || !rs.next()) {
+                    // Schema does not exist
+                    runSqlFile(pgConnection, "database/cbs_structure.sql");
+                    runSqlFile(pgConnection, "database/nm_conf.sql");
+                    runSqlFile(pgConnection, "database/c_batiment_s_hexa.sql.zip");
 
+                }
+            }
+        }
+    }
 
     @Test
     @Order(3)
     public void testGenerateSource() {
         assumePostGISAvailable();
         ScriptUtilities.execScript(new Generate_sources(), connection, Map.of("projectionName", "hexa"));
-    }
-
-    private static void assumePostGISAvailable() {
-        String pgHost = System.getenv("POSTGRES_HOST");
-        Assumptions.assumeTrue(pgHost != null && !pgHost.isEmpty(), "POSTGRES_HOST is not defined, skipping PostGIS test");
     }
 }
