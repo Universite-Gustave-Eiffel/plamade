@@ -151,7 +151,7 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
 
     def erpsQuery = """SELECT idbat, b.erps_nature from cbs_uge_input.c_batimentsensible_${projectionName} b, cbs_uge_input.c_correspond_batiment_batimentsensible_${projectionName} a  WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry) AND a.iderps = b.iderps"""
 
-    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS"], stepsProgress)
+    new Copy_PostGIS_To_H2GIS().exec(h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS", intermediateFileFormat : "json"], stepsProgress)
 
     def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
