@@ -1,12 +1,15 @@
 package org.noise_planet.covadis.webserver;
 
 
+import org.h2.util.ScriptReader;
+import org.h2.util.StringUtils;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.CBS.Generate_sources;
 import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
@@ -17,6 +20,7 @@ import javax.sql.DataSource;
 import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.net.URL;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -58,7 +62,7 @@ public class TestCBSScript extends JDBCTestCase {
         Assumptions.assumeTrue(pgHost != null && !pgHost.isEmpty(), "POSTGRES_HOST is not defined, skipping PostGIS test");
     }
 
-    private static void runSqlFile(Connection pgConnection, String sqlPath) throws IOException {
+    private static void runSqlFile(Connection pgConnection, String sqlPath) throws IOException, SQLException {
         URL scriptUrl = TestCBSScript.class.getResource(sqlPath);
         // Read content
         String file = scriptUrl.getFile();
@@ -74,9 +78,7 @@ public class TestCBSScript extends JDBCTestCase {
                     // Process sql file
                     if(!entry.isDirectory()) {
                         String sql = new String(zipInputStream.readAllBytes());
-                        new Execute_Query().exec(pgConnection,
-                                Map.of("sqlQueries", sql, "outputFormat", "json"),
-                                new EmptyProgressVisitor());
+                        executeScript(pgConnection, sql);
                     }
                     entry = zipInputStream.getNextEntry();
                 }
@@ -84,10 +86,21 @@ public class TestCBSScript extends JDBCTestCase {
         } else {
             try (FileReader fileReader = new FileReader(file)){
                 String sql = fileReader.readAllAsString();
-                new Execute_Query().exec(pgConnection,
-                        Map.of("sqlQueries", sql, "outputFormat", "json"),
-                        new EmptyProgressVisitor());
+                executeScript(pgConnection, sql);
             }
+        }
+    }
+
+    private static void executeScript(Connection connection, String script) throws SQLException {
+
+        ScriptReader scriptReader = new ScriptReader(new StringReader(script));
+        scriptReader.setSkipRemarks(true);
+
+        String statement = scriptReader.readStatement();
+        Statement stmt = connection.createStatement();
+        while (statement != null && !StringUtils.isWhitespaceOrEmpty(statement)) {
+            stmt.execute(statement);
+            statement = scriptReader.readStatement();
         }
     }
 
@@ -108,6 +121,9 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/n_routier_trafic_hexa.sql.zip");
                     runSqlFile(pgConnection, "database/n_routier_vitesse_hexa.sql.zip");
                     runSqlFile(pgConnection, "database/nm_stations_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/c_population_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/c_correspond_batiment_batimentsensible_hexa.sql");
+                    runSqlFile(pgConnection, "database/n_routier_protection_acoustique_hexa.sql");
                 }
             }
         }
@@ -122,5 +138,17 @@ public class TestCBSScript extends JDBCTestCase {
             assertEquals(12, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_trafic_hexa"));
             assertEquals(12, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_emission_hexa"));
         }
+    }
+
+    @Test
+    @Order(4)
+    public void testRunByUUEID() throws SQLException {
+        assumePostGISAvailable();
+        //RD_FR_00_0781651
+        ScriptUtilities.execScript(new ComputePerUUEID(), connection, Map.of(
+                "projectionName", "hexa",
+                "uueid_pattern", "RD_FR_00_0781651",
+                "conf", 1));
+
     }
 }

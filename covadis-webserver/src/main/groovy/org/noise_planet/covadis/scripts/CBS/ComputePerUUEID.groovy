@@ -2,12 +2,14 @@ package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
 import org.h2.value.ValueGeometry
+import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.functions.spatial.convert.ST_AsWKT
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -158,7 +160,20 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
 
     ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($noiseBarrierQuery)" as String, tableName: "BUILDINGS_BARRIERS"], stepsProgress)
 
-    sql.execute("""INSERT INTO BUILDINGS(the_geom, height) SELECT the_geom, height from BUILDINGS_BARRIERS""")
+    //remove constraint on geometry type
+    // add barriers
+    // remove Z when Z altitude is not good (will use HEIGHT field)
+    def insertBarriersSql = """
+        ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
+        INSERT INTO BUILDINGS(the_geom, height) SELECT the_geom, height from BUILDINGS_BARRIERS;
+        UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM) 
+        WHERE ST_ZMIN(THE_GEOM) < -999 
+        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0); 
+        """
+
+    new Execute_Query().exec(sql.connection,
+            Map.of("sqlQueries", insertBarriersSql, "outputFormat", "json"),
+            new EmptyProgressVisitor())
 }
 
 //static Object execScript(Script script, Connection connection, Map inputs, ProgressVisitor progress) {

@@ -303,6 +303,16 @@ CREATE TABLE cbs_uge_input.n_routier_vitesse_hexa
 );
 
 
+CREATE TABLE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa
+(
+    idcorresp character varying(32),
+    annee     character varying(4),
+    codedept  character varying(2),
+    refprod   character varying(9),
+    idbat     character varying(32),
+    iderps    character varying(32),
+    geom3d public.geometry(MultiPolygonZ,2154)
+);
 
 
 
