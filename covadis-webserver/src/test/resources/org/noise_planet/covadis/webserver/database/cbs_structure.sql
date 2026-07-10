@@ -1,6 +1,9 @@
 DROP SCHEMA IF EXISTS cbs_uge_input CASCADE;
+DROP SCHEMA IF EXISTS cbs_uge_output CASCADE;
 
-DROP OWNED BY cbs_uge_group;
+CREATE SCHEMA cbs_uge_output;
+CREATE SCHEMA cbs_uge_input;
+
 DROP ROLE IF EXISTS cbs_uge_group;
 CREATE ROLE cbs_uge_group;
 
@@ -9,9 +12,6 @@ GRANT pg_read_all_data TO cbs_uge_group;
 
 -- Grant ability to write all data
 GRANT pg_write_all_data TO cbs_uge_group;
-
-CREATE SCHEMA cbs_uge_input;
-
 
 CREATE TABLE cbs_uge_input.nm_conf
 (
@@ -302,8 +302,6 @@ CREATE TABLE cbs_uge_input.n_routier_vitesse_hexa
     vitesse4b  numeric(11, 0)
 );
 
-DROP SCHEMA IF EXISTS cbs_uge_output CASCADE;
-CREATE SCHEMA cbs_uge_output;
 
 
 
