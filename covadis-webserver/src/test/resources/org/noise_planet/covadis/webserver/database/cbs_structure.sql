@@ -1,5 +1,6 @@
 DROP SCHEMA IF EXISTS cbs_uge_input CASCADE;
 
+DROP OWNED BY cbs_uge_group;
 DROP ROLE IF EXISTS cbs_uge_group;
 CREATE ROLE cbs_uge_group;
 

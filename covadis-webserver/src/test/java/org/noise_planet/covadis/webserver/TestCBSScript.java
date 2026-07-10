@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestCBSScript extends JDBCTestCase {
@@ -37,6 +38,7 @@ public class TestCBSScript extends JDBCTestCase {
     @BeforeEach
     public void writePgConfigurationInH2MemDb() throws SQLException {
         assumePostGISAvailable();
+        pgDataSource = getPostGISDatasourceFromEnv();
         String pgUser = Optional.ofNullable(System.getenv("POSTGRES_USER")).orElse("noisemodelling");
         String pgPass = Optional.ofNullable(System.getenv("POSTGRES_PASSWORD")).orElse("noisemodelling");
         String pgPort = Optional.ofNullable(System.getenv("POSTGRES_PORT")).orElse("5432");
@@ -70,7 +72,7 @@ public class TestCBSScript extends JDBCTestCase {
                 ZipEntry entry = zipInputStream.getNextEntry();
                 while (entry != null) {
                     // Process sql file
-                    if(entry.getName().endsWith(".sql")) {
+                    if(!entry.isDirectory()) {
                         String sql = new String(zipInputStream.readAllBytes());
                         new Execute_Query().exec(pgConnection,
                                 Map.of("sqlQueries", sql, "outputFormat", "json"),
@@ -93,8 +95,6 @@ public class TestCBSScript extends JDBCTestCase {
     @Order(1)
     public void initDb() throws SQLException, IOException {
         assumePostGISAvailable();
-        // Initialize database for non-H2GIS databases
-        pgDataSource = getPostGISDatasourceFromEnv();
         try (Connection pgConnection = pgDataSource.getConnection()) {
             // Check if the schema cbs_uge_output exists:
             Statement statement = pgConnection.createStatement();
@@ -104,7 +104,10 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/cbs_structure.sql");
                     runSqlFile(pgConnection, "database/nm_conf.sql");
                     runSqlFile(pgConnection, "database/c_batiment_s_hexa.sql.zip");
-
+                    runSqlFile(pgConnection, "database/n_routier_troncon_l_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/n_routier_trafic_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/n_routier_vitesse_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/nm_stations_hexa.sql.zip");
                 }
             }
         }
@@ -112,8 +115,12 @@ public class TestCBSScript extends JDBCTestCase {
 
     @Test
     @Order(3)
-    public void testGenerateSource() {
+    public void testGenerateSource() throws SQLException {
         assumePostGISAvailable();
         ScriptUtilities.execScript(new Generate_sources(), connection, Map.of("projectionName", "hexa"));
+        try(Connection pgConnection = pgDataSource.getConnection()) {
+            assertEquals(12, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_trafic_hexa"));
+            assertEquals(12, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_emission_hexa"));
+        }
     }
 }
