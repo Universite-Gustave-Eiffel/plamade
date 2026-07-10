@@ -21,24 +21,24 @@ description = 'Full NoiseModelling computation that output results for each UUEI
 
 inputs = [
         projectionName: [
-                name: "Projection name",
-                title: "Projection name",
-                description: "Projection name",
+                name         : "Projection name",
+                title        : "Projection name",
+                description  : "Projection name",
                 allowedValues: ["hexa", "guad", "guya", "mart", "reun"],
-                type: String.class
-        ] ,
-        uueid_pattern: [
-                title: "UUEID pattern",
-                name: "UUEID pattern",
+                type         : String.class
+        ],
+        uueid_pattern : [
+                title      : "UUEID pattern",
+                name       : "UUEID pattern",
                 description: "UUEID pattern on roads to extract. eg. RD_FR_00_044% <p>A percent sign % - represents zero, one, or multiple characters</p>" +
                         "<p>A underscore sign _ - represents a single character</p>",
-                type: String.class
+                type       : String.class
         ],
-        conf: [
-                title: "Configuration identifier",
-                name: "Configuration identifier",
+        conf          : [
+                title      : "Configuration identifier",
+                name       : "Configuration identifier",
                 description: "Configuration identifier defined in cbs_uge_input.nm_conf ",
-                type: Integer.class
+                type       : Integer.class
         ]
 ]
 
@@ -49,7 +49,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
     // Fetch PostGIS connection settings from the configuration table
     Sql h2sql = new Sql(connection)
-    if(!JDBCUtilities.tableExists(connection, "POSTGIS_CONFIGURATION")) {
+    if (!JDBCUtilities.tableExists(connection, "POSTGIS_CONFIGURATION")) {
         throw new RuntimeException("The table POSTGIS_CONFIGURATION does not exist. Please run the Write_PostGIS_Settings process first to create and fill this table with the connection settings to the PostGIS database.")
     }
 
@@ -93,7 +93,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         }
         ProgressVisitor stepsProgress = progress.subProcess(uueids.size()) // long running sub tasks
 
-        if(uueids.isEmpty()) {
+        if (uueids.isEmpty()) {
             throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}")
         }
 
@@ -102,7 +102,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         }
 
         // Return results
-        return [result : "OK"]
+        return [result: "OK"]
     }
 
 
@@ -118,7 +118,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     def res = pgSql.firstRow("""SELECT 
              st_simplify(st_buffer(st_convexhull(st_collect(the_geom)), ${mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
              FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg WHERE uueid LIKE '$uueid';""" as String)
-    if(res == null) {
+    if (res == null) {
         throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
     }
 
@@ -141,7 +141,7 @@ def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisit
 def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
-    def projectionName=input.projectionName
+    def projectionName = input.projectionName
     def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, p.pop_bat as pop
              FROM cbs_uge_input.c_batiment_s_${projectionName} b 
                 INNER JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
@@ -154,18 +154,24 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
 
     def erpsQuery = """SELECT idbat, b.erps_nature from cbs_uge_input.c_batimentsensible_${projectionName} b, cbs_uge_input.c_correspond_batiment_batimentsensible_${projectionName} a  WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry) AND a.iderps = b.iderps"""
 
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS", intermediateFileFormat : "json"], stepsProgress)
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS", intermediateFileFormat: "json"], stepsProgress)
 
-    def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
+    def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1 FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
     ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($noiseBarrierQuery)" as String, tableName: "BUILDINGS_BARRIERS"], stepsProgress)
 
     //remove constraint on geometry type
-    // add barriers
+    // add barriers with densification 1 meter (will follow the dem)
     // remove Z when Z altitude is not good (will use HEIGHT field)
     def insertBarriersSql = """
+
+        ALTER TABLE BUILDINGS_BARRIERS ADD COLUMN G float DEFAULT 0;
+    
+        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE propriete = '01';
+        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
+        
         ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
-        INSERT INTO BUILDINGS(the_geom, height) SELECT the_geom, height from BUILDINGS_BARRIERS;
+        INSERT INTO BUILDINGS(the_geom, height, G) SELECT st_densify(the_geom, 1) the_geom, height, G from BUILDINGS_BARRIERS;
         UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM) 
         WHERE ST_ZMIN(THE_GEOM) < -999 
         OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0); 
