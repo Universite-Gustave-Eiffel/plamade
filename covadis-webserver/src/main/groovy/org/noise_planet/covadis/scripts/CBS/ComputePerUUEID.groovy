@@ -162,13 +162,12 @@ def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Con
     def sql = new Sql(h2Connection)
     def distanceStation = sql.firstRow("SELECT distance_station FROM ATMOSPHERIC")
     logger.info("Distance of ${uueid} to nearest station: ${Math.round(distanceStation.distance_station as double)} m")
-    //logger.info( Logging.formatSqlQueryResult(sql, "SELECT * FROM ATMOSPHERIC", 120))
 
     def generateAtmosphericSettingsQuery = """
         DROP TABLE IF EXISTS ATMOSPHERIC_SETTINGS;
         CREATE TABLE ATMOSPHERIC_SETTINGS(
             PERIOD VARCHAR,
-            WINDROSE VARCHAR,
+            WINDROSE real ARRAY[16],
             TEMPERATURE NUMERIC,
             PRESSURE NUMERIC,
             HUMIDITY NUMERIC,
@@ -176,10 +175,84 @@ def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Con
             PRIME2520 BOOLEAN DEFAULT FALSE
         );
         -- Insert time periods
-        INSERT INTO ATMOSPHERIC_SETTINGS(PERIOD, WINDROSE, TEMPERATURE,PRESSURE, HUMIDITY) SELECT 'D', pfav_6_18, temp_6_18, 101325, hygro_6_18 * 100 FROM ATMOSPHERIC;
-        INSERT INTO ATMOSPHERIC_SETTINGS(PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY) SELECT 'E', pfav_18_22, temp_18_22, 101325, hygro_18_22 * 100 FROM ATMOSPHERIC;
-        INSERT INTO ATMOSPHERIC_SETTINGS(PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY) SELECT 'N', pfav_22_6, temp_22_6, 101325, hygro_22_6 * 100 FROM ATMOSPHERIC;
+        INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
+        SELECT 
+            'D', 
+            ARRAY[
+                /* 0.0°   */ pfav_6_18_0,
+                /* 22.5°  */ (0.875 * pfav_6_18_20)  + (0.125 * pfav_6_18_40),
+                /* 45.0°  */ (0.75  * pfav_6_18_40)  + (0.25  * pfav_6_18_60),
+                /* 67.5°  */ (0.625 * pfav_6_18_60)  + (0.375 * pfav_6_18_80),
+                /* 90.0°  */ (0.5   * pfav_6_18_80)  + (0.5   * pfav_6_18_100),
+                /* 112.5° */ (0.375 * pfav_6_18_100) + (0.625 * pfav_6_18_120),
+                /* 135.0° */ (0.25  * pfav_6_18_120) + (0.75  * pfav_6_18_140),
+                /* 157.5° */ (0.125 * pfav_6_18_140) + (0.875 * pfav_6_18_160),
+                /* 180.0° */ pfav_6_18_180,
+                /* 202.5° */ (0.875 * pfav_6_18_200) + (0.125 * pfav_6_18_220),
+                /* 225.0° */ (0.75  * pfav_6_18_220) + (0.25  * pfav_6_18_240),
+                /* 247.5° */ (0.625 * pfav_6_18_240) + (0.375 * pfav_6_18_260),
+                /* 270.0° */ (0.5   * pfav_6_18_260) + (0.5   * pfav_6_18_280),
+                /* 292.5° */ (0.375 * pfav_6_18_280) + (0.625 * pfav_6_18_300),
+                /* 315.0° */ (0.25  * pfav_6_18_300) + (0.75  * pfav_6_18_320),
+                /* 337.5° */ (0.125 * pfav_6_18_320) + (0.875 * pfav_6_18_340)
+            ], 
+            temp_6_18, 
+            101325, 
+            hygro_6_18 * 100 
+        FROM ATMOSPHERIC; 
         
+        INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
+        SELECT 
+            'E', 
+            ARRAY[
+                /* 0.0°   */ pfav_18_22_0,
+                /* 22.5°  */ (0.875 * pfav_18_22_20)  + (0.125 * pfav_18_22_40),
+                /* 45.0°  */ (0.75  * pfav_18_22_40)  + (0.25  * pfav_18_22_60),
+                /* 67.5°  */ (0.625 * pfav_18_22_60)  + (0.375 * pfav_18_22_80),
+                /* 90.0°  */ (0.5   * pfav_18_22_80)  + (0.5   * pfav_18_22_100),
+                /* 112.5° */ (0.375 * pfav_18_22_100) + (0.625 * pfav_18_22_120),
+                /* 135.0° */ (0.25  * pfav_18_22_120) + (0.75  * pfav_18_22_140),
+                /* 157.5° */ (0.125 * pfav_18_22_140) + (0.875 * pfav_18_22_160),
+                /* 180.0° */ pfav_18_22_180,
+                /* 202.5° */ (0.875 * pfav_18_22_200) + (0.125 * pfav_18_22_220),
+                /* 225.0° */ (0.75  * pfav_18_22_220) + (0.25  * pfav_18_22_240),
+                /* 247.5° */ (0.625 * pfav_18_22_240) + (0.375 * pfav_18_22_260),
+                /* 270.0° */ (0.5   * pfav_18_22_260) + (0.5   * pfav_18_22_280),
+                /* 292.5° */ (0.375 * pfav_18_22_280) + (0.625 * pfav_18_22_300),
+                /* 315.0° */ (0.25  * pfav_18_22_300) + (0.75  * pfav_18_22_320),
+                /* 337.5° */ (0.125 * pfav_18_22_320) + (0.875 * pfav_18_22_340)
+            ], 
+            temp_18_22, 
+            101325, 
+            hygro_18_22 * 100 
+        FROM ATMOSPHERIC;    
+
+        INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
+        SELECT 
+            'N', 
+            ARRAY[
+                /* 0.0°   */ pfav_22_6_0,
+                /* 22.5°  */ (0.875 * pfav_22_6_20)  + (0.125 * pfav_22_6_40),
+                /* 45.0°  */ (0.75  * pfav_22_6_40)  + (0.25  * pfav_22_6_60),
+                /* 67.5°  */ (0.625 * pfav_22_6_60)  + (0.375 * pfav_22_6_80),
+                /* 90.0°  */ (0.5   * pfav_22_6_80)  + (0.5   * pfav_22_6_100),
+                /* 112.5° */ (0.375 * pfav_22_6_100) + (0.625 * pfav_22_6_120),
+                /* 135.0° */ (0.25  * pfav_22_6_120) + (0.75  * pfav_22_6_140),
+                /* 157.5° */ (0.125 * pfav_22_6_140) + (0.875 * pfav_22_6_160),
+                /* 180.0° */ pfav_22_6_180,
+                /* 202.5° */ (0.875 * pfav_22_6_200) + (0.125 * pfav_22_6_220),
+                /* 225.0° */ (0.75  * pfav_22_6_220) + (0.25  * pfav_22_6_240),
+                /* 247.5° */ (0.625 * pfav_22_6_240) + (0.375 * pfav_22_6_260),
+                /* 270.0° */ (0.5   * pfav_22_6_260) + (0.5   * pfav_22_6_280),
+                /* 292.5° */ (0.375 * pfav_22_6_280) + (0.625 * pfav_22_6_300),
+                /* 315.0° */ (0.25  * pfav_22_6_300) + (0.75  * pfav_22_6_320),
+                /* 337.5° */ (0.125 * pfav_22_6_320) + (0.875 * pfav_22_6_340)
+            ], 
+            temp_22_6, 
+            101325, 
+            hygro_22_6 * 100 
+        FROM ATMOSPHERIC;
+
         DROP TABLE ATMOSPHERIC;
     """
 
@@ -187,7 +260,7 @@ def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Con
             Map.of("sqlQueries", generateAtmosphericSettingsQuery, "outputFormat", "json"),
             new EmptyProgressVisitor())
 
-    logger.info( Logging.formatSqlQueryResult(sql, "SELECT * FROM ATMOSPHERIC_SETTINGS", 120))
+    logger.info( Logging.formatSqlQueryResult(sql, "SELECT PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY FROM ATMOSPHERIC_SETTINGS", 120))
 
 }
 
