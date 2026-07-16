@@ -10,6 +10,8 @@ import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
+import org.noise_planet.noisemodelling.webserver.utilities.Logging
+import org.noise_planet.noisemodelling.webserver.utilities.StringUtilities
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -66,24 +68,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pgConnection.setAutoCommit(true)
         Sql sql = new Sql(pgConnection)
 
-        // Fetch configuration
-        // CREATE TABLE cbs_uge_input.nm_conf (
-        //	confid int4 NOT NULL,
-        //	confreflorder int4 NULL,
-        //	confmaxsrcdist int4 NULL,
-        //	confmaxrefldist int4 NULL,
-        //	confdistbuildingsreceivers int4 NULL,
-        //	confthreadnumber int4 NULL,
-        //	confdiffvertical bool NULL,
-        //	confdiffhorizontal bool NULL,
-        //	confskiplday bool NULL,
-        //	confskiplevening bool NULL,
-        //	confskiplnight bool NULL,
-        //	confskiplden bool NULL,
-        //	confexportsourceid bool NULL,
-        //	wall_alpha float4 NULL,
-        //	CONSTRAINT nm_conf_pkey PRIMARY KEY (confid)
-        //);
         mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}" as String)
 
         List<String> uueids = new ArrayList<>()
@@ -94,7 +78,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         ProgressVisitor stepsProgress = progress.subProcess(uueids.size()) // long running sub tasks
 
         if (uueids.isEmpty()) {
-            throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}")
+            throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
         }
 
         uueids.each {
@@ -129,6 +113,18 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     processBuildings(input, extractionEnvelopeGeometry, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
     processRoads(input, uueid, h2Connection, stepsProgress)
+
+    processLandCover(input, extractionEnvelopeGeometry, h2Connection, stepsProgress)
+}
+
+def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch land cover..")
+    def landCoverQuery = """SELECT geom as the_geom, idnatsol as pk, natsol_lib as clc_lib, natsol_cno as g 
+        FROM cbs_uge_input.c_naturesol_${input.projectionName} 
+        WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry) AND NATSOL_CNO > 0"""
+
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($landCoverQuery)" as String, tableName: "LANDCOVER"], stepsProgress)
 }
 
 def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
@@ -156,7 +152,7 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
 
     ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS", intermediateFileFormat: "json"], stepsProgress)
 
-    def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1 FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
+    def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
     ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($noiseBarrierQuery)" as String, tableName: "BUILDINGS_BARRIERS"], stepsProgress)
 
@@ -170,21 +166,24 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
         UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE propriete = '01';
         UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
         
+        CREATE TABLE BUILDINGS_BARRIER_EXPLODED AS SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, 1)) the_geom, height, G, idprotacou FROM BUILDINGS_BARRIERS)');
+        
+        -- Use generic type in order to mix polygon and linestring
         ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
-        INSERT INTO BUILDINGS(the_geom, height, G) SELECT st_densify(the_geom, 1) the_geom, height, G from BUILDINGS_BARRIERS;
+        -- Add origin column, road is acoustic protection along roads
+        ALTER TABLE BUILDINGS ADD COLUMN origin varchar DEFAULT 'building';
+        INSERT INTO BUILDINGS(the_geom, height, G, origin) SELECT the_geom, height, G, 'road' from BUILDINGS_BARRIER_EXPLODED;
         UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM) 
         WHERE ST_ZMIN(THE_GEOM) < -999 
-        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0); 
+        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0);
+        
+        -- DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
         """
 
     new Execute_Query().exec(sql.connection,
             Map.of("sqlQueries", insertBarriersSql, "outputFormat", "json"),
             new EmptyProgressVisitor())
-}
 
-//static Object execScript(Script script, Connection connection, Map inputs, ProgressVisitor progress) {
-//    Logger logger = LoggerFactory.getLogger(this.class)
-//    inputs = ScriptUtilities.fillDefaultValues(script.class, inputs);
-//    logger.info("Run script: {} with inputs {}", script.getClass().getSimpleName(), inputs);
-//    script.exec(connection, inputs, progress)
-//}
+    logger.info( Logging.formatSqlQueryResult(sql, "SELECT * FROM BUILDINGS_BARRIER_EXPLODED LIMIT 5", 120))
+
+}

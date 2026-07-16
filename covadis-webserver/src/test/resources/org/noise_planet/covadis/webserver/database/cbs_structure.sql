@@ -315,4 +315,15 @@ CREATE TABLE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa
 );
 
 
+CREATE TABLE cbs_uge_input.c_naturesol_hexa (
+	geom public.geometry(multipolygon, 2154) NULL,
+	idnatsol varchar(32) NULL,
+	annee varchar(4) NULL,
+	codedept varchar(3) NULL,
+	refprod varchar(9) NULL,
+	natsol_clc int4 NULL,
+	natsol_cno float8 NULL,
+	natsol_lib varchar(254) NULL,
+	pkey int4 NULL
+);
 

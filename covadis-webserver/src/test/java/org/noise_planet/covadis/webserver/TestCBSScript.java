@@ -124,6 +124,7 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/c_population_hexa.sql.zip");
                     runSqlFile(pgConnection, "database/c_correspond_batiment_batimentsensible_hexa.sql");
                     runSqlFile(pgConnection, "database/n_routier_protection_acoustique_hexa.sql");
+                    runSqlFile(pgConnection, "database/c_naturesol_hexa.sql.zip");
                 }
             }
         }

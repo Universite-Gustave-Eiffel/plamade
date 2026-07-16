@@ -1,1 +1,1 @@
-This folder creates a setup of a PostGIS database to run the tests.
+This folder creates a setup of a PostGIS database and an emulated Slurm/SSH server to run the tests.
