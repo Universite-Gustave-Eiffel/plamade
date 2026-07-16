@@ -260,7 +260,7 @@ def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Con
             Map.of("sqlQueries", generateAtmosphericSettingsQuery, "outputFormat", "json"),
             new EmptyProgressVisitor())
 
-    logger.info( Logging.formatSqlQueryResult(sql, "SELECT PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY FROM ATMOSPHERIC_SETTINGS", 120))
+    logger.info( ScriptUtilities.formatSqlQueryResult(sql, "SELECT PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY FROM ATMOSPHERIC_SETTINGS", 120))
 
 }
 

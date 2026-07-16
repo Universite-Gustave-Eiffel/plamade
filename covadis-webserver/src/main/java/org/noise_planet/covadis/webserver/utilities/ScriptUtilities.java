@@ -2,6 +2,7 @@ package org.noise_planet.covadis.webserver.utilities;
 
 import groovy.lang.MetaMethod;
 import groovy.lang.Script;
+import groovy.sql.Sql;
 import groovy.util.ConfigObject;
 import groovy.util.ConfigSlurper;
 import org.h2gis.api.EmptyProgressVisitor;
@@ -13,9 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class ScriptUtilities {
 
@@ -86,5 +85,116 @@ public class ScriptUtilities {
                     filledInputs.put(entry.getKey(), defaultValue);
                 });
         return filledInputs;
+    }
+
+    /**
+     * Executes a SQL query and return the result set as a Markdown table.
+     *
+     * @param sql         An instance of groovy.sql.Sql
+     * @param query       A String or GString
+     * @param maxColWidth Maximum width of a column before truncation
+     */
+    public static String formatSqlQueryResult(Sql sql, Object query, int maxColWidth) {
+        List<Map<String, Object>> rawRows = new ArrayList<>();
+        try {
+            List<?> rows = sql.rows(query.toString());
+            for (Object row : rows) {
+                if (row instanceof Map) {
+                    rawRows.add((Map<String, Object>) row);
+                }
+            }
+        } catch (Exception e) {
+            LoggerFactory.getLogger("Logging").error("Error executing SQL query: {}", query, e);
+            return "";
+        }
+
+        if (rawRows.isEmpty()) {
+            return String.format("Query returned 0 rows.\n\nSQL: `%s`", query);
+        }
+
+        List<String> columnNames = new ArrayList<>(rawRows.get(0).keySet());
+
+        // 1. Pre-format all data
+        List<Map<String, String>> formattedRows = new ArrayList<>();
+        for (Map<String, Object> row : rawRows) {
+            Map<String, String> formattedRow = new LinkedHashMap<>();
+            for (String col : columnNames) {
+                Object val = row.get(col);
+                String formattedVal;
+
+                if (val == null) {
+                    formattedVal = "null";
+                } else if (val instanceof java.sql.Array) {
+                    // Handle H2 Arrays: strip "ARRAY [CAST...]" and format as [1.2, 3.4]
+                    try {
+                        Object[] arr = (Object[]) ((java.sql.Array) val).getArray();
+                        List<String> elements = new ArrayList<>();
+                        for (Object o : arr) {
+                            if (o instanceof Number) {
+                                elements.add(String.format(Locale.US, "%.2f", ((Number) o).doubleValue()));
+                            } else {
+                                elements.add(o.toString());
+                            }
+                        }
+                        formattedVal = "[" + String.join(", ", elements) + "]";
+                    } catch (Exception e) {
+                        formattedVal = val.toString();
+                    }
+                } else if (val instanceof Number && !(val instanceof Integer || val instanceof Long)) {
+                    formattedVal = String.format(Locale.US, "%.2f", ((Number) val).doubleValue());
+                } else {
+                    formattedVal = val.toString().replace("\n", " "); // Markdown tables must be single line
+                }
+
+                // Truncate if necessary
+                if (formattedVal.length() > maxColWidth) {
+                    formattedVal = formattedVal.substring(0, maxColWidth - 3) + "...";
+                }
+                formattedRow.put(col, formattedVal);
+            }
+            formattedRows.add(formattedRow);
+        }
+
+        // 2. Calculate column widths
+        Map<String, Integer> columnWidths = new HashMap<>();
+        for (String col : columnNames) {
+            int maxLen = col.length();
+            for (Map<String, String> row : formattedRows) {
+                maxLen = Math.max(maxLen, row.get(col).length());
+            }
+            columnWidths.put(col, Math.max(3, maxLen)); // Markdown needs at least 3 chars for separators
+        }
+
+        // 3. Build Markdown Table
+        StringBuilder table = new StringBuilder();
+        table.append("\nSQL: `").append(query).append("`\n\n");
+
+        // Header
+        table.append("|");
+        for (String col : columnNames) {
+            int width = columnWidths.get(col);
+            table.append(String.format(" %-" + width + "s |", col));
+        }
+        table.append("\n");
+
+        // Markdown Separator Row (| --- | --- |)
+        table.append("|");
+        for (String col : columnNames) {
+            int width = columnWidths.get(col);
+            table.append(" ").append("-".repeat(width)).append(" |");
+        }
+        table.append("\n");
+
+        // Data Rows
+        for (Map<String, String> row : formattedRows) {
+            table.append("|");
+            for (String col : columnNames) {
+                int width = columnWidths.get(col);
+                table.append(String.format(" %-" + width + "s |", row.get(col)));
+            }
+            table.append("\n");
+        }
+
+        return table.toString();
     }
 }
