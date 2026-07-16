@@ -115,6 +115,8 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     processRoads(input, uueid, h2Connection, stepsProgress)
 
     processLandCover(input, extractionEnvelopeGeometry, h2Connection, stepsProgress)
+
+    fetchAtmosphericPeriodFromStations(input, uueid, h2Connection, stepsProgress)
 }
 
 def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
@@ -125,6 +127,68 @@ def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2
         WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry) AND NATSOL_CNO > 0"""
 
     ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($landCoverQuery)" as String, tableName: "LANDCOVER"], stepsProgress)
+}
+
+/**
+ * Fetches atmospheric periods from nearby stations for a given UUEID.
+ * @param input The input map containing configuration parameters.
+ * @param uueid The road UUEID for which to fetch atmospheric periods.
+ * @param h2Connection The H2 database connection.
+ * @param stepsProgress The progress visitor for tracking execution progress.
+ */
+def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
+    // tablePeriodAtmosphericSettings — Atmospheric settings table name for each time period
+    //
+    //    Name of the Atmospheric settings table The table must contain the following columns:
+    //
+    //        PERIOD : time period (VARCHAR PRIMARY KEY)
+    //        WINDROSE : probability of occurrences of favourable propagation conditions (ARRAY(16))
+    //        TEMPERATURE : Temperature in celsius (FLOAT)
+    //        PRESSURE : air pressure in pascal (FLOAT)
+    //        HUMIDITY : air humidity in percentage (FLOAT)
+    //        GDISC : choose between accept G discontinuity or not (BOOLEAN) default true
+    //        PRIME2520 : choose to use prime values to compute eq. 2.5.20 (BOOLEAN) default false
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch nearest atmospheric points periods for UUEID: {}", uueid)
+
+    def atmosphericQuery = """
+        SELECT a.*, ST_Distance(a.the_geom, b.geom) as distance_station
+        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName} b, cbs_uge_input.nm_stations_${input.projectionName} a
+        WHERE UUEID = '$uueid'
+        ORDER BY a.the_geom <-> b.geom LIMIT 1
+    """
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($atmosphericQuery)" as String, tableName: "ATMOSPHERIC", intermediateFileFormat: "fgb"], stepsProgress)
+
+    def sql = new Sql(h2Connection)
+    def distanceStation = sql.firstRow("SELECT distance_station FROM ATMOSPHERIC")
+    logger.info("Distance of ${uueid} to nearest station: ${Math.round(distanceStation.distance_station as double)} m")
+    //logger.info( Logging.formatSqlQueryResult(sql, "SELECT * FROM ATMOSPHERIC", 120))
+
+    def generateAtmosphericSettingsQuery = """
+        DROP TABLE IF EXISTS ATMOSPHERIC_SETTINGS;
+        CREATE TABLE ATMOSPHERIC_SETTINGS(
+            PERIOD VARCHAR,
+            WINDROSE VARCHAR,
+            TEMPERATURE NUMERIC,
+            PRESSURE NUMERIC,
+            HUMIDITY NUMERIC,
+            GDISC BOOLEAN DEFAULT TRUE,
+            PRIME2520 BOOLEAN DEFAULT FALSE
+        );
+        -- Insert time periods
+        INSERT INTO ATMOSPHERIC_SETTINGS(PERIOD, WINDROSE, TEMPERATURE,PRESSURE, HUMIDITY) SELECT 'D', pfav_6_18, temp_6_18, 101325, hygro_6_18 * 100 FROM ATMOSPHERIC;
+        INSERT INTO ATMOSPHERIC_SETTINGS(PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY) SELECT 'E', pfav_18_22, temp_18_22, 101325, hygro_18_22 * 100 FROM ATMOSPHERIC;
+        INSERT INTO ATMOSPHERIC_SETTINGS(PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY) SELECT 'N', pfav_22_6, temp_22_6, 101325, hygro_22_6 * 100 FROM ATMOSPHERIC;
+        
+        DROP TABLE ATMOSPHERIC;
+    """
+
+    new Execute_Query().exec(sql.connection,
+            Map.of("sqlQueries", generateAtmosphericSettingsQuery, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+
+    logger.info( Logging.formatSqlQueryResult(sql, "SELECT * FROM ATMOSPHERIC_SETTINGS", 120))
+
 }
 
 def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
@@ -138,7 +202,7 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
     def projectionName = input.projectionName
-    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, p.pop_bat as pop
+    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, p.pop_bat as pop, b.bat_idtopo
              FROM cbs_uge_input.c_batiment_s_${projectionName} b 
                 INNER JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
              WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry)"""
@@ -166,24 +230,23 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
         UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE propriete = '01';
         UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
         
+        DROP TABLE IF EXISTS BUILDINGS_BARRIER_EXPLODED;
         CREATE TABLE BUILDINGS_BARRIER_EXPLODED AS SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, 1)) the_geom, height, G, idprotacou FROM BUILDINGS_BARRIERS)');
         
         -- Use generic type in order to mix polygon and linestring
         ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
         -- Add origin column, road is acoustic protection along roads
         ALTER TABLE BUILDINGS ADD COLUMN origin varchar DEFAULT 'building';
-        INSERT INTO BUILDINGS(the_geom, height, G, origin) SELECT the_geom, height, G, 'road' from BUILDINGS_BARRIER_EXPLODED;
+        INSERT INTO BUILDINGS(the_geom, height, G, origin, pop, idbat, bat_idtopo) SELECT the_geom, height, G, 'road', 0, '', idprotacou from BUILDINGS_BARRIER_EXPLODED;
         UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM) 
         WHERE ST_ZMIN(THE_GEOM) < -999 
         OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0);
         
-        -- DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
+        DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
         """
 
     new Execute_Query().exec(sql.connection,
             Map.of("sqlQueries", insertBarriersSql, "outputFormat", "json"),
             new EmptyProgressVisitor())
-
-    logger.info( Logging.formatSqlQueryResult(sql, "SELECT * FROM BUILDINGS_BARRIER_EXPLODED LIMIT 5", 120))
 
 }
