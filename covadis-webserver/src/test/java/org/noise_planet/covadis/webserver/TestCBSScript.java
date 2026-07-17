@@ -15,6 +15,8 @@ import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.FileInputStream;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class TestCBSScript extends JDBCTestCase {
     DataSource pgDataSource;
     boolean forceRecreateData = true;
+    Logger logger = LoggerFactory.getLogger(TestCBSScript.class);
 
 
     @BeforeEach
@@ -114,6 +117,8 @@ public class TestCBSScript extends JDBCTestCase {
             try (ResultSet rs = statement.executeQuery("SELECT * FROM information_schema.schemata WHERE schema_name = 'cbs_uge_input'")) {
                 if (forceRecreateData || !rs.next()) {
                     // Schema does not exist
+                    logger.info("Creating database tables...");
+                    long start = System.currentTimeMillis();
                     runSqlFile(pgConnection, "database/cbs_structure.sql");
                     runSqlFile(pgConnection, "database/nm_conf.sql");
                     runSqlFile(pgConnection, "database/c_batiment_s_hexa.sql.zip");
@@ -125,6 +130,11 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/c_correspond_batiment_batimentsensible_hexa.sql");
                     runSqlFile(pgConnection, "database/n_routier_protection_acoustique_hexa.sql");
                     runSqlFile(pgConnection, "database/c_naturesol_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/nm_link_dept_infra_road_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/d028.sql.zip");
+                    runSqlFile(pgConnection, "database/d078.sql.zip");
+                    runSqlFile(pgConnection, "database/d091.sql.zip");
+                    logger.info("Database tables created in " + (System.currentTimeMillis() - start) + "ms");
                 }
             }
         }

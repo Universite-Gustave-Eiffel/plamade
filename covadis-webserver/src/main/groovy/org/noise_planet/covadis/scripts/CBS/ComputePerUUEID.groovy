@@ -117,6 +117,32 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     processLandCover(input, extractionEnvelopeGeometry, h2Connection, stepsProgress)
 
     fetchAtmosphericPeriodFromStations(input, uueid, h2Connection, stepsProgress)
+
+    fetchDem(input, uueid, extractionEnvelopeGeometry, h2Connection, pgConnection, stepsProgress)
+}
+
+def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch digital elevation model..")
+
+    Sql sql = new Sql(h2Connection)
+    Sql pgSql = new Sql(pgConnection)
+
+    def fetchTableNamesQuery = """
+        SELECT uueid, insee_dep, bd_alti
+        FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
+        WHERE nldirh.uueid = '$uueid';
+    """
+    def bdAltiTableName = new HashSet<String>()
+    pgSql.rows(fetchTableNamesQuery as String).each { row ->
+        bdAltiTableName.add(row.bd_alti as String)
+    }
+
+    ProgressVisitor subProgress = stepsProgress.subProcess(bdAltiTableName.size())
+
+    bdAltiTableName.forEach { tableName ->
+        PostGISUtilities.fetchDemTable(pgConnection, h2Connection, "bd_alti.${tableName}", "DEM", extractionEnvelopeGeometry, subProgress)
+    }
 }
 
 def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
