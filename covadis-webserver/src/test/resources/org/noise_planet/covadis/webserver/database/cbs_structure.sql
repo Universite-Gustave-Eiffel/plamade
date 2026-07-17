@@ -1,10 +1,12 @@
 DROP SCHEMA IF EXISTS cbs_uge_input CASCADE;
 DROP SCHEMA IF EXISTS cbs_uge_output CASCADE;
 DROP SCHEMA IF EXISTS bd_alti CASCADE;
+DROP SCHEMA IF EXISTS bd_topo CASCADE;
 
 CREATE SCHEMA cbs_uge_output;
 CREATE SCHEMA cbs_uge_input;
 CREATE SCHEMA bd_alti;
+CREATE SCHEMA bd_topo;
 
 DROP ROLE IF EXISTS cbs_uge_group;
 CREATE ROLE cbs_uge_group;
@@ -3079,3 +3081,23 @@ CREATE INDEX geom_idx_d974 ON bd_alti.d974 USING gist (the_geom);
 --
 
 CREATE INDEX geom_idx_d976 ON bd_alti.d976 USING gist (the_geom);
+
+CREATE TABLE bd_topo.n_ligne_orographique_bdt_000_2023 (
+	geom3d public.geometry(linestringz, 2154) NULL,
+	cleabs varchar(24) NOT NULL,
+	nature varchar NULL,
+	geom public.geometry(linestring, 2154) NULL,
+	CONSTRAINT n_ligne_orographique_bdt_000_2023_pkey PRIMARY KEY (cleabs)
+);
+
+CREATE TABLE bd_topo.n_troncon_hydrographique_bdt_000_2023 (
+	geom3d public.geometry(linestringz, 2154) NULL,
+	cleabs varchar(24) NOT NULL,
+	nature varchar NULL,
+	fictif bool NULL,
+	position_par_rapport_au_sol varchar NULL,
+	persistance varchar NULL,
+	fosse bool NULL,
+	geom public.geometry(linestring, 2154) NULL,
+	CONSTRAINT n_troncon_hydrographique_bdt_000_2023_pkey PRIMARY KEY (cleabs)
+);

@@ -134,6 +134,8 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/d028.sql.zip");
                     runSqlFile(pgConnection, "database/d078.sql.zip");
                     runSqlFile(pgConnection, "database/d091.sql.zip");
+                    runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
+                    runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
                     logger.info("Database tables created in " + (System.currentTimeMillis() - start) + "ms");
                 }
             }
@@ -160,6 +162,14 @@ public class TestCBSScript extends JDBCTestCase {
                 "projectionName", "hexa",
                 "uueid_pattern", "RD_FR_00_0781651",
                 "conf", 1));
+
+        // Count the number of rows in h2 database DEM table
+        try(Statement statement = connection.createStatement()) {
+            try(ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM DEM")) {
+                assertTrue(rs.next());
+                assertEquals(33918, rs.getInt(1));
+            }
+        }
 
     }
 }

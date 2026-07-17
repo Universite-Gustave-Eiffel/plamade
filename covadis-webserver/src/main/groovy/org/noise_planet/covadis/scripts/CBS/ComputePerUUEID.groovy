@@ -4,14 +4,12 @@ import groovy.sql.Sql
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.functions.spatial.convert.ST_AsWKT
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
-import org.noise_planet.noisemodelling.webserver.utilities.Logging
-import org.noise_planet.noisemodelling.webserver.utilities.StringUtilities
+import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -124,6 +122,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")
+    ProgressVisitor demProgress = stepsProgress.subProcess(2)
 
     Sql sql = new Sql(h2Connection)
     Sql pgSql = new Sql(pgConnection)
@@ -138,11 +137,56 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
         bdAltiTableName.add(row.bd_alti as String)
     }
 
-    ProgressVisitor subProgress = stepsProgress.subProcess(bdAltiTableName.size())
+    ProgressVisitor subProgress = demProgress.subProcess(bdAltiTableName.size())
 
     bdAltiTableName.forEach { tableName ->
         PostGISUtilities.fetchDemTable(pgConnection, h2Connection, "bd_alti.${tableName}", "DEM", extractionEnvelopeGeometry, subProgress)
     }
+
+    // Enhance DEM points with orography and hydrography ruptures lines
+    // TODO add for other projections when available
+    if(input.projectionName == "hexa") {
+        def fetchOroTableQuery = """SELECT geom3d FROM bd_topo.n_ligne_orographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+        ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchOroTableQuery)" as String, tableName: "OROGRAPHIC"], demProgress)
+        // Insert lines into DEM table
+        def insertOroQuery = """
+            INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
+            DROP TABLE OROGRAPHIC;            
+            """
+        new Execute_Query().exec(sql.connection,
+                Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
+                new EmptyProgressVisitor())
+
+        def fetchHydroTableQuery = """SELECT geom3d FROM bd_topo.n_troncon_hydrographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+        ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchHydroTableQuery)" as String, tableName: "HYDROGRAPHIC"], demProgress)
+        // Insert lines into DEM table
+        def insertHydroQuery = """
+            INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
+            DROP TABLE HYDROGRAPHIC;            
+            """
+        new Execute_Query().exec(sql.connection,
+                Map.of("sqlQueries", insertHydroQuery, "outputFormat", "json"),
+                new EmptyProgressVisitor())
+    }
+
+    // Fetch road table with altitude using the UUEID query
+    def roadQuery = """SELECT geom as the_geom, largeur as width
+        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
+        WHERE uueid = '${uueid}'"""
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadQuery)" as String, tableName: "ROADS"], demProgress)
+
+    // Create a new DEM with road platforms
+    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
+
+    // Replace DEM with the new table
+    def replaceDEMQuery = """
+        DROP TABLE IF EXISTS DEM;
+        ALTER TABLE DEM_ENRICHED RENAME TO DEM;
+        """
+    new Execute_Query().exec(sql.connection,
+            Map.of("sqlQueries", replaceDEMQuery, "outputFormat", "json"),
+            new EmptyProgressVisitor())
 }
 
 def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
