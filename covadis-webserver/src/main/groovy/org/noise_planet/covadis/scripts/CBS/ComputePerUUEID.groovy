@@ -116,10 +116,10 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 
     fetchAtmosphericPeriodFromStations(input, uueid, h2Connection, stepsProgress)
 
-    fetchDem(input, uueid, extractionEnvelopeGeometry, h2Connection, pgConnection, stepsProgress)
+    fetchDem(input, uueid, extractionEnvelopeGeometry, h2Connection, pgConnection, stepsProgress, '0')
 }
 
-def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress) {
+def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")
     ProgressVisitor demProgress = stepsProgress.subProcess(2)
@@ -172,7 +172,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     // Fetch road table with altitude using the UUEID query
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE uueid = '${uueid}'"""
+        WHERE uueid = '${uueid}' and pos_sol = '$posSol'"""
     ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadQuery)" as String, tableName: "ROADS"], demProgress)
 
     // Create a new DEM with road platforms
