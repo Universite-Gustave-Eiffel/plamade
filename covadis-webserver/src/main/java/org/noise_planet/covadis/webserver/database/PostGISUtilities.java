@@ -65,12 +65,15 @@ public class PostGISUtilities {
 
         TWKBReader twkbReader = new TWKBReader();
 
+        String tempTableName = "TEMP_" + h2TableName + "_" + System.currentTimeMillis();
+
         // Ensure H2 table exists (Storing as GEOMETRY for H2GIS support)
         try (Statement h2Stmt = h2Connection.createStatement()) {
-            h2Stmt.execute("CREATE TABLE IF NOT EXISTS " + h2TableName + " (the_geom GEOMETRY)");
-            // Create a spatial index to make the duplicate check efficient
-            h2Stmt.execute("CREATE SPATIAL INDEX IF NOT EXISTS " + h2TableName + "_geom_idx ON " + h2TableName +
-                    "(the_geom)");
+            h2Stmt.execute("CREATE TABLE IF NOT EXISTS " + h2TableName + " (pk serial, the_geom GEOMETRY)");
+            // Remove previous spatial index
+            h2Stmt.execute("DROP INDEX IF EXISTS " + h2TableName + "_geom_idx");
+            // Create a temporary table for bulk loading (no indexes = fast)
+            h2Stmt.execute("CREATE LOCAL TEMPORARY TABLE " + tempTableName + " (the_geom GEOMETRY) ON COMMIT DROP");
         }
 
         // Count the expected number of blocks
@@ -94,11 +97,11 @@ public class PostGISUtilities {
                 " SELECT the_geom, (row_number() OVER ()) / 1000 as group_id " + "    FROM %s " + "    WHERE " +
                 "the_geom && ?::geometry" + ") t " + "GROUP BY group_id", pgTableName);
 
+
         // Prepare H2 Insert query
         // Using "WHERE NOT EXISTS" to prevent duplicates based on geometry
-        String h2Sql = MessageFormat.format("INSERT INTO {0} (the_geom) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM {1} WHERE the_geom = ?)",
-                h2TableName,
-                h2TableName);
+        String h2Sql = MessageFormat.format("INSERT INTO {0} (the_geom) VALUES (?)",
+                tempTableName);
 
         try (PreparedStatement pgPs = pgConnection.prepareStatement(pgSql); PreparedStatement h2Ps =
                 h2Connection.prepareStatement(h2Sql)) {
@@ -121,7 +124,6 @@ public class PostGISUtilities {
 
                             // H2 requires the geometry object (JTS Point works with H2 driver)
                             h2Ps.setObject(1, p);
-                            h2Ps.setObject(2, p);
                             h2Ps.addBatch();
                             batchSize++;
 
@@ -135,6 +137,25 @@ public class PostGISUtilities {
                 }
                 h2Ps.executeBatch(); // Final flush
             }
+        }
+
+
+        // 4. Move unique points from Temp to Target
+        // EXCEPT automatically handles internal duplicates in tempTableName
+        // AND existing duplicates in h2TableName.
+        String mergeSql = String.format(
+                "INSERT INTO %s (the_geom) " +
+                        "SELECT the_geom FROM %s " +
+                        "EXCEPT " +
+                        "SELECT the_geom FROM %s", h2TableName, tempTableName, h2TableName);
+
+        try (Statement h2Stmt = h2Connection.createStatement()) {
+            h2Stmt.execute(mergeSql);
+
+            // 5. Create/Update Spatial Index
+            // In H2GIS, creating an index on an existing populated table is much faster
+            // than updating the index for every row during insertion.
+            h2Stmt.execute("CREATE SPATIAL INDEX IF NOT EXISTS " + h2TableName + "_geom_idx ON " + h2TableName + "(the_geom)");
         }
     }
 }
