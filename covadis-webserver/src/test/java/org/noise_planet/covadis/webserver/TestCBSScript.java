@@ -15,6 +15,7 @@ import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query;
+import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,9 +168,8 @@ public class TestCBSScript extends JDBCTestCase {
         try(Statement statement = connection.createStatement()) {
             try(ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM DEM")) {
                 assertTrue(rs.next());
-                assertEquals(33918, rs.getInt(1));
+                assertEquals(32793, rs.getInt(1));
             }
         }
-
     }
 }

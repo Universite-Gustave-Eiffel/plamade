@@ -68,6 +68,12 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
         mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}" as String)
 
+        // Log main configuration entries
+        logger.info("Configuration:")
+        mainConfiguration.each {   entry ->
+            logger.info("$entry.key : $entry.value")
+        }
+
         List<String> uueids = new ArrayList<>()
         sql.rows("SELECT DISTINCT uueid from cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '${input.uueid_pattern}'" as String).each {
             row ->
@@ -146,7 +152,8 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     // Enhance DEM points with orography and hydrography ruptures lines
     // TODO add for other projections when available
     if(input.projectionName == "hexa") {
-        def fetchOroTableQuery = """SELECT geom3d FROM bd_topo.n_ligne_orographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+        def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
+             FROM bd_topo.n_ligne_orographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
         ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchOroTableQuery)" as String, tableName: "OROGRAPHIC"], demProgress)
         // Insert lines into DEM table
         def insertOroQuery = """
@@ -157,7 +164,9 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
                 Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
                 new EmptyProgressVisitor())
 
-        def fetchHydroTableQuery = """SELECT geom3d FROM bd_topo.n_troncon_hydrographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+        def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
+             FROM bd_topo.n_troncon_hydrographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+
         ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchHydroTableQuery)" as String, tableName: "HYDROGRAPHIC"], demProgress)
         // Insert lines into DEM table
         def insertHydroQuery = """
