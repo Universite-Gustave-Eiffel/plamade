@@ -12,6 +12,7 @@ import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
 import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
+import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -113,15 +114,17 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
         throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
     }
 
-    def extractionEnvelopeGeometry = ValueGeometry.getFromGeometry(res.geomenv as Geometry).string
+    def extractionEnvelopeGeometry = res.geomenv as Geometry
+    def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
 
-    logger.info("SRID: {}", (res.geomenv as Geometry).getSRID())
+    logger.info("SRID: {}", (extractionEnvelopeGeometry).getSRID())
 
-    processBuildings(input, extractionEnvelopeGeometry, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
+    processBuildings(input, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
-    generateReceivers(input, h2Connection, mainConfiguration.confdistbuildingsreceivers, stepsProgress)
+    generateReceivers(input, uueid, extractionEnvelopeGeometry, h2Connection,
+            mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress)
 
-    processLandCover(input, extractionEnvelopeGeometry, h2Connection, stepsProgress)
+    processLandCover(input, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress)
 
     fetchAtmosphericPeriodFromStations(input, uueid, h2Connection, stepsProgress)
 
@@ -134,26 +137,42 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
         // Clear tables
         h2Sql.execute("DROP TABLE IF EXISTS DEM, LW_ROADS")
         processRoads(input, uueid, h2Connection, stepsProgress, posSol)
-        fetchDem(input, uueid, extractionEnvelopeGeometry, h2Connection, pgConnection, stepsProgress, posSol)
+        fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, stepsProgress, posSol)
     }
 
 
 }
 
-def generateReceivers(Map input, Connection h2Connection,double deltaBuildingsReceivers, ProgressVisitor stepsProgress) {
+def generateReceivers(Map input,String uueid, Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
     Logger logger = LoggerFactory.getLogger(this.class)
+    ProgressVisitor subSteps = stepsProgress.subProcess(4)
 
-    // Generate receivers on buildings
-    ScriptUtilities.execScript(new Building_Grid(), h2Connection, [tableBuilding: "BUILDINGS", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1], stepsProgress)
+    logger.info("Generate receivers on buildings")
+    ScriptUtilities.execScript(new Building_Grid(), h2Connection, [tableBuilding: "BUILDINGS", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1], subSteps)
     Sql h2Sql = new Sql(h2Connection)
     h2Sql.execute("ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS")
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
+
+    logger.info("Generate Delaunay receivers")
+    // Fetch all roads using the UUEID query
+    def roadQuery = """SELECT geom as the_geom, largeur as width
+        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
+        WHERE uueid = '${uueid}'"""
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadQuery)" as String, tableName: "ROADS", intermediateFileFormat : "fgb"], subSteps)
+
+    ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], subSteps)
+
+    def receiversZone = extractionEnvelopeGeometry.buffer(-mainConfiguration.confmaxsrcdist as Double)
+    ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
+            fence: receiversZone, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
+            skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
+            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY"], subSteps)
 }
 
 def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")
-    ProgressVisitor demProgress = stepsProgress.subProcess(2)
+    ProgressVisitor demProgress = stepsProgress.subProcess(3)
 
     Sql sql = new Sql(h2Connection)
     Sql pgSql = new Sql(pgConnection)
