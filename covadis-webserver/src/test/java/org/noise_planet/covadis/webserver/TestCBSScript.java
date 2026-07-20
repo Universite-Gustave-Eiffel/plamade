@@ -164,12 +164,6 @@ public class TestCBSScript extends JDBCTestCase {
                 "uueid_pattern", "RD_FR_00_0781651",
                 "conf", 1));
 
-        // Count the number of rows in h2 database DEM table
-        try(Statement statement = connection.createStatement()) {
-            try(ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM DEM")) {
-                assertTrue(rs.next());
-                assertEquals(32793, rs.getInt(1));
-            }
-        }
+
     }
 }

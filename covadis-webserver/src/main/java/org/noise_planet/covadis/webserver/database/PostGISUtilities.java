@@ -73,7 +73,7 @@ public class PostGISUtilities {
             // Remove previous spatial index
             h2Stmt.execute("DROP INDEX IF EXISTS " + h2TableName + "_geom_idx");
             // Create a temporary table for bulk loading (no indexes = fast)
-            h2Stmt.execute("CREATE LOCAL TEMPORARY TABLE " + tempTableName + " (the_geom GEOMETRY) ON COMMIT DROP");
+            h2Stmt.execute("CREATE TABLE " + tempTableName + " (the_geom GEOMETRY)");
         }
 
         // Count the expected number of blocks
@@ -151,6 +151,7 @@ public class PostGISUtilities {
 
         try (Statement h2Stmt = h2Connection.createStatement()) {
             h2Stmt.execute(mergeSql);
+            h2Stmt.execute(String.format("DROP TABLE %s", tempTableName));
 
             // 5. Create/Update Spatial Index
             // In H2GIS, creating an index on an existing populated table is much faster

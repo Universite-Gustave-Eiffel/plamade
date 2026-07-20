@@ -8,8 +8,10 @@ import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
+import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -99,6 +101,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration) {
     ProgressVisitor stepsProgress = progress.subProcess(3) // long running sub tasks
     def pgSql = new Sql(pgConnection)
+    def h2Sql = new Sql(h2Connection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for UUEID: $uueid")
 
@@ -116,13 +119,35 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 
     processBuildings(input, extractionEnvelopeGeometry, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
-    processRoads(input, uueid, h2Connection, stepsProgress)
+    generateReceivers(input, h2Connection, mainConfiguration.confdistbuildingsreceivers, stepsProgress)
 
     processLandCover(input, extractionEnvelopeGeometry, h2Connection, stepsProgress)
 
     fetchAtmosphericPeriodFromStations(input, uueid, h2Connection, stepsProgress)
 
-    fetchDem(input, uueid, extractionEnvelopeGeometry, h2Connection, pgConnection, stepsProgress, '0')
+    def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg""" as String
+
+    def posSols = pgSql.rows(posSolQuery).collect { it.pos_sol as String}
+
+    posSols.forEach {posSol ->
+        logger.info("Compute for pos_sol = $posSol")
+        // Clear tables
+        h2Sql.execute("DROP TABLE IF EXISTS DEM, LW_ROADS")
+        processRoads(input, uueid, h2Connection, stepsProgress, posSol)
+        fetchDem(input, uueid, extractionEnvelopeGeometry, h2Connection, pgConnection, stepsProgress, posSol)
+    }
+
+
+}
+
+def generateReceivers(Map input, Connection h2Connection,double deltaBuildingsReceivers, ProgressVisitor stepsProgress) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+
+    // Generate receivers on buildings
+    ScriptUtilities.execScript(new Building_Grid(), h2Connection, [tableBuilding: "BUILDINGS", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1], stepsProgress)
+    Sql h2Sql = new Sql(h2Connection)
+    h2Sql.execute("ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS")
+    logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
 }
 
 def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
@@ -343,10 +368,10 @@ def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Con
 
 }
 
-def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
+def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
-    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid'"""
+    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid' AND pos_sol='$posSol'"""
     ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadsQuery)" as String, tableName: "LW_ROADS"], stepsProgress)
 }
 
@@ -401,4 +426,5 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
             Map.of("sqlQueries", insertBarriersSql, "outputFormat", "json"),
             new EmptyProgressVisitor())
 
+    ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "BUILDINGS", pkName: "PK"], stepsProgress)
 }
