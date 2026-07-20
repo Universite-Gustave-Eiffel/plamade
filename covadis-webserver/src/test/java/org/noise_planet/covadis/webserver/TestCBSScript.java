@@ -165,5 +165,6 @@ public class TestCBSScript extends JDBCTestCase {
                 "conf", 1));
 
 
+        new Export_Table().exec(connection, Map.of("tableToExport", "RECEIVERS_LEVEL_RD_FR_00_0781651", "exportPath", "target/receiverlevel.shp"));
     }
 }

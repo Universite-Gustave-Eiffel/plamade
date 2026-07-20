@@ -4,6 +4,7 @@ import groovy.sql.Sql
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
@@ -11,10 +12,12 @@ import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
+import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source
 import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
 import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.h2gis.utilities.GeometryTableUtilities
 
 import javax.sql.DataSource
 import java.sql.Connection
@@ -132,15 +135,50 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 
     def posSols = pgSql.rows(posSolQuery).collect { it.pos_sol as String}
 
+    ProgressVisitor solProgress = stepsProgress.subProcess(posSols.size())
     posSols.forEach {posSol ->
         logger.info("Compute for pos_sol = $posSol")
         // Clear tables
         h2Sql.execute("DROP TABLE IF EXISTS DEM, LW_ROADS")
-        processRoads(input, uueid, h2Connection, stepsProgress, posSol)
-        fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, stepsProgress, posSol)
+        // Fetch specific road emission at this special height
+        processRoads(input, uueid, h2Connection, solProgress, posSol)
+        // Adapt the DEM with this special road height
+        fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, solProgress, posSol)
+        // Run the simulation with this road height
+        runSimulation(mainConfiguration, h2Connection, posSol, solProgress)
     }
 
+    // Merge noise levels for each pos sols
+    mergeReceiversLevels(posSols, h2Connection, uueid, logger, h2Sql)
 
+}
+
+private void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
+    def posSolsToProcess = new ArrayList<String>(posSols)
+    def firstPosSol = posSolsToProcess.pop()
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, "ROADS_LEVELS_$firstPosSol", "THE_GEOM");
+    def mergeLevelsQuery = """
+        DROP TABLE IF EXISTS RECEIVERS_LEVEL_$uueid;
+        CREATE TABLE RECEIVERS_LEVEL_$uueid(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2));
+    """ as String
+
+    mergeLevelsQuery += """
+        INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ROADS_LEVELS_$firstPosSol;
+    """ as String
+
+    posSolsToProcess.each { posSol ->
+        mergeLevelsQuery += """
+            UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ROADS_LEVELS_$posSol RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10));
+        """ as String
+    }
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", mergeLevelsQuery, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+
+    logger.info(ScriptUtilities.formatSqlQueryResult(
+                    h2Sql, "SELECT * FROM RECEIVERS_LEVEL_$uueid WHERE LAEQ > 0 LIMIT 5" as String, 120))
 }
 
 def generateReceivers(Map input,String uueid, Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
@@ -240,6 +278,29 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     new Execute_Query().exec(sql.connection,
             Map.of("sqlQueries", replaceDEMQuery, "outputFormat", "json"),
             new EmptyProgressVisitor())
+}
+
+def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol, ProgressVisitor stepsProgress) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    ScriptUtilities.execScript(new Noise_level_from_source(),
+            h2Connection, [
+            tableBuilding: "BUILDINGS",
+            tableSources: "LW_ROADS",
+            tableReceivers: "RECEIVERS_DELAUNAY",
+            tableDEM: "DEM",
+            tableGroundAbs: "LANDCOVER",
+            tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
+            confReflOrder: mainConfiguration.confreflorder,
+            confMaxSrcDist: mainConfiguration.confmaxsrcdist,
+            confMaxReflDist: mainConfiguration.confmaxrefldist,
+            confDiffVertical: mainConfiguration.confdiffvertical,
+            confDiffHorizontal: mainConfiguration.confdiffhorizontal
+            ],
+            stepsProgress)
+    // Rename output table
+    def outputTableName = "ROADS_LEVELS_$posSol"
+    Sql h2Sql = new Sql(h2Connection)
+    h2Sql.execute("ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName" as String)
 }
 
 def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
