@@ -9,6 +9,7 @@ import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
@@ -151,6 +152,58 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     // Merge noise levels for each pos sols
     mergeReceiversLevels(posSols, h2Connection, uueid, logger, h2Sql)
 
+    // Generate IsoContours
+    generateLocalCBS(h2Connection, uueid, stepsProgress)
+
+
+}
+
+def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor progress) {
+    ProgressVisitor stepsProgress = progress.subProcess(2)
+
+    def filterNoiseLevelsQuery = """
+        DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_$uueid, RECEIVERS_LEVEL_NIGHT_$uueid;
+        CREATE TABLE RECEIVERS_LEVEL_DEN_$uueid AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_$uueid WHERE PERIOD='DEN';
+        ALTER TABLE RECEIVERS_LEVEL_DEN_$uueid ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
+        ALTER TABLE RECEIVERS_LEVEL_DEN_$uueid ADD PRIMARY KEY (IDRECEIVER);
+        CREATE TABLE RECEIVERS_LEVEL_NIGHT_$uueid AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_$uueid WHERE PERIOD='N';
+        ALTER TABLE RECEIVERS_LEVEL_NIGHT_$uueid ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
+        ALTER TABLE RECEIVERS_LEVEL_NIGHT_$uueid ADD PRIMARY KEY (IDRECEIVER);
+    """
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", filterNoiseLevelsQuery as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+
+    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
+            [resultTable: "RECEIVERS_LEVEL_DEN_$uueid", smoothCoefficient : 0, isoClass: "55.0,60.0,65.0,70.0,75.0,200.0"], stepsProgress)
+
+    def noiselevel = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
+
+    def makeCbsTableQuery = """
+        CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float);
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel) SELECT ST_Accum(THE_GEOM) THE_GEOM,concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LD', 
+        $noiselevel
+        FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
+    """
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+
+    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
+            [resultTable: "RECEIVERS_LEVEL_NIGHT_$uueid", smoothCoefficient : 0, isoClass: "50.0,55.0,60.0,65.0,70.0,200.0"], stepsProgress)
+
+    noiselevel = "(CASE WHEN ISOLABEL = '50-55' THEN 'Lnight5054' WHEN ISOLABEL = '55-60' THEN 'Lnight5559' WHEN ISOLABEL = '60-65' THEN 'Lnight6064' WHEN ISOLABEL = '65-70' THEN 'Lnight6569' WHEN ISOLABEL = '70+' THEN 'LnightGreaterThan70' END)"
+    makeCbsTableQuery = """
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
+        $noiselevel    
+        FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
+    """
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
 }
 
 private void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
@@ -204,7 +257,7 @@ def generateReceivers(Map input,String uueid, Geometry extractionEnvelopeGeometr
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence: receiversZone, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
-            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY"], subSteps)
+            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true], subSteps)
 }
 
 def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {

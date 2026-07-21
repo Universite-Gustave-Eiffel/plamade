@@ -1,6 +1,7 @@
 package org.noise_planet.covadis.webserver;
 
 
+import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
 import org.h2gis.api.EmptyProgressVisitor;
@@ -164,7 +165,10 @@ public class TestCBSScript extends JDBCTestCase {
                 "uueid_pattern", "RD_FR_00_0781651",
                 "conf", 1));
 
+        logger.info(ScriptUtilities.formatSqlQueryResult(
+                new Sql(connection), "SELECT * FROM ISOPHONES LIMIT 5", 120));
 
-        new Export_Table().exec(connection, Map.of("tableToExport", "RECEIVERS_LEVEL_RD_FR_00_0781651", "exportPath", "target/receiverlevel.shp"));
+        logger.info(ScriptUtilities.formatSqlQueryResult(
+                new Sql(connection), "SELECT DISTINCT ISOLABEL FROM CONTOURING_NOISE_MAP", 120));
     }
 }
