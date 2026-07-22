@@ -3101,3 +3101,14 @@ CREATE TABLE bd_topo.n_troncon_hydrographique_bdt_000_2023 (
 	geom public.geometry(linestring, 2154) NULL,
 	CONSTRAINT n_troncon_hydrographique_bdt_000_2023_pkey PRIMARY KEY (cleabs)
 );
+
+CREATE TABLE cbs_uge_input.nm_nuts (
+	code_2021 varchar(9) NOT NULL,
+	country varchar(7) NULL,
+	nuts_lvl1 varchar(46) NULL,
+	nuts_lvl2 varchar(26) NULL,
+	nuts_lvl3 varchar(23) NULL,
+	code_dept varchar(3) NULL,
+	ratio_pop_log float8 NULL,
+	CONSTRAINT nuts_pkey PRIMARY KEY (code_2021)
+);

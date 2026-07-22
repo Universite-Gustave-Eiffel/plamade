@@ -4,7 +4,6 @@ package org.noise_planet.covadis.webserver;
 import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
-import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,8 +14,6 @@ import org.noise_planet.covadis.scripts.CBS.Generate_sources;
 import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
-import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query;
-import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +35,9 @@ import java.util.zip.ZipInputStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Test execution of the CBS scripts using a subset of the data extracted from the Plamade PostgreSQL database
+ */
 public class TestCBSScript extends JDBCTestCase {
     DataSource pgDataSource;
     boolean forceRecreateData = true;
@@ -138,6 +138,7 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/d091.sql.zip");
                     runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
+                    runSqlFile(pgConnection, "database/nm_nuts.sql.zip");
                     logger.info("Database tables created in " + (System.currentTimeMillis() - start) + "ms");
                 }
             }

@@ -62,8 +62,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
     def postgisConfig = h2sql.firstRow("SELECT * FROM POSTGIS_CONFIGURATION")
 
-    def mainConfiguration = [:]
-    Geometry extractionEnvelopeGeometry = null
     try (DataSource dataSource = PostGISUtilities.createPostgisDataSource(
             postgisConfig['user_name'] as String,
             postgisConfig['password'] as String,
@@ -73,7 +71,15 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pgConnection.setAutoCommit(true)
         Sql sql = new Sql(pgConnection)
 
-        mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}" as String)
+        def mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}" as String)
+
+        // Fetch nuts table
+        logger.info("Fetching NUTS table...")
+        Map<String, String> codeDeptToNuts = new HashMap<>()
+        sql.rows("SELECT code_dept, code_2021 FROM cbs_uge_input.nm_nuts" as String).each {
+            row ->
+                codeDeptToNuts.put(row.code_dept as String, row.code_2021 as String)
+        }
 
         // Log main configuration entries
         logger.info("Configuration:")
@@ -93,7 +99,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         }
 
         uueids.each {
-            computeForUUEID(it, connection, pgConnection, stepsProgress, input, mainConfiguration)
+            computeForUUEID(it, connection, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
         }
 
         // Return results
@@ -103,7 +109,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
 }
 
-def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration) {
+def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map<String, String> codeDeptToNuts) {
     ProgressVisitor stepsProgress = progress.subProcess(3) // long running sub tasks
     def pgSql = new Sql(pgConnection)
     def h2Sql = new Sql(h2Connection)
@@ -153,13 +159,20 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     mergeReceiversLevels(posSols, h2Connection, uueid, logger, h2Sql)
 
     // Generate IsoContours
-    generateLocalCBS(h2Connection, uueid, stepsProgress)
+    generateLocalCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
 
 }
 
-def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor progress) {
+def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor progress, Map<String, String> codeDeptToNuts) {
+    Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor stepsProgress = progress.subProcess(2)
+
+    // uueid:RD_FR_00_0781651 codeDept is 078
+    def codeDept = uueid.split("_")[3].substring(0, 3)
+    def nutsCode = codeDeptToNuts.get(codeDept)
+    logger.info("Processing CBS uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
+
 
     def filterNoiseLevelsQuery = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_$uueid, RECEIVERS_LEVEL_NIGHT_$uueid;
@@ -181,9 +194,9 @@ def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     def noiselevel = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
 
     def makeCbsTableQuery = """
-        CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float);
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel) SELECT ST_Accum(THE_GEOM) THE_GEOM,concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LD', 
-        $noiselevel
+        CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar);
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode) SELECT ST_Accum(THE_GEOM) THE_GEOM,concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LD', 
+        $noiselevel, 'A', '$nutsCode'
         FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
     """
 
@@ -196,8 +209,8 @@ def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor prog
 
     noiselevel = "(CASE WHEN ISOLABEL = '50-55' THEN 'Lnight5054' WHEN ISOLABEL = '55-60' THEN 'Lnight5559' WHEN ISOLABEL = '60-65' THEN 'Lnight6064' WHEN ISOLABEL = '65-70' THEN 'Lnight6569' WHEN ISOLABEL = '70+' THEN 'LnightGreaterThan70' END)"
     makeCbsTableQuery = """
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
-        $noiselevel    
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
+        $noiselevel, 'A', '$nutsCode'
         FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
     """
 
@@ -285,33 +298,32 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     }
 
     // Enhance DEM points with orography and hydrography ruptures lines
-    // TODO add for other projections when available
-    if(input.projectionName == "hexa") {
-        def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
-             FROM bd_topo.n_ligne_orographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
-        ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchOroTableQuery)" as String, tableName: "OROGRAPHIC"], demProgress)
-        // Insert lines into DEM table
-        def insertOroQuery = """
-            INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
-            DROP TABLE OROGRAPHIC;            
-            """
-        new Execute_Query().exec(sql.connection,
-                Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
-                new EmptyProgressVisitor())
+    def tableExt = getDeptCodeFromExt().get(input.projectionName)
+    def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
+         FROM bd_topo.n_ligne_orographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchOroTableQuery)" as String, tableName: "OROGRAPHIC"], demProgress)
+    // Insert lines into DEM table
+    def insertOroQuery = """
+        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
+        DROP TABLE OROGRAPHIC;            
+        """
+    new Execute_Query().exec(sql.connection,
+            Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
+            new EmptyProgressVisitor())
 
-        def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
-             FROM bd_topo.n_troncon_hydrographique_bdt_000_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+    def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
+         FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
 
-        ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchHydroTableQuery)" as String, tableName: "HYDROGRAPHIC"], demProgress)
-        // Insert lines into DEM table
-        def insertHydroQuery = """
-            INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
-            DROP TABLE HYDROGRAPHIC;            
-            """
-        new Execute_Query().exec(sql.connection,
-                Map.of("sqlQueries", insertHydroQuery, "outputFormat", "json"),
-                new EmptyProgressVisitor())
-    }
+    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchHydroTableQuery)" as String, tableName: "HYDROGRAPHIC"], demProgress)
+    // Insert lines into DEM table
+    def insertHydroQuery = """
+        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
+        DROP TABLE HYDROGRAPHIC;            
+        """
+    new Execute_Query().exec(sql.connection,
+            Map.of("sqlQueries", insertHydroQuery, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+
 
     // Fetch road table with altitude using the UUEID query
     def roadQuery = """SELECT geom as the_geom, largeur as width
@@ -560,4 +572,8 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
             new EmptyProgressVisitor())
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "BUILDINGS", pkName: "PK"], stepsProgress)
+}
+
+static Map getDeptCodeFromExt() {
+    return  ["hexa": '000', "guad": '971', "guya": '973', "mart": '972', "reun": '974' ]
 }
