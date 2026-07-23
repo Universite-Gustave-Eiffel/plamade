@@ -184,6 +184,7 @@ def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor prog
         ALTER TABLE RECEIVERS_LEVEL_NIGHT_$uueid ADD PRIMARY KEY (IDRECEIVER);
     """
 
+    // Create CBS A Maps
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", filterNoiseLevelsQuery as String, "outputFormat", "json"),
             new EmptyProgressVisitor())
@@ -194,9 +195,9 @@ def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     def noiselevel = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
 
     def makeCbsTableQuery = """
-        CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar);
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode) SELECT ST_Accum(THE_GEOM) THE_GEOM,concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LD', 
-        $noiselevel, 'A', '$nutsCode'
+        CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar, typesource varchar);
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM,concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LD', 
+        $noiselevel, 'A', '$nutsCode', 'R'
         FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
     """
 
@@ -209,9 +210,39 @@ def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor prog
 
     noiselevel = "(CASE WHEN ISOLABEL = '50-55' THEN 'Lnight5054' WHEN ISOLABEL = '55-60' THEN 'Lnight5559' WHEN ISOLABEL = '60-65' THEN 'Lnight6064' WHEN ISOLABEL = '65-70' THEN 'Lnight6569' WHEN ISOLABEL = '70+' THEN 'LnightGreaterThan70' END)"
     makeCbsTableQuery = """
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
-        $noiselevel, 'A', '$nutsCode'
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
+        $noiselevel, 'A', '$nutsCode', 'R'
         FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
+    """
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+
+    // Create CBS C Maps
+
+    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
+            [resultTable: "RECEIVERS_LEVEL_DEN_$uueid", smoothCoefficient : 0, isoClass: "68.0d,200.0d"], stepsProgress)
+
+    noiselevel = "'LdenGreaterThan68'"
+    makeCbsTableQuery = """
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
+        $noiselevel, 'C', '$nutsCode', 'R'
+        FROM CONTOURING_NOISE_MAP WHERE ISOLVL = 1 GROUP BY ISOLABEL;
+    """
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+
+    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
+            [resultTable: "RECEIVERS_LEVEL_NIGHT_$uueid", smoothCoefficient : 0, isoClass: "62.0d,200.0d"], stepsProgress)
+
+    noiselevel = "'LdenGreaterThan62'"
+    makeCbsTableQuery = """
+        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
+        $noiselevel, 'C', '$nutsCode', 'R'
+        FROM CONTOURING_NOISE_MAP WHERE ISOLVL = 1 GROUP BY ISOLABEL;
     """
 
     new Execute_Query().exec(h2Connection,
@@ -276,7 +307,7 @@ def generateReceivers(Map input,String uueid, Geometry extractionEnvelopeGeometr
 def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")
-    ProgressVisitor demProgress = stepsProgress.subProcess(3)
+    ProgressVisitor demProgress = stepsProgress.subProcess(5)
 
     Sql sql = new Sql(h2Connection)
     Sql pgSql = new Sql(pgConnection)
