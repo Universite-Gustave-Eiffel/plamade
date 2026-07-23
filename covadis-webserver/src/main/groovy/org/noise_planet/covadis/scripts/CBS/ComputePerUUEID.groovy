@@ -146,7 +146,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 
     fetchAtmosphericPeriodFromStations(input, pgConnection, uueid, h2Connection, stepsProgress)
 
-    def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg""" as String
+    def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg WHERE (franchisst IS NULL OR franchisst = 'Pont')""" as String
 
     def posSols = pgSql.rows(posSolQuery).collect { it.pos_sol as String}
 
@@ -320,23 +320,27 @@ private void processMap(Connection conn, ProgressVisitor progress, String uueid,
     new Execute_Query().exec(conn, [sqlQueries: insertSql, outputFormat: "json"], new EmptyProgressVisitor())
 }
 
+static String getRoadsLevelsTableName(String posSol) {
+    return """ROADS_LEVELS_${posSol.replace("-", "m")}"""
+}
+
 private void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
     def posSolsToProcess = new ArrayList<String>(posSols)
     def firstPosSol = posSolsToProcess.pop()
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, "ROADS_LEVELS_$firstPosSol", "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, getRoadsLevelsTableName(firstPosSol), "THE_GEOM");
     def mergeLevelsQuery = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_$uueid;
         CREATE TABLE RECEIVERS_LEVEL_$uueid(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2));
     """ as String
 
     mergeLevelsQuery += """
-        INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ROADS_LEVELS_$firstPosSol;
+        INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(firstPosSol)};
     """ as String
 
     posSolsToProcess.each { posSol ->
         mergeLevelsQuery += """
-            UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ROADS_LEVELS_$posSol RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10));
+            UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10));
         """ as String
     }
 
@@ -445,7 +449,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     // Fetch road table with altitude using the UUEID query
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE uueid = '${uueid}' and pos_sol = '$posSol'"""
+        WHERE uueid = '${uueid}' and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadQuery)) {
         PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
@@ -483,7 +487,7 @@ def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol,
             ],
             stepsProgress)
     // Rename output table
-    def outputTableName = "ROADS_LEVELS_$posSol"
+    def outputTableName = getRoadsLevelsTableName(posSol)
     Sql h2Sql = new Sql(h2Connection)
     h2Sql.execute("ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName" as String)
 }
@@ -642,7 +646,7 @@ def fetchAtmosphericPeriodFromStations(Map input,Connection pgConnection, String
 def processRoads(Map input,Connection pgConnection, String uueid, Connection h2Connection, ProgressVisitor stepsProgress, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
-    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid' AND pos_sol='$posSol'"""
+    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid' AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadsQuery)) {

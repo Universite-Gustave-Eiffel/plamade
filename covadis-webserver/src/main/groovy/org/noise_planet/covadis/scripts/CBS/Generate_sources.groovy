@@ -61,10 +61,12 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         // Fetch other fields using the primary key
         sql.execute("ALTER TABLE $lwTableName add column uueid varchar(20) NOT NULL DEFAULT '';" as String)
         sql.execute("ALTER TABLE $lwTableName add column pos_sol varchar(20) NOT NULL DEFAULT '0';" as String)
+        sql.execute("ALTER TABLE $lwTableName add column franchisst varchar(13) NULL;" as String)
         sql.execute("""
             UPDATE $lwTableName lw
             SET uueid = tf.uueid,
-                pos_sol = COALESCE(tf.pos_sol, '0')
+                pos_sol = COALESCE(tf.pos_sol, '0'),
+                franchisst = tf.franchisst
             FROM $trafficTableName tf
             WHERE lw.pk = tf.pk""" as String)
 
@@ -122,7 +124,8 @@ uueid varchar(20) NOT NULL,
 pos_sol varchar(20) NULL,
 temp_d numeric(11) NULL,
 temp_n numeric(11) NULL,
-temp_e numeric(11) NULL
+temp_e numeric(11) NULL,
+franchisst varchar(13) NULL
 );
 INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as THE_GEOM,
         a.idtroncon as ID_TRONCON,
@@ -190,7 +193,7 @@ INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(ST_CollectionHomogenize(g
 
         COMMENT ON COLUMN ${trafficOutputTableName}.id_troncon IS 'Identifiant unique du tronçon (PK)';
         COMMENT ON COLUMN ${trafficOutputTableName}.id_route IS 'Identifiant de la route parente';
-        
+        COMMENT ON COLUMN ${trafficOutputTableName}.franchisst IS 'Type de franchissement ex Pont, Tunnel';
         COMMENT ON COLUMN ${trafficOutputTableName}.lv_d IS 'Hourly average light vehicle count (6-18h)';
         COMMENT ON COLUMN ${trafficOutputTableName}.lv_e IS 'Hourly average light vehicle count (18-22h)';
         COMMENT ON COLUMN ${trafficOutputTableName}.lv_n IS 'Hourly average light vehicle count (22-6h)';
