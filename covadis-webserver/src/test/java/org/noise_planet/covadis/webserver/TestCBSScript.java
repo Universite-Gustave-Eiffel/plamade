@@ -13,6 +13,7 @@ import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.CBS.Generate_sources;
 import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
+import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,6 +159,21 @@ public class TestCBSScript extends JDBCTestCase {
 
     @Test
     @Order(4)
+    public void testCopyPostGISToH2Database() throws SQLException {
+        assumePostGISAvailable();
+
+        try (Connection pgConnection = pgDataSource.getConnection();
+             Statement statement = pgConnection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_input.c_batiment_s_hexa")) {
+
+            PostGISUtilities.copyFromPostGISToH2Database(pgConnection, resultSet, connection, "BUILDINGS", true);
+        }
+        assertTrue(JDBCUtilities.tableExists(connection, "BUILDINGS"));
+        assertEquals(12, JDBCUtilities.getRowCount(connection, "BUILDINGS"));
+    }
+
+    @Test
+    @Order(5)
     public void testRunByUUEID() throws SQLException {
         assumePostGISAvailable();
         //RD_FR_00_0781651

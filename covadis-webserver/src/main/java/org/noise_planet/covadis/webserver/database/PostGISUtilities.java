@@ -17,14 +17,20 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.utilities.GeometryMetaData;
 import org.h2gis.utilities.GeometryTableUtilities;
+import org.h2gis.utilities.JDBCUtilities;
+import org.h2gis.utilities.TableLocation;
+import org.h2gis.utilities.dbtypes.DBTypes;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.twkb.TWKBReader;
 import org.noise_planet.noisemodelling.runner.PostGISJTSDataSource;
+import org.postgresql.jdbc.PgResultSetMetaData;
 
 import javax.sql.DataSource;
 import java.sql.*;
 import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PostGISUtilities {
 
@@ -165,6 +171,139 @@ public class PostGISUtilities {
             // In H2GIS, creating an index on an existing populated table is much faster
             // than updating the index for every row during insertion.
             h2Stmt.execute("CREATE SPATIAL INDEX IF NOT EXISTS " + h2TableName + "_geom_idx ON " + h2TableName + "(the_geom)");
+        }
+    }
+
+    /**
+     * Copy a remote PostGIS table to a local h2 table.
+     *
+     * @param pgConnection     PostGIS connection
+     * @param pgResultSet      PostGIS resultset (caller is responsible to close it)
+     * @param h2Connection     H2 connection
+     * @param h2TableName      Name of the target h2 table
+     * @param dropLocalH2Table Whether to drop the local h2 table before copying
+     */
+    public static void copyFromPostGISToH2Database(Connection pgConnection, ResultSet pgResultSet,Connection h2Connection,
+                                                   String h2TableName, boolean dropLocalH2Table) throws SQLException {
+        // Collect ResultSet metadata
+        PgResultSetMetaData resultSetMetaData = pgResultSet.getMetaData().unwrap(PgResultSetMetaData.class);
+        List<String> columnNames = new ArrayList<>();
+        List<String> columnTypes = new ArrayList<>();
+        List<Integer> columnsTypeIndexes = new ArrayList<>();
+        List<Boolean> columnNullables = new ArrayList<>();
+        for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+            columnsTypeIndexes.add(resultSetMetaData.getColumnType(i));
+            columnNullables.add(resultSetMetaData.isNullable(i) != ResultSetMetaData.columnNoNulls);
+            columnNames.add(TableLocation.capsIdentifier(resultSetMetaData.getColumnLabel(i), DBTypes.H2));
+            if("GEOMETRY".equalsIgnoreCase(resultSetMetaData.getColumnTypeName(i))) {
+                // Fetch geometry type and srid
+                TableLocation t = new TableLocation(resultSetMetaData.getBaseSchemaName(i),
+                        resultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
+                GeometryMetaData metaData =
+                        GeometryTableUtilities.getMetaData(pgConnection, t, resultSetMetaData.getColumnLabel(i));
+                if(metaData != null) {
+                    columnTypes.add(metaData.getSQL());
+                } else  {
+                    columnTypes.add(resultSetMetaData.getColumnTypeName(i));
+                }
+            } else {
+                columnTypes.add(resultSetMetaData.getColumnTypeName(i));
+            }
+        }
+        // Drop and Create target table
+        if(!JDBCUtilities.tableExists(h2Connection, h2TableName) || dropLocalH2Table) {
+            if(dropLocalH2Table) {
+                try (Statement h2Stmt = h2Connection.createStatement()) {
+                    h2Stmt.execute("DROP TABLE " + h2TableName);
+                }
+            }
+            // Generate the h2 table according to the result set metadata
+            StringBuilder createTableSql = new StringBuilder();
+            createTableSql.append("CREATE TABLE ").append(h2TableName).append(" (");
+            for (int i = 0; i < columnNames.size(); i++) {
+                createTableSql.append(columnNames.get(i)).append(" ").append(columnTypes.get(i));
+                if (!columnNullables.get(i)) {
+                    createTableSql.append(" NOT NULL");
+                }
+                if (i < columnNames.size() - 1) {
+                    createTableSql.append(", ");
+                }
+            }
+            createTableSql.append(")");
+            try (Statement h2Stmt = h2Connection.createStatement()) {
+                h2Stmt.execute(createTableSql.toString());
+            }
+        }
+        StringBuilder insertSql = new StringBuilder();
+        insertSql.append("INSERT INTO ").append(h2TableName).append(" VALUES (");
+        for (int i = 0; i < columnNames.size(); i++) {
+            insertSql.append("?");
+            if (i < columnNames.size() - 1) {
+                insertSql.append(", ");
+            }
+        }
+        insertSql.append(")");
+        // Insert values using batch
+        try (PreparedStatement ps = h2Connection.prepareStatement(insertSql.toString())) {
+            while (pgResultSet.next()) {
+                for (int i = 0; i < columnNames.size(); i++) {
+                    switch (columnsTypeIndexes.get(i)) {
+                        case Types.VARCHAR:
+                            ps.setString(1, pgResultSet.getString(i));
+                            break;
+                        case Types.BIT:
+                            ps.setBoolean(1, pgResultSet.getBoolean(i));
+                            break;
+                        case Types.INTEGER:
+                            ps.setInt(1, pgResultSet.getInt(i));
+                            break;
+                        case Types.TINYINT:
+                            ps.setByte(1, pgResultSet.getByte(i));
+                            break;
+                        case Types.SMALLINT:
+                            ps.setShort(1, pgResultSet.getShort(i));
+                            break;
+                        case Types.NUMERIC, Types.DECIMAL:
+                            ps.setBigDecimal(1, pgResultSet.getBigDecimal(i));
+                            break;
+                        case Types.DOUBLE:
+                            ps.setDouble(1, pgResultSet.getDouble(i));
+                            break;
+                        case Types.FLOAT, Types.REAL:
+                            ps.setFloat(1, pgResultSet.getFloat(i));
+                            break;
+                        case Types.DATE:
+                            ps.setDate(1, pgResultSet.getDate(i));
+                            break;
+                        case Types.TIME:
+                            ps.setTime(1, pgResultSet.getTime(i));
+                            break;
+                        case Types.TIMESTAMP:
+                            ps.setTimestamp(1, pgResultSet.getTimestamp(i));
+                            break;
+                        case Types.BLOB:
+                            ps.setBlob(1, pgResultSet.getBlob(i));
+                            break;
+                        case Types.CLOB:
+                            ps.setClob(1, pgResultSet.getClob(i));
+                            break;
+                        case Types.NVARCHAR, Types.NCHAR, Types.NCLOB:
+                            ps.setNString(1, pgResultSet.getNString(i));
+                            break;
+                        case Types.JAVA_OBJECT, Types.OTHER:
+                            ps.setObject(1, pgResultSet.getObject(i));
+                            break;
+                        case Types.ARRAY:
+                            ps.setArray(1, pgResultSet.getArray(i));
+                            break;
+                        case Types.REF:
+                            ps.setRef(1, pgResultSet.getRef(i));
+                            break;
+                    }
+                }
+                ps.addBatch();
+            }
+            ps.executeBatch();
         }
     }
 }
