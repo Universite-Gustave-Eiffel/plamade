@@ -2,6 +2,7 @@ package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
 import groovy.transform.CompileStatic
+import groovy.transform.Field
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
@@ -24,6 +25,8 @@ import org.h2gis.utilities.GeometryTableUtilities
 
 import javax.sql.DataSource
 import java.sql.Connection
+import java.sql.ResultSet
+import java.sql.Statement
 
 title = 'Full NoiseModelling computation that output results for each UUEID separately'
 description = 'Full NoiseModelling computation that output results for each UUEID separately'
@@ -52,6 +55,9 @@ inputs = [
 ]
 
 outputs = [result: [name: 'Result output string', title: 'Result output string', description: 'Result table name. Can be used as input for another WPS process', type: String.class]]
+
+@Field
+int batchSize = 100
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -131,14 +137,14 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 
     logger.info("SRID: {}", (extractionEnvelopeGeometry).getSRID())
 
-    processBuildings(input, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
+    processBuildings(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
-    generateReceivers(input, uueid, extractionEnvelopeGeometry, h2Connection,
+    generateReceivers(input, pgConnection, uueid, extractionEnvelopeGeometry, h2Connection,
             mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress)
 
-    processLandCover(input, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress)
+    processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress)
 
-    fetchAtmosphericPeriodFromStations(input, uueid, h2Connection, stepsProgress)
+    fetchAtmosphericPeriodFromStations(input, pgConnection, uueid, h2Connection, stepsProgress)
 
     def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg""" as String
 
@@ -150,7 +156,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
         // Clear tables
         h2Sql.execute("DROP TABLE IF EXISTS DEM, LW_ROADS")
         // Fetch specific road emission at this special height
-        processRoads(input, uueid, h2Connection, solProgress, posSol)
+        processRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol)
         // Adapt the DEM with this special road height
         fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, solProgress, posSol)
         // Run the simulation with this road height
@@ -342,7 +348,7 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
                     h2Sql, "SELECT * FROM RECEIVERS_LEVEL_$uueid WHERE LAEQ > 0 LIMIT 5" as String, 120))
 }
 
-def generateReceivers(Map input,String uueid, Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
+def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor subSteps = stepsProgress.subProcess(4)
 
@@ -357,7 +363,10 @@ def generateReceivers(Map input,String uueid, Geometry extractionEnvelopeGeometr
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
         WHERE uueid = '${uueid}'"""
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadQuery)" as String, tableName: "ROADS", intermediateFileFormat : "fgb"], subSteps)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(roadQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+    }
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], subSteps)
 
@@ -397,9 +406,15 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
 
     // Enhance DEM points with orography and hydrography ruptures lines
     def tableExt = getDeptCodeFromExt().get(input.projectionName)
-    def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
+    def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
          FROM bd_topo.n_ligne_orographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchOroTableQuery)" as String, tableName: "OROGRAPHIC"], demProgress)
+
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(fetchOroTableQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "OROGRAPHIC", true, batchSize)
+    }
+
+
     // Insert lines into DEM table
     def insertOroQuery = """
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
@@ -409,10 +424,14 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
             Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
             new EmptyProgressVisitor())
 
-    def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) geom3d
+    def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
          FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
 
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($fetchHydroTableQuery)" as String, tableName: "HYDROGRAPHIC"], demProgress)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(fetchHydroTableQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "HYDROGRAPHIC", true, batchSize)
+    }
+
     // Insert lines into DEM table
     def insertHydroQuery = """
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
@@ -427,7 +446,10 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
         WHERE uueid = '${uueid}' and pos_sol = '$posSol'"""
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadQuery)" as String, tableName: "ROADS"], demProgress)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(roadQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+    }
 
     // Create a new DEM with road platforms
     def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
@@ -466,14 +488,17 @@ def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol,
     h2Sql.execute("ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName" as String)
 }
 
-def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
+def processLandCover(Map input,Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch land cover..")
     def landCoverQuery = """SELECT geom as the_geom, idnatsol as pk, natsol_lib as clc_lib, natsol_cno as g 
         FROM cbs_uge_input.c_naturesol_${input.projectionName} 
         WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry) AND NATSOL_CNO > 0"""
 
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($landCoverQuery)" as String, tableName: "LANDCOVER"], stepsProgress)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(landCoverQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "LANDCOVER", true, batchSize)
+    }
 }
 
 /**
@@ -483,7 +508,7 @@ def processLandCover(Map input, String extractionEnvelopeGeometry, Connection h2
  * @param h2Connection The H2 database connection.
  * @param stepsProgress The progress visitor for tracking execution progress.
  */
-def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
+def fetchAtmosphericPeriodFromStations(Map input,Connection pgConnection, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
     // tablePeriodAtmosphericSettings — Atmospheric settings table name for each time period
     //
     //    Name of the Atmospheric settings table The table must contain the following columns:
@@ -504,7 +529,10 @@ def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Con
         WHERE UUEID = '$uueid'
         ORDER BY a.the_geom <-> b.geom LIMIT 1
     """
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($atmosphericQuery)" as String, tableName: "ATMOSPHERIC", intermediateFileFormat: "fgb"], stepsProgress)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(atmosphericQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "ATMOSPHERIC", true, batchSize)
+    }
 
     def sql = new Sql(h2Connection)
     def distanceStation = sql.firstRow("SELECT distance_station FROM ATMOSPHERIC")
@@ -611,14 +639,18 @@ def fetchAtmosphericPeriodFromStations(Map input, String uueid, Connection h2Con
 
 }
 
-def processRoads(Map input, String uueid, Connection h2Connection, ProgressVisitor stepsProgress, String posSol) {
+def processRoads(Map input,Connection pgConnection, String uueid, Connection h2Connection, ProgressVisitor stepsProgress, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
     def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid' AND pos_sol='$posSol'"""
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($roadsQuery)" as String, tableName: "LW_ROADS"], stepsProgress)
+
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(roadsQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
+    }
 }
 
-def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
+def processBuildings(Map input,Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
     def projectionName = input.projectionName
@@ -627,18 +659,27 @@ def processBuildings(Map input, String extractionEnvelopeGeometry, Connection h2
                 INNER JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
              WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry)"""
 
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($tableQuery)" as String, tableName: "BUILDINGS"], stepsProgress)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(tableQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "BUILDINGS", true, batchSize)
+    }
 
     Sql sql = new Sql(h2Connection)
     sql.execute("""ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;""" as String)
 
     def erpsQuery = """SELECT idbat, b.erps_nature from cbs_uge_input.c_batimentsensible_${projectionName} b, cbs_uge_input.c_correspond_batiment_batimentsensible_${projectionName} a  WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry) AND a.iderps = b.iderps"""
 
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($erpsQuery)" as String, tableName: "BUILDINGS_ERPS", intermediateFileFormat: "json"], stepsProgress)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(erpsQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "BUILDINGS_ERPS", true, batchSize)
+    }
 
     def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
-    ScriptUtilities.execScript(new Copy_PostGIS_To_H2GIS(), h2Connection, [tableToExport: "($noiseBarrierQuery)" as String, tableName: "BUILDINGS_BARRIERS"], stepsProgress)
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(noiseBarrierQuery)) {
+        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "BUILDINGS_BARRIERS", true, batchSize)
+    }
 
     //remove constraint on geometry type
     // add barriers with densification 1 meter (will follow the dem)

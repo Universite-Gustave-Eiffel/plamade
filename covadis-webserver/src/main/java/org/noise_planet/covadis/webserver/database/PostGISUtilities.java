@@ -15,10 +15,7 @@ package org.noise_planet.covadis.webserver.database;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.h2gis.api.ProgressVisitor;
-import org.h2gis.utilities.GeometryMetaData;
-import org.h2gis.utilities.GeometryTableUtilities;
-import org.h2gis.utilities.JDBCUtilities;
-import org.h2gis.utilities.TableLocation;
+import org.h2gis.utilities.*;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.ParseException;
@@ -190,16 +187,16 @@ public class PostGISUtilities {
         int columnCount = resultSetMetaData.getColumnCount();
         List<String> columnNames = new ArrayList<>();
         List<String> columnTypes = new ArrayList<>();
-        List<Integer> columnsTypeIndexes = new ArrayList<>();
         List<Boolean> columnNullables = new ArrayList<>();
+        List<TableLocation> fieldTableLocations = new ArrayList<>();
         for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-            columnsTypeIndexes.add(resultSetMetaData.getColumnType(i));
             columnNullables.add(resultSetMetaData.isNullable(i) != ResultSetMetaData.columnNoNulls);
             columnNames.add(TableLocation.capsIdentifier(resultSetMetaData.getColumnLabel(i), DBTypes.H2));
+            TableLocation t = new TableLocation(resultSetMetaData.getBaseSchemaName(i),
+                    resultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
+            fieldTableLocations.add(t);
             if("GEOMETRY".equalsIgnoreCase(resultSetMetaData.getColumnTypeName(i))) {
                 // Fetch geometry type and srid
-                TableLocation t = new TableLocation(resultSetMetaData.getBaseSchemaName(i),
-                        resultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
                 GeometryMetaData metaData =
                         GeometryTableUtilities.getMetaData(pgConnection, t, resultSetMetaData.getColumnLabel(i));
                 if(metaData != null) {
@@ -262,6 +259,17 @@ public class PostGISUtilities {
             }
             if(nonPushedBatch) {
                 ps.executeBatch();
+            }
+        }
+        // Add primary key if all columns are from the same table and the original table had a primary key in our column list
+        if(!fieldTableLocations.isEmpty() && !fieldTableLocations.getFirst().getTable().isEmpty() &&
+                fieldTableLocations.stream().allMatch(t -> t.equals(fieldTableLocations.getFirst()))) {
+            Tuple<String, Integer> pkInfo = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(pgConnection, fieldTableLocations.getFirst());
+            if(pkInfo != null && columnNames.stream().anyMatch(n -> n.equalsIgnoreCase(pkInfo.first()))) {
+                String pkName = pkInfo.first();
+                try (Statement h2Stmt = h2Connection.createStatement()) {
+                    h2Stmt.execute("ALTER TABLE " + h2TableName + " ADD CONSTRAINT " + h2TableName + "_pk PRIMARY KEY (" + pkName + ")");
+                }
             }
         }
     }

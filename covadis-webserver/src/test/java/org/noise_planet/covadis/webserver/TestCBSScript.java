@@ -7,6 +7,8 @@ import org.h2.util.StringUtils;
 import org.h2gis.utilities.GeometryMetaData;
 import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
+import org.h2gis.utilities.TableLocation;
+import org.h2gis.utilities.dbtypes.DBTypes;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
@@ -176,6 +178,20 @@ public class TestCBSScript extends JDBCTestCase {
         assertEquals("GEOMETRY(MULTIPOLYGONZ,2154)", metaData.getSQL());
     }
 
+    @Test
+    @Order(4)
+    public void testCopyPostGISToH2DatabaseWithPk() throws SQLException {
+        assumePostGISAvailable();
+
+        try (Connection pgConnection = pgDataSource.getConnection();
+             Statement statement = pgConnection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_output.routier_emission_hexa")) {
+            PostGISUtilities.copyFromPostGISToH2Database(pgConnection, resultSet, connection, "ROUTES", true, 5);
+        }
+        assertTrue(JDBCUtilities.tableExists(connection, "ROUTES"));
+        assertEquals(12, JDBCUtilities.getRowCount(connection, "ROUTES"));
+        assertEquals(1, JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse("ROUTES", DBTypes.H2)));
+    }
     @Test
     @Order(5)
     public void testRunByUUEID() throws SQLException {
