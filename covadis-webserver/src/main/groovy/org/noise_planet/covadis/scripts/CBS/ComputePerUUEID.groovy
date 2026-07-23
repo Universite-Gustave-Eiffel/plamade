@@ -1,12 +1,14 @@
 package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
+import groovy.transform.CompileStatic
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
+import org.locationtech.jts.io.twkb.TWKBWriter
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
@@ -166,7 +168,8 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 
 }
 
-def uploadCBS(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
+@CompileStatic
+static def uploadCBS(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
     Sql pgSql = new Sql(pgConnection)
     Sql h2Sql = new Sql(h2Connection)
     int batchSize = 100
@@ -181,9 +184,10 @@ def uploadCBS(Connection h2Connection, Connection pgConnection, String uueid, St
             typesource varchar,
             indicetype varchar,
             nutscode varchar,
-            pk varchar,
+            pk varchar not null,
             uueid varchar,
             noiselevel varchar);
+        ALTER TABLE cbs_uge_output.CBS_$projectionName ADD CONSTRAINT IF NOT EXISTS cbs_pk_$projectionName PRIMARY KEY (pk);
         ALTER TABLE cbs_uge_output.CBS_$projectionName OWNER TO cbs_uge_group;
         DELETE FROM cbs_uge_output.CBS_$projectionName WHERE uueid = '$uueid';
     """ as String, outputFormat: "json"], new EmptyProgressVisitor())
@@ -191,13 +195,21 @@ def uploadCBS(Connection h2Connection, Connection pgConnection, String uueid, St
     def insertSql = """
         INSERT INTO cbs_uge_output.CBS_$projectionName
         (the_geom, cbstype, typesource, indicetype, nutscode, pk, uueid, noiselevel) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (ST_GeomFromTWKB(?), ?, ?, ?, ?, ?, ?, ?)
     """ as String
 
+    TWKBWriter twkbWriter = new TWKBWriter()
+    twkbWriter.setEncodeZ(true)
+    twkbWriter.setXYPrecision(2)
+    twkbWriter.setZPrecision(2)
     pgSql.withBatch(batchSize, insertSql) {
         h2Sql.eachRow("SELECT the_geom, cbstype, typesource, PERIOD, nutscode, pk, uueid, noiselevel FROM ISOPHONES") { row ->
             // Insert into PostGIS table
-            it.addBatch(row.the_geom, row.cbstype, row.typesource, row.PERIOD, row.nutscode, row.pk, row.uueid, row.noiselevel)
+            it.addBatch(twkbWriter.write(row.getObject("the_geom") as Geometry),
+                    row.getString("cbstype"), row.getString("typesource"),
+                    row.getString("PERIOD"), row.getString("nutscode"),
+                    row.getString("pk"), row.getString("uueid"),
+                    row.getString("noiselevel"))
         }
     }
 
@@ -268,8 +280,13 @@ private void setupReceiverTables(Connection h2Connection, String uueid) {
  */
 private void processMap(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
 
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
     // 1. Initialize ISOPHONES table if not exists
-    new Execute_Query().exec(conn, [sqlQueries: "CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar, typesource varchar);", outputFormat: "json"], new EmptyProgressVisitor())
+    new Execute_Query().exec(conn, [sqlQueries: """CREATE TABLE IF NOT EXISTS ISOPHONES
+                (the_geom GEOMETRY(MULTIPOLYGONZ, ${metaData.getSRID()}), pk varchar not null , UUEID varchar,
+                 PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar, typesource varchar);
+                """ as String, outputFormat: "json"], new EmptyProgressVisitor())
 
 
     // 2. Execute Isosurface creation
