@@ -177,20 +177,25 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM");
 
+    if (!JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.CBS_$projectionName")) {
+        new Execute_Query().exec(pgConnection, [sqlQueries: """
+            CREATE TABLE cbs_uge_output.CBS_$projectionName (
+                the_geom ${metaData.getSQL()},
+                cbstype varchar,
+                typesource varchar,
+                indicetype varchar,
+                nutscode varchar,
+                pk varchar not null,
+                uueid varchar,
+                noiselevel varchar);
+            ALTER TABLE cbs_uge_output.CBS_$projectionName ADD CONSTRAINT cbs_pk_$projectionName PRIMARY KEY (pk);
+            ALTER TABLE cbs_uge_output.CBS_$projectionName OWNER TO cbs_uge_group;
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
+
     new Execute_Query().exec(pgConnection, [sqlQueries: """
-        CREATE TABLE IF NOT EXISTS cbs_uge_output.CBS_$projectionName (
-            the_geom ${metaData.getSQL()},
-            cbstype varchar,
-            typesource varchar,
-            indicetype varchar,
-            nutscode varchar,
-            pk varchar not null,
-            uueid varchar,
-            noiselevel varchar);
-        ALTER TABLE cbs_uge_output.CBS_$projectionName ADD CONSTRAINT IF NOT EXISTS cbs_pk_$projectionName PRIMARY KEY (pk);
-        ALTER TABLE cbs_uge_output.CBS_$projectionName OWNER TO cbs_uge_group;
-        DELETE FROM cbs_uge_output.CBS_$projectionName WHERE uueid = '$uueid';
-    """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+            DELETE FROM cbs_uge_output.CBS_$projectionName WHERE uueid = '$uueid';
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
 
     def insertSql = """
         INSERT INTO cbs_uge_output.CBS_$projectionName
