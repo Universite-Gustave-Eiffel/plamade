@@ -159,22 +159,58 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     mergeReceiversLevels(posSols, h2Connection, uueid, logger, h2Sql)
 
     // Generate IsoContours
-    generateLocalCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
+    generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
 
 }
 
-def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor progress, Map<String, String> codeDeptToNuts) {
+/**
+ * <p>Precondition: The RECEIVERS_LEVEL_$uueid table must exist when calling this function.</p>
+ * @param h2Connection Connection to h2 database
+ * @param uueid Infrastructure identifier
+ * @param progress Progress feedback instance
+ * @param codeDeptToNuts Mapping of department codes to NUTS codes
+ */
+def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor progress, Map<String, String> codeDeptToNuts) {
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor stepsProgress = progress.subProcess(2)
 
-    // uueid:RD_FR_00_0781651 codeDept is 078
+    // 1. Extract metadata
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
     logger.info("Processing CBS uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
 
+    // 2. Prepare Noise Level Tables
+    setupReceiverTables(h2Connection, uueid)
 
-    def filterNoiseLevelsQuery = """
+    // 3. Define the Noise Level CASE statements for CBS Type A
+    def caseLdenA = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
+    def caseLnightA = "(CASE WHEN ISOLABEL = '50-55' THEN 'Lnight5054' WHEN ISOLABEL = '55-60' THEN 'Lnight5559' WHEN ISOLABEL = '60-65' THEN 'Lnight6064' WHEN ISOLABEL = '65-70' THEN 'Lnight6569' WHEN ISOLABEL = '70+' THEN 'LnightGreaterThan70' END)"
+
+    // 4. Generate the 4 CBS Maps
+
+    // CBS A - Day/Evening/Night
+    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "55.0,60.0,65.0,70.0,75.0,200.0", caseLdenA, "LD", "A", "ISOLVL > 0")
+
+    // CBS A - Night
+    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "50.0,55.0,60.0,65.0,70.0,200.0", caseLnightA, "LN", "A", "ISOLVL > 0")
+
+    // CBS C - Day/Evening/Night
+    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "'LdenGreaterThan68'", "LD", "C", "ISOLVL = 1")
+
+    // CBS C - Night
+    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "'LdenGreaterThan62'", "LN", "C", "ISOLVL = 1")
+}
+
+/**
+ * <p>This function creates temporary tables for DEN (Day/Evening/Night) and N (Night) periods
+ * by splitting the data from RECEIVERS_LEVEL_$uueid into separate tables with primary keys.</p>
+ *
+ * @param h2Connection The database connection
+ * @param uueid The UUEID identifier used to qualify table names
+ */
+private void setupReceiverTables(Connection h2Connection, String uueid) {
+    def sql = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_$uueid, RECEIVERS_LEVEL_NIGHT_$uueid;
         CREATE TABLE RECEIVERS_LEVEL_DEN_$uueid AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_$uueid WHERE PERIOD='DEN';
         ALTER TABLE RECEIVERS_LEVEL_DEN_$uueid ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
@@ -183,71 +219,36 @@ def generateLocalCBS(Connection h2Connection, String uueid, ProgressVisitor prog
         ALTER TABLE RECEIVERS_LEVEL_NIGHT_$uueid ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
         ALTER TABLE RECEIVERS_LEVEL_NIGHT_$uueid ADD PRIMARY KEY (IDRECEIVER);
     """
+    new Execute_Query().exec(h2Connection, [sqlQueries: sql, outputFormat: "json"], new EmptyProgressVisitor())
+}
 
-    // Create CBS A Maps
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", filterNoiseLevelsQuery as String, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+/**
+ * Main sub-function to process Isosurfaces and Insert into ISOPHONES
+ */
+private void processMap(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
 
-    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
-            [resultTable: "RECEIVERS_LEVEL_DEN_$uueid", smoothCoefficient : 0, isoClass: "55.0,60.0,65.0,70.0,75.0,200.0"], stepsProgress)
+    // 1. Initialize ISOPHONES table if not exists
+    new Execute_Query().exec(conn, [sqlQueries: "CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar, typesource varchar);", outputFormat: "json"], new EmptyProgressVisitor())
 
-    def noiselevel = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
 
-    def makeCbsTableQuery = """
-        CREATE TABLE IF NOT EXISTS ISOPHONES(the_geom geometry, pk varchar not null , UUEID varchar, PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar, typesource varchar);
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM,concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LD', 
-        $noiselevel, 'A', '$nutsCode', 'R'
-        FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
+    // 2. Execute Isosurface creation
+    ScriptUtilities.execScript(new Create_Isosurface(), conn, [
+            resultTable: sourceTable,
+            smoothCoefficient: 0,
+            isoClass: isoClass
+    ], progress)
+
+    // 3. Insert results into ISOPHONES
+    def insertSql = """
+        INSERT INTO ISOPHONES(the_geom, pk, area, uueid, period, noiselevel, cbstype, nutscode, typesource) 
+        SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) area, 
+               '$uueid', '$period', $noiseLevelExpr, '$cbsType', '$nutsCode', 'R'
+        FROM CONTOURING_NOISE_MAP 
+        WHERE $filter 
+        GROUP BY ISOLABEL;
     """
 
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
-            new EmptyProgressVisitor())
-
-    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
-            [resultTable: "RECEIVERS_LEVEL_NIGHT_$uueid", smoothCoefficient : 0, isoClass: "50.0,55.0,60.0,65.0,70.0,200.0"], stepsProgress)
-
-    noiselevel = "(CASE WHEN ISOLABEL = '50-55' THEN 'Lnight5054' WHEN ISOLABEL = '55-60' THEN 'Lnight5559' WHEN ISOLABEL = '60-65' THEN 'Lnight6064' WHEN ISOLABEL = '65-70' THEN 'Lnight6569' WHEN ISOLABEL = '70+' THEN 'LnightGreaterThan70' END)"
-    makeCbsTableQuery = """
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
-        $noiselevel, 'A', '$nutsCode', 'R'
-        FROM CONTOURING_NOISE_MAP WHERE ISOLVL > 0 GROUP BY ISOLABEL;
-    """
-
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
-            new EmptyProgressVisitor())
-
-    // Create CBS C Maps
-
-    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
-            [resultTable: "RECEIVERS_LEVEL_DEN_$uueid", smoothCoefficient : 0, isoClass: "68.0d,200.0d"], stepsProgress)
-
-    noiselevel = "'LdenGreaterThan68'"
-    makeCbsTableQuery = """
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
-        $noiselevel, 'C', '$nutsCode', 'R'
-        FROM CONTOURING_NOISE_MAP WHERE ISOLVL = 1 GROUP BY ISOLABEL;
-    """
-
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
-            new EmptyProgressVisitor())
-
-    ScriptUtilities.execScript(new Create_Isosurface(), h2Connection,
-            [resultTable: "RECEIVERS_LEVEL_NIGHT_$uueid", smoothCoefficient : 0, isoClass: "62.0d,200.0d"], stepsProgress)
-
-    noiselevel = "'LdenGreaterThan62'"
-    makeCbsTableQuery = """
-        INSERT INTO ISOPHONES(the_geom, pk,area, uueid, period, noiselevel, cbstype, nutscode, typesource) SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiselevel),SUM(st_area(the_geom)) area, '$uueid', 'LN', 
-        $noiselevel, 'C', '$nutsCode', 'R'
-        FROM CONTOURING_NOISE_MAP WHERE ISOLVL = 1 GROUP BY ISOLABEL;
-    """
-
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", makeCbsTableQuery as String, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+    new Execute_Query().exec(conn, [sqlQueries: insertSql, outputFormat: "json"], new EmptyProgressVisitor())
 }
 
 private void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
