@@ -15,9 +15,9 @@ package org.noise_planet.covadis.webserver.database;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.h2gis.api.ProgressVisitor;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.MultiPoint;
-import org.locationtech.jts.geom.Point;
+import org.h2gis.utilities.GeometryMetaData;
+import org.h2gis.utilities.GeometryTableUtilities;
+import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.twkb.TWKBReader;
 import org.noise_planet.noisemodelling.runner.PostGISJTSDataSource;
@@ -59,21 +59,24 @@ public class PostGISUtilities {
      * @param h2TableName     H2 table name, if the table already exists the points will be inserted
      * @param wktFilter       Geometry to filter DEM Points to copy
      * @param progressVisitor Progress visitor
+     * @param precision       The decimal digits parameters control how much precision is stored in the output
+     * @param precisionZ      The decimal digits for Z coordinate precision
      */
     public static void fetchDemTable(Connection pgConnection, Connection h2Connection, String pgTableName,
-                              String h2TableName, String wktFilter, ProgressVisitor progressVisitor) throws SQLException, ParseException {
+                              String h2TableName, String wktFilter, ProgressVisitor progressVisitor, int precision, int precisionZ) throws SQLException, ParseException {
 
-        TWKBReader twkbReader = new TWKBReader();
 
         String tempTableName = "TEMP_" + h2TableName + "_" + System.currentTimeMillis();
 
+        GeometryMetaData metaData =
+                GeometryTableUtilities.getMetaData(pgConnection, pgTableName, "the_geom");
         // Ensure H2 table exists (Storing as GEOMETRY for H2GIS support)
         try (Statement h2Stmt = h2Connection.createStatement()) {
-            h2Stmt.execute("CREATE TABLE IF NOT EXISTS " + h2TableName + " (pk serial, the_geom GEOMETRY)");
+            h2Stmt.execute("CREATE TABLE IF NOT EXISTS %s (pk serial, the_geom %s)".formatted(h2TableName, metaData.getSQL()));
             // Remove previous spatial index
-            h2Stmt.execute("DROP INDEX IF EXISTS " + h2TableName + "_geom_idx");
+            h2Stmt.execute("DROP INDEX IF EXISTS %s_geom_idx".formatted(h2TableName));
             // Create a temporary table for bulk loading (no indexes = fast)
-            h2Stmt.execute("CREATE TABLE " + tempTableName + " (the_geom GEOMETRY)");
+            h2Stmt.execute("CREATE TABLE %s (the_geom %s)".formatted(tempTableName, metaData.getSQL()));
         }
 
         // Count the expected number of blocks
@@ -93,20 +96,25 @@ public class PostGISUtilities {
         ProgressVisitor subProcess = progressVisitor.subProcess(expectedBlocks);
 
         // Prepare PostGIS query (Grouping points into TWKB chunks)
-        String pgSql = String.format("SELECT ST_AsTWKB(ST_Collect(the_geom), 1) as chunk_twkb " + "FROM (" + "   " +
-                " SELECT the_geom, (row_number() OVER ()) / 1000 as group_id " + "    FROM %s " + "    WHERE " +
-                "the_geom && ?::geometry" + ") t " + "GROUP BY group_id", pgTableName);
-
+        String pgSql = String.format("""
+         SELECT ST_AsTWKB(ST_Collect(the_geom), ?, ?) as chunk_twkb FROM
+          (SELECT the_geom, (row_number() OVER ()) / 1000 as group_id FROM %s WHERE the_geom && ?::geometry) t
+           GROUP BY group_id""", pgTableName);
 
         // Prepare H2 Insert query
         // Using "WHERE NOT EXISTS" to prevent duplicates based on geometry
         String h2Sql = MessageFormat.format("INSERT INTO {0} (the_geom) VALUES (?)",
                 tempTableName);
 
+        TWKBReader twkbReader = new TWKBReader();
+        twkbReader.setGeometryFactory(new GeometryFactory(new PrecisionModel(), metaData.getSRID()));
+
         try (PreparedStatement pgPs = pgConnection.prepareStatement(pgSql); PreparedStatement h2Ps =
                 h2Connection.prepareStatement(h2Sql)) {
 
-            pgPs.setString(1, wktFilter);
+            pgPs.setInt(1, precision);
+            pgPs.setInt(2, precisionZ);
+            pgPs.setString(3, wktFilter);
 
             try (ResultSet rs = pgPs.executeQuery()) {
                 int batchSize = 0;

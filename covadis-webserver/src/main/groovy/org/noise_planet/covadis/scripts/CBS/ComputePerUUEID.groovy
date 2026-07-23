@@ -161,8 +161,49 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     // Generate IsoContours
     generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
+    // Upload CBS Table to remote PostGIS database
+    uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
 
 }
+
+def uploadCBS(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
+    Sql pgSql = new Sql(pgConnection)
+    Sql h2Sql = new Sql(h2Connection)
+    int batchSize = 100
+
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM");
+
+    new Execute_Query().exec(pgConnection, [sqlQueries: """
+        CREATE TABLE IF NOT EXISTS cbs_uge_output.CBS_$projectionName (
+            the_geom ${metaData.getSQL()},
+            cbstype varchar,
+            typesource varchar,
+            indicetype varchar,
+            nutscode varchar,
+            pk varchar,
+            uueid varchar,
+            noiselevel varchar);
+        ALTER TABLE cbs_uge_output.CBS_$projectionName OWNER TO cbs_uge_group;
+        DELETE FROM cbs_uge_output.CBS_$projectionName WHERE uueid = '$uueid';
+    """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+
+    def insertSql = """
+        INSERT INTO cbs_uge_output.CBS_$projectionName
+        (the_geom, cbstype, typesource, indicetype, nutscode, pk, uueid, noiselevel) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """ as String
+
+    pgSql.withBatch(batchSize, insertSql) {
+        h2Sql.eachRow("SELECT the_geom, cbstype, typesource, PERIOD, nutscode, pk, uueid, noiselevel FROM ISOPHONES") { row ->
+            // Insert into PostGIS table
+            it.addBatch(row.the_geom, row.cbstype, row.typesource, row.PERIOD, row.nutscode, row.pk, row.uueid, row.noiselevel)
+        }
+    }
+
+
+}
+
 
 /**
  * <p>Precondition: The RECEIVERS_LEVEL_$uueid table must exist when calling this function.</p>
@@ -325,8 +366,11 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
 
     ProgressVisitor subProgress = demProgress.subProcess(bdAltiTableName.size())
 
+    def xyPrecision = 2 // cm precision
+    def zPrecision = 2 // cm precision
     bdAltiTableName.forEach { tableName ->
-        PostGISUtilities.fetchDemTable(pgConnection, h2Connection, "bd_alti.${tableName}", "DEM", extractionEnvelopeGeometry, subProgress)
+        PostGISUtilities.fetchDemTable(pgConnection, h2Connection, "bd_alti.${tableName}",
+                "DEM", extractionEnvelopeGeometry, subProgress, xyPrecision, zPrecision)
     }
 
     // Enhance DEM points with orography and hydrography ruptures lines
