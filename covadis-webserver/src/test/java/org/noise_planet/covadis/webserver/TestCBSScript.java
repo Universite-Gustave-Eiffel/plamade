@@ -4,6 +4,8 @@ package org.noise_planet.covadis.webserver;
 import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
+import org.h2gis.utilities.GeometryMetaData;
+import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,8 +35,7 @@ import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test execution of the CBS scripts using a subset of the data extracted from the Plamade PostgreSQL database
@@ -165,11 +166,14 @@ public class TestCBSScript extends JDBCTestCase {
         try (Connection pgConnection = pgDataSource.getConnection();
              Statement statement = pgConnection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_input.c_batiment_s_hexa")) {
-
-            PostGISUtilities.copyFromPostGISToH2Database(pgConnection, resultSet, connection, "BUILDINGS", true);
+            PostGISUtilities.copyFromPostGISToH2Database(pgConnection, resultSet, connection, "BUILDINGS", true, 5);
         }
         assertTrue(JDBCUtilities.tableExists(connection, "BUILDINGS"));
-        assertEquals(12, JDBCUtilities.getRowCount(connection, "BUILDINGS"));
+        assertEquals(500, JDBCUtilities.getRowCount(connection, "BUILDINGS"));
+        GeometryMetaData metaData =
+                GeometryTableUtilities.getMetaData(connection, "BUILDINGS", "GEOM3D");
+        assertNotNull(metaData);
+        assertEquals("GEOMETRY(MULTIPOLYGONZ,2154)", metaData.getSQL());
     }
 
     @Test

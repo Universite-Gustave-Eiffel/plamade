@@ -184,9 +184,10 @@ public class PostGISUtilities {
      * @param dropLocalH2Table Whether to drop the local h2 table before copying
      */
     public static void copyFromPostGISToH2Database(Connection pgConnection, ResultSet pgResultSet,Connection h2Connection,
-                                                   String h2TableName, boolean dropLocalH2Table) throws SQLException {
+                                                   String h2TableName, boolean dropLocalH2Table, int batchSize) throws SQLException {
         // Collect ResultSet metadata
         PgResultSetMetaData resultSetMetaData = pgResultSet.getMetaData().unwrap(PgResultSetMetaData.class);
+        int columnCount = resultSetMetaData.getColumnCount();
         List<String> columnNames = new ArrayList<>();
         List<String> columnTypes = new ArrayList<>();
         List<Integer> columnsTypeIndexes = new ArrayList<>();
@@ -214,7 +215,7 @@ public class PostGISUtilities {
         if(!JDBCUtilities.tableExists(h2Connection, h2TableName) || dropLocalH2Table) {
             if(dropLocalH2Table) {
                 try (Statement h2Stmt = h2Connection.createStatement()) {
-                    h2Stmt.execute("DROP TABLE " + h2TableName);
+                    h2Stmt.execute("DROP TABLE IF EXISTS " + h2TableName);
                 }
             }
             // Generate the h2 table according to the result set metadata
@@ -245,65 +246,23 @@ public class PostGISUtilities {
         insertSql.append(")");
         // Insert values using batch
         try (PreparedStatement ps = h2Connection.prepareStatement(insertSql.toString())) {
+            int count = 0;
+            boolean nonPushedBatch = false;
             while (pgResultSet.next()) {
-                for (int i = 0; i < columnNames.size(); i++) {
-                    switch (columnsTypeIndexes.get(i)) {
-                        case Types.VARCHAR:
-                            ps.setString(1, pgResultSet.getString(i));
-                            break;
-                        case Types.BIT:
-                            ps.setBoolean(1, pgResultSet.getBoolean(i));
-                            break;
-                        case Types.INTEGER:
-                            ps.setInt(1, pgResultSet.getInt(i));
-                            break;
-                        case Types.TINYINT:
-                            ps.setByte(1, pgResultSet.getByte(i));
-                            break;
-                        case Types.SMALLINT:
-                            ps.setShort(1, pgResultSet.getShort(i));
-                            break;
-                        case Types.NUMERIC, Types.DECIMAL:
-                            ps.setBigDecimal(1, pgResultSet.getBigDecimal(i));
-                            break;
-                        case Types.DOUBLE:
-                            ps.setDouble(1, pgResultSet.getDouble(i));
-                            break;
-                        case Types.FLOAT, Types.REAL:
-                            ps.setFloat(1, pgResultSet.getFloat(i));
-                            break;
-                        case Types.DATE:
-                            ps.setDate(1, pgResultSet.getDate(i));
-                            break;
-                        case Types.TIME:
-                            ps.setTime(1, pgResultSet.getTime(i));
-                            break;
-                        case Types.TIMESTAMP:
-                            ps.setTimestamp(1, pgResultSet.getTimestamp(i));
-                            break;
-                        case Types.BLOB:
-                            ps.setBlob(1, pgResultSet.getBlob(i));
-                            break;
-                        case Types.CLOB:
-                            ps.setClob(1, pgResultSet.getClob(i));
-                            break;
-                        case Types.NVARCHAR, Types.NCHAR, Types.NCLOB:
-                            ps.setNString(1, pgResultSet.getNString(i));
-                            break;
-                        case Types.JAVA_OBJECT, Types.OTHER:
-                            ps.setObject(1, pgResultSet.getObject(i));
-                            break;
-                        case Types.ARRAY:
-                            ps.setArray(1, pgResultSet.getArray(i));
-                            break;
-                        case Types.REF:
-                            ps.setRef(1, pgResultSet.getRef(i));
-                            break;
-                    }
+                for (int i = 1; i <= columnCount; i++) {
+                    final Object value = pgResultSet.getObject(i);
+                    ps.setObject(i, value);
                 }
                 ps.addBatch();
+                nonPushedBatch = true;
+                if (++count % batchSize == 0) {
+                    ps.executeBatch();
+                    nonPushedBatch = false;
+                }
             }
-            ps.executeBatch();
+            if(nonPushedBatch) {
+                ps.executeBatch();
+            }
         }
     }
 }
