@@ -207,5 +207,12 @@ public class TestCBSScript extends JDBCTestCase {
 
         logger.info(ScriptUtilities.formatSqlQueryResult(
                 new Sql(connection), "SELECT DISTINCT ISOLABEL FROM CONTOURING_NOISE_MAP", 120));
+
+
+
+
+        logger.info(ScriptUtilities.formatSqlQueryResult(
+                new Sql(connection), "SELECT * FROM FACADE_EXPO LIMIT 5", 120));
+
     }
 }

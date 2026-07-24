@@ -169,9 +169,58 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     // Generate IsoContours
     generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
+    generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts)
+
     // Upload CBS Table to remote PostGIS database
     uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
 
+}
+
+def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts) {
+
+    Logger logger = LoggerFactory.getLogger(this.class)
+
+    // 1. Extract metadata
+    def codeDept = uueid.split("_")[3].substring(0, 3)
+    def nutsCode = codeDeptToNuts.get(codeDept)
+    logger.info("Processing Exposure uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
+
+    // RECEIVERS_LEVEL_$uueid
+    def receiversLevelTable = "RECEIVERS_LEVEL_$uueid"
+
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM");
+
+    new Execute_Query().exec(h2Connection, [sqlQueries: """
+        DROP TABLE IF EXISTS FACADE_EXPO;
+        CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), uueid varchar, pop real, lden numeric(5,2), ln numeric(5,2), nutscode varchar);
+        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        INSERT INTO FACADE_EXPO (THE_GEOM, idbat, uueid, pop, lden, ln, nutscode)
+         SELECT ( SELECT the_geom 
+            FROM RECEIVERS_LEVEL_$uueid RL 
+            WHERE PERIOD='DEN' AND RL.IDRECEIVER=R.PK 
+            LIMIT 1
+        ) the_geom,
+         b.idbat idbat,
+         '$uueid' uueid,
+         rb.pop pop,
+          ( SELECT laeq 
+            FROM RECEIVERS_LEVEL_$uueid RL 
+            WHERE PERIOD='DEN' AND RL.IDRECEIVER=R.PK 
+            LIMIT 1
+        ) LDEN,
+         ( SELECT laeq 
+            FROM RECEIVERS_LEVEL_$uueid RL 
+            WHERE PERIOD='N' AND RL.IDRECEIVER=R.PK 
+            LIMIT 1
+        ) LN,
+        '$nutsCode' nutscode
+        FROM RECEIVERS R 
+        INNER JOIN RECEIVERS_BUILDINGS RB ON ((R.PK-@LASTDELAUNAY) = RB.PK) 
+        INNER JOIN BUILDINGS B ON (RB.BUILD_PK = B.PK)
+        WHERE r.PK > @LASTDELAUNAY 
+         AND (SELECT MAX(LAEQ) FROM RECEIVERS_LEVEL_$uueid RL WHERE RL.IDRECEIVER=R.PK) > 0
+    """ as String], new EmptyProgressVisitor())
 }
 
 @CompileStatic
@@ -245,7 +294,7 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     logger.info("Processing CBS uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
 
     // 2. Prepare Noise Level Tables
-    setupReceiverTables(h2Connection, uueid)
+    setupResultTables(h2Connection, uueid)
 
     // 3. Define the Noise Level CASE statements for CBS Type A
     def caseLdenA = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
@@ -273,7 +322,7 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
  * @param h2Connection The database connection
  * @param uueid The UUEID identifier used to qualify table names
  */
-private void setupReceiverTables(Connection h2Connection, String uueid) {
+private void setupResultTables(Connection h2Connection, String uueid) {
     def sql = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_$uueid, RECEIVERS_LEVEL_NIGHT_$uueid;
         CREATE TABLE RECEIVERS_LEVEL_DEN_$uueid AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_$uueid WHERE PERIOD='DEN';
@@ -324,6 +373,14 @@ static String getRoadsLevelsTableName(String posSol) {
     return """ROADS_LEVELS_${posSol.replace("-", "m")}"""
 }
 
+/**
+ * Merge levels of all pos_sol into a single result table
+ * @param posSols List of pos_sol to merge
+ * @param h2Connection h2 database connection
+ * @param uueid Infrastructure identifier
+ * @param logger Logger instance
+ * @param h2Sql h2 SQL instance
+ */
 private void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
     def posSolsToProcess = new ArrayList<String>(posSols)
     def firstPosSol = posSolsToProcess.pop()
@@ -352,15 +409,47 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
                     h2Sql, "SELECT * FROM RECEIVERS_LEVEL_$uueid WHERE LAEQ > 0 LIMIT 5" as String, 120))
 }
 
+/**
+ * Generate Buildings and Delaunay receivers
+ * @param input User input data
+ * @param pgConnection PostgreSQL database connection
+ * @param uueid Infrastructure identifier
+ * @param extractionEnvelopeGeometry Extraction envelope geometry
+ * @param h2Connection H2 database connection
+ * @param deltaBuildingsReceivers Delta for building receivers
+ * @param mainConfiguration Main configuration map from config table on PostGIS database
+ * @param stepsProgress Progress visitor for tracking steps
+ * @return
+ */
 def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor subSteps = stepsProgress.subProcess(4)
 
-    logger.info("Generate receivers on buildings")
-    ScriptUtilities.execScript(new Building_Grid(), h2Connection, [tableBuilding: "BUILDINGS", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1], subSteps)
     Sql h2Sql = new Sql(h2Connection)
-    h2Sql.execute("DROP TABLE IF EXISTS RECEIVERS_BUILDINGS")
-    h2Sql.execute("ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS")
+    logger.info("Generate receivers on buildings")
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", """
+            DROP TABLE IF EXISTS BUILDINGS_WITH_POP;
+            CREATE TABLE BUILDINGS_WITH_POP(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT) AS SELECT PK, THE_GEOM, POP, HEIGHT FROM BUILDINGS WHERE POP > 0;
+        """ as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
+    def buildingsCountWithPop = JDBCUtilities.getRowCount(h2Connection, "BUILDINGS_WITH_POP")
+    if(buildingsCountWithPop == 0) {
+        logger.warn("No buildings with population found")
+        h2Sql.execute("""
+            CREATE TABLE RECEIVERS_BUILDINGS(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, BUILD_PK INTEGER);
+        """)
+    } else {
+        logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
+                [tableBuilding: "BUILDINGS_WITH_POP", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1],
+                subSteps) as String)
+        h2Sql.execute("""
+            DROP TABLE BUILDINGS_WITH_POP;
+            DROP TABLE IF EXISTS RECEIVERS_BUILDINGS;
+            ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS;
+        """)
+    }
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
 
     logger.info("Generate Delaunay receivers")
@@ -380,6 +469,18 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             fence: receiversZone, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
             maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true], subSteps)
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", """
+            DROP TABLE IF EXISTS RECEIVERS;
+            SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+            CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM FROM RECEIVERS_DELAUNAY;
+            INSERT INTO RECEIVERS(PK, THE_GEOM) SELECT PK+@LASTDELAUNAY, THE_GEOM FROM RECEIVERS_BUILDINGS;
+            CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);
+            ALTER TABLE RECEIVERS ALTER COLUMN PK INTEGER NOT NULL;
+            ALTER TABLE RECEIVERS ADD PRIMARY KEY (PK);
+        """ as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
 }
 
 def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
@@ -476,7 +577,7 @@ def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol,
             h2Connection, [
             tableBuilding: "BUILDINGS",
             tableSources: "LW_ROADS",
-            tableReceivers: "RECEIVERS_DELAUNAY",
+            tableReceivers: "RECEIVERS",
             tableDEM: "DEM",
             tableGroundAbs: "LANDCOVER",
             tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
@@ -490,7 +591,10 @@ def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol,
     // Rename output table
     def outputTableName = getRoadsLevelsTableName(posSol)
     Sql h2Sql = new Sql(h2Connection)
-    h2Sql.execute("ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName" as String)
+    h2Sql.execute("""
+        DROP TABLE IF EXISTS $outputTableName;
+        ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName;
+    """ as String)
 }
 
 def processLandCover(Map input,Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {
@@ -659,9 +763,9 @@ def processBuildings(Map input,Connection pgConnection, String extractionEnvelop
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
     def projectionName = input.projectionName
-    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, p.pop_bat as pop, b.bat_idtopo
+    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, COALESCE(p.pop_bat, 0) as pop, b.bat_idtopo
              FROM cbs_uge_input.c_batiment_s_${projectionName} b 
-                INNER JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
+                LEFT JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
              WHERE ST_Intersects(geom3d, '${extractionEnvelopeGeometry}'::geometry)"""
 
     try( Statement st = pgConnection.createStatement() ;
