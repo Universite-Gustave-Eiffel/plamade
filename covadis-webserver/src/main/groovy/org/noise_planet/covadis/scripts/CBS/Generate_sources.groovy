@@ -160,7 +160,8 @@ INSERT INTO $trafficOutputTableName SELECT ST_Force3DZ(ST_CollectionHomogenize(g
          a.pos_sol AS POS_SOL,
          d.temp_6_18 as TEMP_D,
          d.temp_22_6 as TEMP_N,
-         d.temp_18_22 as TEMP_E
+         d.temp_18_22 as TEMP_E,
+         a.franchisst as FRANCHISST
         FROM
          cbs_uge_input.n_routier_troncon_l_${projectionName} a
          CROSS JOIN LATERAL (

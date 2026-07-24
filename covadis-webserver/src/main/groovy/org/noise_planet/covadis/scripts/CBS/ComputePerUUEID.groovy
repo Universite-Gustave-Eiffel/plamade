@@ -359,6 +359,7 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
     logger.info("Generate receivers on buildings")
     ScriptUtilities.execScript(new Building_Grid(), h2Connection, [tableBuilding: "BUILDINGS", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1], subSteps)
     Sql h2Sql = new Sql(h2Connection)
+    h2Sql.execute("DROP TABLE IF EXISTS RECEIVERS_BUILDINGS")
     h2Sql.execute("ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS")
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
 
