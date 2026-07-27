@@ -241,9 +241,11 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
                 indicetype varchar,
                 nutscode varchar,
                 pk varchar not null,
-                uueid varchar,
+                uueid varchar not null,
                 noiselevel varchar);
             ALTER TABLE cbs_uge_output.CBS_$projectionName ADD CONSTRAINT cbs_pk_$projectionName PRIMARY KEY (pk);
+            CREATE INDEX ON cbs_uge_output.CBS_$projectionName USING GIST (the_geom);
+            CREATE INDEX ON cbs_uge_output.CBS_$projectionName (uueid);
             ALTER TABLE cbs_uge_output.CBS_$projectionName OWNER TO cbs_uge_group;
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
@@ -464,9 +466,8 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], subSteps)
 
-    def receiversZone = extractionEnvelopeGeometry.buffer(-mainConfiguration.confmaxsrcdist as Double)
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
-            fence: receiversZone, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
+            fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
             maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true], subSteps)
 

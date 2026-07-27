@@ -32,6 +32,8 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.zip.ZipEntry;
@@ -143,6 +145,8 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/nm_nuts.sql.zip");
+                    // Set population to the nearest building from the emission road to have a result even with a low max propagation distance
+                    statement.execute("update \"cbs_uge_input\".\"c_population_hexa\" set idbat = 'BAT2023130018310.20548588' where idbat = 'BAT2023130018310.1203369';");
                     logger.info("Database tables created in " + (System.currentTimeMillis() - start) + "ms");
                 }
             }
@@ -202,17 +206,28 @@ public class TestCBSScript extends JDBCTestCase {
                 "uueid_pattern", "RD_FR_00_0781651",
                 "conf", 1));
 
-        logger.info(ScriptUtilities.formatSqlQueryResult(
-                new Sql(connection), "SELECT * FROM ISOPHONES LIMIT 5", 120));
-
-        logger.info(ScriptUtilities.formatSqlQueryResult(
-                new Sql(connection), "SELECT DISTINCT ISOLABEL FROM CONTOURING_NOISE_MAP", 120));
 
 
+        // Check cbs
+        List<String> expectedCbs = Arrays.asList("Lden5559", "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan62",
+                "LdenGreaterThan68", "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569", "LnightGreaterThan70");
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_hexa\" order by noiselevel;")) {
+            for (String expectedCb : expectedCbs) {
+                assertTrue(resultSet.next());
+                assertEquals(expectedCb, resultSet.getString("noiselevel"));
+            }
+        }
 
-
-        logger.info(ScriptUtilities.formatSqlQueryResult(
-                new Sql(connection), "SELECT * FROM FACADE_EXPO LIMIT 5", 120));
+//        // Check if cbs_uge_output.FACADE_EXPO_hexa has the idbat BAT2023130018310.20548588 with pop > 0
+//        try(Connection pgConnection = pgDataSource.getConnection();
+//            Statement statement = pgConnection.createStatement();
+//            ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_output.FACADE_EXPO_hexa")) {
+//            assertTrue(resultSet.next());
+//            assertEquals("BAT2023130018310.20548588", resultSet.getString("IDBAT"));
+//            assertTrue(resultSet.getDouble("POP") > 0);
+//        }
 
     }
 }
