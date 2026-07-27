@@ -620,7 +620,8 @@ def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol,
             confMaxSrcDist: mainConfiguration.confmaxsrcdist,
             confMaxReflDist: mainConfiguration.confmaxrefldist,
             confDiffVertical: mainConfiguration.confdiffvertical,
-            confDiffHorizontal: mainConfiguration.confdiffhorizontal
+            confDiffHorizontal: mainConfiguration.confdiffhorizontal,
+            confMinWallReflDist: 0.2 // ignore reflection distance, buildings receiver are at 0.1 m from facades
             ],
             stepsProgress)
     // Rename output table
