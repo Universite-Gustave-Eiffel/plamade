@@ -174,6 +174,40 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     // Upload CBS Table to remote PostGIS database
     uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
 
+    uploadFacadeExpo(h2Connection, pgConnection, uueid, input.projectionName as String)
+
+}
+
+/**
+ * Upload the content of the facade exposure table to PostGIS
+ * @param h2Connection Local h2 connection
+ * @param pgConnection Remote PostGIS connection
+ * @param uueid Infrastructure identifier
+ * @param projectionName Projection name ex: hexa
+ */
+def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
+    boolean tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.facade_expo_$projectionName")
+    if(tableExists) {
+        new Execute_Query().exec(pgConnection, [sqlQueries: """
+            DELETE FROM cbs_uge_output.facade_expo_$projectionName WHERE uueid = '$uueid';
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
+
+    try( Statement st = h2Connection.createStatement() ;
+         ResultSet rs = st.executeQuery("""SELECT * FROM FACADE_EXPO""")) {
+        PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
+                "cbs_uge_output.facade_expo_$projectionName", false, batchSize)
+    }
+
+    if(!tableExists) {
+        // Create index
+        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+            CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName USING GIST (the_geom);
+            CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName (uueid);
+            ALTER TABLE cbs_uge_output.facade_expo_$projectionName OWNER TO cbs_uge_group;
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+
+    }
 }
 
 def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts) {
@@ -461,7 +495,7 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
         WHERE uueid = '${uueid}'"""
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
     }
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], subSteps)
@@ -518,7 +552,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(fetchOroTableQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "OROGRAPHIC", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "OROGRAPHIC", true, batchSize)
     }
 
 
@@ -536,7 +570,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(fetchHydroTableQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "HYDROGRAPHIC", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "HYDROGRAPHIC", true, batchSize)
     }
 
     // Insert lines into DEM table
@@ -555,7 +589,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
         WHERE uueid = '${uueid}' and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
     }
 
     // Create a new DEM with road platforms
@@ -607,7 +641,7 @@ def processLandCover(Map input,Connection pgConnection, String extractionEnvelop
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(landCoverQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "LANDCOVER", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LANDCOVER", true, batchSize)
     }
 }
 
@@ -641,7 +675,7 @@ def fetchAtmosphericPeriodFromStations(Map input,Connection pgConnection, String
     """
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(atmosphericQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "ATMOSPHERIC", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ATMOSPHERIC", true, batchSize)
     }
 
     def sql = new Sql(h2Connection)
@@ -756,7 +790,7 @@ def processRoads(Map input,Connection pgConnection, String uueid, Connection h2C
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadsQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
 }
 
@@ -771,7 +805,7 @@ def processBuildings(Map input,Connection pgConnection, String extractionEnvelop
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(tableQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "BUILDINGS", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS", true, batchSize)
     }
 
     Sql sql = new Sql(h2Connection)
@@ -781,14 +815,14 @@ def processBuildings(Map input,Connection pgConnection, String extractionEnvelop
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(erpsQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "BUILDINGS_ERPS", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS_ERPS", true, batchSize)
     }
 
     def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(noiseBarrierQuery)) {
-        PostGISUtilities.copyFromPostGISToH2Database(pgConnection, rs, h2Connection, "BUILDINGS_BARRIERS", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS_BARRIERS", true, batchSize)
     }
 
     //remove constraint on geometry type

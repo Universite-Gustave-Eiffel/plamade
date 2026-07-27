@@ -17,17 +17,20 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.h2gis.api.ProgressVisitor;
 import org.h2gis.utilities.*;
 import org.h2gis.utilities.dbtypes.DBTypes;
+import org.h2gis.utilities.dbtypes.DBUtils;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.twkb.TWKBReader;
 import org.noise_planet.noisemodelling.runner.PostGISJTSDataSource;
 import org.postgresql.jdbc.PgResultSetMetaData;
+import org.postgresql.util.PSQLException;
 
 import javax.sql.DataSource;
 import java.sql.*;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class PostGISUtilities {
 
@@ -172,18 +175,19 @@ public class PostGISUtilities {
     }
 
     /**
-     * Copy a remote PostGIS table to a local h2 table.
+     * Copy a result set content to a target database.
      *
-     * @param pgConnection     PostGIS connection
-     * @param pgResultSet      PostGIS resultset (caller is responsible to close it)
-     * @param h2Connection     H2 connection
-     * @param h2TableName      Name of the target h2 table
-     * @param dropLocalH2Table Whether to drop the local h2 table before copying
+     * @param resultSetConnection Connection linked with the result set
+     * @param resultSet           Result set (caller is responsible to close it)
+     * @param targetConnection    Connection where to store the data
+     * @param targetTableName     Name of the target table
+     * @param dropTargetTable     Whether to drop the target table before copying
      */
-    public static void copyFromPostGISToH2Database(Connection pgConnection, ResultSet pgResultSet,Connection h2Connection,
-                                                   String h2TableName, boolean dropLocalH2Table, int batchSize) throws SQLException {
+    public static void copyResultSetToDatabase(Connection resultSetConnection, ResultSet resultSet, Connection targetConnection,
+                                               String targetTableName, boolean dropTargetTable, int batchSize) throws SQLException {
         // Collect ResultSet metadata
-        PgResultSetMetaData resultSetMetaData = pgResultSet.getMetaData().unwrap(PgResultSetMetaData.class);
+        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+        DBTypes dbType = DBUtils.getDBType(resultSetConnection);
         int columnCount = resultSetMetaData.getColumnCount();
         List<String> columnNames = new ArrayList<>();
         List<String> columnTypes = new ArrayList<>();
@@ -191,14 +195,22 @@ public class PostGISUtilities {
         List<TableLocation> fieldTableLocations = new ArrayList<>();
         for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
             columnNullables.add(resultSetMetaData.isNullable(i) != ResultSetMetaData.columnNoNulls);
-            columnNames.add(TableLocation.capsIdentifier(resultSetMetaData.getColumnLabel(i), DBTypes.H2));
-            TableLocation t = new TableLocation(resultSetMetaData.getBaseSchemaName(i),
-                    resultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
+            columnNames.add(TableLocation.capsIdentifier(resultSetMetaData.getColumnLabel(i), dbType));
+            TableLocation t;
+            if(resultSetMetaData.isWrapperFor(PgResultSetMetaData.class)) {
+                PgResultSetMetaData pgResultSetMetaData = resultSetMetaData.unwrap(PgResultSetMetaData.class);
+                // Issue with PGConnection, schema is always empty when using resultSetMetaData.getSchemaName(i)
+                t = new TableLocation(pgResultSetMetaData.getBaseSchemaName(i),
+                        pgResultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
+            } else {
+                t = new TableLocation(resultSetMetaData.getSchemaName(i),
+                        resultSetMetaData.getTableName(i), dbType);
+            }
             fieldTableLocations.add(t);
-            if("GEOMETRY".equalsIgnoreCase(resultSetMetaData.getColumnTypeName(i))) {
+            if(resultSetMetaData.getColumnTypeName(i).toLowerCase(Locale.ROOT).contains("geometry")) {
                 // Fetch geometry type and srid
                 GeometryMetaData metaData =
-                        GeometryTableUtilities.getMetaData(pgConnection, t, resultSetMetaData.getColumnLabel(i));
+                        GeometryTableUtilities.getMetaData(resultSetConnection, t, resultSetMetaData.getColumnLabel(i));
                 if(metaData != null) {
                     columnTypes.add(metaData.getSQL());
                 } else  {
@@ -209,15 +221,15 @@ public class PostGISUtilities {
             }
         }
         // Drop and Create target table
-        if(!JDBCUtilities.tableExists(h2Connection, h2TableName) || dropLocalH2Table) {
-            if(dropLocalH2Table) {
-                try (Statement h2Stmt = h2Connection.createStatement()) {
-                    h2Stmt.execute("DROP TABLE IF EXISTS " + h2TableName);
+        if(!JDBCUtilities.tableExists(targetConnection, targetTableName) || dropTargetTable) {
+            if(dropTargetTable) {
+                try (Statement targetConnectionStatement = targetConnection.createStatement()) {
+                    targetConnectionStatement.execute("DROP TABLE IF EXISTS " + targetTableName);
                 }
             }
-            // Generate the h2 table according to the result set metadata
+            // Generate the target table according to the result set metadata
             StringBuilder createTableSql = new StringBuilder();
-            createTableSql.append("CREATE TABLE ").append(h2TableName).append(" (");
+            createTableSql.append("CREATE TABLE ").append(targetTableName).append(" (");
             for (int i = 0; i < columnNames.size(); i++) {
                 createTableSql.append(columnNames.get(i)).append(" ").append(columnTypes.get(i));
                 if (!columnNullables.get(i)) {
@@ -228,12 +240,24 @@ public class PostGISUtilities {
                 }
             }
             createTableSql.append(")");
-            try (Statement h2Stmt = h2Connection.createStatement()) {
-                h2Stmt.execute(createTableSql.toString());
+            try (Statement targetConnectionStatement = targetConnection.createStatement()) {
+                targetConnectionStatement.execute(createTableSql.toString());
+            } catch (SQLException e) {
+                if(e instanceof PSQLException psqlException && psqlException.getServerErrorMessage() != null) {
+                    String sqlWithErrorMarker = createTableSql.substring(0,
+                            psqlException.getServerErrorMessage().getPosition()) + "[*]" +
+                            createTableSql.substring(psqlException.getServerErrorMessage().getPosition());
+
+                    throw new SQLException(MessageFormat.format("Error while executing this query {0}",
+                            sqlWithErrorMarker), e);
+                } else {
+                    throw new SQLException(MessageFormat.format("Error while executing this query {0}",
+                            createTableSql.toString()), e);
+                }
             }
         }
         StringBuilder insertSql = new StringBuilder();
-        insertSql.append("INSERT INTO ").append(h2TableName).append(" VALUES (");
+        insertSql.append("INSERT INTO ").append(targetTableName).append(" VALUES (");
         for (int i = 0; i < columnNames.size(); i++) {
             insertSql.append("?");
             if (i < columnNames.size() - 1) {
@@ -242,12 +266,12 @@ public class PostGISUtilities {
         }
         insertSql.append(")");
         // Insert values using batch
-        try (PreparedStatement ps = h2Connection.prepareStatement(insertSql.toString())) {
+        try (PreparedStatement ps = targetConnection.prepareStatement(insertSql.toString())) {
             int count = 0;
             boolean nonPushedBatch = false;
-            while (pgResultSet.next()) {
+            while (resultSet.next()) {
                 for (int i = 1; i <= columnCount; i++) {
-                    final Object value = pgResultSet.getObject(i);
+                    final Object value = resultSet.getObject(i);
                     ps.setObject(i, value);
                 }
                 ps.addBatch();
@@ -264,11 +288,11 @@ public class PostGISUtilities {
         // Add primary key if all columns are from the same table and the original table had a primary key in our column list
         if(!fieldTableLocations.isEmpty() && !fieldTableLocations.getFirst().getTable().isEmpty() &&
                 fieldTableLocations.stream().allMatch(t -> t.equals(fieldTableLocations.getFirst()))) {
-            Tuple<String, Integer> pkInfo = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(pgConnection, fieldTableLocations.getFirst());
+            Tuple<String, Integer> pkInfo = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(resultSetConnection, fieldTableLocations.getFirst());
             if(pkInfo != null && columnNames.stream().anyMatch(n -> n.equalsIgnoreCase(pkInfo.first()))) {
                 String pkName = pkInfo.first();
-                try (Statement h2Stmt = h2Connection.createStatement()) {
-                    h2Stmt.execute("ALTER TABLE " + h2TableName + " ADD CONSTRAINT " + h2TableName + "_pk PRIMARY KEY (" + pkName + ")");
+                try (Statement h2Stmt = targetConnection.createStatement()) {
+                    h2Stmt.execute("ALTER TABLE " + targetTableName + " ADD CONSTRAINT " + targetTableName + "_pk PRIMARY KEY (" + pkName + ")");
                 }
             }
         }

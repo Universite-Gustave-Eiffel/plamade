@@ -1,9 +1,10 @@
 package org.noise_planet.covadis.webserver;
 
 
-import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
+import org.h2.value.ValueBoolean;
+import org.h2gis.functions.io.shp.SHPRead;
 import org.h2gis.utilities.GeometryMetaData;
 import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
@@ -172,7 +173,7 @@ public class TestCBSScript extends JDBCTestCase {
         try (Connection pgConnection = pgDataSource.getConnection();
              Statement statement = pgConnection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_input.c_batiment_s_hexa")) {
-            PostGISUtilities.copyFromPostGISToH2Database(pgConnection, resultSet, connection, "BUILDINGS", true, 5);
+            PostGISUtilities.copyResultSetToDatabase(pgConnection, resultSet, connection, "BUILDINGS", true, 5);
         }
         assertTrue(JDBCUtilities.tableExists(connection, "BUILDINGS"));
         assertEquals(500, JDBCUtilities.getRowCount(connection, "BUILDINGS"));
@@ -190,11 +191,28 @@ public class TestCBSScript extends JDBCTestCase {
         try (Connection pgConnection = pgDataSource.getConnection();
              Statement statement = pgConnection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_output.routier_emission_hexa")) {
-            PostGISUtilities.copyFromPostGISToH2Database(pgConnection, resultSet, connection, "ROUTES", true, 5);
+            PostGISUtilities.copyResultSetToDatabase(pgConnection, resultSet, connection, "ROUTES", true, 5);
         }
         assertTrue(JDBCUtilities.tableExists(connection, "ROUTES"));
         assertEquals(12, JDBCUtilities.getRowCount(connection, "ROUTES"));
         assertEquals(1, JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse("ROUTES", DBTypes.H2)));
+    }
+    @Test
+    @Order(5)
+    public void testCopyH2ToPostGISDatabaseWithPk() throws SQLException, IOException {
+        assumePostGISAvailable();
+        URL url = TestCBSScript.class.getResource("buildings.shp");
+        assertNotNull(url);
+        SHPRead.importTable(connection, url.getFile(),"BUILDINGS" , ValueBoolean.TRUE);
+        try (Connection pgConnection = pgDataSource.getConnection()) {
+            try (Statement statement = connection.createStatement();
+                 ResultSet resultSet = statement.executeQuery("SELECT * FROM BUILDINGS")) {
+                PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "BUILDINGS", true, 5);
+            }
+            assertTrue(JDBCUtilities.tableExists(pgConnection, "BUILDINGS"));
+            assertEquals(JDBCUtilities.getRowCount(connection, "BUILDINGS"), JDBCUtilities.getRowCount(pgConnection, "BUILDINGS"));
+            assertEquals(1, JDBCUtilities.getIntegerPrimaryKey(pgConnection, TableLocation.parse("BUILDINGS", DBTypes.POSTGIS)));
+        }
     }
     @Test
     @Order(5)
@@ -220,14 +238,14 @@ public class TestCBSScript extends JDBCTestCase {
             }
         }
 
-//        // Check if cbs_uge_output.FACADE_EXPO_hexa has the idbat BAT2023130018310.20548588 with pop > 0
-//        try(Connection pgConnection = pgDataSource.getConnection();
-//            Statement statement = pgConnection.createStatement();
-//            ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_output.FACADE_EXPO_hexa")) {
-//            assertTrue(resultSet.next());
-//            assertEquals("BAT2023130018310.20548588", resultSet.getString("IDBAT"));
-//            assertTrue(resultSet.getDouble("POP") > 0);
-//        }
+        // Check if cbs_uge_output.FACADE_EXPO_hexa has the idbat BAT2023130018310.20548588 with pop > 0
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_output.FACADE_EXPO_hexa")) {
+            assertTrue(resultSet.next());
+            assertEquals("BAT2023130018310.20548588", resultSet.getString("IDBAT"));
+            assertTrue(resultSet.getDouble("POP") > 0);
+        }
 
     }
 }
