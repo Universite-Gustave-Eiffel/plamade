@@ -146,8 +146,12 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/nm_nuts.sql.zip");
+                    runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql.zip");
                     // Set population to the nearest building from the emission road to have a result even with a low max propagation distance
-                    statement.execute("update \"cbs_uge_input\".\"c_population_hexa\" set idbat = 'BAT2023130018310.20548588' where idbat = 'BAT2023130018310.1203369';");
+                    assertEquals(1, statement.executeUpdate("update \"cbs_uge_input\".\"c_population_hexa\" set idbat = 'BAT2023130018310.20548588' where idbat = 'BAT2023130018310.1203369';"));
+                    // Use this building BAT2023130018310.1203408 near the road as school (replace the far away BAT2023130018310.1203316 )
+                    assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET idbat = 'BAT2023130018310.1203408' WHERE idbat = 'BAT2023130018310.20548432';"));
+                    assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET geom3d = (SELECT geom3d from cbs_uge_input.c_batiment_s_hexa bh WHERE idbat = 'BAT2023130018310.1203408') WHERE idbat = 'BAT2023130018310.1203408';"));
                     logger.info("Database tables created in " + (System.currentTimeMillis() - start) + "ms");
                 }
             }
@@ -238,13 +242,11 @@ public class TestCBSScript extends JDBCTestCase {
             }
         }
 
-        // Check if cbs_uge_output.FACADE_EXPO_hexa has the idbat BAT2023130018310.20548588 with pop > 0
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT * FROM cbs_uge_output.FACADE_EXPO_hexa")) {
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
             assertTrue(resultSet.next());
-            assertEquals("BAT2023130018310.20548588", resultSet.getString("IDBAT"));
-            assertTrue(resultSet.getDouble("POP") > 0);
+            assertEquals(108, resultSet.getString("CPT"));
         }
 
     }
