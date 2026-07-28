@@ -246,7 +246,7 @@ public class TestCBSScript extends JDBCTestCase {
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
             assertTrue(resultSet.next());
-            assertEquals(108, resultSet.getString("CPT"));
+            assertEquals(108, resultSet.getInt("CPT"));
         }
 
     }
