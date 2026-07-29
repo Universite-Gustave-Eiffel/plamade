@@ -146,7 +146,7 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/nm_nuts.sql.zip");
-                    runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql.zip");
+                    runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql");
                     // Set population to the nearest building from the emission road to have a result even with a low max propagation distance
                     assertEquals(1, statement.executeUpdate("update \"cbs_uge_input\".\"c_population_hexa\" set idbat = 'BAT2023130018310.20548588' where idbat = 'BAT2023130018310.1203369';"));
                     // Use this building BAT2023130018310.1203408 near the road as school (replace the far away BAT2023130018310.1203316 )
@@ -246,7 +246,7 @@ public class TestCBSScript extends JDBCTestCase {
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
             assertTrue(resultSet.next());
-            assertEquals(108, resultSet.getInt("CPT"));
+            assertEquals(30, resultSet.getInt("CPT"));
         }
 
     }

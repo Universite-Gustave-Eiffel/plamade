@@ -80,7 +80,9 @@ CREATE TABLE cbs_uge_input.c_batimentsensible_hexa
     erps_iduai  character varying(24),
     erps_idfin  character varying(24),
     erps_idsur  character varying(48),
-    erps_idspo  character varying(24)
+    erps_idspo  character varying(24),
+    -- primary key on iderps
+    CONSTRAINT c_batimentsensible_hexa_pkey PRIMARY KEY (iderps)
 );
 
 

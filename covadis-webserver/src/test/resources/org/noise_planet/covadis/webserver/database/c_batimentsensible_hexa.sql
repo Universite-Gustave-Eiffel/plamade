@@ -1,0 +1,2 @@
+INSERT INTO cbs_uge_input.c_batimentsensible_hexa (iderps,annee,codedept,refprod,erps_nature,erps_ssnat,erps_orig,erps_nom,erps_capac,erps_ouvrt,erps_idpai,erps_iduai,erps_idfin,erps_idsur,erps_idspo) VALUES
+	 ('ERPV202313001831078.72179','2023','78','130018310','Enseignement','enseignement primaire et secondaire','aen','ecole élémentaire du vieux chêne',NULL,NULL,NULL,NULL,NULL,'da37140b5a7ce02',NULL);

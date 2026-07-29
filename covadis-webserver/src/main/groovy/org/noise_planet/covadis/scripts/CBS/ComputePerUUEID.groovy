@@ -393,7 +393,7 @@ private void processMap(Connection conn, ProgressVisitor progress, String uueid,
     // 3. Insert results into ISOPHONES
     def insertSql = """
         INSERT INTO ISOPHONES(the_geom, pk, area, uueid, period, noiselevel, cbstype, nutscode, typesource) 
-        SELECT ST_Accum(THE_GEOM) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) area, 
+        SELECT ST_Union(ST_Accum(THE_GEOM)) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) area, 
                '$uueid', '$period', $noiseLevelExpr, '$cbsType', '$nutsCode', 'R'
         FROM CONTOURING_NOISE_MAP 
         WHERE $filter 
@@ -810,9 +810,11 @@ def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelope
          ResultSet rs = st.executeQuery(tableQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS", true, batchSize)
     }
-
-    Sql sql = new Sql(h2Connection)
-    sql.execute("""ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;""" as String)
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", """
+                ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;
+                """ as String, "outputFormat", "json"),
+            new EmptyProgressVisitor())
 
     def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
@@ -846,7 +848,7 @@ def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelope
         DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
         """
 
-    new Execute_Query().exec(sql.connection,
+    new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", insertBarriersSql, "outputFormat", "json"),
             new EmptyProgressVisitor())
 
