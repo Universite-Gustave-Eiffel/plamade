@@ -336,6 +336,9 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
 
     // 4. Generate the 4 CBS Maps
 
+
+    new Execute_Query().exec(h2Connection, [sqlQueries: "DROP TABLE IF EXISTS ISOPHONES;", outputFormat: "json"], new EmptyProgressVisitor())
+
     // CBS A - Day/Evening/Night
     processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "55.0,60.0,65.0,70.0,75.0,200.0", caseLdenA, "LD", "A", "ISOLVL > 0")
 
@@ -596,7 +599,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
             new EmptyProgressVisitor())
 
     def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
-         FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
+         FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0 AND position_par_rapport_au_sol = '0'"""
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(fetchHydroTableQuery)) {
@@ -841,6 +844,7 @@ def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelope
     }
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
+                CREATE SPATIAL INDEX ON BUILDINGS (THE_GEOM);
                 ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;
                 """ as String, "outputFormat", "json"),
             new EmptyProgressVisitor())
