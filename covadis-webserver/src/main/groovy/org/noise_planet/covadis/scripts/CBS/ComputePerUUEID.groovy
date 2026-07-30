@@ -137,6 +137,8 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
 
     logger.info("SRID: {}", (extractionEnvelopeGeometry).getSRID())
 
+    fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, stepsProgress)
+
     fetchBuildings(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
     generateReceivers(input, pgConnection, uueid, extractionEnvelopeGeometry, h2Connection,
@@ -153,12 +155,10 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     ProgressVisitor solProgress = stepsProgress.subProcess(posSols.size())
     posSols.forEach {posSol ->
         logger.info("Compute for pos_sol = $posSol")
-        // Clear tables
-        h2Sql.execute("DROP TABLE IF EXISTS DEM, LW_ROADS")
         // Fetch specific road emission at this special height
         processRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol)
-        // Adapt the DEM with this special road height
-        fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, solProgress, posSol)
+        // Adapt the DEM with this special road height platforms
+        enrichDem(input, uueid, h2Connection, pgConnection, solProgress, posSol)
         // Run the simulation with this road height
         runSimulation(mainConfiguration, h2Connection, posSol, solProgress)
     }
@@ -393,7 +393,7 @@ private void processMap(Connection conn, ProgressVisitor progress, String uueid,
     // 3. Insert results into ISOPHONES
     def insertSql = """
         INSERT INTO ISOPHONES(the_geom, pk, area, uueid, period, noiselevel, cbstype, nutscode, typesource) 
-        SELECT ST_Union(ST_Accum(THE_GEOM)) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) area, 
+        SELECT ST_Multi(ST_Union(ST_Accum(THE_GEOM))) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) area, 
                '$uueid', '$period', $noiseLevelExpr, '$cbsType', '$nutsCode', 'R'
         FROM CONTOURING_NOISE_MAP 
         WHERE $filter 
@@ -466,7 +466,7 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
             DROP TABLE IF EXISTS BUILDINGS_WITH_POP;
-            CREATE TABLE BUILDINGS_WITH_POP(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT) AS SELECT PK, THE_GEOM, POP, HEIGHT FROM BUILDINGS WHERE POP > 0 OR erps_nature IS NOT NULL;
+            CREATE TABLE BUILDINGS_WITH_POP(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT) AS SELECT PK, THE_GEOM, POP, HEIGHT FROM BUILDINGS WHERE nb_logts_c > 0 OR erps_nature IS NOT NULL;
         """ as String, "outputFormat", "json"),
             new EmptyProgressVisitor())
     def buildingsCountWithPop = JDBCUtilities.getRowCount(h2Connection, "BUILDINGS_WITH_POP")
@@ -479,12 +479,48 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
                 [tableBuilding: "BUILDINGS_WITH_POP", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1],
                 subSteps) as String)
-        h2Sql.execute("""
+        new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", """
             DROP TABLE BUILDINGS_WITH_POP;
             DROP TABLE IF EXISTS RECEIVERS_BUILDINGS;
             ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS;
-        """)
+            -- Remove receivers that are under the neighbor buildings roof
+            drop table if exists receivers_over_buildings;
+            create table receivers_over_buildings as SELECT r.pk, st_z(r.the_geom) rheight, ST_zmax(b.the_geom) maxbuildingz, max(b.height) maxbuildingheight, dem_receiver.altitude demz FROM RECEIVERS_BUILDINGS R, BUILDINGS B,
+             (
+                    SELECT
+                    r.pk,
+                    st_z(d.the_geom) AS altitude,
+                    st_distance(r.the_geom, d.the_geom) AS distance,
+                    ROW_NUMBER() OVER (
+                            PARTITION BY r.pk
+                            ORDER BY st_distance(r.the_geom, d.the_geom) ASC
+                    ) as row_num
+                    FROM RECEIVERS_BUILDINGS R, DEM D
+                    WHERE st_expand(r.the_geom, 20, 20) && d.the_geom
+            ) dem_receiver where R.the_geom && b.the_geom and st_contains(b.the_geom, r.the_geom) and dem_receiver.pk = r.pk and dem_receiver.row_num = 1 group by r.pk;
+            alter table receivers_over_buildings alter column pk integer not null;
+            alter table receivers_over_buildings add primary key (pk);
+        """),
+            new EmptyProgressVisitor())
     }
+
+    logger.info("Some problematic receivers over buildings will be removed:")
+
+    logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, """
+        select the_geom,rb.rheight+rb.demz receiver_altitude, rb.maxbuildingz roof_altitude_from_z,
+         rb.maxbuildingheight + rb.demz roof_altitude_from_height from receivers_over_buildings rb INNER JOIN RECEIVERS_BUILDINGS rbs ON (rb.pk = rbs.pk)
+          where rb.rheight+rb.demz < rb.maxbuildingz OR rb.rheight+rb.demz < rb.maxbuildingheight + rb.demz
+           LIMIT 10""",
+            120));
+
+    new Execute_Query().exec(h2Connection,
+            Map.of("sqlQueries", """
+            -- Remove receivers that are under the neighbor buildings roof
+            delete from RECEIVERS_BUILDINGS where pk in (select pk from receivers_over_buildings rb where rb.rheight+rb.demz < rb.maxbuildingz OR rb.rheight+rb.demz < rb.maxbuildingheight + rb.demz);
+        """),
+            new EmptyProgressVisitor())
+
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
 
     logger.info("Generate Delaunay receivers")
@@ -517,14 +553,10 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             new EmptyProgressVisitor())
 }
 
-def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection,Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
+def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
+    Sql pgSql = new Sql(pgConnection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")
-    ProgressVisitor demProgress = stepsProgress.subProcess(5)
-
-    Sql sql = new Sql(h2Connection)
-    Sql pgSql = new Sql(pgConnection)
-
     def fetchTableNamesQuery = """
         SELECT uueid, insee_dep, bd_alti
         FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
@@ -535,7 +567,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
         bdAltiTableName.add(row.bd_alti as String)
     }
 
-    ProgressVisitor subProgress = demProgress.subProcess(bdAltiTableName.size())
+    ProgressVisitor subProgress = stepsProgress.subProcess(bdAltiTableName.size())
 
     def xyPrecision = 2 // cm precision
     def zPrecision = 2 // cm precision
@@ -543,7 +575,6 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
         PostGISUtilities.fetchDemTable(pgConnection, h2Connection, "bd_alti.${tableName}",
                 "DEM", extractionEnvelopeGeometry, subProgress, xyPrecision, zPrecision)
     }
-
     // Enhance DEM points with orography and hydrography ruptures lines
     def tableExt = getDeptCodeFromExt().get(input.projectionName)
     def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
@@ -560,7 +591,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
         DROP TABLE OROGRAPHIC;            
         """
-    new Execute_Query().exec(sql.connection,
+    new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
             new EmptyProgressVisitor())
 
@@ -577,10 +608,16 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
         DROP TABLE HYDROGRAPHIC;            
         """
-    new Execute_Query().exec(sql.connection,
+    new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", insertHydroQuery, "outputFormat", "json"),
             new EmptyProgressVisitor())
 
+}
+
+def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Adapting digital elevation model..")
+    ProgressVisitor demProgress = stepsProgress.subProcess(2)
 
     // Fetch road table with altitude using the UUEID query
     def roadQuery = """SELECT geom as the_geom, largeur as width
@@ -589,20 +626,12 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+        demProgress.endStep()
     }
 
     // Create a new DEM with road platforms
     def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
-
-    // Replace DEM with the new table
-    def replaceDEMQuery = """
-        DROP TABLE IF EXISTS DEM;
-        ALTER TABLE DEM_ENRICHED RENAME TO DEM;
-        """
-    new Execute_Query().exec(sql.connection,
-            Map.of("sqlQueries", replaceDEMQuery, "outputFormat", "json"),
-            new EmptyProgressVisitor())
 }
 
 def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol, ProgressVisitor stepsProgress) {
@@ -612,7 +641,7 @@ def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol,
             tableBuilding: "BUILDINGS",
             tableSources: "LW_ROADS",
             tableReceivers: "RECEIVERS",
-            tableDEM: "DEM",
+            tableDEM: "DEM_ENRICHED",
             tableGroundAbs: "LANDCOVER",
             tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
             confReflOrder: mainConfiguration.confreflorder,
@@ -799,7 +828,7 @@ def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelope
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
     def projectionName = input.projectionName
-    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, COALESCE(p.pop_bat, 0) as pop, b.bat_idtopo, bs.erps_nature
+    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, COALESCE(p.pop_bat, 0) as pop, COALESCE(b.nb_logts_c, 0) as nb_logts_c, b.bat_idtopo, bs.erps_nature
              FROM cbs_uge_input.c_batiment_s_${projectionName} b 
                 LEFT JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
                 LEFT JOIN cbs_uge_input.c_correspond_batiment_batimentsensible_${projectionName} s ON b.idbat = s.idbat

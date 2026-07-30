@@ -243,17 +243,7 @@ public class PostGISUtilities {
             try (Statement targetConnectionStatement = targetConnection.createStatement()) {
                 targetConnectionStatement.execute(createTableSql.toString());
             } catch (SQLException e) {
-                if(e instanceof PSQLException psqlException && psqlException.getServerErrorMessage() != null) {
-                    String sqlWithErrorMarker = createTableSql.substring(0,
-                            psqlException.getServerErrorMessage().getPosition()) + "[*]" +
-                            createTableSql.substring(psqlException.getServerErrorMessage().getPosition());
-
-                    throw new SQLException(MessageFormat.format("Error while executing this query {0}",
-                            sqlWithErrorMarker), e);
-                } else {
-                    throw new SQLException(MessageFormat.format("Error while executing this query {0}",
-                            createTableSql.toString()), e);
-                }
+                rethrowException(e, createTableSql.toString());
             }
         }
         StringBuilder insertSql = new StringBuilder();
@@ -295,6 +285,25 @@ public class PostGISUtilities {
                     h2Stmt.execute("ALTER TABLE " + targetTableName + " ADD CONSTRAINT " + targetTableName + "_pk PRIMARY KEY (" + pkName + ")");
                 }
             }
+        }
+    }
+
+    /**
+     * Format error message with location of the error if possible then rethrow the exception
+     * @param e SQL exception
+     * @param sqlQuery SQL query related to the error
+     * @throws SQLException Sql exception with more details
+     */
+    public static void rethrowException(SQLException e, String sqlQuery) throws SQLException {
+        if(e instanceof PSQLException psqlException && psqlException.getServerErrorMessage() != null) {
+            String sqlWithErrorMarker = sqlQuery.substring(0,
+                    psqlException.getServerErrorMessage().getPosition()) + "[*]" +
+                    sqlQuery.substring(psqlException.getServerErrorMessage().getPosition());
+
+            throw new SQLException(MessageFormat.format("Error while executing this query {0}",
+                    sqlWithErrorMarker), e);
+        } else {
+            throw new SQLException(MessageFormat.format("Error while executing this query {0}", sqlQuery), e);
         }
     }
 }

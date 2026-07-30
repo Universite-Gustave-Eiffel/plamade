@@ -7,6 +7,7 @@ import groovy.util.ConfigObject;
 import groovy.util.ConfigSlurper;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
+import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.noisemodelling.webserver.script.ExecutionPlan;
 import org.noise_planet.noisemodelling.webserver.script.ScriptMetadata;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.*;
 
 public class ScriptUtilities {
@@ -94,7 +96,7 @@ public class ScriptUtilities {
      * @param query       A String or GString
      * @param maxColWidth Maximum width of a column before truncation
      */
-    public static String formatSqlQueryResult(Sql sql, Object query, int maxColWidth) {
+    public static String formatSqlQueryResult(Sql sql, Object query, int maxColWidth) throws SQLException {
         List<Map<String, Object>> rawRows = new ArrayList<>();
         try {
             List<?> rows = sql.rows(query.toString());
@@ -103,9 +105,8 @@ public class ScriptUtilities {
                     rawRows.add((Map<String, Object>) row);
                 }
             }
-        } catch (Exception e) {
-            LoggerFactory.getLogger("Logging").error("Error executing SQL query: {}", query, e);
-            return "";
+        } catch (SQLException e) {
+            PostGISUtilities.rethrowException(e, query.toString());
         }
 
         if (rawRows.isEmpty()) {

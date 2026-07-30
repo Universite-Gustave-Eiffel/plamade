@@ -35,23 +35,22 @@ CREATE TABLE cbs_uge_input.nm_conf
     wall_alpha                 real
 );
 
-CREATE TABLE cbs_uge_input.c_batiment_s_hexa
-(
-    geom3d public.geometry(MultiPolygonZ,2154),
-    bat_idtopo character varying(24),
-    bat_nature character varying,
-    bat_nb_niv integer,
-    pkey       integer,
-    annee      character varying(4),
-    refprod    character varying(9),
-    origin_bat character varying(32),
-    bat_pnb    character varying(32),
-    bat_ppbe   character varying(32),
-    bat_uueid  character varying(32),
-    idbat      character varying(32),
-    bat_haut   numeric(7, 1)
+CREATE TABLE cbs_uge_input.c_batiment_s_hexa (
+	geom3d public.geometry(multipolygonz, 2154) NULL,
+	bat_idtopo varchar(24) NULL,
+	bat_nature varchar NULL,
+	bat_nb_niv int4 NULL,
+	pkey int4 NULL,
+	annee varchar(4) NULL,
+	refprod varchar(9) NULL,
+	origin_bat varchar(32) NULL,
+	bat_pnb varchar(32) NULL,
+	bat_ppbe varchar(32) NULL,
+	bat_uueid varchar(32) NULL,
+	idbat varchar(32) NULL,
+	bat_haut numeric(7, 1) NULL,
+	nb_logts_c int4 NULL
 );
-
 
 CREATE TABLE cbs_uge_input.c_population_hexa
 (

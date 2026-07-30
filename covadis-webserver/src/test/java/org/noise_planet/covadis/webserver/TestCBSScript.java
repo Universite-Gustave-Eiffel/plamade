@@ -149,6 +149,7 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql");
                     // Set population to the nearest building from the emission road to have a result even with a low max propagation distance
                     assertEquals(1, statement.executeUpdate("update \"cbs_uge_input\".\"c_population_hexa\" set idbat = 'BAT2023130018310.20548588' where idbat = 'BAT2023130018310.1203369';"));
+                    assertEquals(1, statement.executeUpdate("update \"cbs_uge_input\".\"c_batiment_s_hexa\" set nb_logts_c = 1 where idbat = 'BAT2023130018310.20548588';"));
                     // Use this building BAT2023130018310.1203408 near the road as school (replace the far away BAT2023130018310.1203316 )
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET idbat = 'BAT2023130018310.1203408' WHERE idbat = 'BAT2023130018310.20548432';"));
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET geom3d = (SELECT geom3d from cbs_uge_input.c_batiment_s_hexa bh WHERE idbat = 'BAT2023130018310.1203408') WHERE idbat = 'BAT2023130018310.1203408';"));
