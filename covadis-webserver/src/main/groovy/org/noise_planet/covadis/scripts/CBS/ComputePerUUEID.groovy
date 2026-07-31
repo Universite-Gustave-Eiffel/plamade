@@ -169,7 +169,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     // Generate IsoContours
     generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
-    generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts)
+    generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
 
     // Upload CBS Table to remote PostGIS database
     uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
@@ -194,7 +194,7 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
     }
 
     try( Statement st = h2Connection.createStatement() ;
-         ResultSet rs = st.executeQuery("""SELECT * FROM FACADE_EXPO""")) {
+         ResultSet rs = st.executeQuery("""SELECT the_geom, idbat , uueid , lden , ln FROM FACADE_EXPO""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.facade_expo_$projectionName", false, batchSize)
     }
@@ -204,13 +204,14 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
         new Execute_Query().exec(pgConnection, [sqlQueries: """            
             CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName USING GIST (the_geom);
             CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName (uueid);
+            CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName (idbat);
             ALTER TABLE cbs_uge_output.facade_expo_$projectionName OWNER TO cbs_uge_group;
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
 
     }
 }
 
-def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts) {
+def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
 
     Logger logger = LoggerFactory.getLogger(this.class)
 
@@ -225,14 +226,16 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM");
 
-    new Execute_Query().exec(h2Connection, [sqlQueries: """
+    runScript(h2Connection, """
         DROP TABLE IF EXISTS FACADE_EXPO;
-        CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), uueid varchar, lden numeric(5,2), ln numeric(5,2));
+        CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), pkbat int, uueid varchar, lden numeric(5,2), ln numeric(5,2));
         SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
-        INSERT INTO FACADE_EXPO (THE_GEOM, idbat, uueid, lden, ln)        
+        -- Generate exposition per receiver on each building
+        INSERT INTO FACADE_EXPO (THE_GEOM, idbat, pkbat, uueid, lden, ln)        
         SELECT 
             RL.THE_GEOM, 
-            B.IDBAT, 
+            B.IDBAT,
+            B.pk pkbat, 
             '$uueid' AS UUEID,
             RL.LDEN,
             RL.LN
@@ -251,8 +254,60 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         ) RL ON RL.IDRECEIVER = R.PK
         WHERE R.PK > @LASTDELAUNAY
           AND RL.MAX_LAEQ > 0;
+        -- compute max level per building
+        DROP TABLE IF EXISTS FACADE_EXPO_MAX_LEVEL;
+        CREATE TABLE FACADE_EXPO_MAX_LEVEL AS 
+            SELECT B.IDBAT, B.erps_nature, COALESCE(B.POP, 0) POP, MAX(LDEN) LDEN, MAX(LN) LN  
+            FROM FACADE_EXPO F INNER JOIN BUILDINGS B ON ( F.pkbat = B.pk )
+            WHERE B.erps_nature IS NOT NULL or B.nb_logts_c = 1 GROUP BY B.IDBAT, B.erps_nature, B.POP;
+        -- Create range tables
+        DROP TABLE IF EXISTS ROAD_NOISE_LEVEL_RANGES;
+        CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel varchar);
+        -- LDEN Period - Type A
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 55, 59, 'Lden5559');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 60, 64, 'Lden6064');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 65, 69, 'Lden6569');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 70, 74, 'Lden7074');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 75, 200, 'LdenGreaterThan75');
         
-    """ as String], new EmptyProgressVisitor())
+        -- LDEN Period - Type C
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LD', 68, 200, 'LdenGreaterThan68');
+        
+        -- LN Period - Type A
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 50, 54, 'Lnight5054');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 55, 59, 'Lnight5559');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 60, 64, 'Lnight6064');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 65, 69, 'Lnight6569');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 70, 200, 'LnightGreaterThan70');
+        
+        -- LN Period - Type C
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LN', 62, 200, 'LnightGreaterThan62');
+        -- Create main exposure table to upload
+        DROP TABLE IF EXISTS EXPO_${projectionName};
+        CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people int,
+         dwellings int, hospitals int, schools int, cpi int, ha int, hsd int, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2));
+        -- Fill with default values
+        INSERT INTO EXPO_${projectionName}
+         SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
+             period, noiselevel_start, noiselevel_end
+         FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
+        -- Update from individual dwellings from FACADE_EXPO_MAX_LEVEL table
+        UPDATE EXPO_${projectionName} SET dwellings = dwellings
+             + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
+                 (indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end) AND erps_nature is null),
+                 hospitals = hospitals
+             + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
+                 (indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end) AND erps_nature = 'santé et social'),
+                 schools = schools
+             + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
+                 (indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end) AND erps_nature = 'Enseignement');
+    """)
+
+
+    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
 }
 
 @CompileStatic
@@ -469,7 +524,8 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
             DROP TABLE IF EXISTS BUILDINGS_WITH_POP;
-            CREATE TABLE BUILDINGS_WITH_POP(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT) AS SELECT PK, THE_GEOM, POP, HEIGHT FROM BUILDINGS WHERE nb_logts_c > 0 OR erps_nature IS NOT NULL;
+            -- Filter buildings and force 2D as there is accum and union of geometries in Building_Grid script, we can not mix 2D and 3D polygons
+            CREATE TABLE BUILDINGS_WITH_POP(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT) AS SELECT PK, ST_Force2D(THE_GEOM) AS THE_GEOM, POP, HEIGHT FROM BUILDINGS WHERE nb_logts_c > 0 OR erps_nature IS NOT NULL;
         """ as String, "outputFormat", "json"),
             new EmptyProgressVisitor())
     def buildingsCountWithPop = JDBCUtilities.getRowCount(h2Connection, "BUILDINGS_WITH_POP")
@@ -902,4 +958,9 @@ def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelope
 
 static Map getDeptCodeFromExt() {
     return  ["hexa": '000', "guad": '971', "guya": '973', "mart": '972', "reun": '974' ]
+}
+
+@CompileStatic
+static void runScript(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
+    ScriptUtilities.execScript(new Execute_Query(),connection, [sqlQueries: query], progressVisitor)
 }

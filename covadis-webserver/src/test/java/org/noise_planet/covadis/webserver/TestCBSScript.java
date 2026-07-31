@@ -20,6 +20,7 @@ import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.noise_planet.noisemodelling.scripts.Import_and_Export.Import_File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -251,4 +252,5 @@ public class TestCBSScript extends JDBCTestCase {
         }
 
     }
+
 }
