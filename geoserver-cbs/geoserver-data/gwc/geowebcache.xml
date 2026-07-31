@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gwcConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://geowebcache.org/schema/2.0.0 http://geowebcache.org/schema/2.0.0/geowebcache.xsd" xmlns="http://geowebcache.org/schema/2.0.0">
+  <version>2.0.0</version>
+  <backendTimeout>120</backendTimeout>
+  <blobStores/>
+  <gridSets>
+    <gridSet>
+      <name>Lambert93</name> <!-- Renamed to avoid system conflict -->
+      <description>Lambert 93 square grid for France</description>
+      <srs>
+        <number>2154</number>
+      </srs>
+      <extent>
+        <coords>
+          <double>99226.0</double>
+          <double>6008450.0</double>
+          <double>1242417.0</double>
+          <double>7151641.0</double>
+        </coords>
+      </extent>
+      <alignTopLeft>true</alignTopLeft> <!-- Crucial for QGIS WMTS alignment -->
+      <resolutions>
+        <double>4465.58984375</double>
+        <double>2232.794921875</double>
+        <double>1116.3974609375</double>
+        <double>558.19873046875</double>
+        <double>279.099365234375</double>
+        <double>139.5496826171875</double>
+        <double>69.77484130859375</double>
+        <double>34.887420654296875</double>
+        <double>17.443710327148438</double>
+        <double>8.721855163574219</double>
+        <double>4.360927581787109</double>
+        <double>2.1804637908935547</double>
+        <double>1.0902318954467773</double>
+        <double>0.5451159477233887</double>
+        <double>0.2725579738616943</double>
+      </resolutions>
+      <metersPerUnit>1.0</metersPerUnit>
+      <pixelSize>2.8E-4</pixelSize>
+      <scaleNames>
+        <string>0</string>
+        <string>1</string>
+        <string>2</string>
+        <string>3</string>
+        <string>4</string>
+        <string>5</string>
+        <string>6</string>
+        <string>7</string>
+        <string>8</string>
+        <string>9</string>
+        <string>10</string>
+        <string>11</string>
+        <string>12</string>
+        <string>13</string>
+        <string>14</string>
+      </scaleNames>
+      <tileHeight>256</tileHeight>
+      <tileWidth>256</tileWidth>
+      <yCoordinateFirst>false</yCoordinateFirst>
+    </gridSet>    
+  </gridSets>
+  <layers/>
+</gwcConfiguration>
