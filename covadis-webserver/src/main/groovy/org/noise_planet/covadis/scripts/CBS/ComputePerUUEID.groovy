@@ -508,12 +508,12 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             new EmptyProgressVisitor())
     }
 
-    logger.info("Some problematic receivers over buildings will be removed:")
+    logger.info("Some problematic receivers over buildings will be removed (safe distance from roofs of 0.2m) :")
 
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, """
         select the_geom,rb.rheight+rb.demz receiver_altitude, rb.maxbuildingz roof_altitude_from_z,
          rb.maxbuildingheight + rb.demz roof_altitude_from_height from receivers_over_buildings rb INNER JOIN RECEIVERS_BUILDINGS rbs ON (rb.pk = rbs.pk)
-          where rb.rheight+rb.demz < rb.maxbuildingz OR rb.rheight+rb.demz < rb.maxbuildingheight + rb.demz
+          where rb.rheight+rb.demz-0.2 < rb.maxbuildingz OR rb.rheight+rb.demz-0.2 < rb.maxbuildingheight + rb.demz
            LIMIT 10""",
             120));
 
