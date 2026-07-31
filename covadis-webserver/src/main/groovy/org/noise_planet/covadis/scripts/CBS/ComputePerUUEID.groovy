@@ -545,6 +545,18 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
 
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
+            -- Set foreign key on TRIANGLES for columns pk_1 pk_2 and pk_3 to the RECEIVERS TABLE column pk column
+            ALTER TABLE TRIANGLES ADD CONSTRAINT FK_TRIANGLES_RECEIVERS FOREIGN KEY (PK_1) REFERENCES RECEIVERS_DELAUNAY(PK) ON DELETE CASCADE;
+            ALTER TABLE TRIANGLES ADD CONSTRAINT FK_TRIANGLES_RECEIVERS_2 FOREIGN KEY (PK_2) REFERENCES RECEIVERS_DELAUNAY(PK) ON DELETE CASCADE;
+            ALTER TABLE TRIANGLES ADD CONSTRAINT FK_TRIANGLES_RECEIVERS_3 FOREIGN KEY (PK_3) REFERENCES RECEIVERS_DELAUNAY(PK) ON DELETE CASCADE;
+            -- Delete cascade receivers that intersects the buildings polygons
+            DELETE FROM RECEIVERS_DELAUNAY R WHERE EXISTS (
+              SELECT 1
+              FROM BUILDINGS B
+              WHERE R.THE_GEOM && B.THE_GEOM
+                AND ST_CONTAINS(B.THE_GEOM, R.THE_GEOM)
+            );
+            -- Push the new receivers to the global receivers table
             DROP TABLE IF EXISTS RECEIVERS;
             SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
             CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM FROM RECEIVERS_DELAUNAY;
@@ -552,7 +564,7 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);
             ALTER TABLE RECEIVERS ALTER COLUMN PK INTEGER NOT NULL;
             ALTER TABLE RECEIVERS ADD PRIMARY KEY (PK);
-        """ as String, "outputFormat", "json"),
+        """ as String, "outputFormat", "html"),
             new EmptyProgressVisitor())
 }
 
