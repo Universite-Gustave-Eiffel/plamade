@@ -57,7 +57,7 @@ public class PostGISUtilities {
 
 
     /**
-     * Copy a PostGIS Dem table to a local h2 database table
+     * Copy a PostGIS Dem table to a local h2 database table. If the target table already exist insert only new points
      *
      * @param pgConnection    PostgreSQL connection
      * @param h2Connection    H2 connection
@@ -108,7 +108,6 @@ public class PostGISUtilities {
            GROUP BY group_id""", pgTableName);
 
         // Prepare H2 Insert query
-        // Using "WHERE NOT EXISTS" to prevent duplicates based on geometry
         String h2Sql = MessageFormat.format("INSERT INTO {0} (the_geom) VALUES (?)",
                 tempTableName);
 

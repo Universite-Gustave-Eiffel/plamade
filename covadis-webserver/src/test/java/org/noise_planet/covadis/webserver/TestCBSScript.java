@@ -141,17 +141,32 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/n_routier_protection_acoustique_hexa.sql");
                     runSqlFile(pgConnection, "database/c_naturesol_hexa.sql.zip");
                     runSqlFile(pgConnection, "database/nm_link_dept_infra_road_hexa.sql.zip");
-                    runSqlFile(pgConnection, "database/d028.sql.zip");
-                    runSqlFile(pgConnection, "database/d078.sql.zip");
-                    runSqlFile(pgConnection, "database/d091.sql.zip");
+                    runSqlFile(pgConnection, "database/tiny_d091.sql.zip");
                     runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/nm_nuts.sql.zip");
                     runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql");
+                    runSqlFile(pgConnection, "database/n_ferroviaire_ligne.sql.zip");
+                    runSqlFile(pgConnection, "database/n_ferroviaire_troncon.sql.zip");
+                    // Extract DEM data from tiny wkb
+                    statement.execute("""
+                                      INSERT INTO bd_alti.d091 (the_geom)
+                                      SELECT d.geom
+                                      FROM bd_alti.tiny_d091 s
+                                      CROSS JOIN LATERAL (
+                                        SELECT (dd).geom AS geom
+                                        FROM ST_DumpPoints(ST_GeomFromTWKB(s.chunk_twkb)) AS dd
+                                      ) AS d;
+                                      """);
+                    // Duplicate on 028 to check for removal of duplicate DEM points
+                    statement.execute("INSERT INTO bd_alti.d028 (id, the_geom) select id, the_geom from bd_alti.d091;");
                     // Set population to the nearest building from the emission road to have a result even with a low max propagation distance
                     assertEquals(1, statement.executeUpdate("update \"cbs_uge_input\".\"c_population_hexa\" set idbat = 'BAT2023130018310.20548588' where idbat = 'BAT2023130018310.1203369';"));
                     assertEquals(1, statement.executeUpdate("update \"cbs_uge_input\".\"c_batiment_s_hexa\" set nb_logts_c = 1 where idbat = 'BAT2023130018310.20548588';"));
-                    // Use this building BAT2023130018310.1203408 near the road as school (replace the far away BAT2023130018310.1203316 )
+                    // Update another building (was industrial) set it as multiple residential
+                    assertEquals(1, statement.executeUpdate("update \"cbs_uge_input\".\"c_batiment_s_hexa\" set nb_logts_c = 4 where idbat = 'BAT2023130018310.1268609';"));
+                    assertEquals(1, statement.executeUpdate("INSERT INTO cbs_uge_input.c_population_hexa (idpop,annee,codedept,refprod,idbat,pop_orig,pop_bat) VALUES ('POP2023130018310.1268609','2023','078','130018310','BAT2023130018310.1268609','insee iris et pmenp20 comm + ff', 12);"));
+                    // Use this building BAT2023130018310.1203408 near the road as school (use the school data from BAT2023130018310.1203316 )
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET idbat = 'BAT2023130018310.1203408' WHERE idbat = 'BAT2023130018310.20548432';"));
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET geom3d = (SELECT geom3d from cbs_uge_input.c_batiment_s_hexa bh WHERE idbat = 'BAT2023130018310.1203408') WHERE idbat = 'BAT2023130018310.1203408';"));
                     logger.info("Database tables created in " + (System.currentTimeMillis() - start) + "ms");
@@ -166,8 +181,8 @@ public class TestCBSScript extends JDBCTestCase {
         assumePostGISAvailable();
         ScriptUtilities.execScript(new Generate_sources(), connection, Map.of("projectionName", "hexa"));
         try(Connection pgConnection = pgDataSource.getConnection()) {
-            assertEquals(12, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_trafic_hexa"));
-            assertEquals(12, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_emission_hexa"));
+            assertEquals(20, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_trafic_hexa"));
+            assertEquals(20, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_emission_hexa"));
         }
     }
 
@@ -182,7 +197,7 @@ public class TestCBSScript extends JDBCTestCase {
             PostGISUtilities.copyResultSetToDatabase(pgConnection, resultSet, connection, "BUILDINGS", true, 5);
         }
         assertTrue(JDBCUtilities.tableExists(connection, "BUILDINGS"));
-        assertEquals(500, JDBCUtilities.getRowCount(connection, "BUILDINGS"));
+        assertEquals(2239, JDBCUtilities.getRowCount(connection, "BUILDINGS"));
         GeometryMetaData metaData =
                 GeometryTableUtilities.getMetaData(connection, "BUILDINGS", "GEOM3D");
         assertNotNull(metaData);
@@ -200,7 +215,7 @@ public class TestCBSScript extends JDBCTestCase {
             PostGISUtilities.copyResultSetToDatabase(pgConnection, resultSet, connection, "ROUTES", true, 5);
         }
         assertTrue(JDBCUtilities.tableExists(connection, "ROUTES"));
-        assertEquals(12, JDBCUtilities.getRowCount(connection, "ROUTES"));
+        assertEquals(20, JDBCUtilities.getRowCount(connection, "ROUTES"));
         assertEquals(1, JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse("ROUTES", DBTypes.H2)));
     }
     @Test
@@ -248,9 +263,20 @@ public class TestCBSScript extends JDBCTestCase {
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
             assertTrue(resultSet.next());
-            assertEquals(30, resultSet.getInt("CPT"));
+            assertEquals(56, resultSet.getInt("CPT"));
         }
 
+        try(Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT schools from expo_hexa where pk = 'RD_FR_00_0781651_Lnight5559';")) {
+            assertTrue(resultSet.next());
+            assertEquals(1, resultSet.getInt("schools"));
+        }
+
+        try(Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM DEM")) {
+            assertTrue(resultSet.next());
+            assertEquals(35178, resultSet.getInt("CPT"));
+        }
     }
 
 }

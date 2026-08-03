@@ -291,19 +291,23 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
          SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
              period, noiselevel_start, noiselevel_end
          FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
-        -- Update from individual dwellings from FACADE_EXPO_MAX_LEVEL table
+        -- Update individual dwellings/schools/hospitals count from FACADE_EXPO_MAX_LEVEL table
         UPDATE EXPO_${projectionName} SET dwellings = dwellings
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
-                 (indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end) AND erps_nature is null),
+                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature is null),
                  hospitals = hospitals
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
-                 (indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end) AND erps_nature = 'santé et social'),
+                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature = 'santé et social'),
                  schools = schools
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
-                 (indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end) AND erps_nature = 'Enseignement');
+                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature = 'Enseignement'),
+                 people = people
+             + (SELECT COALESCE(SUM(pop), 0) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
+                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature is null);
     """)
 
 
