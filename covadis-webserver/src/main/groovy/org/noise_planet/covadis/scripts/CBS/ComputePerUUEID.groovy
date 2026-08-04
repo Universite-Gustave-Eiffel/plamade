@@ -17,6 +17,7 @@ import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
+import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Set_Height
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source
 import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
 import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
@@ -156,7 +157,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     posSols.forEach {posSol ->
         logger.info("Compute for pos_sol = $posSol")
         // Fetch specific road emission at this special height
-        processRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol)
+        fetchRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol, mainConfiguration.confmaxsrcdist * 1.2)
         // Adapt the DEM with this special road height platforms
         enrichDem(input, uueid, h2Connection, pgConnection, solProgress, posSol)
         // Run the simulation with this road height
@@ -573,17 +574,18 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
     """ as String
 
     posSolsToProcess.each { posSol ->
+        // update existing rows then insert new rows
         mergeLevelsQuery += """
+            SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
             UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10));
+            INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(posSol)} WHERE IDRECEIVER NOT IN (SELECT IDRECEIVER FROM RECEIVERS_LEVEL_$uueid);
+            SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
         """ as String
+
     }
 
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", mergeLevelsQuery, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+    runScript(h2Connection, mergeLevelsQuery)
 
-    logger.info(ScriptUtilities.formatSqlQueryResult(
-                    h2Sql, "SELECT * FROM RECEIVERS_LEVEL_$uueid WHERE LAEQ > 0 LIMIT 5" as String, 120))
 }
 
 /**
@@ -621,49 +623,19 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
         """)
     } else {
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
-                [tableBuilding: "BUILDINGS_WITH_POP", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1],
+                [tableBuilding: "BUILDINGS_WITH_POP", delta: deltaBuildingsReceivers, height: 0, distance : 0.1],
+                subSteps) as String)
+        logger.info(ScriptUtilities.execScript(new Set_Height(), h2Connection,
+                [tableName: "RECEIVERS", height: 4.1],
                 subSteps) as String)
         new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
             DROP TABLE BUILDINGS_WITH_POP;
             DROP TABLE IF EXISTS RECEIVERS_BUILDINGS;
-            ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS;
-            -- Remove receivers that are under the neighbor buildings roof
-            drop table if exists receivers_over_buildings;
-            create table receivers_over_buildings as SELECT r.pk, st_z(r.the_geom) rheight, ST_zmax(b.the_geom) maxbuildingz, max(b.height) maxbuildingheight, dem_receiver.altitude demz FROM RECEIVERS_BUILDINGS R, BUILDINGS B,
-             (
-                    SELECT
-                    r.pk,
-                    st_z(d.the_geom) AS altitude,
-                    st_distance(r.the_geom, d.the_geom) AS distance,
-                    ROW_NUMBER() OVER (
-                            PARTITION BY r.pk
-                            ORDER BY st_distance(r.the_geom, d.the_geom) ASC
-                    ) as row_num
-                    FROM RECEIVERS_BUILDINGS R, DEM D
-                    WHERE st_expand(r.the_geom, 20, 20) && d.the_geom
-            ) dem_receiver where R.the_geom && b.the_geom and st_contains(b.the_geom, r.the_geom) and dem_receiver.pk = r.pk and dem_receiver.row_num = 1 group by r.pk;
-            alter table receivers_over_buildings alter column pk integer not null;
-            alter table receivers_over_buildings add primary key (pk);
+            ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS;            
         """),
             new EmptyProgressVisitor())
     }
-
-    logger.info("Some problematic receivers over buildings will be removed (safe distance from roofs of 0.2m) :")
-
-    logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, """
-        select the_geom,rb.rheight+rb.demz receiver_altitude, rb.maxbuildingz roof_altitude_from_z,
-         rb.maxbuildingheight + rb.demz roof_altitude_from_height from receivers_over_buildings rb INNER JOIN RECEIVERS_BUILDINGS rbs ON (rb.pk = rbs.pk)
-          where rb.rheight+rb.demz-0.2 < rb.maxbuildingz OR rb.rheight+rb.demz-0.2 < rb.maxbuildingheight + rb.demz
-           LIMIT 10""",
-            120));
-
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", """
-            -- Remove receivers that are under the neighbor buildings roof
-            delete from RECEIVERS_BUILDINGS where pk in (select pk from receivers_over_buildings rb where rb.rheight+rb.demz < rb.maxbuildingz OR rb.rheight+rb.demz < rb.maxbuildingheight + rb.demz);
-        """),
-            new EmptyProgressVisitor())
 
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
 
@@ -678,6 +650,9 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
     }
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], subSteps)
+
+
+    runScript(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;");
 
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
@@ -969,15 +944,32 @@ def fetchAtmosphericPeriodFromStations(Map input,Connection pgConnection, String
 
 }
 
-def processRoads(Map input,Connection pgConnection, String uueid, Connection h2Connection, ProgressVisitor stepsProgress, String posSol) {
+def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Connection, ProgressVisitor stepsProgress, String posSol, double maxSourceDistance) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
-    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid' AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
+    Sql h2Sql = new Sql(h2Connection)
+    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid = '$uueid' AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
 
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
+
+    // Filter receivers only reachable from the roads geometries
+
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM");
+
+    logger.info("Receivers before filtering {}", h2Sql.firstRow("SELECT COUNT(*) FROM RECEIVERS")[0])
+
+    runScript(h2Connection, """
+        CREATE SPATIAL INDEX ON LW_ROADS(THE_GEOM);
+        DROP TABLE IF EXISTS RECEIVERS_FILTERED;
+        CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT PK, THE_GEOM from RECEIVERS R 
+            WHERE exists (select 1 from LW_ROADS LW where LW.THE_GEOM && st_expand(R.THE_geom, $maxSourceDistance) AND ST_Distance(LW.THE_GEOM, R.THE_GEOM) <= $maxSourceDistance limit 1);
+    """)
+
+    logger.info("Receivers after filtering {}", h2Sql.firstRow("SELECT COUNT(*) FROM RECEIVERS_FILTERED")[0])
 }
 
 def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
@@ -1047,5 +1039,6 @@ static Map getDeptCodeFromExt() {
 
 @CompileStatic
 static void runScript(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
-    ScriptUtilities.execScript(new Execute_Query(),connection, [sqlQueries: query], progressVisitor)
+    Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
+    logger.info(ScriptUtilities.execScript(new Execute_Query(),connection, [sqlQueries: query, "outputFormat" : "JSON"], progressVisitor) as String)
 }
