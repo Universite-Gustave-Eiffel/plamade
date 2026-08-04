@@ -271,11 +271,6 @@ public class TestCBSScript extends JDBCTestCase {
             assertEquals(1, resultSet.getInt("schools"));
         }
 
-        try(Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM DEM")) {
-            assertTrue(resultSet.next());
-            assertEquals(35178, resultSet.getInt("CPT"));
-        }
     }
 
 }

@@ -170,6 +170,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
     generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
+    generateExposureStatisticsFromFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
 
     // Upload CBS Table to remote PostGIS database
     uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
@@ -211,52 +212,20 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
     }
 }
 
-def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
+
+static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
 
     Logger logger = LoggerFactory.getLogger(this.class)
-
     // 1. Extract metadata
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
-    logger.info("Processing Exposure uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
 
-    // RECEIVERS_LEVEL_$uueid
-    def receiversLevelTable = "RECEIVERS_LEVEL_$uueid"
-
-    GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM");
 
     runScript(h2Connection, """
-        DROP TABLE IF EXISTS FACADE_EXPO;
-        CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), pkbat int, uueid varchar, lden numeric(5,2), ln numeric(5,2), rank_lden DOUBLE, rank_ln DOUBLE);
-        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
-        -- Receivers from delaunay triangulation and on buildings are merged, we used the last delaunay
-        -- primary key to find the appropriate index from the RECEIVERS_BUILDINGS table
-        -- Generate exposition per receiver on each building
-        INSERT INTO FACADE_EXPO (THE_GEOM, idbat, pkbat, uueid, lden, ln)        
-        SELECT 
-            RL.THE_GEOM, 
-            B.IDBAT,
-            B.pk pkbat, 
-            '$uueid' AS UUEID,
-            RL.LDEN,
-            RL.LN
-        FROM PUBLIC.RECEIVERS R
-        INNER JOIN PUBLIC.RECEIVERS_BUILDINGS RB ON (R.PK - @LASTDELAUNAY) = RB.PK
-        INNER JOIN PUBLIC.BUILDINGS B ON RB.BUILD_PK = B.PK
-        INNER JOIN (
-            SELECT 
-                IDRECEIVER,
-                MAX(CASE WHEN PERIOD = 'DEN' THEN THE_GEOM END) AS THE_GEOM,
-                MAX(CASE WHEN PERIOD = 'DEN' THEN LAEQ END) AS LDEN,
-                MAX(CASE WHEN PERIOD = 'N' THEN LAEQ END) AS LN,
-                MAX(LAEQ) as MAX_LAEQ
-            FROM PUBLIC.RECEIVERS_LEVEL_$uueid
-            GROUP BY IDRECEIVER
-        ) RL ON RL.IDRECEIVER = R.PK
-        WHERE R.PK > @LASTDELAUNAY
-          AND RL.MAX_LAEQ > 0;
+
         -- Compute the rank for each point among others of the same building
+        ALTER TABLE FACADE_EXPO ADD COLUMN rank_lden DOUBLE;
+        ALTER TABLE FACADE_EXPO ADD COLUMN rank_ln DOUBLE;
         MERGE INTO FACADE_EXPO AS t
         USING (
           SELECT _ROWID_ AS rid,
@@ -338,10 +307,68 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
-    """
-)
+        -- Update collective dwellings appartments using the lden and ln rank (keeping 50% of most exposed receivers)        
+        UPDATE EXPO_${projectionName} SET dwellings = dwellings 
+             + COALESCE((SELECT sum(b.NB_LOGTS_C/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+              FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
+              WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
+               indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
+        UPDATE EXPO_${projectionName} SET dwellings = dwellings 
+             + COALESCE((SELECT sum(b.NB_LOGTS_C/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+              FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
+              WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
+               indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
+        """)
 
     logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
+}
+
+def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
+
+    Logger logger = LoggerFactory.getLogger(this.class)
+
+    // 1. Extract metadata
+    def codeDept = uueid.split("_")[3].substring(0, 3)
+    def nutsCode = codeDeptToNuts.get(codeDept)
+    logger.info("Processing Exposure uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
+
+    // RECEIVERS_LEVEL_$uueid
+    def receiversLevelTable = "RECEIVERS_LEVEL_$uueid"
+
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM");
+
+    runScript(h2Connection, """
+        DROP TABLE IF EXISTS FACADE_EXPO;
+        CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), pkbat int, uueid varchar, lden numeric(5,2), ln numeric(5,2));
+        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        -- Receivers from delaunay triangulation and on buildings are merged, we used the last delaunay
+        -- primary key to find the appropriate index from the RECEIVERS_BUILDINGS table
+        -- Generate exposition per receiver on each building
+        INSERT INTO FACADE_EXPO (THE_GEOM, idbat, pkbat, uueid, lden, ln)        
+        SELECT 
+            RL.THE_GEOM, 
+            B.IDBAT,
+            B.pk pkbat, 
+            '$uueid' AS UUEID,
+            RL.LDEN,
+            RL.LN
+        FROM PUBLIC.RECEIVERS R
+        INNER JOIN PUBLIC.RECEIVERS_BUILDINGS RB ON (R.PK - @LASTDELAUNAY) = RB.PK
+        INNER JOIN PUBLIC.BUILDINGS B ON RB.BUILD_PK = B.PK
+        INNER JOIN (
+            SELECT 
+                IDRECEIVER,
+                MAX(CASE WHEN PERIOD = 'DEN' THEN THE_GEOM END) AS THE_GEOM,
+                MAX(CASE WHEN PERIOD = 'DEN' THEN LAEQ END) AS LDEN,
+                MAX(CASE WHEN PERIOD = 'N' THEN LAEQ END) AS LN,
+                MAX(LAEQ) as MAX_LAEQ
+            FROM PUBLIC.RECEIVERS_LEVEL_$uueid
+            GROUP BY IDRECEIVER
+        ) RL ON RL.IDRECEIVER = R.PK
+        WHERE R.PK > @LASTDELAUNAY
+          AND RL.MAX_LAEQ > 0;
+    """)
 }
 
 @CompileStatic
