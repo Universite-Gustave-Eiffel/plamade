@@ -283,20 +283,20 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         DROP TABLE IF EXISTS ROAD_NOISE_LEVEL_RANGES;
         CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel varchar);
         -- LDEN Period - Type A
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 55, 59, 'Lden5559');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 60, 64, 'Lden6064');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 65, 69, 'Lden6569');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 70, 74, 'Lden7074');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 55, 60, 'Lden5559');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 60, 65, 'Lden6064');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 65, 70, 'Lden6569');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 70, 75, 'Lden7074');
         INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 75, 200, 'LdenGreaterThan75');
         
         -- LDEN Period - Type C
         INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LD', 68, 200, 'LdenGreaterThan68');
         
         -- LN Period - Type A
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 50, 54, 'Lnight5054');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 55, 59, 'Lnight5559');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 60, 64, 'Lnight6064');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 65, 69, 'Lnight6569');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 50, 55, 'Lnight5054');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 55, 60, 'Lnight5559');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 60, 65, 'Lnight6064');
+        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 65, 70, 'Lnight6569');
         INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 70, 200, 'LnightGreaterThan70');
         
         -- LN Period - Type C
@@ -313,31 +313,31 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         -- Update individual dwellings/schools/hospitals count from FACADE_EXPO_MAX_LEVEL table
         UPDATE EXPO_${projectionName} SET dwellings = dwellings
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
-                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND POP > 0),
+                 ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND POP > 0),
                  hospitals = hospitals
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
-                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature = 'santé et social'),
+                 ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND erps_nature = 'santé et social'),
                  schools = schools
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
-                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature = 'Enseignement'),
+                 ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND erps_nature = 'Enseignement'),
                  people = people
              + (SELECT COALESCE(SUM(pop), 0) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
-                 ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature is null);
+                 ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
+                 (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND erps_nature is null);
         -- Update collective dwellings people using the lden and ln rank (keeping 50% of most exposed receivers)        
         UPDATE EXPO_${projectionName} SET people = people 
              + COALESCE((SELECT sum(b.POP/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
-               indicetype = 'LD' AND FE.LDEN > noiselevel_start AND FE.LDEN <= noiselevel_end), 0);
+               indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
         UPDATE EXPO_${projectionName} SET people = people 
              + COALESCE((SELECT sum(b.POP/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
-               indicetype = 'LN' AND FE.LN > noiselevel_start AND FE.LN <= noiselevel_end), 0);
+               indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
     """
 )
 
