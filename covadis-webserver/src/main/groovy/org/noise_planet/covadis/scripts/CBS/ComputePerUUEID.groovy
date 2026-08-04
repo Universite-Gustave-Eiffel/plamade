@@ -229,6 +229,8 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
         new Execute_Query().exec(pgConnection, [sqlQueries: """            
             CREATE INDEX ON cbs_uge_output.expo_$projectionName (uueid);
             CREATE INDEX ON cbs_uge_output.expo_$projectionName (NUTSCODE);
+            ALTER TABLE cbs_uge_output.expo_$projectionName ALTER COLUMN pk SET NOT NULL;
+            ALTER TABLE cbs_uge_output.expo_$projectionName ADD PRIMARY KEY (pk);
             ALTER TABLE cbs_uge_output.expo_$projectionName OWNER TO cbs_uge_group;
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
