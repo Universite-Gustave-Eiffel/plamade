@@ -20,7 +20,6 @@ import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
-import org.noise_planet.noisemodelling.scripts.Import_and_Export.Import_File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -169,7 +168,7 @@ public class TestCBSScript extends JDBCTestCase {
                     // Use this building BAT2023130018310.1203408 near the road as school (use the school data from BAT2023130018310.1203316 )
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET idbat = 'BAT2023130018310.1203408' WHERE idbat = 'BAT2023130018310.20548432';"));
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET geom3d = (SELECT geom3d from cbs_uge_input.c_batiment_s_hexa bh WHERE idbat = 'BAT2023130018310.1203408') WHERE idbat = 'BAT2023130018310.1203408';"));
-                    logger.info("Database tables created in " + (System.currentTimeMillis() - start) + "ms");
+                    logger.info("Database tables created in {}ms", System.currentTimeMillis() - start);
                 }
             }
         }

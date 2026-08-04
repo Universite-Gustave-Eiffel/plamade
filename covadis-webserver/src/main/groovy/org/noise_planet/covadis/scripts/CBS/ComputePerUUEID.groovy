@@ -7,6 +7,7 @@ import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.GeometryMetaData
+import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.io.twkb.TWKBWriter
@@ -21,7 +22,6 @@ import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
 import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.h2gis.utilities.GeometryTableUtilities
 
 import javax.sql.DataSource
 import java.sql.Connection
@@ -228,8 +228,10 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
 
     runScript(h2Connection, """
         DROP TABLE IF EXISTS FACADE_EXPO;
-        CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), pkbat int, uueid varchar, lden numeric(5,2), ln numeric(5,2));
+        CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), pkbat int, uueid varchar, lden numeric(5,2), ln numeric(5,2), rank_lden DOUBLE, rank_ln DOUBLE);
         SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        -- Receivers from delaunay triangulation and on buildings are merged, we used the last delaunay
+        -- primary key to find the appropriate index from the RECEIVERS_BUILDINGS table
         -- Generate exposition per receiver on each building
         INSERT INTO FACADE_EXPO (THE_GEOM, idbat, pkbat, uueid, lden, ln)        
         SELECT 
@@ -254,6 +256,23 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         ) RL ON RL.IDRECEIVER = R.PK
         WHERE R.PK > @LASTDELAUNAY
           AND RL.MAX_LAEQ > 0;
+        -- Compute the rank for each point among others of the same building
+        MERGE INTO FACADE_EXPO AS t
+        USING (
+          SELECT _ROWID_ AS rid,
+                 -- Formula: (Row_Number - 1) / (Total_Rows - 1)
+                 -- NULLIF protects against Division by Zero if a building has only 1 point
+                 CAST(ROW_NUMBER() OVER (PARTITION BY pkbat ORDER BY lden DESC) - 1 AS DOUBLE) / 
+                   NULLIF(COUNT(*) OVER (PARTITION BY pkbat) - 1, 0) AS calculated_lden,
+                 
+                 CAST(ROW_NUMBER() OVER (PARTITION BY pkbat ORDER BY ln DESC) - 1 AS DOUBLE) / 
+                   NULLIF(COUNT(*) OVER (PARTITION BY pkbat) - 1, 0) AS calculated_ln
+          FROM FACADE_EXPO
+        ) AS s
+        ON t._ROWID_ = s.rid
+        WHEN MATCHED THEN
+          UPDATE SET t.rank_lden = COALESCE(s.calculated_lden, 0.0),
+                     t.rank_ln = COALESCE(s.calculated_ln, 0.0);
         -- compute max level per building
         DROP TABLE IF EXISTS FACADE_EXPO_MAX_LEVEL;
         CREATE TABLE FACADE_EXPO_MAX_LEVEL AS 
@@ -295,7 +314,7 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         UPDATE EXPO_${projectionName} SET dwellings = dwellings
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
                  ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
-                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature is null),
+                 (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND POP > 0),
                  hospitals = hospitals
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
                  ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
@@ -308,8 +327,19 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
              + (SELECT COALESCE(SUM(pop), 0) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
                  ((indicetype = 'LD' AND FL.LDEN > noiselevel_start AND FL.LDEN <= noiselevel_end) OR
                  (indicetype = 'LN' AND FL.LN > noiselevel_start AND FL.LN <= noiselevel_end)) AND erps_nature is null);
-    """)
-
+        -- Update collective dwellings people using the lden and ln rank (keeping 50% of most exposed receivers)        
+        UPDATE EXPO_${projectionName} SET people = people 
+             + COALESCE((SELECT sum(b.POP/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+              FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
+              WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
+               indicetype = 'LD' AND FE.LDEN > noiselevel_start AND FE.LDEN <= noiselevel_end), 0);
+        UPDATE EXPO_${projectionName} SET people = people 
+             + COALESCE((SELECT sum(b.POP/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+              FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
+              WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
+               indicetype = 'LN' AND FE.LN > noiselevel_start AND FE.LN <= noiselevel_end), 0);
+    """
+)
 
     logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
 }
