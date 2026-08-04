@@ -210,6 +210,28 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
 
     }
+
+    tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.expo_$projectionName")
+    if(tableExists) {
+        new Execute_Query().exec(pgConnection, [sqlQueries: """
+            DELETE FROM cbs_uge_output.expo_$projectionName WHERE uueid = '$uueid';
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
+    try( Statement st = h2Connection.createStatement() ;
+         ResultSet rs = st.executeQuery("""SELECT PK, NUTSCODE , UUEID, NOISELEVEL, ROUND(PEOPLE)::integer PEOPLE,
+                 ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , CPI , HA  , HSD , AREA , INDICETYPE 
+                 FROM EXPO_${projectionName}""")) {
+        PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
+                "cbs_uge_output.expo_$projectionName", false, batchSize)
+    }
+    if(!tableExists) {
+        // Create index
+        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+            CREATE INDEX ON cbs_uge_output.expo_$projectionName (uueid);
+            CREATE INDEX ON cbs_uge_output.expo_$projectionName (NUTSCODE);
+            ALTER TABLE cbs_uge_output.expo_$projectionName OWNER TO cbs_uge_group;
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
 }
 
 
@@ -272,8 +294,8 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LN', 62, 200, 'LnightGreaterThan62');
         -- Create main exposure table to upload
         DROP TABLE IF EXISTS EXPO_${projectionName};
-        CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people int,
-         dwellings int, hospitals int, schools int, cpi int, ha int, hsd int, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2));
+        CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
+         dwellings double, hospitals int, schools int, cpi int, ha int, hsd int, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2));
         -- Fill with default values
         INSERT INTO EXPO_${projectionName}
          SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
@@ -298,23 +320,23 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
                  (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND erps_nature is null);
         -- Update collective dwellings people using the lden and ln rank (keeping 50% of most exposed receivers)        
         UPDATE EXPO_${projectionName} SET people = people 
-             + COALESCE((SELECT sum(b.POP/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+             + COALESCE((SELECT sum(b.POP::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
                indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
         UPDATE EXPO_${projectionName} SET people = people 
-             + COALESCE((SELECT sum(b.POP/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+             + COALESCE((SELECT sum(b.POP::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
         -- Update collective dwellings appartments using the lden and ln rank (keeping 50% of most exposed receivers)        
         UPDATE EXPO_${projectionName} SET dwellings = dwellings 
-             + COALESCE((SELECT sum(b.NB_LOGTS_C/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+             + COALESCE((SELECT sum(b.NB_LOGTS_C::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
                indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
         UPDATE EXPO_${projectionName} SET dwellings = dwellings 
-             + COALESCE((SELECT sum(b.NB_LOGTS_C/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
+             + COALESCE((SELECT sum(b.NB_LOGTS_C::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
