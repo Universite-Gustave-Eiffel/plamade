@@ -657,21 +657,25 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
-            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true], subSteps)
+            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true], subSteps)
 
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
-            -- Set foreign key on TRIANGLES for columns pk_1 pk_2 and pk_3 to the RECEIVERS TABLE column pk column
-            ALTER TABLE TRIANGLES ADD CONSTRAINT FK_TRIANGLES_RECEIVERS FOREIGN KEY (PK_1) REFERENCES RECEIVERS_DELAUNAY(PK) ON DELETE CASCADE;
-            ALTER TABLE TRIANGLES ADD CONSTRAINT FK_TRIANGLES_RECEIVERS_2 FOREIGN KEY (PK_2) REFERENCES RECEIVERS_DELAUNAY(PK) ON DELETE CASCADE;
-            ALTER TABLE TRIANGLES ADD CONSTRAINT FK_TRIANGLES_RECEIVERS_3 FOREIGN KEY (PK_3) REFERENCES RECEIVERS_DELAUNAY(PK) ON DELETE CASCADE;
-            -- Delete cascade receivers that intersects the buildings polygons
-            DELETE FROM RECEIVERS_DELAUNAY R WHERE EXISTS (
-              SELECT 1
-              FROM BUILDINGS B
-              WHERE R.THE_GEOM && B.THE_GEOM
-                AND ST_CONTAINS(B.THE_GEOM, R.THE_GEOM)
-            );
+            -- Create index
+            CREATE INDEX ON TRIANGLES(PK_1);
+            CREATE INDEX ON TRIANGLES(PK_2);
+            CREATE INDEX ON TRIANGLES(PK_3);
+            -- Remove triangles that are over buildings
+            DELETE FROM TRIANGLES T WHERE EXISTS ( SELECT 1
+               FROM BUILDINGS B
+               WHERE T.THE_GEOM && B.THE_GEOM
+                 AND ST_Intersects(B.THE_GEOM, T.THE_GEOM)
+             );
+            -- Remove points not referenced by triangles
+            DELETE FROM RECEIVERS_DELAUNAY R 
+            WHERE NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_1 = R.PK)
+              AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_2 = R.PK)
+              AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_3 = R.PK);
             -- Push the new receivers to the global receivers table
             DROP TABLE IF EXISTS RECEIVERS;
             SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
