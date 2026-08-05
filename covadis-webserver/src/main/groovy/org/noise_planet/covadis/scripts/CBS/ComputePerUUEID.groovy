@@ -157,11 +157,15 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     posSols.forEach {posSol ->
         logger.info("Compute for pos_sol = $posSol")
         // Fetch specific road emission at this special height
-        fetchRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol, mainConfiguration.confmaxsrcdist * 1.2)
-        // Adapt the DEM with this special road height platforms
-        enrichDem(input, uueid, h2Connection, pgConnection, solProgress, posSol)
-        // Run the simulation with this road height
-        runSimulation(mainConfiguration, h2Connection, posSol, solProgress)
+        if(fetchRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)) {
+            // Adapt the DEM with this special road height platforms
+            enrichDem(input, uueid, h2Connection, pgConnection, solProgress, posSol)
+            // Run the simulation with this road height
+            runSimulation(mainConfiguration, h2Connection, posSol, solProgress)
+        } else {
+            logger.info("No sources at pos_sol {}", posSol)
+            posSols.removeElement(posSol)
+        }
     }
 
     // Merge noise levels for each pos sols
@@ -959,6 +963,11 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
 
+    if(JDBCUtilities.getRowCount(h2Connection, "LW_ROADS") == 0) {
+        logger.info("No roads found for pos_sol = {}", posSol)
+        return false
+    }
+
     // Filter receivers only reachable from the roads geometries
 
     GeometryMetaData metaData =
@@ -972,8 +981,9 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
         CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT PK, THE_GEOM from RECEIVERS R 
             WHERE exists (select 1 from LW_ROADS LW where LW.THE_GEOM && st_expand(R.THE_geom, $maxSourceDistance) AND ST_Distance(LW.THE_GEOM, R.THE_GEOM) <= $maxSourceDistance limit 1);
     """)
-
-    logger.info("Receivers after filtering {}", h2Sql.firstRow("SELECT COUNT(*) FROM RECEIVERS_FILTERED")[0])
+    int receiverCount = h2Sql.firstRow("SELECT COUNT(*) FROM RECEIVERS_FILTERED")[0] as Integer
+    logger.info("Receivers after filtering {}", receiverCount)
+    return receiverCount > 0
 }
 
 def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
