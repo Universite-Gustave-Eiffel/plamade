@@ -164,7 +164,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
             // Run the simulation with this road height
             runSimulation(mainConfiguration, h2Connection, posSol, solProgress)
         } else {
-            logger.info("No sources at pos_sol {}", posSol)
+            logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
         }
     }
@@ -633,6 +633,17 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
         logger.info(ScriptUtilities.execScript(new Set_Height(), h2Connection,
                 [tableName: "RECEIVERS", height: 4.1],
                 subSteps) as String)
+
+        int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_WITH_POP WHERE PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
+        if(numberOfBuildingsWithoutReceivers > 0) {
+            logger.info("Some ({}) buildings with population or erps does not have receivers", numberOfBuildingsWithoutReceivers)
+            h2Sql
+                    .rows("SELECT ST_Centroid(B.the_geom) the_geom FROM BUILDINGS_WITH_POP WHERE PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS) LIMIT 5")
+                    .each {
+                        logger.info("Building without receiver: {}", it.the_geom)
+                    }
+        }
+
         new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
             DROP TABLE BUILDINGS_WITH_POP;
