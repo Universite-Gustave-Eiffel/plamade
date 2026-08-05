@@ -25,12 +25,7 @@ public class ScriptUtilities {
     }
 
     public static Object execScript(Script script, Connection connection, Map inputs, ProgressVisitor progress) {
-        Logger logger = LoggerFactory.getLogger(ScriptUtilities.class);
         inputs = ScriptUtilities.fillDefaultValues(script.getClass(), inputs);
-        logger.info("Run script: {} with inputs \n{}", script.getClass().getSimpleName(),
-                ((Map<String, Object>) inputs).entrySet().stream().
-                        map(entry -> entry.getKey() + "=" + entry.getValue()).
-                        collect(java.util.stream.Collectors.joining(", \n")));
 
         // Check expected arguments
         List<MetaMethod> methods = script.getMetaClass().getMethods();

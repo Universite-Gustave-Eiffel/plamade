@@ -4,6 +4,7 @@ package org.noise_planet.covadis.webserver;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
 import org.h2.value.ValueBoolean;
+import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.shp.SHPRead;
 import org.h2gis.utilities.GeometryMetaData;
 import org.h2gis.utilities.GeometryTableUtilities;
@@ -20,6 +21,7 @@ import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -156,6 +158,7 @@ public class TestCBSScript extends JDBCTestCase {
                                         SELECT (dd).geom AS geom
                                         FROM ST_DumpPoints(ST_GeomFromTWKB(s.chunk_twkb)) AS dd
                                       ) AS d;
+                                      DROP TABLE bd_alti.tiny_d091;
                                       """);
                     // Duplicate on 028 to check for removal of duplicate DEM points
                     statement.execute("INSERT INTO bd_alti.d028 (id, the_geom) select id, the_geom from bd_alti.d091;");
@@ -239,10 +242,10 @@ public class TestCBSScript extends JDBCTestCase {
     public void testRunByUUEID() throws SQLException {
         assumePostGISAvailable();
         //RD_FR_00_0781651
-        ScriptUtilities.execScript(new ComputePerUUEID(), connection, Map.of(
+       new ComputePerUUEID().exec(connection, Map.of(
                 "projectionName", "hexa",
                 "uueid_pattern", "RD_FR_00_0781651",
-                "conf", 1));
+                "conf", 1), new EmptyProgressVisitor());
 
 
 

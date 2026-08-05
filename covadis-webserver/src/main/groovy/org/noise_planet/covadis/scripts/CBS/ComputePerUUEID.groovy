@@ -170,7 +170,7 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     // Generate IsoContours
     generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
-    generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
+    generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts)
     generateExposureStatisticsFromFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
 
     // Upload CBS Table to remote PostGIS database
@@ -348,7 +348,7 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
     logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
 }
 
-def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
+def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts) {
 
     Logger logger = LoggerFactory.getLogger(this.class)
 
@@ -566,7 +566,7 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
             GeometryTableUtilities.getMetaData(h2Connection, getRoadsLevelsTableName(firstPosSol), "THE_GEOM");
     def mergeLevelsQuery = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_$uueid;
-        CREATE TABLE RECEIVERS_LEVEL_$uueid(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2));
+        CREATE TABLE RECEIVERS_LEVEL_$uueid(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
     """ as String
 
     mergeLevelsQuery += """
@@ -577,7 +577,7 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
         // update existing rows then insert new rows
         mergeLevelsQuery += """
             SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
-            UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10));
+            UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10)) WHERE IDRECEIVER IN (SELECT IDRECEIVER FROM ${getRoadsLevelsTableName(posSol)});
             INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(posSol)} WHERE IDRECEIVER NOT IN (SELECT IDRECEIVER FROM RECEIVERS_LEVEL_$uueid);
             SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
         """ as String
@@ -771,7 +771,7 @@ def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol,
             h2Connection, [
             tableBuilding: "BUILDINGS",
             tableSources: "LW_ROADS",
-            tableReceivers: "RECEIVERS",
+            tableReceivers: "RECEIVERS_FILTERED",
             tableDEM: "DEM_ENRICHED",
             tableGroundAbs: "LANDCOVER",
             tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
