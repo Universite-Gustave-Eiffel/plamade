@@ -154,7 +154,8 @@ def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnecti
     def posSols = pgSql.rows(posSolQuery).collect { it.pos_sol as String}
 
     ProgressVisitor solProgress = stepsProgress.subProcess(posSols.size())
-    posSols.forEach {posSol ->
+
+    new ArrayList<>(posSols).forEach {posSol ->
         logger.info("Compute for pos_sol = $posSol")
         // Fetch specific road emission at this special height
         if(fetchRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)) {
