@@ -679,18 +679,25 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
             maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true], subSteps)
 
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
+
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
             -- Create index
             CREATE INDEX ON TRIANGLES(PK_1);
             CREATE INDEX ON TRIANGLES(PK_2);
             CREATE INDEX ON TRIANGLES(PK_3);
+            -- Copy triangles that are over buildings into another table
+            -- It will be used later to fill areas under buildings with the same noise level
+            DROP TABLE IF EXISTS TRIANGLES_OVER_BUILDINGS;
+            CREATE TABLE TRIANGLES_OVER_BUILDINGS(PK INTEGER NOT NULL PRIMARY KEY, PK_1 INTEGER, PK_2 INTEGER,
+             PK_3 INTEGER, THE_GEOM ${metaData.getSQL()}, PKBAT INTEGER) AS SELECT T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM, MIN(B.PK) PKBAT
+              FROM TRIANGLES T, BUILDINGS B
+              WHERE T.THE_GEOM && B.THE_GEOM AND ST_Intersects(B.THE_GEOM, T.THE_GEOM)
+              GROUP BY T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM;
             -- Remove triangles that are over buildings
-            DELETE FROM TRIANGLES T WHERE EXISTS ( SELECT 1
-               FROM BUILDINGS B
-               WHERE T.THE_GEOM && B.THE_GEOM
-                 AND ST_Intersects(B.THE_GEOM, T.THE_GEOM)
-             );
+            DELETE FROM TRIANGLES WHERE PK IN (SELECT PK FROM TRIANGLES_OVER_BUILDINGS);
             -- Remove points not referenced by triangles
             DELETE FROM RECEIVERS_DELAUNAY R 
             WHERE NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_1 = R.PK)
