@@ -540,7 +540,6 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
             String label
 
             if (i == levels.size() - 1) {
-                // The last element in your Java logic creates a "Value+" label
                 label = "${fmt(prev)}+"
                 sql.append("ELSE '$label' ")
             } else {
@@ -680,9 +679,9 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
 
         int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
         if(numberOfBuildingsWithoutReceivers > 0) {
-            logger.info("Some ({}) buildings with population or erps does not have receivers", numberOfBuildingsWithoutReceivers)
+            logger.info("{} building${numberOfBuildingsWithoutReceivers > 1 ? 's' : ''} with population or erps does not have receivers", numberOfBuildingsWithoutReceivers)
             h2Sql
-                    .rows("SELECT ST_Centroid(B.the_geom) the_geom FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS) LIMIT 5")
+                    .rows("SELECT ST_Centroid(B.the_geom) the_geom FROM BUILDINGS_FOR_EXPOSURE B WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS) LIMIT 5")
                     .each {
                         logger.info("Building without receiver: {}", it.the_geom)
                     }
