@@ -612,15 +612,16 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
     Sql h2Sql = new Sql(h2Connection)
     logger.info("Generate receivers on buildings")
 
-    // Filter the buildings with population or linked with erps
+    // Create a building table with KEEP field associated with with buildings with population or linked with erps
+    // we will compute all the buildings, but remove receivers afterwards if the building is not erps or hold population
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
-            DROP TABLE IF EXISTS BUILDINGS_WITH_POP;
+            DROP TABLE IF EXISTS BUILDINGS_FOR_EXPOSURE;
             -- Filter buildings and force 2D as there is accum and union of geometries in Building_Grid script, we can not mix 2D and 3D polygons
-            CREATE TABLE BUILDINGS_WITH_POP(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT) AS SELECT PK, ST_Force2D(THE_GEOM) AS THE_GEOM, POP, HEIGHT FROM BUILDINGS WHERE nb_logts_c > 0 OR erps_nature IS NOT NULL;
+            CREATE TABLE BUILDINGS_FOR_EXPOSURE(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT, KEEP BOOLEAN) AS SELECT PK, ST_Force2D(THE_GEOM) AS THE_GEOM, POP, 10, (nb_logts_c > 0 OR erps_nature IS NOT NULL) KEEP FROM BUILDINGS;
         """ as String, "outputFormat", "json"),
             new EmptyProgressVisitor())
-    def buildingsCountWithPop = JDBCUtilities.getRowCount(h2Connection, "BUILDINGS_WITH_POP")
+    def buildingsCountWithPop = h2Sql.firstRow("SELECT COUNT(*) CPT FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP")[0] as Integer
     if(buildingsCountWithPop == 0) {
         logger.warn("No buildings with population found")
         h2Sql.execute("""
@@ -628,17 +629,17 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
         """)
     } else {
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
-                [tableBuilding: "BUILDINGS_WITH_POP", delta: deltaBuildingsReceivers, height: 0, distance : 0.1],
+                [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 0, distance : 0.1],
                 subSteps) as String)
         logger.info(ScriptUtilities.execScript(new Set_Height(), h2Connection,
                 [tableName: "RECEIVERS", height: 4.1],
                 subSteps) as String)
 
-        int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_WITH_POP WHERE PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
+        int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
         if(numberOfBuildingsWithoutReceivers > 0) {
             logger.info("Some ({}) buildings with population or erps does not have receivers", numberOfBuildingsWithoutReceivers)
             h2Sql
-                    .rows("SELECT ST_Centroid(B.the_geom) the_geom FROM BUILDINGS_WITH_POP WHERE PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS) LIMIT 5")
+                    .rows("SELECT ST_Centroid(B.the_geom) the_geom FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS) LIMIT 5")
                     .each {
                         logger.info("Building without receiver: {}", it.the_geom)
                     }
@@ -646,8 +647,11 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
 
         new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", """
-            DROP TABLE BUILDINGS_WITH_POP;
+            -- Remove receivers not associated with a building not concerned by exposure computation
+            DELETE FROM RECEIVERS WHERE build_pk NOT IN (SELECT B.PK FROM BUILDINGS_FOR_EXPOSURE B WHERE B.KEEP = TRUE);
+            DROP TABLE BUILDINGS_FOR_EXPOSURE;
             DROP TABLE IF EXISTS RECEIVERS_BUILDINGS;
+            -- Rename receivers of buildings
             ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS;            
         """),
             new EmptyProgressVisitor())
@@ -824,6 +828,10 @@ def processLandCover(Map input,Connection pgConnection, String extractionEnvelop
          ResultSet rs = st.executeQuery(landCoverQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LANDCOVER", true, batchSize)
     }
+
+    // Apply projection to the table (if issues with copy or table is empty)
+    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    new Sql(h2Connection).execute("CALL UpdateGeometrySRID('LANDCOVER', 'THE_GEOM', $srid)")
 }
 
 /**
