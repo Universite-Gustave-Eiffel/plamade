@@ -17,7 +17,6 @@ import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
-import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Set_Height
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source
 import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
 import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
@@ -486,16 +485,16 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     new Execute_Query().exec(h2Connection, [sqlQueries: "DROP TABLE IF EXISTS ISOPHONES;", outputFormat: "json"], new EmptyProgressVisitor())
 
     // CBS A - Day/Evening/Night
-    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "55.0,60.0,65.0,70.0,75.0,200.0", caseLdenA, "LD", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "55.0,60.0,65.0,70.0,75.0,200.0", caseLdenA, "LD", "A", "ISOLVL > 0")
 
     // CBS A - Night
-    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "50.0,55.0,60.0,65.0,70.0,200.0", caseLnightA, "LN", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "50.0,55.0,60.0,65.0,70.0,200.0", caseLnightA, "LN", "A", "ISOLVL > 0")
 
     // CBS C - Day/Evening/Night
-    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "'LdenGreaterThan68'", "LD", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "'LdenGreaterThan68'", "LD", "C", "ISOLVL = 1")
 
     // CBS C - Night
-    processMap(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "'LdenGreaterThan62'", "LN", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "'LdenGreaterThan62'", "LN", "C", "ISOLVL = 1")
 }
 
 /**
@@ -557,7 +556,7 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
 /**
  * Main sub-function to process Isosurfaces and Insert into ISOPHONES
  */
-private void processMap(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
+private static void processIsoContouring(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
     Sql h2Sql = new Sql(conn)
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
@@ -575,6 +574,7 @@ private void processMap(Connection conn, ProgressVisitor progress, String uueid,
             isoClass: isoClass
     ], progress)
 
+    // For IsoSurface convert in sql the LAEQ value into the expected ISOLABEL that should be produced by Create_Isosurface block
     def caseWhenSql = generateIsoClassSql("MIN(LAEQ)", isoClass)
 
     // Insert results into ISOPHONES
@@ -584,7 +584,7 @@ private void processMap(Connection conn, ProgressVisitor progress, String uueid,
         CREATE TABLE BUILDINGS_MINIMUM_LEVEL(build_pk int not null primary key, isolabel varchar) AS SELECT build_pk, $caseWhenSql MIN_LAEQ FROM $sourceTable S 
             INNER JOIN TRIANGLES_OVER_BUILDINGS T ON (S.IDRECEIVER = T.PK_1 OR S.IDRECEIVER = T.PK_2 OR 
             S.IDRECEIVER = T.PK_3) GROUP BY build_pk;
-        -- Insert triangles under buildings using the minimum value of LAEQ of all the receivers of the same building
+        -- Merge current isocontour with the triangles under buildings using the isolabel value extracted from the LAEQ of all the receivers of the same building
         INSERT INTO CONTOURING_NOISE_MAP(THE_GEOM, ISOLABEL, ISOLVL) SELECT THE_GEOM, (SELECT isolabel FROM BUILDINGS_MINIMUM_LEVEL WHERE build_pk = T.build_pk), 99 FROM TRIANGLES_OVER_BUILDINGS T;
         -- Insert standard isophones value from contouring noise map
         INSERT INTO ISOPHONES(the_geom, pk, area, uueid, period, noiselevel, cbstype, nutscode, typesource) 
