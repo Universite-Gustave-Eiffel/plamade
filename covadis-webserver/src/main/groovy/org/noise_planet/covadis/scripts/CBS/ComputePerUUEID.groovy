@@ -518,6 +518,42 @@ private void setupResultTables(Connection h2Connection, String uueid) {
     new Execute_Query().exec(h2Connection, [sqlQueries: sql, outputFormat: "json"], new EmptyProgressVisitor())
 }
 
+static def generateIsoClassSql(String fieldName, String rangeStr) {
+    // Convert '55.0,60.0...' into a list of Doubles
+    List<Double> levels = rangeStr.split(',').collect { it.toDouble() }
+
+    // Helper to format numbers (remove .0 if not needed)
+    def fmt = { Double d -> d % 1 == 0 ? d.toInteger().toString() : d.toString() }
+
+    StringBuilder sql = new StringBuilder("CASE ")
+
+    for (int i = 0; i < levels.size(); i++) {
+        double current = levels[i]
+
+        if (i == 0) {
+            // Case for values lower than the first threshold: e.g. < 55 -> '-55'
+            sql.append("WHEN $fieldName < $current THEN '-${fmt(current)}' ")
+        }
+
+        // Ranges between thresholds: e.g. >= 55 AND < 60 -> '55-60'
+        if (i > 0 && i < levels.size()) {
+            double prev = levels[i-1]
+            String label
+
+            if (i == levels.size() - 1) {
+                // The last element in your Java logic creates a "Value+" label
+                label = "${fmt(prev)}+"
+                sql.append("ELSE '$label' ")
+            } else {
+                label = "${fmt(prev)}-${fmt(current)}"
+                sql.append("WHEN $fieldName >= $prev AND $fieldName < $current THEN '$label' ")
+            }
+        }
+    }
+    sql.append("END")
+    return sql.toString()
+}
+
 /**
  * Main sub-function to process Isosurfaces and Insert into ISOPHONES
  */
@@ -539,27 +575,17 @@ private void processMap(Connection conn, ProgressVisitor progress, String uueid,
             isoClass: isoClass
     ], progress)
 
-//    new Execute_Query().exec(conn, [sqlQueries: """
-//        ALTER TABLE CONTOURING_NOISEMAP RENAME TO CONTOURING_NOISEMAP_BETWEEN_BUILDINGS;
-//    """ as String, outputFormat: "json"], new EmptyProgressVisitor())
-//
-//    // For each buildings create a set of sourceTable receivers associated with the building with the maximum value of LAEQ
-//    h2Sql.rows("SELECT DISTINCT BUILD_PK FROM TRIANGLES_OVER_BUILDINGS")["BUILD_PK"].each {
-//        build_pk ->
-//            new Execute_Query().exec(conn, [sqlQueries: """
-//                DROP TABLE IF EXISTS RECEIVERS_VALUES_BUILDINGS;
-//                -- Filter receivers values only by
-//                CREATE TABLE RECEIVERS_VALUES_BUILDINGS AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM $sourceTable
-//                 WHERE IDRECEIVER IN (SELECT PK_1 FROM TRIANGLES_OVER_BUILDINGS WHERE BUILD_PK = $build_pk UNION
-//                                      SELECT PK_2 FROM TRIANGLES_OVER_BUILDINGS WHERE BUILD_PK = $build_pk UNION
-//                                      SELECT PK_3 FROM TRIANGLES_OVER_BUILDINGS WHERE BUILD_PK = $build_pk );
-//            """ as String, outputFormat: "json"], new EmptyProgressVisitor())
-//    }
+    def caseWhenSql = generateIsoClassSql("MIN(LAEQ)", isoClass)
 
     // Insert results into ISOPHONES
     new Execute_Query().exec(conn, [sqlQueries: """
+        -- Fetch the minimum level for each buildings
+        DROP TABLE IF EXISTS BUILDINGS_MINIMUM_LEVEL;
+        CREATE TABLE BUILDINGS_MINIMUM_LEVEL(build_pk int not null primary key, isolabel varchar) AS SELECT build_pk, $caseWhenSql MIN_LAEQ FROM $sourceTable S 
+            INNER JOIN TRIANGLES_OVER_BUILDINGS T ON (S.IDRECEIVER = T.PK_1 OR S.IDRECEIVER = T.PK_2 OR 
+            S.IDRECEIVER = T.PK_3) GROUP BY build_pk;
         -- Insert triangles under buildings using the minimum value of LAEQ of all the receivers of the same building
-        INSERT INTO CONTOURING_NOISE_MAP(THE_GEOM, ISOLABEL, ISOLVL) SELECT THE_GEOM, '55-60', 99 FROM TRIANGLES_OVER_BUILDINGS;
+        INSERT INTO CONTOURING_NOISE_MAP(THE_GEOM, ISOLABEL, ISOLVL) SELECT THE_GEOM, (SELECT isolabel FROM BUILDINGS_MINIMUM_LEVEL WHERE build_pk = T.build_pk), 99 FROM TRIANGLES_OVER_BUILDINGS T;
         -- Insert standard isophones value from contouring noise map
         INSERT INTO ISOPHONES(the_geom, pk, area, uueid, period, noiselevel, cbstype, nutscode, typesource) 
         SELECT ST_Multi(ST_Union(ST_Accum(THE_GEOM))) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) area, 
@@ -567,6 +593,8 @@ private void processMap(Connection conn, ProgressVisitor progress, String uueid,
         FROM CONTOURING_NOISE_MAP 
         WHERE $filter 
         GROUP BY ISOLABEL;
+        -- Remove isophones with null values in noiselevel
+        DELETE FROM ISOPHONES WHERE noiselevel IS NULL;
     """ as String, outputFormat: "json"], new EmptyProgressVisitor())
 }
 
