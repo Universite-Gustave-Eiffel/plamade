@@ -671,6 +671,7 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
         logger.warn("No buildings with population found")
         h2Sql.execute("""
             CREATE TABLE RECEIVERS_BUILDINGS(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, BUILD_PK INTEGER);
+            CREATE INDEX ON RECEIVERS_BUILDINGS(BUILD_PK);
         """)
     } else {
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
@@ -679,11 +680,11 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
 
         int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
         if(numberOfBuildingsWithoutReceivers > 0) {
-            logger.info("{} building${numberOfBuildingsWithoutReceivers > 1 ? 's' : ''} with population or erps does not have receivers", numberOfBuildingsWithoutReceivers)
+            logger.warn("{} building${numberOfBuildingsWithoutReceivers > 1 ? 's' : ''} with population or erps does not have receivers", numberOfBuildingsWithoutReceivers)
             h2Sql
                     .rows("SELECT ST_Centroid(B.the_geom) the_geom FROM BUILDINGS_FOR_EXPOSURE B WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS) LIMIT 5")
                     .each {
-                        logger.info("Building without receiver: {}", it.the_geom)
+                        logger.warn("Building without receiver: {}", it.the_geom)
                     }
         }
 
@@ -691,7 +692,6 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             Map.of("sqlQueries", """
             -- Remove receivers not associated with a building not concerned by exposure computation
             DELETE FROM RECEIVERS WHERE build_pk NOT IN (SELECT B.PK FROM BUILDINGS_FOR_EXPOSURE B WHERE B.KEEP = TRUE);
-            DROP TABLE BUILDINGS_FOR_EXPOSURE;
             DROP TABLE IF EXISTS RECEIVERS_BUILDINGS;
             -- Rename receivers of buildings
             ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS;            
@@ -750,6 +750,10 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             DROP TABLE IF EXISTS RECEIVERS;
             SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
             CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM FROM RECEIVERS_DELAUNAY;
+            -- For buildings facades without receivers (rare issue with encapsulated buildings)
+            -- Create a receiver point on top of the building, it is still better than ignoring the building
+            INSERT INTO RECEIVERS_BUILDINGS(the_geom, build_pk) SELECT st_updatez(ST_Centroid(B.the_geom), COALESCE(height, 4) + 0.2) the_geom, pk FROM BUILDINGS_FOR_EXPOSURE B WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS_BUILDINGS);
+            -- Insert receivers buildings table
             INSERT INTO RECEIVERS(PK, THE_GEOM) SELECT PK+@LASTDELAUNAY, THE_GEOM FROM RECEIVERS_BUILDINGS;
             CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);
             ALTER TABLE RECEIVERS ALTER COLUMN PK INTEGER NOT NULL;
