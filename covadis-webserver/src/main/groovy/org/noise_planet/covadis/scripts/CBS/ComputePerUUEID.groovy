@@ -522,34 +522,52 @@ private void setupResultTables(Connection h2Connection, String uueid) {
  * Main sub-function to process Isosurfaces and Insert into ISOPHONES
  */
 private void processMap(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
-
+    Sql h2Sql = new Sql(conn)
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
-    // 1. Initialize ISOPHONES table if not exists
+    // Initialize ISOPHONES table if not exists
     new Execute_Query().exec(conn, [sqlQueries: """CREATE TABLE IF NOT EXISTS ISOPHONES
                 (the_geom GEOMETRY(MULTIPOLYGONZ, ${metaData.getSRID()}), pk varchar not null , UUEID varchar,
                  PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, nutscode varchar, typesource varchar);
                 """ as String, outputFormat: "json"], new EmptyProgressVisitor())
 
 
-    // 2. Execute Isosurface creation
+    // Execute Isosurface creation for standard receivers
     ScriptUtilities.execScript(new Create_Isosurface(), conn, [
             resultTable: sourceTable,
             smoothCoefficient: 0,
             isoClass: isoClass
     ], progress)
 
-    // 3. Insert results into ISOPHONES
-    def insertSql = """
+//    new Execute_Query().exec(conn, [sqlQueries: """
+//        ALTER TABLE CONTOURING_NOISEMAP RENAME TO CONTOURING_NOISEMAP_BETWEEN_BUILDINGS;
+//    """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+//
+//    // For each buildings create a set of sourceTable receivers associated with the building with the maximum value of LAEQ
+//    h2Sql.rows("SELECT DISTINCT BUILD_PK FROM TRIANGLES_OVER_BUILDINGS")["BUILD_PK"].each {
+//        build_pk ->
+//            new Execute_Query().exec(conn, [sqlQueries: """
+//                DROP TABLE IF EXISTS RECEIVERS_VALUES_BUILDINGS;
+//                -- Filter receivers values only by
+//                CREATE TABLE RECEIVERS_VALUES_BUILDINGS AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM $sourceTable
+//                 WHERE IDRECEIVER IN (SELECT PK_1 FROM TRIANGLES_OVER_BUILDINGS WHERE BUILD_PK = $build_pk UNION
+//                                      SELECT PK_2 FROM TRIANGLES_OVER_BUILDINGS WHERE BUILD_PK = $build_pk UNION
+//                                      SELECT PK_3 FROM TRIANGLES_OVER_BUILDINGS WHERE BUILD_PK = $build_pk );
+//            """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+//    }
+
+    // Insert results into ISOPHONES
+    new Execute_Query().exec(conn, [sqlQueries: """
+        -- Insert triangles under buildings using the minimum value of LAEQ of all the receivers of the same building
+        INSERT INTO CONTOURING_NOISE_MAP(THE_GEOM, ISOLABEL, ISOLVL) SELECT THE_GEOM, '55-60', 99 FROM TRIANGLES_OVER_BUILDINGS;
+        -- Insert standard isophones value from contouring noise map
         INSERT INTO ISOPHONES(the_geom, pk, area, uueid, period, noiselevel, cbstype, nutscode, typesource) 
         SELECT ST_Multi(ST_Union(ST_Accum(THE_GEOM))) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) area, 
                '$uueid', '$period', $noiseLevelExpr, '$cbsType', '$nutsCode', 'R'
         FROM CONTOURING_NOISE_MAP 
         WHERE $filter 
         GROUP BY ISOLABEL;
-    """
-
-    new Execute_Query().exec(conn, [sqlQueries: insertSql, outputFormat: "json"], new EmptyProgressVisitor())
+    """ as String, outputFormat: "json"], new EmptyProgressVisitor())
 }
 
 static String getRoadsLevelsTableName(String posSol) {
@@ -629,10 +647,7 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
         """)
     } else {
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
-                [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 0, distance : 0.1],
-                subSteps) as String)
-        logger.info(ScriptUtilities.execScript(new Set_Height(), h2Connection,
-                [tableName: "RECEIVERS", height: 4.1],
+                [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1],
                 subSteps) as String)
 
         int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
@@ -692,10 +707,11 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             -- It will be used later to fill areas under buildings with the same noise level
             DROP TABLE IF EXISTS TRIANGLES_OVER_BUILDINGS;
             CREATE TABLE TRIANGLES_OVER_BUILDINGS(PK INTEGER NOT NULL PRIMARY KEY, PK_1 INTEGER, PK_2 INTEGER,
-             PK_3 INTEGER, THE_GEOM ${metaData.getSQL()}, PKBAT INTEGER) AS SELECT T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM, MIN(B.PK) PKBAT
+             PK_3 INTEGER, THE_GEOM ${metaData.getSQL()}, build_pk INTEGER) AS SELECT T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM, MIN(B.PK) PKBAT
               FROM TRIANGLES T, BUILDINGS B
               WHERE T.THE_GEOM && B.THE_GEOM AND ST_Intersects(B.THE_GEOM, T.THE_GEOM)
               GROUP BY T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM;
+            CREATE INDEX ON TRIANGLES_OVER_BUILDINGS (build_pk);
             -- Remove triangles that are over buildings
             DELETE FROM TRIANGLES WHERE PK IN (SELECT PK FROM TRIANGLES_OVER_BUILDINGS);
             -- Remove points not referenced by triangles
