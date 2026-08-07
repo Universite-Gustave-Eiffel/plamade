@@ -87,7 +87,7 @@ public class PostGISUtilities {
 
         // Count the expected number of blocks
 
-        String countBlocksSql = String.format("SELECT COUNT(*) FROM %s WHERE the_geom && ?::geometry;",
+        String countBlocksSql = String.format("SELECT COUNT(*) FROM %s WHERE ST_Intersects(the_geom, ?::geometry);",
                 pgTableName);
         int expectedBlocks = 0;
         try (PreparedStatement ps = pgConnection.prepareStatement(countBlocksSql)) {
@@ -104,7 +104,7 @@ public class PostGISUtilities {
         // Prepare PostGIS query (Grouping points into TWKB chunks)
         String pgSql = String.format("""
          SELECT ST_AsTWKB(ST_Collect(the_geom), ?, ?) as chunk_twkb FROM
-          (SELECT the_geom, (row_number() OVER ()) / 1000 as group_id FROM %s WHERE the_geom && ?::geometry) t
+          (SELECT the_geom, (row_number() OVER ()) / 1000 as group_id FROM %s WHERE ST_Intersects(the_geom, ?::geometry)) t
            GROUP BY group_id""", pgTableName);
 
         // Prepare H2 Insert query

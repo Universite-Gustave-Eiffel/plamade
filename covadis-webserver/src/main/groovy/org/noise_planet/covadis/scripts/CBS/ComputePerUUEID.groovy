@@ -20,6 +20,7 @@ import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_r
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source
 import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
 import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
+import org.noise_planet.noisemodelling.webserver.database.DatabaseManagement
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -51,6 +52,27 @@ inputs = [
                 name       : "Configuration identifier",
                 description: "Configuration identifier defined in cbs_uge_input.nm_conf ",
                 type       : Integer.class
+        ],
+        configuration_name      : [
+                name       : 'HPC Configuration Name',
+                title      : 'HPC Configuration Name',
+                description: 'Slurm SSH access configuration name written through Write_HPC_Settings WPS Script',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
+        key_password        : [
+                name       : 'SSH Private Key password',
+                title      : 'SSH Private Key password',
+                description: 'Optional private key password',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
+        slurm_task_count            : [
+                name       : 'Slurm task count',
+                title      : 'Slurm task count',
+                description: 'Number of parallel jobs for the computation on the Slurm server.',
+                default    : 8,
+                type       : Integer.class
         ]
 ]
 
@@ -58,6 +80,12 @@ outputs = [result: [name: 'Result output string', title: 'Result output string',
 
 @Field
 int batchSize = 100
+
+/**
+ * Maximum length for local computation, use HPC from this length of sound sources
+ */
+@Field
+double lengthMaxLocalComputation = 1000
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -106,8 +134,22 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
         }
 
+        def tempDirectory = File.createTempDir()
         uueids.each {
-            computeForUUEID(it, connection, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
+            // Create a local H2 database for this task
+            DataSource h2DataSource = DatabaseManagement.createH2DataSource(tempDirectory.getAbsolutePath() ,
+                    "h2_${it}.db", "sa", "sa", "", true)
+            logger.info("Create database for UUEID: $it in directory: $tempDirectory")
+            // Copy the two configuration tables
+            try(Connection h2Connection = h2DataSource.getConnection()) {
+                try(Statement st = connection.createStatement(); ResultSet rs = st.executeQuery("SELECT * FROM POSTGIS_CONFIGURATION")) {
+                    PostGISUtilities.copyResultSetToDatabase(connection, rs, h2Connection, "POSTGIS_CONFIGURATION", true, batchSize)
+                }
+                try(Statement st = connection.createStatement(); ResultSet rs = st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
+                    PostGISUtilities.copyResultSetToDatabase(connection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
+                }
+            }
+            computeForUUEID(it, h2DataSource, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
         }
 
         // Return results
@@ -117,71 +159,86 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
 }
 
-def computeForUUEID(String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map<String, String> codeDeptToNuts) {
+def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map<String, String> codeDeptToNuts) {
     ProgressVisitor stepsProgress = progress.subProcess(3) // long running sub tasks
+
     def pgSql = new Sql(pgConnection)
-    def h2Sql = new Sql(h2Connection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for UUEID: $uueid")
-
-    // Compute envelope of the simulation
-    def res = pgSql.firstRow("""SELECT 
-             st_simplify(st_buffer(st_convexhull(st_collect(the_geom)), ${mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
+    try(Connection h2Connection = h2DataSource.getConnection()) {
+        // Compute envelope of the simulation
+        def res = pgSql.firstRow("""SELECT 
+             st_simplify(st_buffer(st_convexhull(st_collect(the_geom)), ${
+            mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
              FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg WHERE uueid LIKE '$uueid';""" as String)
-    if (res == null) {
-        throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
+        if (res == null) {
+            throw new IllegalArgumentException("No match for the provided uueid '${input.uueid_pattern}'")
+        }
+
+        def extractionEnvelopeGeometry = res.geomenv as Geometry
+        def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
+
+        logger.info("SRID: {}", (extractionEnvelopeGeometry).getSRID())
+
+        fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, stepsProgress)
+
+        fetchBuildings(
+                input,
+                pgConnection,
+                extractionEnvelopeGeometryWKT, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
+
+        generateReceivers(input, pgConnection, uueid, extractionEnvelopeGeometry, h2Connection,
+                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress)
+
+        processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress)
+
+        fetchAtmosphericPeriodFromStations(input, pgConnection, uueid, h2Connection, stepsProgress)
     }
 
-    def extractionEnvelopeGeometry = res.geomenv as Geometry
-    def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
+    def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName
+    } AS reg WHERE (franchisst IS NULL OR franchisst = 'Pont')""" as String
 
-    logger.info("SRID: {}", (extractionEnvelopeGeometry).getSRID())
-
-    fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, stepsProgress)
-
-    fetchBuildings(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
-
-    generateReceivers(input, pgConnection, uueid, extractionEnvelopeGeometry, h2Connection,
-            mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress)
-
-    processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress)
-
-    fetchAtmosphericPeriodFromStations(input, pgConnection, uueid, h2Connection, stepsProgress)
-
-    def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg WHERE (franchisst IS NULL OR franchisst = 'Pont')""" as String
-
-    def posSols = pgSql.rows(posSolQuery).collect { it.pos_sol as String}
-
+    def posSols = pgSql.rows(posSolQuery).collect {
+        it.pos_sol as String
+    }
     ProgressVisitor solProgress = stepsProgress.subProcess(posSols.size())
-
     new ArrayList<>(posSols).forEach {posSol ->
         logger.info("Compute for pos_sol = $posSol")
+        boolean doCompute
+        try(Connection h2Connection = h2DataSource.getConnection()) {
+            doCompute = fetchRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+        }
         // Fetch specific road emission at this special height
-        if(fetchRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)) {
-            // Adapt the DEM with this special road height platforms
-            enrichDem(input, uueid, h2Connection, pgConnection, solProgress, posSol)
+        if(doCompute) {
+            try(Connection h2Connection = h2DataSource.getConnection()) {
+                // Adapt the DEM with this special road height platforms
+                enrichDem(input, uueid, h2Connection, pgConnection, solProgress, posSol)
+            }
             // Run the simulation with this road height
-            runSimulation(mainConfiguration, h2Connection, posSol, solProgress)
+            runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
         } else {
             logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
         }
     }
 
-    // Merge noise levels for each pos sols
-    mergeReceiversLevels(posSols, h2Connection, uueid, logger, h2Sql)
+    try(Connection h2Connection = h2DataSource.getConnection()) {
+        // Merge noise levels for each pos sols
 
-    // Generate IsoContours
-    generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
+        def h2Sql = new Sql(h2Connection)
+        mergeReceiversLevels(posSols, h2Connection, uueid, logger, h2Sql)
 
-    generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts)
-    generateExposureStatisticsFromFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
+        // Generate IsoContours
+        generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
 
-    // Upload CBS Table to remote PostGIS database
-    uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
+        generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts)
+        generateExposureStatisticsFromFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
 
-    uploadFacadeExpo(h2Connection, pgConnection, uueid, input.projectionName as String)
+        // Upload CBS Table to remote PostGIS database
+        uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
 
+        uploadFacadeExpo(h2Connection, pgConnection, uueid, input.projectionName as String)
+    }
 }
 
 /**
@@ -843,32 +900,68 @@ def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgCon
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
 }
 
-def runSimulation(Map mainConfiguration, Connection h2Connection, String posSol, ProgressVisitor stepsProgress) {
-    Logger logger = LoggerFactory.getLogger(this.class)
-    ScriptUtilities.execScript(new Noise_level_from_source(),
-            h2Connection, [
-            tableBuilding: "BUILDINGS",
-            tableSources: "LW_ROADS",
-            tableReceivers: "RECEIVERS_FILTERED",
-            tableDEM: "DEM_ENRICHED",
-            tableGroundAbs: "LANDCOVER",
-            tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
-            confReflOrder: mainConfiguration.confreflorder,
-            confMaxSrcDist: mainConfiguration.confmaxsrcdist,
-            confMaxReflDist: mainConfiguration.confmaxrefldist,
-            confDiffVertical: mainConfiguration.confdiffvertical,
-            confDiffHorizontal: mainConfiguration.confdiffhorizontal,
-            confMinWallReflDist: 0.2 // ignore reflection distance, buildings receiver are at 0.1 m from facades
+def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, String posSol, ProgressVisitor stepsProgress) {
+    def totalLength
+    try(Connection h2Connection = h2DataSource.getConnection()) {
+        Sql h2Sql = new Sql(h2Connection)
+        // Fetch the length of the sound source to use local computation if the length of the sources is too short
+
+        totalLength = h2Sql.firstRow("SELECT SUM(ST_Length(the_geom)) FROM LW_ROADS")[0] as Double
+    }
+
+    def slurmTaskCount = inputs.getOrDefault("slurm_task_count", 8) as Integer
+    def configurationName = inputs.getOrDefault("configuration_name", "") as String
+    def keyPassword = inputs.getOrDefault("key_password", "") as String
+
+    def computeOnHPC = totalLength > lengthMaxLocalComputation && !configurationName.isEmpty()
+
+    if(!computeOnHPC) {
+        try(Connection h2Connection = h2DataSource.getConnection()) {
+            ScriptUtilities.execScript(new Noise_level_from_source(),
+                    h2Connection, [tableBuilding                 : "BUILDINGS",
+                                   tableSources                  : "LW_ROADS",
+                                   tableReceivers                : "RECEIVERS_FILTERED",
+                                   tableDEM                      : "DEM_ENRICHED",
+                                   tableGroundAbs                : "LANDCOVER",
+                                   tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
+                                   confReflOrder                 : mainConfiguration.confreflorder,
+                                   confMaxSrcDist                : mainConfiguration.confmaxsrcdist,
+                                   confMaxReflDist               : mainConfiguration.confmaxrefldist,
+                                   confDiffVertical              : mainConfiguration.confdiffvertical,
+                                   confDiffHorizontal            : mainConfiguration.confdiffhorizontal,
+                                   confMinWallReflDist           : 0.2 // ignore reflection distance, buildings receiver are at 0.1 m from facades
             ],
-            stepsProgress)
+                    stepsProgress)
+        }
+    } else {
+        new org.noise_planet.covadis.scripts.Slurm.Noise_level_from_source().exec(h2DataSource, [
+                               tableBuilding                 : "BUILDINGS",
+                               tableSources                  : "LW_ROADS",
+                               tableReceivers                : "RECEIVERS_FILTERED",
+                               tableDEM                      : "DEM_ENRICHED",
+                               tableGroundAbs                : "LANDCOVER",
+                               tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
+                               confReflOrder                 : mainConfiguration.confreflorder,
+                               confMaxSrcDist                : mainConfiguration.confmaxsrcdist,
+                               confMaxReflDist               : mainConfiguration.confmaxrefldist,
+                               confDiffVertical              : mainConfiguration.confdiffvertical,
+                               confDiffHorizontal            : mainConfiguration.confdiffhorizontal,
+                               confMinWallReflDist           : 0.2, // ignore reflection distance, buildings receiver are at 0.1 m from facades,
+                               configuration_name            : configurationName,
+                               keyPassword                   : keyPassword,
+                               slurm_task_count              : slurmTaskCount
+        ],
+                stepsProgress)
+    }
     // Rename output table
     def outputTableName = getRoadsLevelsTableName(posSol)
-    Sql h2Sql = new Sql(h2Connection)
-    h2Sql.execute("""
+    try(Connection h2Connection = h2DataSource.getConnection()) {
+        new Sql(h2Connection).execute("""
         DROP TABLE IF EXISTS $outputTableName;
         ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName;
         CREATE INDEX ON $outputTableName ("IDRECEIVER", "PERIOD");
     """ as String)
+    }
 }
 
 def processLandCover(Map input,Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress) {

@@ -19,7 +19,9 @@ import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.CBS.Generate_sources;
 import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
+import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
+import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
 import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
@@ -241,13 +243,26 @@ public class TestCBSScript extends JDBCTestCase {
     @Order(5)
     public void testRunByUUEID() throws SQLException {
         assumePostGISAvailable();
-        //RD_FR_00_0781651
-       new ComputePerUUEID().exec(connection, Map.of(
-                "projectionName", "hexa",
-                "uueid_pattern", "RD_FR_00_0781651",
-                "conf", 1), new EmptyProgressVisitor());
 
+       // Create SLURM Configuration
+        SlurmConfig config = NoiseModellingHPCServerHttpTest.fetchSlurmConfigFromEnv();
 
+        new Write_HPC_Settings().exec(connection,
+                Map.of("configuration_name", "local",
+                        "host" , config.host,
+                        "port", config.port,
+                        "user", config.user,
+                        "key", config.sshKeyArmoredString
+                        ), new EmptyProgressVisitor());
+
+        new ComputePerUUEID().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "uueid_pattern", "RD_FR_00_0781651",
+                        "conf", 1,
+                        "configuration_name", "local",
+                        "slurm_task_count", 1,
+                        "key_password", config.sshKeyPassword),
+                new EmptyProgressVisitor());
 
         // Check cbs
         List<String> expectedCbs = Arrays.asList("Lden5559", "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan62",
@@ -268,8 +283,9 @@ public class TestCBSScript extends JDBCTestCase {
             assertEquals(57, resultSet.getInt("CPT"));
         }
 
-        try(Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT schools from expo_hexa where pk = 'RD_FR_00_0781651_Lnight5559';")) {
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT schools from cbs_uge_output.expo_hexa where pk = 'RD_FR_00_0781651_Lnight5559';")) {
             assertTrue(resultSet.next());
             assertEquals(1, resultSet.getInt("schools"));
         }

@@ -199,9 +199,7 @@ public class NoiseModellingHPCServerHttpTest {
         }
     }
 
-    @Test
-    @Timeout(value = 2, unit = TimeUnit.MINUTES)
-    public void testWPSRunRemoteNoiseModelling() throws Exception {
+    public static SlurmConfig fetchSlurmConfigFromEnv() {
         String host = System.getenv("SSH_HOST");
         String portStr = System.getenv("SSH_PORT");
         String user = System.getenv("SSH_USER");
@@ -209,10 +207,6 @@ public class NoiseModellingHPCServerHttpTest {
         String keyPassword = System.getenv("SSH_KEY_PASSWORD");
         String serverKey = System.getenv("SSH_SERVER_KEY");
         String serverKeyType = System.getenv("SSH_SERVER_KEY_TYPE");
-
-        Assumptions.assumeTrue(host != null && !host.isEmpty(), "SSH_HOST is not set");
-        Assumptions.assumeTrue(user != null && !user.isEmpty(), "SSH_USER is not set");
-        Assumptions.assumeTrue(key != null && !key.isEmpty(), "SSH_KEY is not set");
 
         SlurmConfig config = new SlurmConfig();
         config.host = host;
@@ -222,6 +216,19 @@ public class NoiseModellingHPCServerHttpTest {
         config.sshKeyPassword = keyPassword != null ? keyPassword : "";
         config.serverKey = serverKey;
         config.serverKeyType = serverKeyType;
+
+        return config;
+    }
+
+    @Test
+    @Timeout(value = 2, unit = TimeUnit.MINUTES)
+    public void testWPSRunRemoteNoiseModelling() throws Exception {
+        SlurmConfig config = fetchSlurmConfigFromEnv();
+
+        Assumptions.assumeTrue(config.host != null && !config.host.isEmpty(), "SSH_HOST is not set");
+        Assumptions.assumeTrue(config.user != null && !config.user.isEmpty(), "SSH_USER is not set");
+        Assumptions.assumeTrue(config.sshKeyArmoredString != null && !config.sshKeyArmoredString.isEmpty(), "SSH_KEY is not set");
+
 
         // Register SLURM configuration for docker slurm instance running on localhost with key ssh access
         HttpClient client = HttpClient.newHttpClient();

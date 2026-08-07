@@ -310,7 +310,7 @@ public class SlurmSession implements AutoCloseable {
             if(slurmStateMap.containsKey(s.status) && slurmStateMap.get(s.status).error) {
                 // If one of the process fail, cancel the computation and set the computation as failed
                 runCommand(String.format("scancel %d", slurmConfig.jobId), false);
-                throw new CancellationException("One of the slurm task has failed and the job has been canceled");
+                throw new CancellationException("One of the slurm task id:"+s.taskId+" has failed and the job has been canceled");
             }
         }
         // If all tasks are Queued print the current status of the tasks:
