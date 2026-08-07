@@ -138,7 +138,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         uueids.each {
             // Create a local H2 database for this task
             DataSource h2DataSource = DatabaseManagement.createH2DataSource(tempDirectory.getAbsolutePath() ,
-                    "h2_${it}.db", "sa", "sa", "", true)
+                    "h2_${it}", "sa", "sa", "", true)
             logger.info("Create database for UUEID: $it in directory: $tempDirectory")
             // Copy the two configuration tables
             try(Connection h2Connection = h2DataSource.getConnection()) {
@@ -150,6 +150,12 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 }
             }
             computeForUUEID(it, h2DataSource, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
+
+            // Delete the database file
+            if(h2DataSource instanceof Closeable) {
+                ((Closeable) h2DataSource).close()
+            }
+            new File(tempDirectory, "h2_${it}.mv.db").delete()
         }
 
         // Return results

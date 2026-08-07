@@ -118,19 +118,20 @@ public class SlurmSession implements AutoCloseable {
         // Opens authenticated SSH session to remote host
 
         // 1. Prepare the input stream
-        InputStream keyStream = new ByteArrayInputStream(reformatSSHKey(slurmConfig.sshKeyArmoredString).getBytes(StandardCharsets.UTF_8));
+        byte[] keyBytes = reformatSSHKey(slurmConfig.sshKeyArmoredString).getBytes(StandardCharsets.UTF_8);
+        InputStream keyStream = new ByteArrayInputStream(keyBytes);
 
         // 2. Define the Password Provider
-        // The provider receives (SessionContext, NamedResource, int retryIndex)
-        FilePasswordProvider passwordProvider = (session, resource, retryIndex) -> slurmConfig.sshKeyPassword;
+        FilePasswordProvider passwordProvider = (slurmConfig.sshKeyPassword == null) ? FilePasswordProvider.EMPTY :
+                FilePasswordProvider.of(slurmConfig.sshKeyPassword);
+
+        if(slurmConfig.sshKeyPassword == null) {
+            logger.warn("No SSH key password provided.");
+        }
 
         // 3. Load the KeyPair
-        Iterable<KeyPair> keyPairs = SecurityUtils.loadKeyPairIdentities(
-                null,
-                null,
-                keyStream,
-                (slurmConfig.sshKeyPassword == null || slurmConfig.sshKeyPassword.isEmpty()) ? null : passwordProvider
-        );
+        Iterable<KeyPair> keyPairs = SecurityUtils.loadKeyPairIdentities(null, () -> "slurm-key", keyStream,
+                passwordProvider);
 
         client = SshClient.setUpDefaultClient();
         try {
@@ -148,8 +149,7 @@ public class SlurmSession implements AutoCloseable {
                 String serverKeyAlgorithm = serverKey.getAlgorithm();
                 String encodedKey = Base64.getEncoder().encodeToString(serverKey.getEncoded());
 
-                if (slurmConfig.serverKeyType != null && slurmConfig.serverKey != null &&
-                        serverKeyAlgorithm.equals(slurmConfig.serverKeyType) && encodedKey.equals(slurmConfig.serverKey)) {
+                if (serverKeyAlgorithm.equals(slurmConfig.serverKeyType) && encodedKey.equals(slurmConfig.serverKey)) {
                     return true;
                 }
 

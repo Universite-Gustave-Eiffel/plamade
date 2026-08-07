@@ -511,6 +511,12 @@
                 <version>1.83</version>
                 <scope>compile</scope>
             </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>1.83</version>
+                <scope>compile</scope>
+            </dependency>
             <!-- Test dependencies -->
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
