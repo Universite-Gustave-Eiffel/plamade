@@ -954,7 +954,7 @@ def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, St
                                confDiffHorizontal            : mainConfiguration.confdiffhorizontal,
                                confMinWallReflDist           : 0.2, // ignore reflection distance, buildings receiver are at 0.1 m from facades,
                                configuration_name            : configurationName,
-                               keyPassword                   : keyPassword,
+                               key_password                  : keyPassword,
                                slurm_task_count              : slurmTaskCount
         ],
                 stepsProgress)
