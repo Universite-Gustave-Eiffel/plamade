@@ -681,21 +681,34 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
     def mergeLevelsQuery = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_$uueid;
         CREATE TABLE RECEIVERS_LEVEL_$uueid(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
-    """ as String
-
-    mergeLevelsQuery += """
         INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(firstPosSol)};
+        CREATE INDEX ON RECEIVERS_LEVEL_$uueid ("IDRECEIVER", "PERIOD");
     """ as String
 
     posSolsToProcess.each { posSol ->
-        // update existing rows then insert new rows
+        // Energetic merge of this pos_sol into the accumulated table.
+        // FULL OUTER JOIN on (IDRECEIVER, PERIOD): a receiver present on a single side keeps
+        // its exact level (no spurious 0 dB), a receiver present on both sides gets the
+        // energetic sum. No correlated subquery, hence no NULL injection.
         mergeLevelsQuery += """
-            SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
-            UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10)) WHERE IDRECEIVER IN (SELECT IDRECEIVER FROM ${getRoadsLevelsTableName(posSol)});
-            INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(posSol)} WHERE IDRECEIVER NOT IN (SELECT IDRECEIVER FROM RECEIVERS_LEVEL_$uueid);
-            SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
+            DROP TABLE IF EXISTS RECEIVERS_LEVEL_TMP;
+            CREATE TABLE RECEIVERS_LEVEL_TMP(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
+            INSERT INTO RECEIVERS_LEVEL_TMP
+            SELECT
+                COALESCE(A.THE_GEOM, B.THE_GEOM),
+                COALESCE(A.IDRECEIVER, B.IDRECEIVER),
+                COALESCE(A.PERIOD, B.PERIOD),
+                10*log10(
+                    CASE WHEN A.IDRECEIVER IS NOT NULL THEN power(10, A.LAEQ/10) ELSE 0 END
+                    + CASE WHEN B.IDRECEIVER IS NOT NULL THEN power(10, B.LAEQ/10) ELSE 0 END
+                )
+            FROM RECEIVERS_LEVEL_$uueid A
+            FULL OUTER JOIN ${getRoadsLevelsTableName(posSol)} B
+                ON A.IDRECEIVER = B.IDRECEIVER AND A.PERIOD = B.PERIOD;
+            DROP TABLE IF EXISTS RECEIVERS_LEVEL_$uueid;
+            ALTER TABLE RECEIVERS_LEVEL_TMP RENAME TO RECEIVERS_LEVEL_$uueid;
+            CREATE INDEX ON RECEIVERS_LEVEL_$uueid ("IDRECEIVER", "PERIOD");
         """ as String
-
     }
 
     runScript(h2Connection, mergeLevelsQuery)
