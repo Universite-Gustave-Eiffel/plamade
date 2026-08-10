@@ -243,13 +243,8 @@ def computeForDepartment(String uueidPattern, String department, DataSource h2Da
         // Generate IsoContours
         generateRoadsCBS(h2Connection, department, stepsProgress, codeDeptToNuts)
 
-        generateBuildingsFacadeExpo(h2Connection, department, codeDeptToNuts)
-        generateExposureStatisticsFromFacadeExpo(h2Connection, department, codeDeptToNuts, input.projectionName as String)
-
         // Upload CBS Table to remote PostGIS database
         uploadCBS(h2Connection, pgConnection, department, input.projectionName as String)
-
-        uploadFacadeExpo(h2Connection, pgConnection, department, input.projectionName as String)
     }
 }
 
