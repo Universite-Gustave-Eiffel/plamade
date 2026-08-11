@@ -673,7 +673,7 @@ static String getRoadsLevelsTableName(String posSol) {
  * @param logger Logger instance
  * @param h2Sql h2 SQL instance
  */
-private void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
+static void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
     def posSolsToProcess = new ArrayList<String>(posSols)
     def firstPosSol = posSolsToProcess.pop()
     GeometryMetaData metaData =
@@ -686,28 +686,18 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
     """ as String
 
     posSolsToProcess.each { posSol ->
-        // Energetic merge of this pos_sol into the accumulated table.
-        // FULL OUTER JOIN on (IDRECEIVER, PERIOD): a receiver present on a single side keeps
-        // its exact level (no spurious 0 dB), a receiver present on both sides gets the
-        // energetic sum. No correlated subquery, hence no NULL injection.
+        def posSolTable = getRoadsLevelsTableName(posSol)
+        // Energetic merge of this pos_sol into the accumulated table, period-aware
+        // on (IDRECEIVER, PERIOD): rows present on both sides are summed, rows present
+        // only in this pos_sol are inserted. COALESCE guards against NULL injection when
+        // a period row is missing from one side.
         mergeLevelsQuery += """
-            DROP TABLE IF EXISTS RECEIVERS_LEVEL_TMP;
-            CREATE TABLE RECEIVERS_LEVEL_TMP(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
-            INSERT INTO RECEIVERS_LEVEL_TMP
-            SELECT
-                COALESCE(A.THE_GEOM, B.THE_GEOM),
-                COALESCE(A.IDRECEIVER, B.IDRECEIVER),
-                COALESCE(A.PERIOD, B.PERIOD),
-                10*log10(
-                    CASE WHEN A.IDRECEIVER IS NOT NULL THEN power(10, A.LAEQ/10) ELSE 0 END
-                    + CASE WHEN B.IDRECEIVER IS NOT NULL THEN power(10, B.LAEQ/10) ELSE 0 END
-                )
-            FROM RECEIVERS_LEVEL_$uueid A
-            FULL OUTER JOIN ${getRoadsLevelsTableName(posSol)} B
-                ON A.IDRECEIVER = B.IDRECEIVER AND A.PERIOD = B.PERIOD;
-            DROP TABLE IF EXISTS RECEIVERS_LEVEL_$uueid;
-            ALTER TABLE RECEIVERS_LEVEL_TMP RENAME TO RECEIVERS_LEVEL_$uueid;
-            CREATE INDEX ON RECEIVERS_LEVEL_$uueid ("IDRECEIVER", "PERIOD");
+            UPDATE RECEIVERS_LEVEL_$uueid RL
+            SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10, COALESCE((SELECT B.LAEQ FROM $posSolTable B WHERE B.IDRECEIVER = RL.IDRECEIVER AND B.PERIOD = RL.PERIOD), -999.0)/10))
+            WHERE EXISTS (SELECT 1 FROM $posSolTable B WHERE B.IDRECEIVER = RL.IDRECEIVER AND B.PERIOD = RL.PERIOD);
+            INSERT INTO RECEIVERS_LEVEL_$uueid
+            SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM $posSolTable B
+            WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS_LEVEL_$uueid RL WHERE RL.IDRECEIVER = B.IDRECEIVER AND RL.PERIOD = B.PERIOD);
         """ as String
     }
 
