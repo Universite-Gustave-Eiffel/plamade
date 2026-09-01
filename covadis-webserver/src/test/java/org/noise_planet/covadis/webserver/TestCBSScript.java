@@ -285,10 +285,10 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo_hexa where pk = 'RD_FR_00_0781651_Lnight5559';")) {
+            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo_hexa where pk = 'RD_FR_00_0781651_Lnight5054';")) {
             assertTrue(resultSet.next());
             assertEquals(1, resultSet.getInt("schools"));
-            assertEquals(1.94f, resultSet.getFloat("area"), 0.01f);
+            assertEquals(2.10f, resultSet.getFloat("area"), 0.01f);
         }
 
     }
