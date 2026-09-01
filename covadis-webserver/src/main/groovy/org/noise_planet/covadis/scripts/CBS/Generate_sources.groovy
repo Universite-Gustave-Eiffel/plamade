@@ -54,7 +54,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
         // Create EMISSION TABLE
         def lwTableName = "cbs_uge_output.routier_emission_$projectionName"
-        new Road_Emission_from_Traffic().exec(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName], progress)
+        new Road_Emission_from_Traffic().exec(pgConnection, [tableRoads : trafficTableName, outputTable: lwTableName, coefficientVersion : 1], progress)
 
         // Post work on the lwTableName
         sql.execute("ALTER TABLE $lwTableName OWNER TO cbs_uge_group;" as String)
