@@ -243,7 +243,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         // Upload CBS Table to remote PostGIS database
         uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
 
-        uploadFacadeExpo(h2Connection, pgConnection, uueid, input.projectionName as String)
+        uploadIndicatorsTables(h2Connection, pgConnection, uueid, input.projectionName as String)
     }
 }
 
@@ -254,7 +254,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
  * @param uueid Infrastructure identifier
  * @param projectionName Projection name ex: hexa
  */
-def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
+def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
     boolean tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.facade_expo_$projectionName")
     if(tableExists) {
         new Execute_Query().exec(pgConnection, [sqlQueries: """
@@ -287,7 +287,7 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
     }
     try( Statement st = h2Connection.createStatement() ;
          ResultSet rs = st.executeQuery("""SELECT PK, NUTSCODE , UUEID, NOISELEVEL, ROUND(PEOPLE)::integer PEOPLE,
-                 ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , CPI , HA  , HSD , AREA , INDICETYPE 
+                 ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , HA  , HSD , AREA , INDICETYPE 
                  FROM EXPO_${projectionName}""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo_$projectionName", false, batchSize)
@@ -300,6 +300,25 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
             ALTER TABLE cbs_uge_output.expo_$projectionName ALTER COLUMN pk SET NOT NULL;
             ALTER TABLE cbs_uge_output.expo_$projectionName ADD PRIMARY KEY (pk);
             ALTER TABLE cbs_uge_output.expo_$projectionName OWNER TO cbs_uge_group;
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
+
+
+    tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.expo_global_$projectionName")
+    if(tableExists) {
+        new Execute_Query().exec(pgConnection, [sqlQueries: """
+            DELETE FROM cbs_uge_output.expo_global_$projectionName WHERE uueid = '$uueid';
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
+    try( Statement st = h2Connection.createStatement() ;
+         ResultSet rs = st.executeQuery("""SELECT UUEID, NUTSCODE , CPI, HA, HSD FROM EXPO_GLOBAL_${projectionName}""")) {
+        PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
+                "cbs_uge_output.expo_global_$projectionName", false, batchSize)
+    }
+    if(!tableExists) {
+        // Create index
+        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+            ALTER TABLE cbs_uge_output.expo_global_$projectionName OWNER TO cbs_uge_group;
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
 }
@@ -365,11 +384,11 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         -- Create main exposure table to upload
         DROP TABLE IF EXISTS EXPO_${projectionName};
         CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
-         dwellings double, hospitals int, schools int, cpi int, ha int, hsd int, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2));
+         dwellings double, hospitals int, schools int,rr float, ha float, hsd float, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel_mid numeric(5,2));
         -- Fill with default values
         INSERT INTO EXPO_${projectionName}
          SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
-             period, noiselevel_start, noiselevel_end
+             period, noiselevel_start, noiselevel_end, (noiselevel_start + noiselevel_end) / 2
          FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
         -- Update individual dwellings/schools/hospitals count from FACADE_EXPO_MAX_LEVEL table
         UPDATE EXPO_${projectionName} SET dwellings = dwellings
@@ -413,6 +432,18 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         -- Update Area using the ISOPHONES table     
         UPDATE EXPO_${projectionName} EXPO SET area = area 
              + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
+        -- Compute RR
+        UPDATE EXPO_${projectionName} EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END;
+        -- Compute HA
+        UPDATE EXPO_${projectionName} EXPO SET HA = people * (78.9270 - 3.1162 * noiselevel_mid + 0.0342 * noiselevel_mid * noiselevel_mid) / 100.0;
+        UPDATE EXPO_${projectionName} EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0;
+        -- Create global indicators
+        DROP TABLE IF EXISTS EXPO_GLOBAL_${projectionName};
+        CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi int, ha int, hsd int);
+        INSERT INTO EXPO_GLOBAL_${projectionName}(nutscode, uueid, cpi, ha, hsd) SELECT uueid, nutscode,
+         ROUND(SUM(people * RR - 1)/(SUM(people * RR - 1) + 1) * 0.00138),
+         ROUND(SUM(HA)),
+         ROUND(SUM(HSD)) FROM EXPO_${projectionName} WHERE indicetype = 'LD' GROUP BY uueid, nutscode;
         """)
 
     logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
