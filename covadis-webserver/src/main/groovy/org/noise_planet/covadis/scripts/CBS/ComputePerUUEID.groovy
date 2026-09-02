@@ -353,6 +353,8 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         WHEN MATCHED THEN
           UPDATE SET t.rank_lden = COALESCE(s.calculated_lden, 0.0),
                      t.rank_ln = COALESCE(s.calculated_ln, 0.0);
+        CREATE INDEX ON FACADE_EXPO(pkbat, rank_lden);
+        CREATE INDEX ON FACADE_EXPO(pkbat, rank_ln);
         -- compute max level per building
         DROP TABLE IF EXISTS FACADE_EXPO_MAX_LEVEL;
         CREATE TABLE FACADE_EXPO_MAX_LEVEL AS 
@@ -494,6 +496,7 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         ) RL ON RL.IDRECEIVER = R.PK
         WHERE R.PK > @LASTDELAUNAY
           AND RL.MAX_LAEQ > 0;
+        CREATE INDEX ON FACADE_EXPO (pkbat);
     """)
 }
 

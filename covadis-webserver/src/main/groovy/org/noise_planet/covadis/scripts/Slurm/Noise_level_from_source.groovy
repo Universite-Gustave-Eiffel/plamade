@@ -30,6 +30,7 @@ import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicLong
 import java.util.regex.Matcher
@@ -398,6 +399,8 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         def temporaryDataDir = Files.createTempDirectory(getDateString())
         logger.info("Download remote sql files..")
         downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir, progress)
+        // remove remote slurm working folder
+        slurmSession.runCommand(String.format("rm -rf %s", slurmConfig.serverWorkspaceFolder), false)
         // merge sql files
         List<String> filesToImport = new ArrayList<>()
         for (FileAttributes file : files) {
@@ -539,6 +542,6 @@ private static boolean isRemoteFileExists(SlurmSession slurmSession, String fold
 
 private static String getDateString() {
     def now = LocalDateTime.now()
-    "${now.year}_${now.monthValue}_${now.dayOfMonth}.${now.hour}.${now.minute}"
+    "${now.year}_${now.monthValue}_${now.dayOfMonth}.${now.hour}.${now.toEpochSecond(ZoneOffset.UTC)}"
 }
 
