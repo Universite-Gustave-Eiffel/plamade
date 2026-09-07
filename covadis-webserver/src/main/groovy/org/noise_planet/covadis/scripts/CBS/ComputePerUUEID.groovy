@@ -155,7 +155,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             if(h2DataSource instanceof Closeable) {
                 ((Closeable) h2DataSource).close()
             }
-            new File(tempDirectory, "h2_${it}.mv.db").delete()
+            //new File(tempDirectory, "h2_${it}.mv.db").delete()
         }
 
         // Return results
@@ -434,6 +434,16 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         -- Update Area using the ISOPHONES table     
         UPDATE EXPO_${projectionName} EXPO SET area = area 
              + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
+        """)
+
+    generateHealthStatistics(h2Connection, projectionName)
+
+    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
+}
+
+static def generateHealthStatistics(Connection h2Connection, String projectionName) {
+
+    runScript(h2Connection, """
         -- Compute RR
         UPDATE EXPO_${projectionName} EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END;
         -- Compute HA
@@ -447,8 +457,6 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
          ROUND(SUM(HA)),
          ROUND(SUM(HSD)) FROM EXPO_${projectionName} WHERE indicetype = 'LD' GROUP BY uueid, nutscode;
         """)
-
-    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
 }
 
 def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts) {

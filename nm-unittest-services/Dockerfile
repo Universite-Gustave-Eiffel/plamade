@@ -47,15 +47,11 @@ COPY prolog.sh /etc/slurm/prolog.sh
 
 RUN chmod +x /etc/slurm/prolog.sh && echo "Prolog=/etc/slurm/prolog.sh" >> /etc/slurm/slurm.conf
 
-# 2. Generate the startup script, making sure to assign testuser to WANTED_UID (PUID) and WANTED_GID (PGID)
 RUN printf "#!/bin/bash\n\
 USERNAME=\${USER_NAME:-testuser}\n\
 USER_HOME=/home/\$USERNAME\n\
-WANTED_UID=\${PUID:-1000}\n\
-WANTED_GID=\${PGID:-1000}\n\
 if ! id -u \"\$USERNAME\" >/dev/null 2>&1; then\n\
-    groupadd -g \"\$WANTED_GID\" \"\$USERNAME\" || true\n\
-    useradd -u \"\$WANTED_UID\" -g \"\$WANTED_GID\" -m -s /bin/bash \"\$USERNAME\"\n\
+    useradd -m -s /bin/bash \"\$USERNAME\"\n\
     mkdir -p \"\$USER_HOME/.ssh\"\n\
     echo \"\$USERNAME:100000:65536\" >> /etc/subuid\n\
     echo \"\$USERNAME:100000:65536\" >> /etc/subgid\n\

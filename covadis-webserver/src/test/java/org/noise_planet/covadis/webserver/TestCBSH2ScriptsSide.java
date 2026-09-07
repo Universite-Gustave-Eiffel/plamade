@@ -1,8 +1,11 @@
 package org.noise_planet.covadis.webserver;
 
+import groovy.sql.Sql;
 import org.junit.jupiter.api.Test;
 import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
+import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -66,6 +69,29 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
             ResultSet rs = stmt.executeQuery("SELECT SCHOOLS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lnight5559'");) {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt("SCHOOLS"));
+        }
+    }
+
+
+    @Test
+    public void testComputeCardiacIschemiaHsdHa() throws SQLException {
+        // Compare expected computed results
+
+        try(Statement stmt = connection.createStatement()) {
+            stmt.execute("RUNSCRIPT FROM '" + Objects.requireNonNull(TestCBSH2ScriptsSide.class.getResource("testGenerateHealthStatistics.sql")).getFile() + "'");
+        }
+
+        ComputePerUUEID.generateHealthStatistics(connection, "hexa");
+
+        LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
+                ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_HEXA", 120));
+        LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
+                ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_GLOBAL_HEXA", 120));
+        // table EXPO_GLOBAL_HEXA expect the field CPI = 15
+        try(Statement stmt = connection.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT CPI FROM EXPO_GLOBAL_HEXA LIMIT 1")) {
+            assertTrue(rs.next());
+            assertEquals(15, rs.getInt("CPI"));
         }
     }
 }
