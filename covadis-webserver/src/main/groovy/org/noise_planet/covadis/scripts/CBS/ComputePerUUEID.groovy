@@ -398,8 +398,8 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
     def nutsCode = codeDeptToNuts.get(codeDept)
 
     def rangeSql = generateNoiseRangesSql(
-            55.0,
-            50.0,
+            35.0,
+            30.0,
             5,
             75.0,
             70.0,
@@ -428,7 +428,11 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         schools = schools
              + (SELECT SUM(E1DB.schools) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
         people = people
-             + (SELECT SUM(E1DB.people) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype);
+             + (SELECT SUM(E1DB.people) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        HA = HA
+             + (SELECT SUM(E1DB.HA) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        HSD = HSD
+             + (SELECT SUM(E1DB.HSD) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype);
         -- Update Area using the ISOPHONES table     
         UPDATE EXPO_${projectionName} EXPO SET area = area 
              + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
@@ -445,8 +449,8 @@ static def generateExposureStatisticsByStep(Connection h2Connection, String uuei
     def nutsCode = codeDeptToNuts.get(codeDept)
 
     def rangeSql = generateNoiseRangesSql(
-            55.0,
-            50.0,
+            35.0,
+            30.0,
             step,
             75.0,
             70.0,
@@ -564,9 +568,9 @@ static def generateHealthStatistics(Connection h2Connection, String projectionNa
             uueid, 
             nutscode,
             (
-                (SUM(CAST(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 0 END AS DOUBLE)) * T)
+                (SUM(CAST(CASE WHEN indicetype = 'LD' AND RR > 1 THEN people * (RR - 1) ELSE 0 END AS DOUBLE)) * T)
                 / 
-                (SUM(CAST(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 1 END AS DOUBLE)) + T)
+                (SUM(CAST(CASE WHEN indicetype = 'LD' AND RR > 1 THEN people * (RR - 1) ELSE 1 END AS DOUBLE)) + T)
             ) * CAST(${cpiPerPersonPerYear} AS DOUBLE) AS cpi,
         
             SUM(CAST(CASE WHEN indicetype = 'LD' THEN HA ELSE 0 END AS DOUBLE)) AS ha,

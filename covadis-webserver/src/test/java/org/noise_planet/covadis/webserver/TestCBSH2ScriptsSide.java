@@ -69,6 +69,17 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt("SCHOOLS"));
         }
+
+        //EXPO_GLOBAL_${projectionName}
+        try(Statement stmt = connection.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT HA, HSD, CPI FROM EXPO_GLOBAL_HEXA");) {
+            assertTrue(rs.next());
+            assertEquals(12.88, rs.getDouble("HA"), 0.01);
+            assertEquals(3.76, rs.getDouble("HSD"), 0.01);
+            assertEquals(0.00376, rs.getDouble("CPI"), 0.00001);
+        }
+
+
     }
 
 
