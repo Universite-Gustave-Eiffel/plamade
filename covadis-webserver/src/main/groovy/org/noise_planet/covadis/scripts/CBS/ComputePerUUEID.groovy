@@ -331,6 +331,7 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
 
+    def rangeStep = 5
 
     runScript(h2Connection, """
 
@@ -390,7 +391,7 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         -- Fill with default values
         INSERT INTO EXPO_${projectionName}
          SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
-             period, noiselevel_start, noiselevel_end, (noiselevel_start + noiselevel_end) / 2
+             period, noiselevel_start, noiselevel_end, noiselevel_start + $rangeStep / 2
          FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
         -- Update individual dwellings/schools/hospitals count from FACADE_EXPO_MAX_LEVEL table
         UPDATE EXPO_${projectionName} SET dwellings = dwellings
@@ -443,6 +444,8 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
 
 static def generateHealthStatistics(Connection h2Connection, String projectionName) {
 
+    def cpiPerPersonPerYear = 0.001377
+
     runScript(h2Connection, """
         -- Compute RR
         UPDATE EXPO_${projectionName} EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END;
@@ -451,11 +454,22 @@ static def generateHealthStatistics(Connection h2Connection, String projectionNa
         UPDATE EXPO_${projectionName} EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0;
         -- Create global indicators
         DROP TABLE IF EXISTS EXPO_GLOBAL_${projectionName};
-        CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi int, ha int, hsd int);
-        INSERT INTO EXPO_GLOBAL_${projectionName}(nutscode, uueid, cpi, ha, hsd) SELECT uueid, nutscode,
-         ROUND(SUM(people * RR - 1)/(SUM(people * RR - 1) + 1) * 0.00138),
-         ROUND(SUM(HA)),
-         ROUND(SUM(HSD)) FROM EXPO_${projectionName} WHERE indicetype = 'LD' GROUP BY uueid, nutscode;
+        CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi float, ha float, hsd float);
+        INSERT INTO EXPO_GLOBAL_${projectionName}(uueid, nutscode, cpi, ha, hsd)
+        WITH GlobalTotal AS (
+            SELECT SUM(people) AS T 
+            FROM EXPO_HEXA 
+            WHERE indicetype = 'LD'
+        )
+        SELECT 
+            uueid, 
+            nutscode,
+            (SUM(people * (RR - 1)) * T / (SUM(people * (RR - 1)) + T)) * $cpiPerPersonPerYear AS cpi,
+            ROUND(SUM(HA)) AS ha,
+            ROUND(SUM(HSD)) AS hsd 
+        FROM EXPO_HEXA, GlobalTotal
+        WHERE indicetype = 'LD' 
+        GROUP BY uueid, nutscode, T;
         """)
 }
 
@@ -505,6 +519,8 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         WHERE R.PK > @LASTDELAUNAY
           AND RL.MAX_LAEQ > 0;
         CREATE INDEX ON FACADE_EXPO (pkbat);
+        CREATE INDEX ON FACADE_EXPO(lden);
+        CREATE INDEX ON FACADE_EXPO(ln);
     """)
 }
 
