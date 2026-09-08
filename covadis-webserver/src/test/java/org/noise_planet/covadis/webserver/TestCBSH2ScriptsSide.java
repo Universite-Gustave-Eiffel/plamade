@@ -83,7 +83,7 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
         ComputePerUUEID.generateHealthStatistics(connection, "hexa");
 
         LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
-                ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_HEXA", 120));
+                ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPOSURE_RANGES", 120));
         LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
                 ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_GLOBAL_HEXA", 120));
         // table EXPO_GLOBAL_HEXA expected values

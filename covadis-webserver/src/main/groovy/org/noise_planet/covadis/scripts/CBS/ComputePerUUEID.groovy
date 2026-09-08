@@ -333,9 +333,9 @@ def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, Str
  * @param ldTypeC Start value for Type C Lden (e.g., 68)
  * @param lnTypeC Start value for Type C Lnight (e.g., 62)
  */
-def generateNoiseRangesSql(double ldStart, double lnStart, double step,
-                           double ldMax, double lnMax,
-                           double ldTypeC, double lnTypeC) {
+static def generateNoiseRangesSql(ldStart, lnStart, step,
+                           ldMax, lnMax,
+                           ldTypeC, lnTypeC) {
 
     StringBuilder sql = new StringBuilder()
     double midOffset = step / 2.0
@@ -388,8 +388,11 @@ CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel
 }
 
 static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
+    // First compute statistics using 1dB step
+    generateExposureStatisticsByStep(h2Connection, uueid, codeDeptToNuts, projectionName, 1.0)
 
-    Logger logger = LoggerFactory.getLogger(this.class)
+    // Create the expected ranges (5dB step) for the original EXPO_${projectionName}
+
     // 1. Extract metadata
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
@@ -397,7 +400,54 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
     def rangeSql = generateNoiseRangesSql(
             55.0,
             50.0,
-            5.0,
+            5,
+            75.0,
+            70.0,
+            68.0,
+            62.0
+    )
+
+    runScript(h2Connection, """
+        -- Create range tables
+        ${rangeSql}
+
+        DROP TABLE IF EXISTS EXPO_${projectionName};
+        CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
+         dwellings double, hospitals int, schools int, ha float, hsd float, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel_mid numeric(5,2));
+        -- Fill with default values
+        INSERT INTO EXPO_${projectionName}
+         SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0.0, 0.0, 0.0, 
+             period, noiselevel_start, noiselevel_end, noiselevel_mid
+         FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
+        -- Sum the values from EXPOSURE_RANGES
+        UPDATE EXPO_${projectionName} E5DB SET
+        dwellings = dwellings
+             + (SELECT SUM(E1DB.dwellings) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        hospitals = hospitals
+             + (SELECT SUM(E1DB.hospitals) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        schools = schools
+             + (SELECT SUM(E1DB.schools) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        people = people
+             + (SELECT SUM(E1DB.people) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype);
+        -- Update Area using the ISOPHONES table     
+        UPDATE EXPO_${projectionName} EXPO SET area = area 
+             + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
+    """)
+
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
+}
+
+static def generateExposureStatisticsByStep(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName, double step) {
+
+    // 1. Extract metadata
+    def codeDept = uueid.split("_")[3].substring(0, 3)
+    def nutsCode = codeDeptToNuts.get(codeDept)
+
+    def rangeSql = generateNoiseRangesSql(
+            55.0,
+            50.0,
+            step,
             75.0,
             70.0,
             68.0,
@@ -437,16 +487,16 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         ${rangeSql}
 
         -- Create main exposure table to upload
-        DROP TABLE IF EXISTS EXPO_${projectionName};
-        CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
+        DROP TABLE IF EXISTS EXPOSURE_RANGES;
+        CREATE TABLE EXPOSURE_RANGES(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
          dwellings double, hospitals int, schools int,rr float, ha float, hsd float, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel_mid numeric(5,2));
         -- Fill with default values
-        INSERT INTO EXPO_${projectionName}
+        INSERT INTO EXPOSURE_RANGES
          SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
              period, noiselevel_start, noiselevel_end, noiselevel_mid
          FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
         -- Update individual dwellings/schools/hospitals count from FACADE_EXPO_MAX_LEVEL table
-        UPDATE EXPO_${projectionName} SET dwellings = dwellings
+        UPDATE EXPOSURE_RANGES SET dwellings = dwellings
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
                  ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
                  (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND POP > 0),
@@ -463,35 +513,33 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
                  ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
                  (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND erps_nature is null);
         -- Update collective dwellings people using the lden and ln rank (keeping 50% of most exposed receivers)        
-        UPDATE EXPO_${projectionName} SET people = people 
+        UPDATE EXPOSURE_RANGES SET people = people 
              + COALESCE((SELECT sum(b.POP::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
                indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
-        UPDATE EXPO_${projectionName} SET people = people 
+        UPDATE EXPOSURE_RANGES SET people = people 
              + COALESCE((SELECT sum(b.POP::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
         -- Update collective dwellings appartments using the lden and ln rank (keeping 50% of most exposed receivers)        
-        UPDATE EXPO_${projectionName} SET dwellings = dwellings 
+        UPDATE EXPOSURE_RANGES SET dwellings = dwellings 
              + COALESCE((SELECT sum(b.NB_LOGTS_C::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
                indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
-        UPDATE EXPO_${projectionName} SET dwellings = dwellings 
+        UPDATE EXPOSURE_RANGES SET dwellings = dwellings 
              + COALESCE((SELECT sum(b.NB_LOGTS_C::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
-        -- Update Area using the ISOPHONES table     
-        UPDATE EXPO_${projectionName} EXPO SET area = area 
-             + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
         """)
 
     generateHealthStatistics(h2Connection, projectionName)
 
-    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPOSURE_RANGES""" as String, 120))
 }
 
 static def generateHealthStatistics(Connection h2Connection, String projectionName) {
@@ -500,25 +548,30 @@ static def generateHealthStatistics(Connection h2Connection, String projectionNa
 
     runScript(h2Connection, """
         -- Compute RR
-        UPDATE EXPO_${projectionName} EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END WHERE indicetype = 'LD';
+        UPDATE EXPOSURE_RANGES EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END WHERE indicetype = 'LD';
         -- Compute HA
-        UPDATE EXPO_${projectionName} EXPO SET HA = people * (78.9270 - 3.1162 * noiselevel_mid + 0.0342 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LD';
-        UPDATE EXPO_${projectionName} EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LN';
+        UPDATE EXPOSURE_RANGES EXPO SET HA = people * (78.9270 - 3.1162 * noiselevel_mid + 0.0342 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LD';
+        UPDATE EXPOSURE_RANGES EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LN';
         -- Create global indicators
         DROP TABLE IF EXISTS EXPO_GLOBAL_${projectionName};
-        CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi float, ha float, hsd float);
+        CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi double precision, ha double precision, hsd double precision);
         INSERT INTO EXPO_GLOBAL_${projectionName}(uueid, nutscode, cpi, ha, hsd)
         WITH GlobalTotal AS (
-            SELECT SUM(pop) AS T 
+            SELECT CAST(SUM(pop) AS DOUBLE) AS T 
             FROM BUILDINGS
         )
         SELECT 
             uueid, 
             nutscode,
-            (SUM(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 0 END) * T / (SUM(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 1 END) + T)) * ${cpiPerPersonPerYear} AS cpi,
-            SUM(CASE WHEN indicetype = 'LD' THEN HA ELSE 0 END) AS ha,
-            SUM(CASE WHEN indicetype = 'LN' THEN HSD ELSE 0 END) AS hsd 
-        FROM EXPO_HEXA, GlobalTotal
+            (
+                (SUM(CAST(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 0 END AS DOUBLE)) * T)
+                / 
+                (SUM(CAST(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 1 END AS DOUBLE)) + T)
+            ) * CAST(${cpiPerPersonPerYear} AS DOUBLE) AS cpi,
+        
+            SUM(CAST(CASE WHEN indicetype = 'LD' THEN HA ELSE 0 END AS DOUBLE)) AS ha,
+            SUM(CAST(CASE WHEN indicetype = 'LN' THEN HSD ELSE 0 END AS DOUBLE)) AS hsd 
+        FROM EXPOSURE_RANGES, GlobalTotal
         GROUP BY uueid, nutscode, T;
         """)
 }
