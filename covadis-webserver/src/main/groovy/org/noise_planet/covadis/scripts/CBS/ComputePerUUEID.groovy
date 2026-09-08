@@ -323,6 +323,69 @@ def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, Str
     }
 }
 
+/**
+ * Generates H2 SQL to populate the noise range tables.
+ * @param ldStart Start value for Lden Type A (e.g., 55)
+ * @param lnStart Start value for Lnight Type A (e.g., 50)
+ * @param step The dB increment (e.g., 5)
+ * @param ldMax The threshold for "GreaterThan" for Lden (e.g., 75)
+ * @param lnMax The threshold for "GreaterThan" for Lnight (e.g., 70)
+ * @param ldTypeC Start value for Type C Lden (e.g., 68)
+ * @param lnTypeC Start value for Type C Lnight (e.g., 62)
+ */
+def generateNoiseRangesSql(double ldStart, double lnStart, double step,
+                           double ldMax, double lnMax,
+                           double ldTypeC, double lnTypeC) {
+
+    StringBuilder sql = new StringBuilder()
+    double midOffset = step / 2.0
+
+    sql.append("""-- Create range tables
+DROP TABLE IF EXISTS ROAD_NOISE_LEVEL_RANGES;
+CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel_mid numeric(5,2), noiselevel varchar);
+
+""")
+
+    // Format labels like 'Lden5559'
+    def makeLabel = { prefix, start, end ->
+        return "${prefix}${start.toInteger()}${(end - 1).toInteger()}"
+    }
+
+    // Generate INSERT statements
+    def addRow = { cbstype, period, start, end, mid, label ->
+        sql.append(String.format(Locale.ROOT,
+                "INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel_mid, noiselevel) VALUES ('%s', '%s', %.2f, %.2f, %.2f, '%s');\n",
+                cbstype, period, start, end, mid, label))
+    }
+
+    // --- Type A: LDEN ---
+    sql.append("-- LDEN Period - Type A\n")
+    for (double s = ldStart; s < ldMax; s += step) {
+        double e = s + step
+        addRow('A', 'LD', s, e, s + midOffset, makeLabel('Lden', s, e))
+    }
+    // Using step/2 for the GreaterThan midpoint
+    addRow('A', 'LD', ldMax, 200.0, ldMax + midOffset, "LdenGreaterThan${ldMax.toInteger()}")
+
+    // --- Type C: LDEN ---
+    sql.append("\n-- LDEN Period - Type C\n")
+    addRow('C', 'LD', ldTypeC, 200.0, ldTypeC + midOffset, "LdenGreaterThan${ldTypeC.toInteger()}")
+
+    // --- Type A: LNIGHT ---
+    sql.append("\n-- LN Period - Type A\n")
+    for (double s = lnStart; s < lnMax; s += step) {
+        double e = s + step
+        addRow('A', 'LN', s, e, s + midOffset, makeLabel('Lnight', s, e))
+    }
+    // Using step/2 for the GreaterThan midpoint
+    addRow('A', 'LN', lnMax, 200.0, lnMax + midOffset, "LnightGreaterThan${lnMax.toInteger()}")
+
+    // --- Type C: LNIGHT ---
+    sql.append("\n-- LN Period - Type C\n")
+    addRow('C', 'LN', lnTypeC, 200.0, lnTypeC + midOffset, "LnightGreaterThan${lnTypeC.toInteger()}")
+
+    return sql.toString()
+}
 
 static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
 
@@ -331,7 +394,15 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
 
-    def rangeStep = 5
+    def rangeSql = generateNoiseRangesSql(
+            55.0,
+            50.0,
+            5.0,
+            75.0,
+            70.0,
+            68.0,
+            62.0
+    )
 
     runScript(h2Connection, """
 
@@ -363,27 +434,8 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
             FROM FACADE_EXPO F INNER JOIN BUILDINGS B ON ( F.pkbat = B.pk )
             WHERE B.erps_nature IS NOT NULL or B.nb_logts_c = 1 GROUP BY B.IDBAT, B.erps_nature, B.POP;
         -- Create range tables
-        DROP TABLE IF EXISTS ROAD_NOISE_LEVEL_RANGES;
-        CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel varchar);
-        -- LDEN Period - Type A
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 55, 60, 'Lden5559');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 60, 65, 'Lden6064');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 65, 70, 'Lden6569');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 70, 75, 'Lden7074');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 75, 200, 'LdenGreaterThan75');
-        
-        -- LDEN Period - Type C
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LD', 68, 200, 'LdenGreaterThan68');
-        
-        -- LN Period - Type A
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 50, 55, 'Lnight5054');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 55, 60, 'Lnight5559');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 60, 65, 'Lnight6064');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 65, 70, 'Lnight6569');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 70, 200, 'LnightGreaterThan70');
-        
-        -- LN Period - Type C
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LN', 62, 200, 'LnightGreaterThan62');
+        ${rangeSql}
+
         -- Create main exposure table to upload
         DROP TABLE IF EXISTS EXPO_${projectionName};
         CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
@@ -391,7 +443,7 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         -- Fill with default values
         INSERT INTO EXPO_${projectionName}
          SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
-             period, noiselevel_start, noiselevel_end, noiselevel_start + $rangeStep / 2
+             period, noiselevel_start, noiselevel_end, noiselevel_mid
          FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
         -- Update individual dwellings/schools/hospitals count from FACADE_EXPO_MAX_LEVEL table
         UPDATE EXPO_${projectionName} SET dwellings = dwellings
