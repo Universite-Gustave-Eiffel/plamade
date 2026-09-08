@@ -13,8 +13,7 @@ import java.sql.Statement;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestCBSH2ScriptsSide extends JDBCTestCase {
 
@@ -89,10 +88,13 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
                 ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_GLOBAL_HEXA", 120));
         // table EXPO_GLOBAL_HEXA expect the field CPI = 30
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT CPI FROM EXPO_GLOBAL_HEXA LIMIT 1")) {
+            ResultSet rs = stmt.executeQuery("SELECT CPI, HA, HSD FROM EXPO_GLOBAL_HEXA")) {
             assertTrue(rs.next());
-            // Expected value extracted from the acoucite computation sheet
+            // Expected value extracted from the Acoucité computation sheet
             assertEquals(29.51, rs.getFloat("CPI"), 0.01);
+            assertEquals(57482.775, rs.getFloat("HA"), 0.01);
+            assertEquals(13454.849, rs.getFloat("HSD"), 0.01);
+            assertFalse(rs.next());
         }
     }
 }

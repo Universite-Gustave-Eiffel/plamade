@@ -155,7 +155,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             if(h2DataSource instanceof Closeable) {
                 ((Closeable) h2DataSource).close()
             }
-            //new File(tempDirectory, "h2_${it}.mv.db").delete()
+            new File(tempDirectory, "h2_${it}.mv.db").delete()
         }
 
         // Return results
@@ -448,10 +448,10 @@ static def generateHealthStatistics(Connection h2Connection, String projectionNa
 
     runScript(h2Connection, """
         -- Compute RR
-        UPDATE EXPO_${projectionName} EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END;
+        UPDATE EXPO_${projectionName} EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END WHERE indicetype = 'LD';
         -- Compute HA
-        UPDATE EXPO_${projectionName} EXPO SET HA = people * (78.9270 - 3.1162 * noiselevel_mid + 0.0342 * noiselevel_mid * noiselevel_mid) / 100.0;
-        UPDATE EXPO_${projectionName} EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0;
+        UPDATE EXPO_${projectionName} EXPO SET HA = people * (78.9270 - 3.1162 * noiselevel_mid + 0.0342 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LD';
+        UPDATE EXPO_${projectionName} EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LN';
         -- Create global indicators
         DROP TABLE IF EXISTS EXPO_GLOBAL_${projectionName};
         CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi float, ha float, hsd float);
@@ -464,11 +464,10 @@ static def generateHealthStatistics(Connection h2Connection, String projectionNa
         SELECT 
             uueid, 
             nutscode,
-            (SUM(people * (RR - 1)) * T / (SUM(people * (RR - 1)) + T)) * $cpiPerPersonPerYear AS cpi,
-            ROUND(SUM(HA)) AS ha,
-            ROUND(SUM(HSD)) AS hsd 
+            (SUM(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 0 END) * T / (SUM(CASE WHEN indicetype = 'LD' THEN people * (RR - 1) ELSE 1 END) + T)) * ${cpiPerPersonPerYear} AS cpi,
+            SUM(CASE WHEN indicetype = 'LD' THEN HA ELSE 0 END) AS ha,
+            SUM(CASE WHEN indicetype = 'LN' THEN HSD ELSE 0 END) AS hsd 
         FROM EXPO_HEXA, GlobalTotal
-        WHERE indicetype = 'LD' 
         GROUP BY uueid, nutscode, T;
         """)
 }
