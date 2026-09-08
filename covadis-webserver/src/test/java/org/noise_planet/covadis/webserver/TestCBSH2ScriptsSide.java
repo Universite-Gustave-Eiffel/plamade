@@ -86,12 +86,12 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
                 ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_HEXA", 120));
         LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
                 ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_GLOBAL_HEXA", 120));
-        // table EXPO_GLOBAL_HEXA expect the field CPI = 30
+        // table EXPO_GLOBAL_HEXA expected values
         try(Statement stmt = connection.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT CPI, HA, HSD FROM EXPO_GLOBAL_HEXA")) {
             assertTrue(rs.next());
             // Expected value extracted from the Acoucité computation sheet
-            assertEquals(29.51, rs.getFloat("CPI"), 0.01);
+            assertEquals(30.3107871703154, rs.getFloat("CPI"), 0.01);
             assertEquals(57482.775, rs.getFloat("HA"), 0.01);
             assertEquals(13454.849, rs.getFloat("HSD"), 0.01);
             assertFalse(rs.next());

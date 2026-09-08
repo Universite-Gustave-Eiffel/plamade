@@ -457,9 +457,8 @@ static def generateHealthStatistics(Connection h2Connection, String projectionNa
         CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi float, ha float, hsd float);
         INSERT INTO EXPO_GLOBAL_${projectionName}(uueid, nutscode, cpi, ha, hsd)
         WITH GlobalTotal AS (
-            SELECT SUM(people) AS T 
-            FROM EXPO_HEXA 
-            WHERE indicetype = 'LD'
+            SELECT SUM(pop) AS T 
+            FROM BUILDINGS
         )
         SELECT 
             uueid, 
