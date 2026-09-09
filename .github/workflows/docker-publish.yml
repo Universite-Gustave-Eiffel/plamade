@@ -17,7 +17,9 @@ env:
 
 jobs:
   build:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >
+      github.event.workflow_run.conclusion == 'success' && 
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
