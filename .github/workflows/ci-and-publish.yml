@@ -17,3 +17,19 @@ jobs:
     if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/docker-publish.yml
     secrets: inherit
+
+  summary:
+    name: Build Summary
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [test, publish-docker]
+    steps:
+      - name: Check status
+        run: |
+          # If any of the needed jobs failed, this step will fail, 
+          # making the whole 'summary' job fail.
+          if [ "${{ needs.test.result }}" == "failure" ] || [ "${{ needs.publish-docker.result }}" == "failure" ]; then
+            echo "One of the jobs failed."
+            exit 1
+          fi
+          echo "All jobs passed!"
