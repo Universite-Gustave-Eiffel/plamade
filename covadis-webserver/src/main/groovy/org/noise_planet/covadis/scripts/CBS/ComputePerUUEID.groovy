@@ -541,9 +541,6 @@ static def generateExposureStatisticsByStep(Connection h2Connection, String uuei
         """)
 
     generateHealthStatistics(h2Connection, projectionName)
-
-    Logger logger = LoggerFactory.getLogger(this.class)
-    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPOSURE_RANGES""" as String, 120))
 }
 
 static def generateHealthStatistics(Connection h2Connection, String projectionName) {
@@ -686,6 +683,35 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
 
 }
 
+/**
+ * Generates an H2 CASE statement string for noise labels expected by the final postgres database.
+ * @param period 'LD' or 'LN'
+ * @param isoClass e.g., "55.0,60.0,65.0,70.0,75.0,200.0"
+ */
+static def generateIsoCaseStatement(String period, String isoClass) {
+    List<Double> levels = isoClass.split(',').collect { it.toDouble() }
+    String prefix = (period == 'LD') ? 'Lden' : 'Lnight'
+
+    // If only one range exists (e.g., 68.0, 200.0), return the label directly
+    if (levels.size() == 2) {
+        return "'${prefix}GreaterThan${levels[0].toInteger()}'"
+    }
+
+    // Otherwise, generate the full CASE statement
+    StringBuilder sb = new StringBuilder("(CASE ")
+    for (int i = 0; i < levels.size() - 1; i++) {
+        double start = levels[i]
+        double end = levels[i + 1]
+
+        if (i < levels.size() - 2) {
+            sb.append("WHEN ISOLABEL = '${start.toInteger()}-${end.toInteger()}' THEN '${prefix}${start.toInteger()}${(end - 1).toInteger()}' ")
+        } else {
+            sb.append("WHEN ISOLABEL = '${start.toInteger()}+' THEN '${prefix}GreaterThan${start.toInteger()}' ")
+        }
+    }
+    sb.append("END)")
+    return sb.toString()
+}
 
 /**
  * <p>Precondition: The RECEIVERS_LEVEL_$uueid table must exist when calling this function.</p>
@@ -698,34 +724,28 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor stepsProgress = progress.subProcess(2)
 
-    // 1. Extract metadata
+    // Extract metadata
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
     logger.info("Processing CBS uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
 
-    // 2. Prepare Noise Level Tables
+    // Prepare Noise Level Tables
     setupResultTables(h2Connection, uueid)
 
-    // 3. Define the Noise Level CASE statements for CBS Type A
-    def caseLdenA = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
-    def caseLnightA = "(CASE WHEN ISOLABEL = '50-55' THEN 'Lnight5054' WHEN ISOLABEL = '55-60' THEN 'Lnight5559' WHEN ISOLABEL = '60-65' THEN 'Lnight6064' WHEN ISOLABEL = '65-70' THEN 'Lnight6569' WHEN ISOLABEL = '70+' THEN 'LnightGreaterThan70' END)"
-
-    // 4. Generate the 4 CBS Maps
-
-
+    // Generate the 4 CBS Maps
     new Execute_Query().exec(h2Connection, [sqlQueries: "DROP TABLE IF EXISTS ISOPHONES;", outputFormat: "json"], new EmptyProgressVisitor())
 
     // CBS A - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "55.0,60.0,65.0,70.0,75.0,200.0", caseLdenA, "LD", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
 
     // CBS A - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "50.0,55.0,60.0,65.0,70.0,200.0", caseLnightA, "LN", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0")
 
     // CBS C - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "'LdenGreaterThan68'", "LD", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "LD", "C", "ISOLVL = 1")
 
     // CBS C - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "'LdenGreaterThan62'", "LN", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "LN", "C", "ISOLVL = 1")
 }
 
 /**
@@ -786,8 +806,8 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
 /**
  * Main sub-function to process Isosurfaces and Insert into ISOPHONES
  */
-private static void processIsoContouring(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
-    Sql h2Sql = new Sql(conn)
+private static void processIsoContouring(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String period, String cbsType, String filter) {
+    String noiseLevelExpr = generateIsoCaseStatement(period, isoClass);
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
     // Initialize ISOPHONES table if not exists

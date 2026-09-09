@@ -265,8 +265,8 @@ public class TestCBSScript extends JDBCTestCase {
                 new EmptyProgressVisitor());
 
         // Check cbs
-        List<String> expectedCbs = Arrays.asList("Lden5559", "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan62",
-                "LdenGreaterThan68", "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569", "LnightGreaterThan70");
+        List<String> expectedCbs = Arrays.asList("Lden5559", "Lden6064", "Lden6569", "Lden7074",
+                "LdenGreaterThan68", "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569", "LnightGreaterThan62", "LnightGreaterThan70");
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_hexa\" order by noiselevel;")) {
@@ -274,6 +274,7 @@ public class TestCBSScript extends JDBCTestCase {
                 assertTrue(resultSet.next());
                 assertEquals(expectedCb, resultSet.getString("noiselevel"));
             }
+            assertFalse(resultSet.next());
         }
 
         try(Connection pgConnection = pgDataSource.getConnection();
