@@ -1,11 +1,10 @@
 name: Build and Publish Docker Image
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
-
+  workflow_call:
+    secrets:
+      GITHUB_TOKEN:
+        required: true
   workflow_dispatch:
 
 concurrency:
@@ -18,7 +17,6 @@ env:
 jobs:
   build:
     if: >
-      github.event.workflow_run.conclusion == 'success' && 
       github.event.workflow_run.head_branch == 'main'
     runs-on: ${{ matrix.os }}
     strategy:
