@@ -243,7 +243,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         // Upload CBS Table to remote PostGIS database
         uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
 
-        uploadFacadeExpo(h2Connection, pgConnection, uueid, input.projectionName as String)
+        uploadIndicatorsTables(h2Connection, pgConnection, uueid, input.projectionName as String)
     }
 }
 
@@ -254,7 +254,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
  * @param uueid Infrastructure identifier
  * @param projectionName Projection name ex: hexa
  */
-def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
+def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, String uueid, String projectionName) {
     boolean tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.facade_expo_$projectionName")
     if(tableExists) {
         new Execute_Query().exec(pgConnection, [sqlQueries: """
@@ -287,7 +287,7 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
     }
     try( Statement st = h2Connection.createStatement() ;
          ResultSet rs = st.executeQuery("""SELECT PK, NUTSCODE , UUEID, NOISELEVEL, ROUND(PEOPLE)::integer PEOPLE,
-                 ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , CPI , HA  , HSD , AREA , INDICETYPE 
+                 ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , HA  , HSD , AREA , INDICETYPE 
                  FROM EXPO_${projectionName}""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo_$projectionName", false, batchSize)
@@ -302,16 +302,161 @@ def uploadFacadeExpo(Connection h2Connection, Connection pgConnection, String uu
             ALTER TABLE cbs_uge_output.expo_$projectionName OWNER TO cbs_uge_group;
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
+
+
+    tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.expo_global_$projectionName")
+    if(tableExists) {
+        new Execute_Query().exec(pgConnection, [sqlQueries: """
+            DELETE FROM cbs_uge_output.expo_global_$projectionName WHERE uueid = '$uueid';
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
+    try( Statement st = h2Connection.createStatement() ;
+         ResultSet rs = st.executeQuery("""SELECT UUEID, NUTSCODE , CPI, HA, HSD FROM EXPO_GLOBAL_${projectionName}""")) {
+        PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
+                "cbs_uge_output.expo_global_$projectionName", false, batchSize)
+    }
+    if(!tableExists) {
+        // Create index
+        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+            ALTER TABLE cbs_uge_output.expo_global_$projectionName OWNER TO cbs_uge_group;
+        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    }
 }
 
+/**
+ * Generates H2 SQL to populate the noise range tables.
+ * @param ldStart Start value for Lden Type A (e.g., 55)
+ * @param lnStart Start value for Lnight Type A (e.g., 50)
+ * @param step The dB increment (e.g., 5)
+ * @param ldMax The threshold for "GreaterThan" for Lden (e.g., 75)
+ * @param lnMax The threshold for "GreaterThan" for Lnight (e.g., 70)
+ * @param ldTypeC Start value for Type C Lden (e.g., 68)
+ * @param lnTypeC Start value for Type C Lnight (e.g., 62)
+ */
+static def generateNoiseRangesSql(ldStart, lnStart, step,
+                           ldMax, lnMax,
+                           ldTypeC, lnTypeC) {
+
+    StringBuilder sql = new StringBuilder()
+    double midOffset = step / 2.0
+
+    sql.append("""-- Create range tables
+DROP TABLE IF EXISTS ROAD_NOISE_LEVEL_RANGES;
+CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel_mid numeric(5,2), noiselevel varchar);
+
+""")
+
+    // Format labels like 'Lden5559'
+    def makeLabel = { prefix, start, end ->
+        return "${prefix}${start.toInteger()}${(end - 1).toInteger()}"
+    }
+
+    // Generate INSERT statements
+    def addRow = { cbstype, period, start, end, mid, label ->
+        sql.append(String.format(Locale.ROOT,
+                "INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel_mid, noiselevel) VALUES ('%s', '%s', %.2f, %.2f, %.2f, '%s');\n",
+                cbstype, period, start, end, mid, label))
+    }
+
+    // --- Type A: LDEN ---
+    sql.append("-- LDEN Period - Type A\n")
+    for (double s = ldStart; s < ldMax; s += step) {
+        double e = s + step
+        addRow('A', 'LD', s, e, s + midOffset, makeLabel('Lden', s, e))
+    }
+    // Using step/2 for the GreaterThan midpoint
+    addRow('A', 'LD', ldMax, 200.0, ldMax + midOffset, "LdenGreaterThan${ldMax.toInteger()}")
+
+    // --- Type C: LDEN ---
+    sql.append("\n-- LDEN Period - Type C\n")
+    addRow('C', 'LD', ldTypeC, 200.0, ldTypeC + midOffset, "LdenGreaterThan${ldTypeC.toInteger()}")
+
+    // --- Type A: LNIGHT ---
+    sql.append("\n-- LN Period - Type A\n")
+    for (double s = lnStart; s < lnMax; s += step) {
+        double e = s + step
+        addRow('A', 'LN', s, e, s + midOffset, makeLabel('Lnight', s, e))
+    }
+    // Using step/2 for the GreaterThan midpoint
+    addRow('A', 'LN', lnMax, 200.0, lnMax + midOffset, "LnightGreaterThan${lnMax.toInteger()}")
+
+    // --- Type C: LNIGHT ---
+    sql.append("\n-- LN Period - Type C\n")
+    addRow('C', 'LN', lnTypeC, 200.0, lnTypeC + midOffset, "LnightGreaterThan${lnTypeC.toInteger()}")
+
+    return sql.toString()
+}
 
 static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName) {
+    // First compute statistics using 1dB step
+    generateExposureStatisticsByStep(h2Connection, uueid, codeDeptToNuts, projectionName, 1.0)
 
-    Logger logger = LoggerFactory.getLogger(this.class)
+    // Create the expected ranges (5dB step) for the original EXPO_${projectionName}
+
     // 1. Extract metadata
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
 
+    def rangeSql = generateNoiseRangesSql(
+            35.0,
+            30.0,
+            5,
+            75.0,
+            70.0,
+            68.0,
+            62.0
+    )
+
+    runScript(h2Connection, """
+        -- Create range tables
+        ${rangeSql}
+
+        DROP TABLE IF EXISTS EXPO_${projectionName};
+        CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
+         dwellings double, hospitals int, schools int, ha float, hsd float, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel_mid numeric(5,2));
+        -- Fill with default values
+        INSERT INTO EXPO_${projectionName}
+         SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0.0, 0.0, 0.0, 
+             period, noiselevel_start, noiselevel_end, noiselevel_mid
+         FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
+        -- Sum the values from EXPOSURE_RANGES
+        UPDATE EXPO_${projectionName} E5DB SET
+        dwellings = dwellings
+             + (SELECT SUM(E1DB.dwellings) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        hospitals = hospitals
+             + (SELECT SUM(E1DB.hospitals) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        schools = schools
+             + (SELECT SUM(E1DB.schools) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        people = people
+             + (SELECT SUM(E1DB.people) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        HA = HA
+             + (SELECT SUM(E1DB.HA) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype),
+        HSD = HSD
+             + (SELECT SUM(E1DB.HSD) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype);
+        -- Update Area using the ISOPHONES table     
+        UPDATE EXPO_${projectionName} EXPO SET area = area 
+             + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
+    """)
+
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
+}
+
+static def generateExposureStatisticsByStep(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts, String projectionName, double step) {
+
+    // 1. Extract metadata
+    def codeDept = uueid.split("_")[3].substring(0, 3)
+    def nutsCode = codeDeptToNuts.get(codeDept)
+
+    def rangeSql = generateNoiseRangesSql(
+            35.0,
+            30.0,
+            step,
+            75.0,
+            70.0,
+            68.0,
+            62.0
+    )
 
     runScript(h2Connection, """
 
@@ -334,6 +479,8 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
         WHEN MATCHED THEN
           UPDATE SET t.rank_lden = COALESCE(s.calculated_lden, 0.0),
                      t.rank_ln = COALESCE(s.calculated_ln, 0.0);
+        CREATE INDEX ON FACADE_EXPO(pkbat, rank_lden);
+        CREATE INDEX ON FACADE_EXPO(pkbat, rank_ln);
         -- compute max level per building
         DROP TABLE IF EXISTS FACADE_EXPO_MAX_LEVEL;
         CREATE TABLE FACADE_EXPO_MAX_LEVEL AS 
@@ -341,38 +488,19 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
             FROM FACADE_EXPO F INNER JOIN BUILDINGS B ON ( F.pkbat = B.pk )
             WHERE B.erps_nature IS NOT NULL or B.nb_logts_c = 1 GROUP BY B.IDBAT, B.erps_nature, B.POP;
         -- Create range tables
-        DROP TABLE IF EXISTS ROAD_NOISE_LEVEL_RANGES;
-        CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel varchar);
-        -- LDEN Period - Type A
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 55, 60, 'Lden5559');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 60, 65, 'Lden6064');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 65, 70, 'Lden6569');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 70, 75, 'Lden7074');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LD', 75, 200, 'LdenGreaterThan75');
-        
-        -- LDEN Period - Type C
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LD', 68, 200, 'LdenGreaterThan68');
-        
-        -- LN Period - Type A
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 50, 55, 'Lnight5054');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 55, 60, 'Lnight5559');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 60, 65, 'Lnight6064');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 65, 70, 'Lnight6569');
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('A', 'LN', 70, 200, 'LnightGreaterThan70');
-        
-        -- LN Period - Type C
-        INSERT INTO ROAD_NOISE_LEVEL_RANGES (cbstype, period, noiselevel_start, noiselevel_end, noiselevel) VALUES ('C', 'LN', 62, 200, 'LnightGreaterThan62');
+        ${rangeSql}
+
         -- Create main exposure table to upload
-        DROP TABLE IF EXISTS EXPO_${projectionName};
-        CREATE TABLE EXPO_${projectionName}(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
-         dwellings double, hospitals int, schools int, cpi int, ha int, hsd int, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2));
+        DROP TABLE IF EXISTS EXPOSURE_RANGES;
+        CREATE TABLE EXPOSURE_RANGES(pk varchar not null primary key, nutscode varchar, uueid varchar, noiselevel varchar, people double,
+         dwellings double, hospitals int, schools int,rr float, ha float, hsd float, area float, indicetype varchar, noiselevel_start numeric(5,2), noiselevel_end numeric(5,2), noiselevel_mid numeric(5,2));
         -- Fill with default values
-        INSERT INTO EXPO_${projectionName}
+        INSERT INTO EXPOSURE_RANGES
          SELECT CONCAT('${uueid}','_', noiselevel) pk, '${nutsCode}', '${uueid}', noiselevel, 0, 0, 0, 0, 0, 0, 0, 0.0,
-             period, noiselevel_start, noiselevel_end
+             period, noiselevel_start, noiselevel_end, noiselevel_mid
          FROM ROAD_NOISE_LEVEL_RANGES WHERE cbstype = 'A';
         -- Update individual dwellings/schools/hospitals count from FACADE_EXPO_MAX_LEVEL table
-        UPDATE EXPO_${projectionName} SET dwellings = dwellings
+        UPDATE EXPOSURE_RANGES SET dwellings = dwellings
              + (SELECT COUNT(*) FROM FACADE_EXPO_MAX_LEVEL FL WHERE 
                  ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
                  (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND POP > 0),
@@ -389,33 +517,64 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
                  ((indicetype = 'LD' AND FL.LDEN >= noiselevel_start AND FL.LDEN < noiselevel_end) OR
                  (indicetype = 'LN' AND FL.LN >= noiselevel_start AND FL.LN < noiselevel_end)) AND erps_nature is null);
         -- Update collective dwellings people using the lden and ln rank (keeping 50% of most exposed receivers)        
-        UPDATE EXPO_${projectionName} SET people = people 
+        UPDATE EXPOSURE_RANGES SET people = people 
              + COALESCE((SELECT sum(b.POP::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
                indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
-        UPDATE EXPO_${projectionName} SET people = people 
+        UPDATE EXPOSURE_RANGES SET people = people 
              + COALESCE((SELECT sum(b.POP::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
         -- Update collective dwellings appartments using the lden and ln rank (keeping 50% of most exposed receivers)        
-        UPDATE EXPO_${projectionName} SET dwellings = dwellings 
+        UPDATE EXPOSURE_RANGES SET dwellings = dwellings 
              + COALESCE((SELECT sum(b.NB_LOGTS_C::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_lden <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_lden <= 0.5 and
                indicetype = 'LD' AND FE.LDEN >= noiselevel_start AND FE.LDEN < noiselevel_end), 0);
-        UPDATE EXPO_${projectionName} SET dwellings = dwellings 
+        UPDATE EXPOSURE_RANGES SET dwellings = dwellings 
              + COALESCE((SELECT sum(b.NB_LOGTS_C::float/(select count(*) from FACADE_EXPO AFE where AFE.rank_ln <= 0.5 and AFE.pkbat=FE.pkbat)) popshare
               FROM FACADE_EXPO FE INNER JOIN BUILDINGS B ON (FE.pkbat = B.pk) 
               WHERE NB_LOGTS_C > 1 and pop > 0 and FE.rank_ln <= 0.5 and
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
-        -- Update Area using the ISOPHONES table     
-        UPDATE EXPO_${projectionName} EXPO SET area = area 
-             + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
         """)
 
-    logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO_${projectionName}""" as String, 120))
+    generateHealthStatistics(h2Connection, projectionName)
+}
+
+static def generateHealthStatistics(Connection h2Connection, String projectionName) {
+
+    def cpiPerPersonPerYear = 0.001377
+
+    runScript(h2Connection, """
+        -- Compute RR
+        UPDATE EXPOSURE_RANGES EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END WHERE indicetype = 'LD';
+        -- Compute HA
+        UPDATE EXPOSURE_RANGES EXPO SET HA = people * (78.9270 - 3.1162 * noiselevel_mid + 0.0342 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LD';
+        UPDATE EXPOSURE_RANGES EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LN';
+        -- Create global indicators
+        DROP TABLE IF EXISTS EXPO_GLOBAL_${projectionName};
+        CREATE TABLE EXPO_GLOBAL_${projectionName}(uueid varchar not null primary key,nutscode varchar, cpi double precision, ha double precision, hsd double precision);
+        INSERT INTO EXPO_GLOBAL_${projectionName}(uueid, nutscode, cpi, ha, hsd)
+        WITH GlobalTotal AS (
+            SELECT CAST(SUM(pop) AS DOUBLE) AS T 
+            FROM BUILDINGS
+        )
+        SELECT 
+            uueid, 
+            nutscode,
+            (
+                (SUM(CAST(CASE WHEN indicetype = 'LD' AND RR > 1 THEN people * (RR - 1) ELSE 0 END AS DOUBLE)) * T)
+                / 
+                (SUM(CAST(CASE WHEN indicetype = 'LD' AND RR > 1 THEN people * (RR - 1) ELSE 1 END AS DOUBLE)) + T)
+            ) * CAST(${cpiPerPersonPerYear} AS DOUBLE) AS cpi,
+        
+            SUM(CAST(CASE WHEN indicetype = 'LD' THEN HA ELSE 0 END AS DOUBLE)) AS ha,
+            SUM(CAST(CASE WHEN indicetype = 'LN' THEN HSD ELSE 0 END AS DOUBLE)) AS hsd 
+        FROM EXPOSURE_RANGES, GlobalTotal
+        GROUP BY uueid, nutscode, T;
+        """)
 }
 
 def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<String, String> codeDeptToNuts) {
@@ -463,6 +622,9 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
         ) RL ON RL.IDRECEIVER = R.PK
         WHERE R.PK > @LASTDELAUNAY
           AND RL.MAX_LAEQ > 0;
+        CREATE INDEX ON FACADE_EXPO (pkbat);
+        CREATE INDEX ON FACADE_EXPO(lden);
+        CREATE INDEX ON FACADE_EXPO(ln);
     """)
 }
 
@@ -521,6 +683,35 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
 
 }
 
+/**
+ * Generates an H2 CASE statement string for noise labels expected by the final postgres database.
+ * @param period 'LD' or 'LN'
+ * @param isoClass e.g., "55.0,60.0,65.0,70.0,75.0,200.0"
+ */
+static def generateIsoCaseStatement(String period, String isoClass) {
+    List<Double> levels = isoClass.split(',').collect { it.toDouble() }
+    String prefix = (period == 'LD') ? 'Lden' : 'Lnight'
+
+    // If only one range exists (e.g., 68.0, 200.0), return the label directly
+    if (levels.size() == 2) {
+        return "'${prefix}GreaterThan${levels[0].toInteger()}'"
+    }
+
+    // Otherwise, generate the full CASE statement
+    StringBuilder sb = new StringBuilder("(CASE ")
+    for (int i = 0; i < levels.size() - 1; i++) {
+        double start = levels[i]
+        double end = levels[i + 1]
+
+        if (i < levels.size() - 2) {
+            sb.append("WHEN ISOLABEL = '${start.toInteger()}-${end.toInteger()}' THEN '${prefix}${start.toInteger()}${(end - 1).toInteger()}' ")
+        } else {
+            sb.append("WHEN ISOLABEL = '${start.toInteger()}+' THEN '${prefix}GreaterThan${start.toInteger()}' ")
+        }
+    }
+    sb.append("END)")
+    return sb.toString()
+}
 
 /**
  * <p>Precondition: The RECEIVERS_LEVEL_$uueid table must exist when calling this function.</p>
@@ -533,34 +724,28 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor stepsProgress = progress.subProcess(2)
 
-    // 1. Extract metadata
+    // Extract metadata
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
     logger.info("Processing CBS uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
 
-    // 2. Prepare Noise Level Tables
+    // Prepare Noise Level Tables
     setupResultTables(h2Connection, uueid)
 
-    // 3. Define the Noise Level CASE statements for CBS Type A
-    def caseLdenA = "(CASE WHEN ISOLABEL = '55-60' THEN 'Lden5559' WHEN ISOLABEL = '60-65' THEN 'Lden6064' WHEN ISOLABEL = '65-70' THEN 'Lden6569' WHEN ISOLABEL = '70-75' THEN 'Lden7074' WHEN ISOLABEL = '75+' THEN 'LdenGreaterThan75' END)"
-    def caseLnightA = "(CASE WHEN ISOLABEL = '50-55' THEN 'Lnight5054' WHEN ISOLABEL = '55-60' THEN 'Lnight5559' WHEN ISOLABEL = '60-65' THEN 'Lnight6064' WHEN ISOLABEL = '65-70' THEN 'Lnight6569' WHEN ISOLABEL = '70+' THEN 'LnightGreaterThan70' END)"
-
-    // 4. Generate the 4 CBS Maps
-
-
+    // Generate the 4 CBS Maps
     new Execute_Query().exec(h2Connection, [sqlQueries: "DROP TABLE IF EXISTS ISOPHONES;", outputFormat: "json"], new EmptyProgressVisitor())
 
     // CBS A - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "55.0,60.0,65.0,70.0,75.0,200.0", caseLdenA, "LD", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
 
     // CBS A - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "50.0,55.0,60.0,65.0,70.0,200.0", caseLnightA, "LN", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0")
 
     // CBS C - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "'LdenGreaterThan68'", "LD", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "LD", "C", "ISOLVL = 1")
 
     // CBS C - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "'LdenGreaterThan62'", "LN", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "LN", "C", "ISOLVL = 1")
 }
 
 /**
@@ -621,8 +806,8 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
 /**
  * Main sub-function to process Isosurfaces and Insert into ISOPHONES
  */
-private static void processIsoContouring(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
-    Sql h2Sql = new Sql(conn)
+private static void processIsoContouring(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String period, String cbsType, String filter) {
+    String noiseLevelExpr = generateIsoCaseStatement(period, isoClass);
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
     // Initialize ISOPHONES table if not exists

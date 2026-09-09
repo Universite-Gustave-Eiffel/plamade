@@ -581,46 +581,10 @@ private void setupResultTables(Connection h2Connection, String uueid) {
     new Execute_Query().exec(h2Connection, [sqlQueries: sql, outputFormat: "json"], new EmptyProgressVisitor())
 }
 
-static def generateIsoClassSql(String fieldName, String rangeStr) {
-    // Convert '55.0,60.0...' into a list of Doubles
-    List<Double> levels = rangeStr.split(',').collect { it.toDouble() }
-
-    // Helper to format numbers (remove .0 if not needed)
-    def fmt = { Double d -> d % 1 == 0 ? d.toInteger().toString() : d.toString() }
-
-    StringBuilder sql = new StringBuilder("CASE ")
-
-    for (int i = 0; i < levels.size(); i++) {
-        double current = levels[i]
-
-        if (i == 0) {
-            // Case for values lower than the first threshold: e.g. < 55 -> '-55'
-            sql.append("WHEN $fieldName < $current THEN '-${fmt(current)}' ")
-        }
-
-        // Ranges between thresholds: e.g. >= 55 AND < 60 -> '55-60'
-        if (i > 0 && i < levels.size()) {
-            double prev = levels[i-1]
-            String label
-
-            if (i == levels.size() - 1) {
-                label = "${fmt(prev)}+"
-                sql.append("ELSE '$label' ")
-            } else {
-                label = "${fmt(prev)}-${fmt(current)}"
-                sql.append("WHEN $fieldName >= $prev AND $fieldName < $current THEN '$label' ")
-            }
-        }
-    }
-    sql.append("END")
-    return sql.toString()
-}
-
 /**
  * Main sub-function to process Isosurfaces and Insert into ISOPHONES
  */
 private static void processIsoContouring(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String noiseLevelExpr, String period, String cbsType, String filter) {
-    Sql h2Sql = new Sql(conn)
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
     // Initialize ISOPHONES table if not exists
@@ -638,7 +602,7 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
     ], progress)
 
     // For IsoSurface convert in sql the LAEQ value into the expected ISOLABEL that should be produced by Create_Isosurface block
-    def caseWhenSql = generateIsoClassSql("MIN(LAEQ)", isoClass)
+    def caseWhenSql = ComputePerUUEID.generateIsoClassSql("MIN(LAEQ)", isoClass)
 
     // Insert results into ISOPHONES
     new Execute_Query().exec(conn, [sqlQueries: """

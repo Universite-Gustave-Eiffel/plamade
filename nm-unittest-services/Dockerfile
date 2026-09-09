@@ -12,9 +12,10 @@ RUN apt-get update && apt-get install -y \
     && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash \
     && rm -f /etc/profile.d/modules.sh /usr/share/modules/init/bash \
     && sed -i -e 's/^allow setuid =.*/allow setuid = yes/' \
-              -e 's/^enable overlay =.*/enable overlay = no/' \
-              -e 's/^mount dev =.*/mount dev = yes/' \
-              -e 's/^bind path =.*/bind path = /' /etc/apptainer/apptainer.conf \
+                  -e 's/^enable overlay =.*/enable overlay = no/' \
+                  -e 's/^mount dev =.*/mount dev = yes/' \
+                  -e 's/^mount home =.*/mount home = no/' /etc/apptainer/apptainer.conf \
+    && echo "bind path = /scratch" >> /etc/apptainer/apptainer.conf \
     && find /usr -name starter-suid -exec chmod u+s {} + \
     && rm -f /usr/bin/singularity && chmod 777 /usr/local/bin \
     && printf "#!/bin/bash\n\
@@ -38,6 +39,8 @@ esac\n" > /usr/local/bin/module && chmod +x /usr/local/bin/module \
     && printf "#!/bin/bash\nrm -rf /scratch/job.\${SLURM_JOB_ID}\n" > /etc/slurm/epilog.sh \
     && chmod +x /etc/slurm/epilog.sh \
     && echo "Epilog=/etc/slurm/epilog.sh" >> /etc/slurm/slurm.conf \
+    && userdel -r docker || true \
+    && groupdel docker || true \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY prolog.sh /etc/slurm/prolog.sh
@@ -60,7 +63,7 @@ if [ -n \"\$PUBLIC_KEY\" ]; then\n\
     chmod 600 \"\$USER_HOME/.ssh/authorized_keys\"\n\
 fi\n\
 [ \"\$SUDO_ACCESS\" = \"true\" ] && echo \"\$USERNAME ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/\$USERNAME\n\
-sysctl -w kernel.unprivileged_userns_clone=1 || true\n\
+if [ -f /proc/sys/kernel/unprivileged_userns_clone ]; then sysctl -w kernel.unprivileged_userns_clone=1 2>/dev/null || true; fi\n\
 service ssh start\n\
 /etc/startup.sh \"\$@\"\n\
 tail -f /dev/null\n" > /usr/local/bin/init-ssh-slurm.sh && chmod +x /usr/local/bin/init-ssh-slurm.sh

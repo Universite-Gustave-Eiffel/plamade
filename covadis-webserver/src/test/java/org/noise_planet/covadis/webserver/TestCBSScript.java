@@ -37,10 +37,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -265,8 +262,10 @@ public class TestCBSScript extends JDBCTestCase {
                 new EmptyProgressVisitor());
 
         // Check cbs
-        List<String> expectedCbs = Arrays.asList("Lden5559", "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan62",
-                "LdenGreaterThan68", "LdenGreaterThan75", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569", "LnightGreaterThan70");
+        List<String> expectedCbs = Arrays.asList("Lden3539", "Lden4044", "Lden4549", "Lden5054", "Lden5559",
+                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan68", "LdenGreaterThan75", "Lnight3034",
+                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan62", "LnightGreaterThan70");
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_hexa\" order by noiselevel;")) {
@@ -274,6 +273,7 @@ public class TestCBSScript extends JDBCTestCase {
                 assertTrue(resultSet.next());
                 assertEquals(expectedCb, resultSet.getString("noiselevel"));
             }
+            assertFalse(resultSet.next());
         }
 
         try(Connection pgConnection = pgDataSource.getConnection();
