@@ -79,13 +79,13 @@ inputs = [
 outputs = [result: [name: 'Result output string', title: 'Result output string', description: 'Result table name. Can be used as input for another WPS process', type: String.class]]
 
 @Field
-int batchSize = 100
+static final int batchSize = 100
 
 /**
  * Maximum length for local computation, use HPC from this length of sound sources
  */
 @Field
-double lengthMaxLocalComputation = 1000
+static final double lengthMaxLocalComputation = 1000
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -1027,10 +1027,17 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
         bdAltiTableName.add(row.bd_alti as String)
     }
 
+    fetchDemFromTableList(stepsProgress, bdAltiTableName, pgConnection, h2Connection, extractionEnvelopeGeometry, input)
+
+}
+
+static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> bdAltiTableName, Connection pgConnection, Connection h2Connection, String extractionEnvelopeGeometry, Map input) {
     ProgressVisitor subProgress = stepsProgress.subProcess(bdAltiTableName.size())
 
-    def xyPrecision = 2 // cm precision
-    def zPrecision = 2 // cm precision
+    def xyPrecision = 2
+    // cm precision
+    def zPrecision = 2
+    // cm precision
     bdAltiTableName.forEach { tableName ->
         PostGISUtilities.fetchDemTable(pgConnection, h2Connection, "bd_alti.${tableName}",
                 "DEM", extractionEnvelopeGeometry, subProgress, xyPrecision, zPrecision)
@@ -1040,7 +1047,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
          FROM bd_topo.n_ligne_orographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
 
-    try( Statement st = pgConnection.createStatement() ;
+    try (Statement st = pgConnection.createStatement();
          ResultSet rs = st.executeQuery(fetchOroTableQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "OROGRAPHIC", true, batchSize)
     }
@@ -1058,7 +1065,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
          FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0 AND position_par_rapport_au_sol = '0'"""
 
-    try( Statement st = pgConnection.createStatement() ;
+    try (Statement st = pgConnection.createStatement();
          ResultSet rs = st.executeQuery(fetchHydroTableQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "HYDROGRAPHIC", true, batchSize)
     }
@@ -1071,7 +1078,6 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
     new Execute_Query().exec(h2Connection,
             Map.of("sqlQueries", insertHydroQuery, "outputFormat", "json"),
             new EmptyProgressVisitor())
-
 }
 
 def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
