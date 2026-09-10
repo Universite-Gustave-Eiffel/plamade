@@ -1,5 +1,6 @@
 package org.noise_planet.covadis.scripts.CBS
 
+import com.zaxxer.hikari.HikariDataSource
 import groovy.sql.Sql
 import groovy.transform.CompileStatic
 import groovy.transform.Field
@@ -107,21 +108,11 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pgConnection.setAutoCommit(true)
         Sql sql = new Sql(pgConnection)
 
-        def mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}" as String)
+        def mainConfiguration = fetchNoiseModellingConfiguration(sql, input.conf as Integer)
 
         // Fetch nuts table
-        logger.info("Fetching NUTS table...")
-        Map<String, String> codeDeptToNuts = new HashMap<>()
-        sql.rows("SELECT code_dept, code_2021 FROM cbs_uge_input.nm_nuts" as String).each {
-            row ->
-                codeDeptToNuts.put(row.code_dept as String, row.code_2021 as String)
-        }
+        Map<String, String> codeDeptToNuts = fetchCodeDeptToNutsMap(logger, sql)
 
-        // Log main configuration entries
-        logger.info("Configuration:")
-        mainConfiguration.each {   entry ->
-            logger.info("$entry.key : $entry.value")
-        }
 
         List<String> uueids = new ArrayList<>()
         sql.rows("SELECT DISTINCT uueid from cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '${input.uueid_pattern}'" as String).each {
@@ -140,15 +131,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             DataSource h2DataSource = DatabaseManagement.createH2DataSource(tempDirectory.getAbsolutePath() ,
                     "h2_${it}", "sa", "sa", "", true)
             logger.info("Create database for UUEID: $it in directory: $tempDirectory")
-            // Copy the two configuration tables
-            try(Connection h2Connection = h2DataSource.getConnection()) {
-                try(Statement st = connection.createStatement(); ResultSet rs = st.executeQuery("SELECT * FROM POSTGIS_CONFIGURATION")) {
-                    PostGISUtilities.copyResultSetToDatabase(connection, rs, h2Connection, "POSTGIS_CONFIGURATION", true, batchSize)
-                }
-                try(Statement st = connection.createStatement(); ResultSet rs = st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
-                    PostGISUtilities.copyResultSetToDatabase(connection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
-                }
-            }
+            copyConfigurationTables(h2DataSource, connection)
             computeForUUEID(it, h2DataSource, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
 
             // Delete the database file
@@ -163,6 +146,42 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
 
+}
+
+static Map<String, String> fetchCodeDeptToNutsMap(Sql sql) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetching NUTS table...")
+    Map<String, String> codeDeptToNuts = new HashMap<>()
+    sql.rows("SELECT code_dept, code_2021 FROM cbs_uge_input.nm_nuts" as String).each { row ->
+        codeDeptToNuts.put(row.code_dept as String, row.code_2021 as String)
+    }
+    codeDeptToNuts
+}
+
+static Map fetchNoiseModellingConfiguration(Sql sql, int configurationId) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    def mainConfiguration = sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${configurationId}" as String)
+    // Log main configuration entries
+    logger.info("Configuration:")
+    mainConfiguration.each { entry -> logger.info("$entry.key : $entry.value")
+    }
+    mainConfiguration
+}
+
+static def void copyConfigurationTables(HikariDataSource h2DataSource, Connection sourceConnection) {
+    // Copy the two configuration tables
+    try (Connection h2Connection = h2DataSource.getConnection()) {
+        try (Statement st = sourceConnection.createStatement(); ResultSet rs =
+                st.executeQuery("SELECT * FROM POSTGIS_CONFIGURATION")) {
+            PostGISUtilities
+                    .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "POSTGIS_CONFIGURATION", true, batchSize)
+        }
+        try (Statement st = sourceConnection.createStatement(); ResultSet rs =
+                st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
+            PostGISUtilities
+                    .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
+        }
+    }
 }
 
 def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map<String, String> codeDeptToNuts) {
@@ -193,7 +212,9 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
                 pgConnection,
                 extractionEnvelopeGeometryWKT, h2Connection, stepsProgress, mainConfiguration.wall_alpha as Double)
 
-        generateReceivers(input, pgConnection, uueid, extractionEnvelopeGeometry, h2Connection,
+        fetchAllRoadsUsingUUEID(input, uueid, pgConnection, h2Connection)
+
+        generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress)
 
         processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress)
@@ -901,7 +922,7 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
  * @param stepsProgress Progress visitor for tracking steps
  * @return
  */
-def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
+static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor subSteps = stepsProgress.subProcess(4)
 
@@ -953,17 +974,6 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
 
     logger.info("Generate Delaunay receivers")
-    // Fetch all roads using the UUEID query
-    def roadQuery = """SELECT geom as the_geom, largeur as width
-        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE uueid = '${uueid}'"""
-    try( Statement st = pgConnection.createStatement() ;
-         ResultSet rs = st.executeQuery(roadQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
-    }
-
-    ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], subSteps)
-
 
     runScript(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;");
 
@@ -1011,6 +1021,19 @@ def generateReceivers(Map input,Connection pgConnection,String uueid, Geometry e
             ALTER TABLE RECEIVERS ADD PRIMARY KEY (PK);
         """ as String, "outputFormat", "html"),
             new EmptyProgressVisitor())
+}
+
+static void fetchAllRoadsUsingUUEID(Map input, String uueid, Connection pgConnection, Connection h2Connection) {
+    // Fetch all roads using the UUEID query
+    def roadQuery = """SELECT geom as the_geom, largeur as width
+        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
+        WHERE uueid = '${uueid}'"""
+    try (Statement st = pgConnection.createStatement();
+         ResultSet rs = st.executeQuery(roadQuery)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+    }
+
+    ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], new EmptyProgressVisitor())
 }
 
 def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {

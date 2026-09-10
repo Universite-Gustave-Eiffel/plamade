@@ -449,3 +449,13 @@ CREATE TABLE cbs_uge_input.n_ferroviaire_ligne (
 	mnemo_type varchar(5) NULL
 );
 
+CREATE TABLE cbs_uge_input.nm_departement_2154 (
+	the_geom public.geometry NULL,
+	id varchar(24) NULL,
+	nom_dep varchar(30) NULL,
+	insee_dep varchar(3) NULL,
+	insee_reg varchar(2) NULL
+);
+CREATE INDEX nm_departement_2154_geom_idx ON cbs_uge_input.nm_departement_2154 USING gist (the_geom);
+CREATE INDEX nm_departement_2154_insee_dep_idx ON cbs_uge_input.nm_departement_2154 USING btree (insee_dep);
+

@@ -148,6 +148,7 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql");
                     runSqlFile(pgConnection, "database/n_ferroviaire_ligne.sql.zip");
                     runSqlFile(pgConnection, "database/n_ferroviaire_troncon.sql.zip");
+                    runSqlFile(pgConnection, "database/nm_departement_2154.sql.zip");
                     // Extract DEM data from tiny wkb
                     statement.execute("""
                                       INSERT INTO bd_alti.d091 (the_geom)

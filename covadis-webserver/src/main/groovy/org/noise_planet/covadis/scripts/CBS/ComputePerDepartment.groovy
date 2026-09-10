@@ -2,10 +2,14 @@ package org.noise_planet.covadis.scripts.CBS
 
 import groovy.sql.Sql
 import groovy.transform.Field
+import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
+import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
+import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.webserver.database.DatabaseManagement
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -66,20 +70,11 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pgConnection.setAutoCommit(true)
         Sql sql = new Sql(pgConnection)
 
-        def mainConfiguration =
-                sql.firstRow("SELECT * FROM cbs_uge_input.nm_conf WHERE confid = ${input.conf}" as String)
+        def mainConfiguration = ComputePerUUEID.fetchNoiseModellingConfiguration(sql, input.conf as Integer)
 
         // Fetch nuts table
-        logger.info("Fetching NUTS table...")
-        Map<String, String> codeDeptToNuts = new HashMap<>()
-        sql.rows("SELECT code_dept, code_2021 FROM cbs_uge_input.nm_nuts" as String).each { row ->
-            codeDeptToNuts.put(row.code_dept as String, row.code_2021 as String)
-        }
+        def codeDeptToNuts = ComputePerUUEID.fetchCodeDeptToNutsMap(sql)
 
-        // Log main configuration entries
-        logger.info("Configuration:")
-        mainConfiguration.each { entry -> logger.info("$entry.key : $entry.value")
-        }
 
         // Fetch all uueid related to this department (on propagation distance from the border of this department)
         List<String> uueids = new ArrayList<>()
@@ -97,19 +92,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         DataSource h2DataSource = DatabaseManagement.createH2DataSource(tempDirectory.getAbsolutePath(),
                 "h2_${input.department}", "sa", "sa", "", true)
         logger.info("Create database for department ${input.department} in directory: $tempDirectory")
-        // Copy the two configuration tables
-        try (Connection h2Connection = h2DataSource.getConnection()) {
-            try (Statement st = connection.createStatement(); ResultSet rs =
-                    st.executeQuery("SELECT * FROM POSTGIS_CONFIGURATION")) {
-                PostGISUtilities
-                        .copyResultSetToDatabase(connection, rs, h2Connection, "POSTGIS_CONFIGURATION", true, batchSize)
-            }
-            try (Statement st = connection.createStatement(); ResultSet rs =
-                    st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
-                PostGISUtilities
-                        .copyResultSetToDatabase(connection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
-            }
-        }
+        ComputePerUUEID.copyConfigurationTables(h2DataSource, connection)
 
         computeForDepartment(
                 input.department, h2DataSource, pgConnection, progress, input, mainConfiguration, codeDeptToNuts)
@@ -125,6 +108,67 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 }
 
-def computeForDepartment(department, h2DataSource, pgConnection, progress, input, mainConfiguration, codeDeptToNuts) {
+def computeForDepartment(String department, h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, mainConfiguration, Map codeDeptToNuts) {
+    def pgSql = new Sql(pgConnection)
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Computing for department: $department")
+    try (Connection h2Connection = h2DataSource.getConnection()) {
+        // Compute envelope of the simulation
+        def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+        def res = pgSql.firstRow("""SELECT 
+             st_simplify(st_buffer(the_geom, ${
+            mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
+             FROM cbs_uge_input.nm_departement_$projectionCode WHERE insee_dep = '${department}';""" as String)
+        if (res == null) {
+            throw new IllegalArgumentException("No match for the provided department '${department}'")
+        }
 
+        def extractionEnvelopeGeometry = res.geomenv as Geometry
+        def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
+
+        fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, progress)
+
+        ComputePerUUEID.fetchBuildings(input,
+                pgConnection,
+                extractionEnvelopeGeometryWKT,
+                h2Connection, new EmptyProgressVisitor(), mainConfiguration.wall_alpha as Double)
+
+        fetchAllRoadsUsingInseeDep(input, pgConnection, h2Connection)
+
+        ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
+                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor())
+    }
+}
+
+
+def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
+    Sql pgSql = new Sql(pgConnection)
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch digital elevation model..")
+    def fetchTableNamesQuery = """
+        SELECT bd_alti
+        FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
+        WHERE nldirh.insee_dep = '${input.department}';
+    """
+    def bdAltiTableName = new HashSet<String>()
+    pgSql.rows(fetchTableNamesQuery as String).each { row ->
+        bdAltiTableName.add(row.bd_alti as String)
+    }
+
+    ComputePerUUEID.fetchDemFromTableList(stepsProgress, bdAltiTableName, pgConnection, h2Connection, extractionEnvelopeGeometry, input)
+}
+
+
+static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Connection h2Connection) {
+    // Fetch all roads using the UUEID query
+    def roadQuery = """SELECT geom as the_geom, largeur as width
+        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName} INNER JOIN cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}
+        ON cbs_uge_input.n_routier_troncon_l_${input.projectionName}.uueid = cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}.uueid
+        WHERE cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}.insee_dep = '${input.department}'"""
+    try (Statement st = pgConnection.createStatement();
+         ResultSet rs = st.executeQuery(roadQuery)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+    }
+
+    ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], new EmptyProgressVisitor())
 }
