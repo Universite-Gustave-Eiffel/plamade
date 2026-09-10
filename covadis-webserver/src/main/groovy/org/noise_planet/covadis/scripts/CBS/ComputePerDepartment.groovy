@@ -176,6 +176,24 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
             posSols.removeElement(posSol)
         }
     }
+
+
+    try(Connection h2Connection = h2DataSource.getConnection()) {
+        // Merge noise levels for each pos sols
+        ComputePerUUEID.mergeReceiversLevels(posSols, h2Connection)
+
+        // Generate IsoContours
+        ComputePerUUEID.generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
+
+        ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts)
+
+        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
+
+        // Upload CBS Table to remote PostGIS database
+        uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
+
+        uploadIndicatorsTables(h2Connection, pgConnection, uueid, input.projectionName as String)
+    }
 }
 
 def enrichDem(Map input, String department, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {

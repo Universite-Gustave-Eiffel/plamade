@@ -257,8 +257,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
     try(Connection h2Connection = h2DataSource.getConnection()) {
         // Merge noise levels for each pos sols
 
-        def h2Sql = new Sql(h2Connection)
-        mergeReceiversLevels(posSols, h2Connection, uueid, logger, h2Sql)
+        mergeReceiversLevels(posSols, h2Connection)
 
         // Generate IsoContours
         generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
@@ -753,7 +752,7 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     // Extract metadata
     def codeDept = uueid.split("_")[3].substring(0, 3)
     def nutsCode = codeDeptToNuts.get(codeDept)
-    logger.info("Processing CBS uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
+    logger.info("Processing CBS codeDept: $codeDept, nutsCode: $nutsCode")
 
     // Prepare Noise Level Tables
     setupResultTables(h2Connection)
@@ -762,16 +761,16 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     new Execute_Query().exec(h2Connection, [sqlQueries: "DROP TABLE IF EXISTS ISOPHONES;", outputFormat: "json"], new EmptyProgressVisitor())
 
     // CBS A - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, nutsCode, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
 
     // CBS A - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_MERGED", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, nutsCode, "RECEIVERS_LEVEL_NIGHT_MERGED", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0")
 
     // CBS C - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_MERGED", "68.0,200.0", "LD", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, nutsCode, "RECEIVERS_LEVEL_DEN_MERGED", "68.0,200.0", "LD", "C", "ISOLVL = 1")
 
     // CBS C - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_MERGED", "62.0,200.0", "LN", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, nutsCode, "RECEIVERS_LEVEL_NIGHT_MERGED", "62.0,200.0", "LN", "C", "ISOLVL = 1")
 }
 
 /**
@@ -887,7 +886,7 @@ static String getRoadsLevelsTableName(String posSol) {
  * @param logger Logger instance
  * @param h2Sql h2 SQL instance
  */
-private void mergeReceiversLevels(List<String> posSols, Connection h2Connection, String uueid, Logger logger, Sql h2Sql) {
+static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) {
     def posSolsToProcess = new ArrayList<String>(posSols)
     def firstPosSol = posSolsToProcess.pop()
     GeometryMetaData metaData =
