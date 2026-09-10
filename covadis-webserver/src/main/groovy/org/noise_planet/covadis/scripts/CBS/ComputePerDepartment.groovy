@@ -5,11 +5,14 @@ import groovy.transform.Field
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+import org.h2gis.utilities.GeometryMetaData
+import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
+import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
 import org.noise_planet.noisemodelling.webserver.database.DatabaseManagement
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -75,18 +78,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         // Fetch nuts table
         def codeDeptToNuts = ComputePerUUEID.fetchCodeDeptToNutsMap(sql)
 
-
-        // Fetch all uueid related to this department (on propagation distance from the border of this department)
-        List<String> uueids = new ArrayList<>()
-
-        def fetchTableNamesQuery = """
-            SELECT distinct uueid FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
-            WHERE nldirh.insee_dep = '$input.department' ORDER BY uueid;
-        """
-        Sql pgSql = new Sql(pgConnection)
-        pgSql.rows(fetchTableNamesQuery as String).each { row -> uueids.add(row.uueid as String)
-        }
-
         def tempDirectory = File.createTempDir()
         // Create a local H2 database for this task
         DataSource h2DataSource = DatabaseManagement.createH2DataSource(tempDirectory.getAbsolutePath(),
@@ -94,8 +85,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         logger.info("Create database for department ${input.department} in directory: $tempDirectory")
         ComputePerUUEID.copyConfigurationTables(h2DataSource, connection)
 
-        computeForDepartment(
-                input.department, h2DataSource, pgConnection, progress, input, mainConfiguration, codeDeptToNuts)
+        computeForDepartment(input.department as String, h2DataSource, pgConnection, progress, input, mainConfiguration, codeDeptToNuts)
 
         // Delete the database file
         if (h2DataSource instanceof Closeable) {
@@ -108,7 +98,22 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 }
 
-def computeForDepartment(String department, h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, mainConfiguration, Map codeDeptToNuts) {
+
+def fetchRoads(Map input, Connection pgConnection, Connection h2Connection, ProgressVisitor stepsProgress, String posSol) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch roads..")
+    Sql h2Sql = new Sql(h2Connection)
+    def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} 
+      WHERE uueid IN (SELECT DISTINCT uueid FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} WHERE insee_dep = '${input.department}') 
+      AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
+
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(roadsQuery)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
+    }
+}
+
+def computeForDepartment(String department, DataSource h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map codeDeptToNuts) {
     def pgSql = new Sql(pgConnection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for department: $department")
@@ -137,9 +142,62 @@ def computeForDepartment(String department, h2DataSource, Connection pgConnectio
 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor())
+
+        ComputePerUUEID.processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, new EmptyProgressVisitor())
+
+        // Look for the station near the centroid of the department
+        ComputePerUUEID.fetchAtmosphericPeriodFromStations(input, pgConnection, extractionEnvelopeGeometry.centroid, h2Connection, new EmptyProgressVisitor())
+    }
+    def posSols = pgSql.rows("""SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg
+        WHERE (franchisst IS NULL OR franchisst = 'Pont') and UUEID IN (SELECT DISTINCT UUEID 
+        FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE insee_dep = '${input.department}')""" as String)
+            .collect { it.pos_sol as String
+    }
+
+    ProgressVisitor solProgress = progress.subProcess(posSols.size())
+    new ArrayList<>(posSols).forEach { posSol ->
+        logger.info("Compute for pos_sol = $posSol")
+        boolean doCompute
+        try(Connection h2Connection = h2DataSource.getConnection()) {
+            fetchRoads(input, pgConnection,  h2Connection, solProgress, posSol)
+            doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+        }
+
+        // Fetch specific road emission at this special height
+        if(doCompute) {
+            try(Connection h2Connection = h2DataSource.getConnection()) {
+                // Adapt the DEM with this special road height platforms
+                enrichDem(input, department, h2Connection, pgConnection, solProgress, posSol)
+            }
+            // Run the simulation with this road height
+            ComputePerUUEID.runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
+        } else {
+            logger.info("Skip pos_sol {}", posSol)
+            posSols.removeElement(posSol)
+        }
     }
 }
 
+def enrichDem(Map input, String department, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Adapting digital elevation model..")
+    ProgressVisitor demProgress = stepsProgress.subProcess(2)
+
+    // Fetch road table with altitude using the UUEID query
+    def roadQuery = """SELECT geom as the_geom, largeur as width
+        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
+        WHERE uueid IN (SELECT uueid FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} WHERE insee_dep = '${department}')
+        and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery(roadQuery)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
+        demProgress.endStep()
+    }
+
+    // Create a new DEM with road platforms
+    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth: "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
+}
 
 def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
     Sql pgSql = new Sql(pgConnection)

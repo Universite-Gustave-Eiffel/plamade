@@ -10,6 +10,7 @@ import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
+import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.io.twkb.TWKBWriter
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
@@ -219,11 +220,14 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
 
         processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, stepsProgress)
 
-        fetchAtmosphericPeriodFromStations(input, pgConnection, uueid, h2Connection, stepsProgress)
+        Sql h2Sql = new Sql(h2Connection)
+        def roadGeometry = h2Sql.firstRow("SELECT ST_Centroid(ST_ACCUM(the_geom)) FROM ROADS")[0] as Geometry
+
+        fetchAtmosphericPeriodFromStations(input, pgConnection, roadGeometry, h2Connection, stepsProgress)
     }
 
     def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName
-    } AS reg WHERE (franchisst IS NULL OR franchisst = 'Pont')""" as String
+    } AS reg WHERE (franchisst IS NULL OR franchisst = 'Pont') and UUEID = '$uueid'""" as String
 
     def posSols = pgSql.rows(posSolQuery).collect {
         it.pos_sol as String
@@ -233,7 +237,8 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         logger.info("Compute for pos_sol = $posSol")
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
-            doCompute = fetchRoads(input, pgConnection, uueid, h2Connection, solProgress, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+            fetchRoads(input, pgConnection, uueid, h2Connection, posSol)
+            doCompute = GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
         }
         // Fetch specific road emission at this special height
         if(doCompute) {
@@ -456,7 +461,7 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, Str
              + (SELECT SUM(E1DB.HSD) FROM EXPOSURE_RANGES E1DB WHERE E1DB.noiselevel_mid >= E5DB.noiselevel_start AND E1DB.noiselevel_mid < E5DB.noiselevel_end AND E1DB.indicetype=E5DB.indicetype);
         -- Update Area using the ISOPHONES table     
         UPDATE EXPO_${projectionName} EXPO SET area = area 
-             + COALESCE((SELECT AREA FROM ISOPHONES I WHERE I.UUEID = '$uueid' AND cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
+             + COALESCE((SELECT AREA FROM ISOPHONES I WHERE cbstype = 'A' AND EXPO.indicetype = I.PERIOD AND EXPO.NOISELEVEL = I.NOISELEVEL), 0);
     """)
 
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -607,8 +612,8 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
     def nutsCode = codeDeptToNuts.get(codeDept)
     logger.info("Processing Exposure uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
 
-    // RECEIVERS_LEVEL_$uueid
-    def receiversLevelTable = "RECEIVERS_LEVEL_$uueid"
+    // RECEIVERS_LEVEL_MERGED
+    def receiversLevelTable = "RECEIVERS_LEVEL_MERGED"
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM");
@@ -638,7 +643,7 @@ def generateBuildingsFacadeExpo(Connection h2Connection, String uueid, Map<Strin
                 MAX(CASE WHEN PERIOD = 'DEN' THEN LAEQ END) AS LDEN,
                 MAX(CASE WHEN PERIOD = 'N' THEN LAEQ END) AS LN,
                 MAX(LAEQ) as MAX_LAEQ
-            FROM PUBLIC.RECEIVERS_LEVEL_$uueid
+            FROM PUBLIC.RECEIVERS_LEVEL_MERGED
             GROUP BY IDRECEIVER
         ) RL ON RL.IDRECEIVER = R.PK
         WHERE R.PK > @LASTDELAUNAY
@@ -691,12 +696,12 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
     twkbWriter.setXYPrecision(2)
     twkbWriter.setZPrecision(2)
     pgSql.withBatch(batchSize, insertSql) {
-        h2Sql.eachRow("SELECT the_geom, cbstype, typesource, PERIOD, nutscode, pk, uueid, noiselevel FROM ISOPHONES") { row ->
+        h2Sql.eachRow("SELECT the_geom, cbstype, typesource, PERIOD, nutscode, noiselevel FROM ISOPHONES" as String) { row ->
             // Insert into PostGIS table
             it.addBatch(twkbWriter.write(row.getObject("the_geom") as Geometry),
                     row.getString("cbstype"), row.getString("typesource"),
                     row.getString("PERIOD"), row.getString("nutscode"),
-                    row.getString("pk"), row.getString("uueid"),
+                    uueid+'_'+row.getString("noiselevel"), uueid,
                     row.getString("noiselevel"))
         }
     }
@@ -735,7 +740,7 @@ static def generateIsoCaseStatement(String period, String isoClass) {
 }
 
 /**
- * <p>Precondition: The RECEIVERS_LEVEL_$uueid table must exist when calling this function.</p>
+ * <p>Precondition: The RECEIVERS_LEVEL_MERGED table must exist when calling this function.</p>
  * @param h2Connection Connection to h2 database
  * @param uueid Infrastructure identifier
  * @param progress Progress feedback instance
@@ -751,40 +756,39 @@ def generateRoadsCBS(Connection h2Connection, String uueid, ProgressVisitor prog
     logger.info("Processing CBS uueid: $uueid, codeDept: $codeDept, nutsCode: $nutsCode")
 
     // Prepare Noise Level Tables
-    setupResultTables(h2Connection, uueid)
+    setupResultTables(h2Connection)
 
     // Generate the 4 CBS Maps
     new Execute_Query().exec(h2Connection, [sqlQueries: "DROP TABLE IF EXISTS ISOPHONES;", outputFormat: "json"], new EmptyProgressVisitor())
 
     // CBS A - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
 
     // CBS A - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_MERGED", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0")
 
     // CBS C - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_$uueid", "68.0,200.0", "LD", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_DEN_MERGED", "68.0,200.0", "LD", "C", "ISOLVL = 1")
 
     // CBS C - Night
-    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_$uueid", "62.0,200.0", "LN", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, uueid, nutsCode, "RECEIVERS_LEVEL_NIGHT_MERGED", "62.0,200.0", "LN", "C", "ISOLVL = 1")
 }
 
 /**
  * <p>This function creates temporary tables for DEN (Day/Evening/Night) and N (Night) periods
- * by splitting the data from RECEIVERS_LEVEL_$uueid into separate tables with primary keys.</p>
+ * by splitting the data from RECEIVERS_LEVEL_MERGED into separate tables with primary keys.</p>
  *
  * @param h2Connection The database connection
- * @param uueid The UUEID identifier used to qualify table names
  */
-private void setupResultTables(Connection h2Connection, String uueid) {
+private void setupResultTables(Connection h2Connection) {
     def sql = """
-        DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_$uueid, RECEIVERS_LEVEL_NIGHT_$uueid;
-        CREATE TABLE RECEIVERS_LEVEL_DEN_$uueid AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_$uueid WHERE PERIOD='DEN';
-        ALTER TABLE RECEIVERS_LEVEL_DEN_$uueid ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
-        ALTER TABLE RECEIVERS_LEVEL_DEN_$uueid ADD PRIMARY KEY (IDRECEIVER);
-        CREATE TABLE RECEIVERS_LEVEL_NIGHT_$uueid AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_$uueid WHERE PERIOD='N';
-        ALTER TABLE RECEIVERS_LEVEL_NIGHT_$uueid ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
-        ALTER TABLE RECEIVERS_LEVEL_NIGHT_$uueid ADD PRIMARY KEY (IDRECEIVER);
+        DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_MERGED, RECEIVERS_LEVEL_NIGHT_MERGED;
+        CREATE TABLE RECEIVERS_LEVEL_DEN_MERGED AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE PERIOD='DEN';
+        ALTER TABLE RECEIVERS_LEVEL_DEN_MERGED ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
+        ALTER TABLE RECEIVERS_LEVEL_DEN_MERGED ADD PRIMARY KEY (IDRECEIVER);
+        CREATE TABLE RECEIVERS_LEVEL_NIGHT_MERGED AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE PERIOD='N';
+        ALTER TABLE RECEIVERS_LEVEL_NIGHT_MERGED ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
+        ALTER TABLE RECEIVERS_LEVEL_NIGHT_MERGED ADD PRIMARY KEY (IDRECEIVER);
     """
     new Execute_Query().exec(h2Connection, [sqlQueries: sql, outputFormat: "json"], new EmptyProgressVisitor())
 }
@@ -826,8 +830,10 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
 
 /**
  * Main sub-function to process Isosurfaces and Insert into ISOPHONES
+ * @param conn H2 database connection
+ * @param progress Progression instance
  */
-private static void processIsoContouring(Connection conn, ProgressVisitor progress, String uueid, String nutsCode, String sourceTable, String isoClass, String period, String cbsType, String filter) {
+private static void processIsoContouring(Connection conn, ProgressVisitor progress, String nutsCode, String sourceTable, String isoClass, String period, String cbsType, String filter) {
     String noiseLevelExpr = generateIsoCaseStatement(period, isoClass);
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
@@ -858,9 +864,9 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
         -- Merge current isocontour with the triangles under buildings using the isolabel value extracted from the LAEQ of all the receivers of the same building
         INSERT INTO CONTOURING_NOISE_MAP(THE_GEOM, ISOLABEL, ISOLVL) SELECT THE_GEOM, (SELECT isolabel FROM BUILDINGS_MINIMUM_LEVEL WHERE build_pk = T.build_pk), 99 FROM TRIANGLES_OVER_BUILDINGS T;
         -- Insert standard isophones value from contouring noise map
-        INSERT INTO ISOPHONES(the_geom, pk, area, uueid, period, noiselevel, cbstype, nutscode, typesource) 
-        SELECT ST_Multi(ST_Union(ST_Accum(THE_GEOM))) THE_GEOM, concat('$uueid', '_', $noiseLevelExpr), SUM(st_area(the_geom)) / 1e6 area, 
-               '$uueid', '$period', $noiseLevelExpr, '$cbsType', '$nutsCode', 'R'
+        INSERT INTO ISOPHONES(the_geom, area, period, noiselevel, cbstype, nutscode, typesource) 
+        SELECT ST_Multi(ST_Union(ST_Accum(THE_GEOM))) THE_GEOM, SUM(st_area(the_geom)) / 1e6 area, 
+               '$period', $noiseLevelExpr, '$cbsType', '$nutsCode', 'R'
         FROM CONTOURING_NOISE_MAP 
         WHERE $filter 
         GROUP BY ISOLABEL;
@@ -887,21 +893,21 @@ private void mergeReceiversLevels(List<String> posSols, Connection h2Connection,
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, getRoadsLevelsTableName(firstPosSol), "THE_GEOM");
     def mergeLevelsQuery = """
-        DROP TABLE IF EXISTS RECEIVERS_LEVEL_$uueid;
-        CREATE TABLE RECEIVERS_LEVEL_$uueid(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
+        DROP TABLE IF EXISTS RECEIVERS_LEVEL_MERGED;
+        CREATE TABLE RECEIVERS_LEVEL_MERGED(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
     """ as String
 
     mergeLevelsQuery += """
-        INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(firstPosSol)};
+        INSERT INTO RECEIVERS_LEVEL_MERGED SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(firstPosSol)};
     """ as String
 
     posSolsToProcess.each { posSol ->
         // update existing rows then insert new rows
         mergeLevelsQuery += """
-            SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
-            UPDATE RECEIVERS_LEVEL_$uueid RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10)) WHERE IDRECEIVER IN (SELECT IDRECEIVER FROM ${getRoadsLevelsTableName(posSol)});
-            INSERT INTO RECEIVERS_LEVEL_$uueid SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(posSol)} WHERE IDRECEIVER NOT IN (SELECT IDRECEIVER FROM RECEIVERS_LEVEL_$uueid);
-            SELECT COUNT(*) FROM RECEIVERS_LEVEL_$uueid;
+            SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED;
+            UPDATE RECEIVERS_LEVEL_MERGED RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10)) WHERE IDRECEIVER IN (SELECT IDRECEIVER FROM ${getRoadsLevelsTableName(posSol)});
+            INSERT INTO RECEIVERS_LEVEL_MERGED SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(posSol)} WHERE IDRECEIVER NOT IN (SELECT IDRECEIVER FROM RECEIVERS_LEVEL_MERGED);
+            SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED;
         """ as String
 
     }
@@ -1123,7 +1129,7 @@ def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgCon
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
 }
 
-def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, String posSol, ProgressVisitor stepsProgress) {
+static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, String posSol, ProgressVisitor stepsProgress) {
     def totalLength
     try(Connection h2Connection = h2DataSource.getConnection()) {
         Sql h2Sql = new Sql(h2Connection)
@@ -1207,11 +1213,12 @@ def processLandCover(Map input,Connection pgConnection, String extractionEnvelop
 /**
  * Fetches atmospheric periods from nearby stations for a given UUEID.
  * @param input The input map containing configuration parameters.
- * @param uueid The road UUEID for which to fetch atmospheric periods.
+ * @param pgConnection The PostgreSQL database connection.
+ * @param location The geometry representing the location for which to fetch the nearest station with atmospheric periods.
  * @param h2Connection The H2 database connection.
  * @param stepsProgress The progress visitor for tracking execution progress.
  */
-def fetchAtmosphericPeriodFromStations(Map input,Connection pgConnection, String uueid, Connection h2Connection, ProgressVisitor stepsProgress) {
+static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection, Geometry location, Connection h2Connection, ProgressVisitor stepsProgress) {
     // tablePeriodAtmosphericSettings — Atmospheric settings table name for each time period
     //
     //    Name of the Atmospheric settings table The table must contain the following columns:
@@ -1224,13 +1231,13 @@ def fetchAtmosphericPeriodFromStations(Map input,Connection pgConnection, String
     //        GDISC : choose between accept G discontinuity or not (BOOLEAN) default true
     //        PRIME2520 : choose to use prime values to compute eq. 2.5.20 (BOOLEAN) default false
     Logger logger = LoggerFactory.getLogger(this.class)
-    logger.info("Fetch nearest atmospheric points periods for UUEID: {}", uueid)
+    logger.info("Fetch nearest atmospheric points periods for location: {}", location)
+    String locationWKT = ValueGeometry.getFromGeometry(location).string
 
     def atmosphericQuery = """
-        SELECT a.*, ST_Distance(a.the_geom, b.geom) as distance_station
-        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName} b, cbs_uge_input.nm_stations_${input.projectionName} a
-        WHERE UUEID = '$uueid'
-        ORDER BY a.the_geom <-> b.geom LIMIT 1
+        SELECT a.*, ST_Distance(a.the_geom, ST_GeomFromEWKT('$locationWKT')) as distance_station
+        FROM cbs_uge_input.nm_stations_${input.projectionName} a
+        ORDER BY a.the_geom <-> ST_GeomFromEWKT('$locationWKT') LIMIT 1
     """
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(atmosphericQuery)) {
@@ -1342,18 +1349,28 @@ def fetchAtmosphericPeriodFromStations(Map input,Connection pgConnection, String
 
 }
 
-def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Connection, ProgressVisitor stepsProgress, String posSol, double maxSourceDistance) {
+def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Connection, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
-    Sql h2Sql = new Sql(h2Connection)
     def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid = '$uueid' AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
-
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
+}
 
-    if(JDBCUtilities.getRowCount(h2Connection, "LW_ROADS") == 0) {
+/**
+ * Generates filtered receivers based on road geometries.
+ * @param h2Connection The H2 database connection.
+ * @param logger The logger instance.
+ * @param posSol The position solution.
+ * @param h2Sql The H2 SQL instance.
+ * @param maxSourceDistance The maximum source distance.
+ * @return True if receivers were found, false otherwise.
+ */
+static boolean GenerateReceiversFiltered(Connection h2Connection, Logger logger, String posSol, double maxSourceDistance) {
+    Sql h2Sql = new Sql(h2Connection)
+    if (JDBCUtilities.getRowCount(h2Connection, "LW_ROADS") == 0) {
         logger.info("No roads found for pos_sol = {}", posSol)
         return false
     }
@@ -1376,7 +1393,16 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
     return receiverCount > 0
 }
 
-def fetchBuildings(Map input, Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
+/**
+ * Fetches buildings within the specified envelope.
+ * @param input The input map.
+ * @param pgConnection The PostgreSQL database connection.
+ * @param extractionEnvelopeGeometry The extraction envelope geometry.
+ * @param h2Connection The H2 database connection.
+ * @param stepsProgress The progress visitor.
+ * @param wallAlpha The wall absorption coefficient to set to all buildings
+ */
+static fetchBuildings(Map input, Connection pgConnection, String extractionEnvelopeGeometry, Connection h2Connection, ProgressVisitor stepsProgress, double wallAlpha) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
     def projectionName = input.projectionName
