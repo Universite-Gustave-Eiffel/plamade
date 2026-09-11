@@ -372,9 +372,11 @@ def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connecti
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")
     def fetchTableNamesQuery = """
-        SELECT bd_alti
+        SELECT distinct bd_alti
         FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
-        WHERE nldirh.insee_dep = '${input.department}';
+        WHERE nldirh.uueid IN
+         (SELECT distinct d.uueid 
+         FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} d where d.insee_dep = '${input.department}');
     """
     def bdAltiTableName = new HashSet<String>()
     pgSql.rows(fetchTableNamesQuery as String).each { row ->
