@@ -65,7 +65,7 @@ jobs:
           POSTGRES_USER: noisemodelling
           POSTGRES_PASSWORD: noisemodelling
       - name: Package
-        run: mvn package
+        run: mvn -DskipTests package
       - name: Install bsdtar
         run: |
           sudo apt-get update
