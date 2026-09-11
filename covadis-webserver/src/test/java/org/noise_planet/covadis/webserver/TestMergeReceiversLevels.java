@@ -1,7 +1,7 @@
 package org.noise_planet.covadis.webserver;
 
 import org.junit.jupiter.api.Test;
-import org.noise_planet.covadis.scripts.CBS.ComputePerDept;
+import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 
 import java.sql.ResultSet;
@@ -49,7 +49,7 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
             stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (7 2 4)', 2154), 7, 'DEN', 50.0)");
         }
 
-        ComputePerDept.mergeReceiversLevels(List.of("0", "1"), connection, "TEST", null, null);
+        ComputePerUUEID.mergeReceiversLevels(List.of("0", "1"), connection);
 
         // receiver in both pos_sol and both periods: energetic sum 60+60 and 50+50
         assertEquals(63.01, getLaeq(1, "DEN"), 0.01);
@@ -70,19 +70,19 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
         assertEquals(50.00, getLaeq(7, "DEN"), 0.01);
 
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_TEST")) {
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED")) {
             assertTrue(rs.next());
             assertEquals(11, rs.getInt(1));
         }
         // no N period row for receiver 7
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_TEST WHERE IDRECEIVER = 7 AND PERIOD = 'N'")) {
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED WHERE IDRECEIVER = 7 AND PERIOD = 'N'")) {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1));
         }
         // no NULL levels anywhere
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_TEST WHERE LAEQ IS NULL")) {
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED WHERE LAEQ IS NULL")) {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1));
         }
@@ -90,7 +90,7 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
 
     private double getLaeq(int idReceiver, String period) throws SQLException {
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT LAEQ FROM RECEIVERS_LEVEL_TEST WHERE IDRECEIVER = " + idReceiver + " AND PERIOD = '" + period + "'")) {
+            ResultSet rs = stmt.executeQuery("SELECT LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE IDRECEIVER = " + idReceiver + " AND PERIOD = '" + period + "'")) {
             assertTrue(rs.next(), "No row for receiver " + idReceiver + " period " + period);
             return rs.getDouble("LAEQ");
         }

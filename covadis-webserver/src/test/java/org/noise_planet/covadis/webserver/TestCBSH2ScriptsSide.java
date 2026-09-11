@@ -23,56 +23,56 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
             stmt.execute("RUNSCRIPT FROM '" + Objects.requireNonNull(TestCBSH2ScriptsSide.class.getResource("testGenerateExposureStatisticsFromFacadeExpo.sql")).getFile() + "'");
         }
 
-        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(connection, "RD_FR_00_0781651", Map.of("078", "FR103"), "hexa");
+        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(connection);
 
         // Check peoples on single dwelling
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT PEOPLE, DWELLINGS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lden6064'");) {
+            ResultSet rs = stmt.executeQuery("SELECT PEOPLE, DWELLINGS FROM EXPO where noiselevel='Lden6064'");) {
             assertTrue(rs.next());
             assertEquals(2, rs.getInt("PEOPLE"));
             assertEquals(1, rs.getInt("DWELLINGS"));
         }
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT PEOPLE, DWELLINGS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lnight5559'");) {
+            ResultSet rs = stmt.executeQuery("SELECT PEOPLE, DWELLINGS FROM EXPO where noiselevel='Lnight5559'");) {
             assertTrue(rs.next());
             assertEquals(2, rs.getInt("PEOPLE"));
             assertEquals(1, rs.getInt("DWELLINGS"));
         }
         // I set a building with 65 peoples in 32 dwellings all exposed at night at the level 53 dB
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT PEOPLE, DWELLINGS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lnight5054'");) {
+            ResultSet rs = stmt.executeQuery("SELECT PEOPLE, DWELLINGS FROM EXPO where noiselevel='Lnight5054'");) {
             assertTrue(rs.next());
             assertEquals(65, rs.getInt("PEOPLE"));
             assertEquals(32, rs.getInt("DWELLINGS"));
         }
-        // Hospital exposed to RD_FR_00_0781651_Lden5559
+        // Hospital exposed to Lden5559
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT HOSPITALS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lden5559'");) {
+            ResultSet rs = stmt.executeQuery("SELECT HOSPITALS FROM EXPO where noiselevel='Lden5559'");) {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt("HOSPITALS"));
         }
-        // Schools exposed to RD_FR_00_0781651_Lden6064
+        // Schools exposed to Lden6064
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT SCHOOLS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lden6064'");) {
+            ResultSet rs = stmt.executeQuery("SELECT SCHOOLS FROM EXPO where noiselevel='Lden6064'");) {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt("SCHOOLS"));
         }
-        // Hospital exposed to RD_FR_00_0781651_Lnight5054
+        // Hospital exposed to Lnight5054
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT HOSPITALS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lnight5054'");) {
+            ResultSet rs = stmt.executeQuery("SELECT HOSPITALS FROM EXPO where noiselevel='Lnight5054'");) {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt("HOSPITALS"));
         }
-        // Schools exposed to RD_FR_00_0781651_Lnight5559
+        // Schools exposed to Lnight5559
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT SCHOOLS FROM EXPO_hexa where pk='RD_FR_00_0781651_Lnight5559'");) {
+            ResultSet rs = stmt.executeQuery("SELECT SCHOOLS FROM EXPO where noiselevel='Lnight5559'");) {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt("SCHOOLS"));
         }
 
-        //EXPO_GLOBAL_${projectionName}
+        //EXPO_GLOBAL
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT HA, HSD, CPI FROM EXPO_GLOBAL_HEXA");) {
+            ResultSet rs = stmt.executeQuery("SELECT HA, HSD, CPI FROM EXPO_GLOBAL");) {
             assertTrue(rs.next());
             assertEquals(12.88, rs.getDouble("HA"), 0.01);
             assertEquals(3.76, rs.getDouble("HSD"), 0.01);
@@ -91,15 +91,15 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
             stmt.execute("RUNSCRIPT FROM '" + Objects.requireNonNull(TestCBSH2ScriptsSide.class.getResource("testGenerateHealthStatistics.sql")).getFile() + "'");
         }
 
-        ComputePerUUEID.generateHealthStatistics(connection, "hexa");
+        ComputePerUUEID.generateHealthStatistics(connection);
 
         LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
                 ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPOSURE_RANGES", 120));
         LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
-                ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_GLOBAL_HEXA", 120));
-        // table EXPO_GLOBAL_HEXA expected values
+                ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPO_GLOBAL", 120));
+        // table EXPO_GLOBAL expected values
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT CPI, HA, HSD FROM EXPO_GLOBAL_HEXA")) {
+            ResultSet rs = stmt.executeQuery("SELECT CPI, HA, HSD FROM EXPO_GLOBAL")) {
             assertTrue(rs.next());
             // Expected value extracted from the Acoucité computation sheet
             assertEquals(30.3107871703154, rs.getFloat("CPI"), 0.01);

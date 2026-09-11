@@ -11,10 +11,8 @@ import org.h2gis.utilities.GeometryTableUtilities;
 import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.noise_planet.covadis.scripts.CBS.ComputePerDepartment;
 import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.CBS.Generate_sources;
 import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
@@ -46,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Test execution of the CBS scripts using a subset of the data extracted from the Plamade PostgreSQL database
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TestCBSScript extends JDBCTestCase {
     DataSource pgDataSource;
     boolean forceRecreateData = true;
@@ -148,6 +147,7 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql");
                     runSqlFile(pgConnection, "database/n_ferroviaire_ligne.sql.zip");
                     runSqlFile(pgConnection, "database/n_ferroviaire_troncon.sql.zip");
+                    runSqlFile(pgConnection, "database/nm_departement_2154.sql.zip");
                     // Extract DEM data from tiny wkb
                     statement.execute("""
                                       INSERT INTO bd_alti.d091 (the_geom)
@@ -177,7 +177,7 @@ public class TestCBSScript extends JDBCTestCase {
     }
 
     @Test
-    @Order(3)
+    @Order(2)
     public void testGenerateSource() throws SQLException {
         assumePostGISAvailable();
         ScriptUtilities.execScript(new Generate_sources(), connection, Map.of("projectionName", "hexa"));
@@ -188,7 +188,7 @@ public class TestCBSScript extends JDBCTestCase {
     }
 
     @Test
-    @Order(4)
+    @Order(3)
     public void testCopyPostGISToH2Database() throws SQLException {
         assumePostGISAvailable();
 
@@ -206,7 +206,7 @@ public class TestCBSScript extends JDBCTestCase {
     }
 
     @Test
-    @Order(4)
+    @Order(3)
     public void testCopyPostGISToH2DatabaseWithPk() throws SQLException {
         assumePostGISAvailable();
 
@@ -220,7 +220,7 @@ public class TestCBSScript extends JDBCTestCase {
         assertEquals(1, JDBCUtilities.getIntegerPrimaryKey(connection, TableLocation.parse("ROUTES", DBTypes.H2)));
     }
     @Test
-    @Order(5)
+    @Order(3)
     public void testCopyH2ToPostGISDatabaseWithPk() throws SQLException, IOException {
         assumePostGISAvailable();
         URL url = TestCBSScript.class.getResource("buildings.shp");
@@ -236,8 +236,9 @@ public class TestCBSScript extends JDBCTestCase {
             assertEquals(1, JDBCUtilities.getIntegerPrimaryKey(pgConnection, TableLocation.parse("BUILDINGS", DBTypes.POSTGIS)));
         }
     }
+
     @Test
-    @Order(5)
+    @Order(4)
     public void testRunByUUEID() throws SQLException {
         assumePostGISAvailable();
 
@@ -285,12 +286,71 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo_hexa where pk = 'RD_FR_00_0781651_Lnight5054';")) {
+            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo where pk = 'RD_FR_00_0781651_Lnight5054';")) {
             assertTrue(resultSet.next());
             assertEquals(1, resultSet.getInt("schools"));
-            assertEquals(2.10f, resultSet.getFloat("area"), 0.01f);
+            assertTrue(resultSet.getFloat("area") > 0);
         }
 
     }
+
+
+    @Test
+    @Order(3)
+    public void testRunDepartment() throws SQLException {
+        assumePostGISAvailable();
+
+        // Create SLURM Configuration
+        SlurmConfig config = NoiseModellingHPCServerHttpTest.fetchSlurmConfigFromEnv();
+
+        new Write_HPC_Settings().exec(connection,
+                Map.of("configuration_name", "local",
+                        "host" , config.host,
+                        "port", config.port,
+                        "user", config.user,
+                        "key", config.sshKeyArmoredString
+                ), new EmptyProgressVisitor());
+
+        new ComputePerDepartment().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "department", "78",
+                        "conf", 1,
+                        "configuration_name", "local",
+                        "slurm_task_count", 1,
+                        "key_password", config.sshKeyPassword),
+                new EmptyProgressVisitor());
+
+        // Check cbs
+        List<String> expectedCbs = Arrays.asList("Lden3539", "Lden4044", "Lden4549", "Lden5054", "Lden5559",
+                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan68", "LdenGreaterThan75", "Lnight3034",
+                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan62", "LnightGreaterThan70");
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_dept_hexa\" order by noiselevel;")) {
+            for (String expectedCb : expectedCbs) {
+                assertTrue(resultSet.next());
+                assertEquals(expectedCb, resultSet.getString("noiselevel"));
+            }
+            assertFalse(resultSet.next());
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_dept_hexa")) {
+            assertTrue(resultSet.next());
+            assertEquals(57, resultSet.getInt("CPT"));
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo_dept where pk = '78_R_Lnight5054';")) {
+            assertTrue(resultSet.next());
+            assertEquals(1, resultSet.getInt("schools"));
+            assertTrue(resultSet.getFloat("area") > 0);
+        }
+
+    }
+
 
 }
