@@ -215,43 +215,63 @@ public class SlurmSession implements AutoCloseable {
      * @return A list of strings, where each string represents a line of output from the executed command.
      * @throws IOException If an error occurs during command execution or communication over the SSH channel.
      */
-    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes, long timeoutMs)
-            throws IOException {
-        if (session == null || !session.isAuthenticated()) {
-            throw new IOException("SSH session is not connected or authenticated.");
-        }
-        List<String> lines = new ArrayList<>();
-        try (ChannelExec shell = session.createExecChannel(command)) {
-            shell.setRedirectErrorStream(false);
-            shell.setErr(new LoggingOutputStream(logger, Level.ERROR));
-            shell.open().verify(SFTP_TIMEOUT);
+    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes, long timeoutMs) throws IOException, GeneralSecurityException {
 
-            InputStream in = shell.getInvertedOut();
+        int maxAttempts = 2;
 
-            CountingInputStream countingInputStream = new CountingInputStream(in);
-            InputStreamReader inputStreamReader = new InputStreamReader(countingInputStream);
-            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+        for (int i = 0; i < maxAttempts; i++) {
+            try {
+                if (session == null || !session.isOpen() || !session.isAuthenticated()) {
+                    logger.info("Session invalid, attempting to reconnect...");
+                    connect();
+                }
+                List<String> lines = new ArrayList<>();
+                try (ChannelExec shell = session.createExecChannel(command)) {
+                    shell.setRedirectErrorStream(false);
+                    shell.setErr(new LoggingOutputStream(logger, Level.ERROR));
+                    shell.open().verify(SFTP_TIMEOUT);
 
-            while (true) {
-                String line = bufferedReader.readLine();
-                if (line != null) {
-                    if (logResult) {
-                        logger.info(line);
+                    InputStream in = shell.getInvertedOut();
+
+                    CountingInputStream countingInputStream = new CountingInputStream(in);
+                    InputStreamReader inputStreamReader = new InputStreamReader(countingInputStream);
+                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+
+                    while (true) {
+                        String line = bufferedReader.readLine();
+                        if (line != null) {
+                            if (logResult) {
+                                logger.info(line);
+                            }
+                            lines.add(line);
+                        } else {
+                            break;
+                        }
                     }
-                    lines.add(line);
+                    shell.waitFor(EnumSet.of(ClientChannelEvent.CLOSED), timeoutMs > 0 ? timeoutMs : 0);
+                    Integer exitStatus = shell.getExitStatus();
+                    if (exitStatus != null && exitStatus != 0) {
+                        logger.error(String.format("Command %s \n exit-status: %d", command, exitStatus));
+                    }
+                    readBytes.addAndGet(countingInputStream.getCount());
+
+                    return lines;
+                }
+            } catch (IllegalStateException e) {
+                if (i < maxAttempts - 1) {
+                    logger.warn("Attempt {} failed, retrying. Error: {}", i + 1, e.getMessage());
+                    // Clean up session so next iteration triggers a fresh connect()
+                    try {
+                        if (session != null) session.close(true);
+                    } catch (Exception ignored) {
+                    }
+                    session = null;
                 } else {
-                    break;
+                    throw new IOException("Command failed after " + maxAttempts + " attempts: " + command, e);
                 }
             }
-            shell.waitFor(EnumSet.of(ClientChannelEvent.CLOSED), timeoutMs > 0 ? timeoutMs : 0);
-            Integer exitStatus = shell.getExitStatus();
-            if (exitStatus != null && exitStatus != 0) {
-                logger.error(String.format("Command %s \n exit-status: %d", command, exitStatus));
-            }
-            readBytes.addAndGet(countingInputStream.getCount());
         }
-
-        return lines;
+        throw new IOException("Could not execute command");
     }
 
     /**
@@ -277,8 +297,7 @@ public class SlurmSession implements AutoCloseable {
      * @return A list of strings, where each string represents a line of output from the executed command.
      * @throws IOException If an error occurs during command execution or communication over the SSH channel.
      */
-    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes)
-            throws IOException {
+    public List<String> runCommand(String command, boolean logResult, AtomicLong readBytes) throws IOException, GeneralSecurityException {
         return runCommand(command, logResult, readBytes, SFTP_TIMEOUT);
     }
 

@@ -5,10 +5,9 @@ import groovy.transform.Field
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.utilities.GeometryMetaData
-import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
 import org.locationtech.jts.geom.Geometry
+import org.locationtech.jts.geom.GeometryFactory
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
@@ -113,7 +112,7 @@ def fetchRoads(Map input, Connection pgConnection, Connection h2Connection, Prog
     }
 }
 
-def computeForDepartment(String department, DataSource h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map codeDeptToNuts) {
+def computeForDepartment(String department, DataSource h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map<String, String> codeDeptToNuts) {
     def pgSql = new Sql(pgConnection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for department: $department")
@@ -129,6 +128,9 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         }
 
         def extractionEnvelopeGeometry = res.geomenv as Geometry
+        // Switch the geometry factory in order to use the SRID of the geometry into the geometry factory
+        GeometryFactory geometryFactory = new GeometryFactory(extractionEnvelopeGeometry.getFactory().getPrecisionModel(), extractionEnvelopeGeometry.getSRID())
+        extractionEnvelopeGeometry = geometryFactory.createGeometry(extractionEnvelopeGeometry)
         def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
 
         fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, progress)
@@ -143,14 +145,14 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor())
 
-        ComputePerUUEID.processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection, new EmptyProgressVisitor())
+        ComputePerUUEID.processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection)
 
         // Look for the station near the centroid of the department
         ComputePerUUEID.fetchAtmosphericPeriodFromStations(input, pgConnection, extractionEnvelopeGeometry.centroid, h2Connection, new EmptyProgressVisitor())
     }
     def posSols = pgSql.rows("""SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg
         WHERE (franchisst IS NULL OR franchisst = 'Pont') and UUEID IN (SELECT DISTINCT UUEID 
-        FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE insee_dep = '${input.department}')""" as String)
+        FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} WHERE insee_dep = '${input.department}')""" as String)
             .collect { it.pos_sol as String
     }
 
@@ -183,16 +185,23 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         ComputePerUUEID.mergeReceiversLevels(posSols, h2Connection)
 
         // Generate IsoContours
-        ComputePerUUEID.generateRoadsCBS(h2Connection, uueid, stepsProgress, codeDeptToNuts)
+        // Convert 78 to 078 and A71 to A71
+        def nutsCode = ""
+        try {
+            nutsCode = codeDeptToNuts.get(department.length() < 3 ? department.padLeft(3, '0') : department)
+        } catch (NumberFormatException e) {
+            logger.error("Invalid department code: {}", department)
+        }
+        ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
 
-        ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection, uueid, codeDeptToNuts)
+        ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
 
-        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection, uueid, codeDeptToNuts, input.projectionName as String)
+        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
 
-        // Upload CBS Table to remote PostGIS database
-        uploadCBS(h2Connection, pgConnection, uueid, input.projectionName as String)
-
-        uploadIndicatorsTables(h2Connection, pgConnection, uueid, input.projectionName as String)
+//        // Upload CBS Table to remote PostGIS database
+//        uploadCBS(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
+//
+//        uploadIndicatorsTables(h2Connection, pgConnection, uueid, input.projectionName as String)
     }
 }
 

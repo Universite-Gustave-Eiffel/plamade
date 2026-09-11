@@ -12,6 +12,7 @@ import org.h2gis.api.ProgressVisitor;
 import org.slf4j.Logger;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -45,7 +46,7 @@ public class SlurmUtilities {
      * @param session
      * @param bytesReadInFiles keep track of logged bytes
      */
-    public static void logSlurmJobs(SlurmSession session, String remoteJobFolder, Map<String, Long> bytesReadInFiles) {
+    public static void logSlurmJobs(SlurmSession session, String remoteJobFolder, Map<String, Long> bytesReadInFiles) throws GeneralSecurityException {
         Logger logger = session.getLogger();
         try {
             List<String> output = session.runCommand(String.format("find %s/*.out -type f -printf \"%%s,%%f\\n\"", remoteJobFolder), false);
