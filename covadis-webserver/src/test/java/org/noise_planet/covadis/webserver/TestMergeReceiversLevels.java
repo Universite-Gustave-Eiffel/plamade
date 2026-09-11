@@ -1,7 +1,7 @@
 package org.noise_planet.covadis.webserver;
 
 import org.junit.jupiter.api.Test;
-import org.noise_planet.covadis.scripts.CBS.ComputePerDept;
+import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 
 import java.sql.ResultSet;
@@ -49,7 +49,7 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
             stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (7 2 4)', 2154), 7, 'DEN', 50.0)");
         }
 
-        ComputePerDept.mergeReceiversLevels(List.of("0", "1"), connection, "TEST", null, null);
+        ComputePerUUEID.mergeReceiversLevels(List.of("0", "1"), connection);
 
         // receiver in both pos_sol and both periods: energetic sum 60+60 and 50+50
         assertEquals(63.01, getLaeq(1, "DEN"), 0.01);

@@ -283,7 +283,7 @@ public class SlurmSession implements AutoCloseable {
      * @return A list of strings, where each string represents a line of output from the executed command.
      * @throws IOException If an error occurs during command execution or communication over the SSH channel.
      */
-    public List<String> runCommand(String command, boolean logResult)  throws IOException {
+    public List<String> runCommand(String command, boolean logResult) throws IOException, GeneralSecurityException {
         return runCommand(command, logResult, new AtomicLong());
     }
 
@@ -314,7 +314,7 @@ public class SlurmSession implements AutoCloseable {
      * @throws IOException
      * @throws CancellationException
      */
-    public boolean updateSlurmJobProgression(ProgressVisitor slurmJobProgress, Map<Integer, SlurmJobStatus> taskIdToTaskState) throws IOException, CancellationException {
+    public boolean updateSlurmJobProgression(ProgressVisitor slurmJobProgress, Map<Integer, SlurmJobStatus> taskIdToTaskState) throws IOException, CancellationException, GeneralSecurityException {
         List<String> output = runCommand(String.format("scontrol show job %d", slurmConfig.jobId), false);
         List<SlurmJobStatus> jobStatusList = SlurmUtilities.parseSlurmStatus(output);
         for(SlurmJobStatus s : jobStatusList) {

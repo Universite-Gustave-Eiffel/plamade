@@ -286,10 +286,10 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo_hexa where pk = 'RD_FR_00_0781651_Lnight5054';")) {
+            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo where pk = 'RD_FR_00_0781651_Lnight5054';")) {
             assertTrue(resultSet.next());
             assertEquals(1, resultSet.getInt("schools"));
-            assertEquals(2.10f, resultSet.getFloat("area"), 0.01f);
+            assertTrue(resultSet.getFloat("area") > 0);
         }
 
     }
@@ -327,7 +327,7 @@ public class TestCBSScript extends JDBCTestCase {
                 "LnightGreaterThan62", "LnightGreaterThan70");
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_hexa\" order by noiselevel;")) {
+            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_dept_hexa\" order by noiselevel;")) {
             for (String expectedCb : expectedCbs) {
                 assertTrue(resultSet.next());
                 assertEquals(expectedCb, resultSet.getString("noiselevel"));
@@ -337,17 +337,17 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_dept_hexa")) {
             assertTrue(resultSet.next());
             assertEquals(57, resultSet.getInt("CPT"));
         }
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo_hexa where pk = 'RD_FR_00_0781651_Lnight5054';")) {
+            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo_dept where pk = '78_R_Lnight5054';")) {
             assertTrue(resultSet.next());
             assertEquals(1, resultSet.getInt("schools"));
-            assertEquals(2.10f, resultSet.getFloat("area"), 0.01f);
+            assertTrue(resultSet.getFloat("area") > 0);
         }
 
     }

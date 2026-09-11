@@ -343,7 +343,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
     try( Statement st = h2Connection.createStatement() ;
-         ResultSet rs = st.executeQuery("""SELECT '$uueid' uueid, NUTSCODE , CPI, HA, HSD FROM EXPO_GLOBAL""")) {
+         ResultSet rs = st.executeQuery("""SELECT '$uueid' uueid, '$nutsCode' nutscode , CPI, HA, HSD FROM EXPO_GLOBAL""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo_global", false, batchSize)
     }
