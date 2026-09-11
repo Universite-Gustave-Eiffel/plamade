@@ -48,6 +48,27 @@ inputs = [
                 name: "Configuration identifier",
                 description: "Configuration identifier defined in cbs_uge_input.nm_conf ",
                 type: Integer.class
+        ],
+        configuration_name      : [
+                name       : 'HPC Configuration Name',
+                title      : 'HPC Configuration Name',
+                description: 'Slurm SSH access configuration name written through Write_HPC_Settings WPS Script',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
+        key_password        : [
+                name       : 'SSH Private Key password',
+                title      : 'SSH Private Key password',
+                description: 'Optional private key password',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
+        slurm_task_count            : [
+                name       : 'Slurm task count',
+                title      : 'Slurm task count',
+                description: 'Number of parallel jobs for the computation on the Slurm server.',
+                default    : 8,
+                type       : Integer.class
         ]
 ]
 
