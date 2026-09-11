@@ -70,19 +70,19 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
         assertEquals(50.00, getLaeq(7, "DEN"), 0.01);
 
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_TEST")) {
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED")) {
             assertTrue(rs.next());
             assertEquals(11, rs.getInt(1));
         }
         // no N period row for receiver 7
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_TEST WHERE IDRECEIVER = 7 AND PERIOD = 'N'")) {
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED WHERE IDRECEIVER = 7 AND PERIOD = 'N'")) {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1));
         }
         // no NULL levels anywhere
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_TEST WHERE LAEQ IS NULL")) {
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED WHERE LAEQ IS NULL")) {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1));
         }
@@ -90,7 +90,7 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
 
     private double getLaeq(int idReceiver, String period) throws SQLException {
         try(Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT LAEQ FROM RECEIVERS_LEVEL_TEST WHERE IDRECEIVER = " + idReceiver + " AND PERIOD = '" + period + "'")) {
+            ResultSet rs = stmt.executeQuery("SELECT LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE IDRECEIVER = " + idReceiver + " AND PERIOD = '" + period + "'")) {
             assertTrue(rs.next(), "No row for receiver " + idReceiver + " period " + period);
             return rs.getDouble("LAEQ");
         }

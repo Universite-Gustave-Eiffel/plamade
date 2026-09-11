@@ -874,19 +874,25 @@ static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) 
     def mergeLevelsQuery = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_MERGED;
         CREATE TABLE RECEIVERS_LEVEL_MERGED(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
-    """ as String
-
-    mergeLevelsQuery += """
         INSERT INTO RECEIVERS_LEVEL_MERGED SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(firstPosSol)};
+        CREATE INDEX ON RECEIVERS_LEVEL_MERGED(IDRECEIVER, PERIOD);
     """ as String
 
     posSolsToProcess.each { posSol ->
-        // update existing rows then insert new rows
+        def posSolTable = getRoadsLevelsTableName(posSol)
+        // Energetic merge of this pos_sol into the accumulated table, period-aware
+        // on (IDRECEIVER, PERIOD): rows present on both sides are summed, rows present
+        // only in this pos_sol are inserted. COALESCE guards against NULL injection when
+        // a period row is missing from one side.
         mergeLevelsQuery += """
-            SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED;
-            UPDATE RECEIVERS_LEVEL_MERGED RL SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10,(SELECT LAEQ FROM ${getRoadsLevelsTableName(posSol)} RLS WHERE RL.IDRECEIVER = RLS.IDRECEIVER AND RL.PERIOD = RLS.PERIOD) / 10)) WHERE IDRECEIVER IN (SELECT IDRECEIVER FROM ${getRoadsLevelsTableName(posSol)});
-            INSERT INTO RECEIVERS_LEVEL_MERGED SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(posSol)} WHERE IDRECEIVER NOT IN (SELECT IDRECEIVER FROM RECEIVERS_LEVEL_MERGED);
-            SELECT COUNT(*) FROM RECEIVERS_LEVEL_MERGED;
+            -- Update existing levels on merged table by using a energetic sum
+            UPDATE RECEIVERS_LEVEL_MERGED RL
+            SET LAEQ = 10*log10(power(10,RL.LAEQ/10) + power(10, COALESCE((SELECT B.LAEQ FROM $posSolTable B WHERE B.IDRECEIVER = RL.IDRECEIVER AND B.PERIOD = RL.PERIOD), -999.0)/10))
+            WHERE EXISTS (SELECT 1 FROM $posSolTable B WHERE B.IDRECEIVER = RL.IDRECEIVER AND B.PERIOD = RL.PERIOD);
+            -- Insert missing receivers/period as is
+            INSERT INTO RECEIVERS_LEVEL_MERGED
+            SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM $posSolTable B
+            WHERE NOT EXISTS (SELECT 1 FROM RECEIVERS_LEVEL_MERGED RL WHERE RL.IDRECEIVER = B.IDRECEIVER AND RL.PERIOD = B.PERIOD);
         """ as String
 
     }
