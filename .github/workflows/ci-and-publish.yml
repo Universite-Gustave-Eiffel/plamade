@@ -10,7 +10,6 @@ jobs:
     uses: ./.github/workflows/CI.yml
     secrets: inherit
 
-  # Trigger Docker build ONLY if tests pass AND it's the main branch
   publish-docker:
     needs: test
     uses: ./.github/workflows/docker-publish.yml

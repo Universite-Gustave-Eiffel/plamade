@@ -13,8 +13,6 @@ env:
 
 jobs:
   build:
-    if: >
-      github.event.workflow_run.head_branch == 'main'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -33,7 +31,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # THIS STEP FIXES THE UPPERCASE ERROR
+      # Docker expect simple lower case image name
       - name: Downcase Repo Name
         run: |
           echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
