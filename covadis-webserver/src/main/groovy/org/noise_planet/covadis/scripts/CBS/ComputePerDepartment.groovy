@@ -222,6 +222,8 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         }
         ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
 
+        cutCbsByDepartmentPolygon(input, pgConnection, h2Connection)
+
         ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
 
         ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
@@ -429,13 +431,7 @@ static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connecti
     def h2Sql = new Sql(h2Connection)
     def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
     def department = input.department as String
-    def res = pgSql.firstRow("""SELECT 
-             st_simplify(the_geom, 1) geomenv
-             FROM cbs_uge_input.nm_departement_$projectionCode WHERE insee_dep = '${department}';""" as String)
-    if (res == null) {
-        throw new IllegalArgumentException("No match for the provided department '${department}'")
-    }
-    def extractionEnvelopeGeometry = res.geomenv as Geometry
+    def extractionEnvelopeGeometry = getDepartmentGeometry(pgSql, projectionCode, department)
     // Remove from the table all triangles that does not touch the department geometry
     int removed = h2Sql.executeUpdate("""DELETE FROM TRIANGLES T WHERE NOT ST_Intersects(THE_GEOM, $extractionEnvelopeGeometry)""")
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -450,4 +446,28 @@ static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connecti
         -- Remove receivers that does not exists anymore on RECEIVERS table
         DELETE FROM RECEIVERS WHERE PK <= @LASTDELAUNAY AND PK NOT IN (SELECT PK FROM RECEIVERS_DELAUNAY);      
         """ as String)
+}
+
+static Geometry getDepartmentGeometry(Sql pgSql, int projectionCode, department) {
+    def res = pgSql.firstRow("""SELECT 
+             st_simplify(the_geom, 1) geomenv
+             FROM cbs_uge_input.nm_departement_$projectionCode WHERE insee_dep = '${department}';""" as String)
+    if (res == null) {
+        throw new IllegalArgumentException("No match for the provided department '${department}'")
+    }
+    res.geomenv as Geometry
+}
+
+static void cutCbsByDepartmentPolygon(Map input,Connection pgConnection, Connection h2Connection) {
+    def h2Sql = new Sql(h2Connection)
+    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def department = input.department as String
+    def extractionEnvelopeGeometry = getDepartmentGeometry(new Sql(pgConnection), projectionCode, department)
+    h2Sql.executeUpdate("""
+        UPDATE ISOPHONES SET THE_GEOM = ST_Intersection(THE_GEOM, $extractionEnvelopeGeometry)
+    """)
+    // Remove empty geometries
+    h2Sql.executeUpdate("""
+        DELETE FROM ISOPHONES WHERE ST_ISEMPTY(THE_GEOM);
+    """)
 }
