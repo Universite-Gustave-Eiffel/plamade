@@ -171,6 +171,8 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor())
 
+        keepOnlyReceiversInDepartment(input, pgConnection, h2Connection)
+
         ComputePerUUEID.processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection)
 
         // Look for the station near the centroid of the department
@@ -420,4 +422,32 @@ static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Conne
     }
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], new EmptyProgressVisitor())
+}
+
+static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connection h2Connection) {
+    def pgSql = new Sql(pgConnection)
+    def h2Sql = new Sql(h2Connection)
+    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def department = input.department as String
+    def res = pgSql.firstRow("""SELECT 
+             st_simplify(the_geom, 1) geomenv
+             FROM cbs_uge_input.nm_departement_$projectionCode WHERE insee_dep = '${department}';""" as String)
+    if (res == null) {
+        throw new IllegalArgumentException("No match for the provided department '${department}'")
+    }
+    def extractionEnvelopeGeometry = res.geomenv as Geometry
+    // Remove from the table all triangles that does not touch the department geometry
+    int removed = h2Sql.executeUpdate("""DELETE FROM TRIANGLES T WHERE NOT ST_Intersects(THE_GEOM, $extractionEnvelopeGeometry)""")
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Removed {} triangles that do not intersect with the department geometry", removed)
+    // Remove receivers not referenced by triangles
+    ComputePerUUEID.runSqlQuery(h2Connection,"""
+        DELETE FROM RECEIVERS_DELAUNAY R 
+            WHERE NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_1 = R.PK)
+              AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_2 = R.PK)
+              AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_3 = R.PK);
+        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        -- Remove receivers that does not exists anymore on RECEIVERS table
+        DELETE FROM RECEIVERS WHERE PK <= @LASTDELAUNAY AND PK NOT IN (SELECT PK FROM RECEIVERS_DELAUNAY);      
+        """ as String)
 }
