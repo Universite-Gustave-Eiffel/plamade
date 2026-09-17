@@ -142,6 +142,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
     def pgSql = new Sql(pgConnection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for department: $department")
+    ProgressVisitor departmentProgress = progress.subProcess(2)
     try (Connection h2Connection = h2DataSource.getConnection()) {
         // Compute envelope of the simulation
         def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
@@ -159,7 +160,8 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         extractionEnvelopeGeometry = geometryFactory.createGeometry(extractionEnvelopeGeometry)
         def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
 
-        fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, progress)
+
+        fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, departmentProgress)
 
         ComputePerUUEID.fetchBuildings(input,
                 pgConnection,
@@ -184,12 +186,12 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
             .collect { it.pos_sol as String
     }
 
-    ProgressVisitor solProgress = progress.subProcess(posSols.size())
+    ProgressVisitor solProgress = departmentProgress.subProcess(posSols.size())
     new ArrayList<>(posSols).forEach { posSol ->
         logger.info("Compute for pos_sol = $posSol")
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
-            fetchRoads(input, pgConnection,  h2Connection, solProgress, posSol)
+            fetchRoads(input, pgConnection,  h2Connection, new EmptyProgressVisitor(), posSol)
             doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
         }
 
@@ -197,13 +199,14 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
                 // Adapt the DEM with this special road height platforms
-                enrichDem(input, department, h2Connection, pgConnection, solProgress, posSol)
+                enrichDem(input, department, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol)
             }
             // Run the simulation with this road height
             ComputePerUUEID.runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
         } else {
             logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
+            solProgress.endStep()
         }
     }
 
@@ -436,7 +439,7 @@ static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connecti
     int removed = h2Sql.executeUpdate("""DELETE FROM TRIANGLES T WHERE NOT ST_Intersects(THE_GEOM, $extractionEnvelopeGeometry)""")
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Removed {} triangles that do not intersect with the department geometry", removed)
-    // Remove receivers not referenced by triangles
+    // Remove receivers not referenced by triangles and remove buildings facade receivers not in department
     ComputePerUUEID.runSqlQuery(h2Connection,"""
         DELETE FROM RECEIVERS_DELAUNAY R 
             WHERE NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_1 = R.PK)
@@ -444,8 +447,13 @@ static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connecti
               AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_3 = R.PK);
         SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
         -- Remove receivers that does not exists anymore on RECEIVERS table
-        DELETE FROM RECEIVERS WHERE PK <= @LASTDELAUNAY AND PK NOT IN (SELECT PK FROM RECEIVERS_DELAUNAY);      
+        DELETE FROM RECEIVERS WHERE PK <= @LASTDELAUNAY AND PK NOT IN (SELECT PK FROM RECEIVERS_DELAUNAY);
         """ as String)
+    // Remove receivers PK > @LASTDELAUNAY were the building centroid are outside of the department
+    removed = h2Sql.executeUpdate("""
+        DELETE FROM RECEIVERS WHERE PK > @LASTDELAUNAY AND (PK - @LASTDELAUNAY) NOT IN (SELECT RB.PK FROM RECEIVERS_BUILDINGS RB INNER JOIN BUILDINGS B ON B.PK = RB.build_pk WHERE ST_Intersects(ST_Centroid(B.THE_GEOM), $extractionEnvelopeGeometry))
+    """)
+    logger.info("Removed {} building facade receivers that are outside of the department geometry", removed)
 }
 
 static Geometry getDepartmentGeometry(Sql pgSql, int projectionCode, department) {
