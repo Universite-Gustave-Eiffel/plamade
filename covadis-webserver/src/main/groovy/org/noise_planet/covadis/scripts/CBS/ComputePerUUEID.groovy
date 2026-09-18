@@ -10,7 +10,6 @@ import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
-import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.io.twkb.TWKBWriter
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
@@ -169,7 +168,7 @@ static Map fetchNoiseModellingConfiguration(Sql sql, int configurationId) {
     mainConfiguration
 }
 
-static def void copyConfigurationTables(HikariDataSource h2DataSource, Connection sourceConnection) {
+static void copyConfigurationTables(HikariDataSource h2DataSource, Connection sourceConnection) {
     // Copy the two configuration tables
     try (Connection h2Connection = h2DataSource.getConnection()) {
         try (Statement st = sourceConnection.createStatement(); ResultSet rs =
@@ -177,10 +176,12 @@ static def void copyConfigurationTables(HikariDataSource h2DataSource, Connectio
             PostGISUtilities
                     .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "POSTGIS_CONFIGURATION", true, batchSize)
         }
-        try (Statement st = sourceConnection.createStatement(); ResultSet rs =
-                st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
-            PostGISUtilities
-                    .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
+        if(JDBCUtilities.tableExists(sourceConnection, "SLURM_CONFIGURATION")) {
+            try (Statement st = sourceConnection.createStatement(); ResultSet rs =
+                    st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
+                PostGISUtilities
+                        .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
+            }
         }
     }
 }
@@ -435,7 +436,7 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection) {
             62.0
     )
 
-    runScript(h2Connection, """
+    runSqlQuery(h2Connection, """
         -- Create range tables
         ${rangeSql}
 
@@ -482,7 +483,7 @@ static def generateExposureStatisticsByStep(Connection h2Connection, double step
             62.0
     )
 
-    runScript(h2Connection, """
+    runSqlQuery(h2Connection, """
 
         -- Compute the rank for each point among others of the same building
         ALTER TABLE FACADE_EXPO ADD COLUMN rank_lden DOUBLE;
@@ -571,7 +572,7 @@ static def generateHealthStatistics(Connection h2Connection) {
 
     def cpiPerPersonPerYear = 0.001377
 
-    runScript(h2Connection, """
+    runSqlQuery(h2Connection, """
         -- Compute RR
         UPDATE EXPOSURE_RANGES EXPO SET RR = CASE WHEN noiselevel_mid >= 53 THEN EXP((LN(1.08)/10)*(noiselevel_mid - 53)) ELSE 1 END WHERE indicetype = 'LD';
         -- Compute HA
@@ -604,7 +605,7 @@ static def generateBuildingsFacadeExpo(Connection h2Connection) {
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM");
 
-    runScript(h2Connection, """
+    runSqlQuery(h2Connection, """
         DROP TABLE IF EXISTS FACADE_EXPO;
         CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), pkbat int, uueid varchar, lden numeric(5,2), ln numeric(5,2));
         SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
@@ -897,7 +898,7 @@ static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) 
 
     }
 
-    runScript(h2Connection, mergeLevelsQuery)
+    runSqlQuery(h2Connection, mergeLevelsQuery)
 
 }
 
@@ -966,7 +967,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
 
     logger.info("Generate Delaunay receivers")
 
-    runScript(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;");
+    runSqlQuery(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;");
 
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
@@ -1367,7 +1368,7 @@ static boolean GenerateReceiversFiltered(Connection h2Connection, Logger logger,
 
     logger.info("Receivers before filtering {}", h2Sql.firstRow("SELECT COUNT(*) FROM RECEIVERS")[0])
 
-    runScript(h2Connection, """
+    runSqlQuery(h2Connection, """
         CREATE SPATIAL INDEX ON LW_ROADS(THE_GEOM);
         DROP TABLE IF EXISTS RECEIVERS_FILTERED;
         CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT PK, THE_GEOM from RECEIVERS R 
@@ -1453,7 +1454,7 @@ static Map getDeptCodeFromExt() {
 }
 
 @CompileStatic
-static void runScript(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
+static void runSqlQuery(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
     Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     logger.info(ScriptUtilities.execScript(new Execute_Query(),connection, [sqlQueries: query, "outputFormat" : "JSON"], progressVisitor) as String)
 }

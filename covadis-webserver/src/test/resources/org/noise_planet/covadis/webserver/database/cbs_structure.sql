@@ -348,6 +348,13 @@ CREATE INDEX nm_link_dept_infra_road_hexa_uueid ON cbs_uge_input.nm_link_dept_in
 
 ALTER SCHEMA bd_alti OWNER TO cbs_uge_group;
 
+CREATE TABLE bd_alti.d027 (
+	id int4 NOT NULL,
+	the_geom public.geometry(pointz, 2154) NULL,
+	CONSTRAINT pk_d027 PRIMARY KEY (id)
+);
+CREATE INDEX geom_idx_d027 ON bd_alti.d027 USING gist (the_geom);
+
 CREATE TABLE bd_alti.d028 (
 	id int4 NOT NULL,
 	the_geom public.geometry(pointz, 2154) NULL,
@@ -355,6 +362,26 @@ CREATE TABLE bd_alti.d028 (
 );
 CREATE INDEX geom_idx_d028 ON bd_alti.d028 USING gist (the_geom);
 
+CREATE TABLE bd_alti.d060 (
+	id int4 NOT NULL,
+	the_geom public.geometry(pointz, 2154) NULL,
+	CONSTRAINT pk_d060 PRIMARY KEY (id)
+);
+CREATE INDEX geom_idx_d060 ON bd_alti.d060 USING gist (the_geom);
+
+CREATE TABLE bd_alti.d061 (
+	id int4 NOT NULL,
+	the_geom public.geometry(pointz, 2154) NULL,
+	CONSTRAINT pk_d061 PRIMARY KEY (id)
+);
+CREATE INDEX geom_idx_d061 ON bd_alti.d061 USING gist (the_geom);
+
+CREATE TABLE bd_alti.d072 (
+	id int4 NOT NULL,
+	the_geom public.geometry(pointz, 2154) NULL,
+	CONSTRAINT pk_d072 PRIMARY KEY (id)
+);
+CREATE INDEX geom_idx_d072 ON bd_alti.d072 USING gist (the_geom);
 
 CREATE TABLE bd_alti.d078 (
 	id int4 NOT NULL,
@@ -363,11 +390,54 @@ CREATE TABLE bd_alti.d078 (
 );
 CREATE INDEX geom_idx_d078 ON bd_alti.d078 USING gist (the_geom);
 
+
+CREATE TABLE bd_alti.d075 (
+	id int4 NOT NULL,
+	the_geom public.geometry(pointz, 2154) NULL,
+	CONSTRAINT pk_d075 PRIMARY KEY (id)
+);
+CREATE INDEX geom_idx_d075 ON bd_alti.d075 USING gist (the_geom);
+
+CREATE TABLE bd_alti.d076 (
+	id int4 NOT NULL,
+	the_geom public.geometry(pointz, 2154) NULL,
+	CONSTRAINT pk_d076 PRIMARY KEY (id)
+);
+CREATE INDEX geom_idx_d076 ON bd_alti.d076 USING gist (the_geom);
+
 CREATE TABLE bd_alti.d091 (
 	id SERIAL PRIMARY KEY,
 	the_geom public.geometry(pointz, 2154) NULL
 );
 CREATE INDEX geom_idx_d091 ON bd_alti.d091 USING gist (the_geom);
+
+CREATE TABLE bd_alti.d092 (
+	id SERIAL PRIMARY KEY,
+	the_geom public.geometry(pointz, 2154) NULL
+);
+CREATE INDEX geom_idx_d092 ON bd_alti.d092 USING gist (the_geom);
+
+
+CREATE TABLE bd_alti.d093 (
+	id SERIAL PRIMARY KEY,
+	the_geom public.geometry(pointz, 2154) NULL
+);
+CREATE INDEX geom_idx_d093 ON bd_alti.d093 USING gist (the_geom);
+
+CREATE TABLE bd_alti.d094 (
+	id SERIAL PRIMARY KEY,
+	the_geom public.geometry(pointz, 2154) NULL
+);
+CREATE INDEX geom_idx_d094 ON bd_alti.d094 USING gist (the_geom);
+
+
+
+
+CREATE TABLE bd_alti.d095 (
+	id SERIAL PRIMARY KEY,
+	the_geom public.geometry(pointz, 2154) NULL
+);
+CREATE INDEX geom_idx_d095 ON bd_alti.d095 USING gist (the_geom);
 
 CREATE TABLE bd_alti.tiny_d091 (
 	chunk_twkb bytea NULL

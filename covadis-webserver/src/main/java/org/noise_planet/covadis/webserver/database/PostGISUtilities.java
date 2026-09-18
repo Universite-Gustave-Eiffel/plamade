@@ -73,6 +73,9 @@ public class PostGISUtilities {
 
 
         String tempTableName = "TEMP_" + h2TableName + "_" + System.currentTimeMillis();
+        if(!JDBCUtilities.tableExists(pgConnection, pgTableName)) {
+            throw new IllegalArgumentException("Source table does not exist: " + pgTableName);
+        }
 
         GeometryMetaData metaData =
                 GeometryTableUtilities.getMetaData(pgConnection, pgTableName, "the_geom");

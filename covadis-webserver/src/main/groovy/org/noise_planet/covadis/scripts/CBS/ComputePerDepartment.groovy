@@ -48,6 +48,27 @@ inputs = [
                 name: "Configuration identifier",
                 description: "Configuration identifier defined in cbs_uge_input.nm_conf ",
                 type: Integer.class
+        ],
+        configuration_name      : [
+                name       : 'HPC Configuration Name',
+                title      : 'HPC Configuration Name',
+                description: 'Slurm SSH access configuration name written through Write_HPC_Settings WPS Script',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
+        key_password        : [
+                name       : 'SSH Private Key password',
+                title      : 'SSH Private Key password',
+                description: 'Optional private key password',
+                min        : 0, max: 1,
+                type       : String.class
+        ],
+        slurm_task_count            : [
+                name       : 'Slurm task count',
+                title      : 'Slurm task count',
+                description: 'Number of parallel jobs for the computation on the Slurm server.',
+                default    : 8,
+                type       : Integer.class
         ]
 ]
 
@@ -121,6 +142,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
     def pgSql = new Sql(pgConnection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for department: $department")
+    ProgressVisitor departmentProgress = progress.subProcess(2)
     try (Connection h2Connection = h2DataSource.getConnection()) {
         // Compute envelope of the simulation
         def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
@@ -138,7 +160,8 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         extractionEnvelopeGeometry = geometryFactory.createGeometry(extractionEnvelopeGeometry)
         def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
 
-        fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, progress)
+
+        fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, departmentProgress)
 
         ComputePerUUEID.fetchBuildings(input,
                 pgConnection,
@@ -149,6 +172,8 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor())
+
+        keepOnlyReceiversInDepartment(input, pgConnection, h2Connection)
 
         ComputePerUUEID.processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection)
 
@@ -161,12 +186,12 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
             .collect { it.pos_sol as String
     }
 
-    ProgressVisitor solProgress = progress.subProcess(posSols.size())
+    ProgressVisitor solProgress = departmentProgress.subProcess(posSols.size())
     new ArrayList<>(posSols).forEach { posSol ->
         logger.info("Compute for pos_sol = $posSol")
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
-            fetchRoads(input, pgConnection,  h2Connection, solProgress, posSol)
+            fetchRoads(input, pgConnection,  h2Connection, new EmptyProgressVisitor(), posSol)
             doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
         }
 
@@ -174,13 +199,14 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
                 // Adapt the DEM with this special road height platforms
-                enrichDem(input, department, h2Connection, pgConnection, solProgress, posSol)
+                enrichDem(input, department, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol)
             }
             // Run the simulation with this road height
             ComputePerUUEID.runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
         } else {
             logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
+            solProgress.endStep()
         }
     }
 
@@ -198,6 +224,8 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
             logger.error("Invalid department code: {}", department)
         }
         ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
+
+        cutCbsByDepartmentPolygon(input, pgConnection, h2Connection)
 
         ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
 
@@ -265,7 +293,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             ALTER TABLE cbs_uge_output.expo_dept ALTER COLUMN pk SET NOT NULL;
             ALTER TABLE cbs_uge_output.expo_dept ADD PRIMARY KEY (pk);
             ALTER TABLE cbs_uge_output.expo_dept OWNER TO cbs_uge_group;
-            COMMENT ON TABLE cbs_uge_output.expo_dept IS 'Assessment of health risks (HA, HSD, CPI) associated with exposure to transportation noise for each noise levels';
+            COMMENT ON TABLE cbs_uge_output.expo_dept IS 'Assessment of health risks (HA, HSD) associated with exposure to transportation noise for each noise levels';
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
 
@@ -372,9 +400,11 @@ def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connecti
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")
     def fetchTableNamesQuery = """
-        SELECT bd_alti
+        SELECT distinct bd_alti
         FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
-        WHERE nldirh.insee_dep = '${input.department}';
+        WHERE nldirh.uueid IN
+         (SELECT distinct d.uueid 
+         FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} d where d.insee_dep = '${input.department}');
     """
     def bdAltiTableName = new HashSet<String>()
     pgSql.rows(fetchTableNamesQuery as String).each { row ->
@@ -397,4 +427,55 @@ static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Conne
     }
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], new EmptyProgressVisitor())
+}
+
+static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connection h2Connection) {
+    def pgSql = new Sql(pgConnection)
+    def h2Sql = new Sql(h2Connection)
+    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def department = input.department as String
+    def extractionEnvelopeGeometry = getDepartmentGeometry(pgSql, projectionCode, department)
+    // Remove from the table all triangles that does not touch the department geometry
+    int removed = h2Sql.executeUpdate("""DELETE FROM TRIANGLES T WHERE NOT ST_Intersects(THE_GEOM, $extractionEnvelopeGeometry)""")
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Removed {} triangles that do not intersect with the department geometry", removed)
+    // Remove receivers not referenced by triangles and remove buildings facade receivers not in department
+    ComputePerUUEID.runSqlQuery(h2Connection,"""
+        DELETE FROM RECEIVERS_DELAUNAY R 
+            WHERE NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_1 = R.PK)
+              AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_2 = R.PK)
+              AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_3 = R.PK);
+        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        -- Remove receivers that does not exists anymore on RECEIVERS table
+        DELETE FROM RECEIVERS WHERE PK <= @LASTDELAUNAY AND PK NOT IN (SELECT PK FROM RECEIVERS_DELAUNAY);
+        """ as String)
+    // Remove receivers PK > @LASTDELAUNAY were the building centroid are outside of the department
+    removed = h2Sql.executeUpdate("""
+        DELETE FROM RECEIVERS WHERE PK > @LASTDELAUNAY AND (PK - @LASTDELAUNAY) NOT IN (SELECT RB.PK FROM RECEIVERS_BUILDINGS RB INNER JOIN BUILDINGS B ON B.PK = RB.build_pk WHERE ST_Intersects(ST_Centroid(B.THE_GEOM), $extractionEnvelopeGeometry))
+    """)
+    logger.info("Removed {} building facade receivers that are outside of the department geometry", removed)
+}
+
+static Geometry getDepartmentGeometry(Sql pgSql, int projectionCode, department) {
+    def res = pgSql.firstRow("""SELECT 
+             st_simplify(the_geom, 1) geomenv
+             FROM cbs_uge_input.nm_departement_$projectionCode WHERE insee_dep = '${department}';""" as String)
+    if (res == null) {
+        throw new IllegalArgumentException("No match for the provided department '${department}'")
+    }
+    res.geomenv as Geometry
+}
+
+static void cutCbsByDepartmentPolygon(Map input,Connection pgConnection, Connection h2Connection) {
+    def h2Sql = new Sql(h2Connection)
+    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def department = input.department as String
+    def extractionEnvelopeGeometry = getDepartmentGeometry(new Sql(pgConnection), projectionCode, department)
+    h2Sql.executeUpdate("""
+        UPDATE ISOPHONES SET THE_GEOM = ST_Multi(ST_Intersection(THE_GEOM, $extractionEnvelopeGeometry))
+    """)
+    // Remove empty geometries
+    h2Sql.executeUpdate("""
+        DELETE FROM ISOPHONES WHERE ST_ISEMPTY(THE_GEOM);
+    """)
 }
