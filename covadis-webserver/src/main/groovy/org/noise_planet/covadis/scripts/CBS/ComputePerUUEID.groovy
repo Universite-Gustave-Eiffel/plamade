@@ -168,7 +168,7 @@ static Map fetchNoiseModellingConfiguration(Sql sql, int configurationId) {
     mainConfiguration
 }
 
-static def void copyConfigurationTables(HikariDataSource h2DataSource, Connection sourceConnection) {
+static void copyConfigurationTables(HikariDataSource h2DataSource, Connection sourceConnection) {
     // Copy the two configuration tables
     try (Connection h2Connection = h2DataSource.getConnection()) {
         try (Statement st = sourceConnection.createStatement(); ResultSet rs =
@@ -176,10 +176,12 @@ static def void copyConfigurationTables(HikariDataSource h2DataSource, Connectio
             PostGISUtilities
                     .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "POSTGIS_CONFIGURATION", true, batchSize)
         }
-        try (Statement st = sourceConnection.createStatement(); ResultSet rs =
-                st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
-            PostGISUtilities
-                    .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
+        if(JDBCUtilities.tableExists(sourceConnection, "SLURM_CONFIGURATION")) {
+            try (Statement st = sourceConnection.createStatement(); ResultSet rs =
+                    st.executeQuery("SELECT * FROM SLURM_CONFIGURATION")) {
+                PostGISUtilities
+                        .copyResultSetToDatabase(sourceConnection, rs, h2Connection, "SLURM_CONFIGURATION", true, batchSize)
+            }
         }
     }
 }

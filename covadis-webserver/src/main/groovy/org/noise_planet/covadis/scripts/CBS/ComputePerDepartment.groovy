@@ -293,7 +293,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             ALTER TABLE cbs_uge_output.expo_dept ALTER COLUMN pk SET NOT NULL;
             ALTER TABLE cbs_uge_output.expo_dept ADD PRIMARY KEY (pk);
             ALTER TABLE cbs_uge_output.expo_dept OWNER TO cbs_uge_group;
-            COMMENT ON TABLE cbs_uge_output.expo_dept IS 'Assessment of health risks (HA, HSD, CPI) associated with exposure to transportation noise for each noise levels';
+            COMMENT ON TABLE cbs_uge_output.expo_dept IS 'Assessment of health risks (HA, HSD) associated with exposure to transportation noise for each noise levels';
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
 
@@ -472,7 +472,7 @@ static void cutCbsByDepartmentPolygon(Map input,Connection pgConnection, Connect
     def department = input.department as String
     def extractionEnvelopeGeometry = getDepartmentGeometry(new Sql(pgConnection), projectionCode, department)
     h2Sql.executeUpdate("""
-        UPDATE ISOPHONES SET THE_GEOM = ST_Intersection(THE_GEOM, $extractionEnvelopeGeometry)
+        UPDATE ISOPHONES SET THE_GEOM = ST_Multi(ST_Intersection(THE_GEOM, $extractionEnvelopeGeometry))
     """)
     // Remove empty geometries
     h2Sql.executeUpdate("""
