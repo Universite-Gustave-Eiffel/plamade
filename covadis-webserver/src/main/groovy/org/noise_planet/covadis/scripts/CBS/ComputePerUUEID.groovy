@@ -344,7 +344,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
     try( Statement st = h2Connection.createStatement() ;
-         ResultSet rs = st.executeQuery("""SELECT '$uueid' uueid, '$nutsCode' nutscode , CPI, HA, HSD FROM EXPO_GLOBAL""")) {
+         ResultSet rs = st.executeQuery("""SELECT '$uueid' uueid, '$nutsCode' nutscode , CPI, HA, HSD, TOTAL_POP FROM EXPO_GLOBAL""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo_global", false, batchSize)
     }
@@ -352,6 +352,13 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
         // Create index
         new Execute_Query().exec(pgConnection, [sqlQueries: """            
             ALTER TABLE cbs_uge_output.expo_global OWNER TO cbs_uge_group;
+            COMMENT ON TABLE cbs_uge_output.expo_global IS 'Global exposure table for each infrastructure';
+            COMMENT ON COLUMN cbs_uge_output.expo_global.uueid IS 'Unique Infrastructure Identifier';
+            COMMENT ON COLUMN cbs_uge_output.expo_global.nutscode IS 'NUTS Code';
+            COMMENT ON COLUMN cbs_uge_output.expo_global.cpi IS 'Nombre de personnes affectées par les cardiopathies ischémiques';
+            COMMENT ON COLUMN cbs_uge_output.expo_global.ha IS 'Nombre de personnes affectées par la forte gêne';
+            COMMENT ON COLUMN cbs_uge_output.expo_global.hsd IS 'Nombre de personnes affectées par les fortes perturbations du sommeil';
+            COMMENT ON COLUMN cbs_uge_output.expo_global.total_pop IS 'Population totale pour le calcul des indicateurs';
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
 }
@@ -580,8 +587,8 @@ static def generateHealthStatistics(Connection h2Connection) {
         UPDATE EXPOSURE_RANGES EXPO SET HSD = people * (19.4312 - 0.9336 * noiselevel_mid + 0.0126 * noiselevel_mid * noiselevel_mid) / 100.0 WHERE indicetype = 'LN';
         -- Create global indicators
         DROP TABLE IF EXISTS EXPO_GLOBAL;
-        CREATE TABLE EXPO_GLOBAL(cpi double precision, ha double precision, hsd double precision);
-        INSERT INTO EXPO_GLOBAL(cpi, ha, hsd)
+        CREATE TABLE EXPO_GLOBAL(cpi double precision, ha double precision, hsd double precision, total_pop double precision);
+        INSERT INTO EXPO_GLOBAL(cpi, ha, hsd, total_pop)
         WITH GlobalTotal AS (
             SELECT CAST(SUM(pop) AS DOUBLE) AS T 
             FROM BUILDINGS
@@ -593,7 +600,8 @@ static def generateHealthStatistics(Connection h2Connection) {
                 (SUM(CAST(CASE WHEN indicetype = 'LD' AND RR > 1 THEN people * (RR - 1) ELSE 1 END AS DOUBLE)) + T)
             ) * CAST(${cpiPerPersonPerYear} AS DOUBLE) AS cpi,        
             SUM(CAST(CASE WHEN indicetype = 'LD' THEN HA ELSE 0 END AS DOUBLE)) AS ha,
-            SUM(CAST(CASE WHEN indicetype = 'LN' THEN HSD ELSE 0 END AS DOUBLE)) AS hsd 
+            SUM(CAST(CASE WHEN indicetype = 'LN' THEN HSD ELSE 0 END AS DOUBLE)) AS hsd,
+            T AS total_pop
         FROM EXPOSURE_RANGES, GlobalTotal
         """)
 }

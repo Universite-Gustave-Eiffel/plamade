@@ -305,13 +305,20 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
         """ as String, outputFormat: "json"], new EmptyProgressVisitor())
     }
     try( Statement st = h2Connection.createStatement() ;
-         ResultSet rs = st.executeQuery("""SELECT '$department' insee_dep, '$nutsCode' as NUTSCODE , CPI, HA, HSD FROM EXPO_GLOBAL""")) {
+         ResultSet rs = st.executeQuery("""SELECT '$department' insee_dep, '$nutsCode' as NUTSCODE , CPI, HA, HSD, TOTAL_POP FROM EXPO_GLOBAL""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo_global_dept", false, batchSize)
     }
     if(!tableExists) {
         // Create index, set insee_dep as primary key
         new Execute_Query().exec(pgConnection, [sqlQueries: """
+            COMMENT ON TABLE cbs_uge_output.expo_global_dept IS 'Global exposure table for each department';
+            COMMENT ON COLUMN cbs_uge_output.expo_global_dept.insee_dep IS 'Department Code';
+            COMMENT ON COLUMN cbs_uge_output.expo_global_dept.nutscode IS 'NUTS Code';
+            COMMENT ON COLUMN cbs_uge_output.expo_global_dept.cpi IS 'Nombre de personnes affectées par les cardiopathies ischémiques';
+            COMMENT ON COLUMN cbs_uge_output.expo_global_dept.ha IS 'Nombre de personnes affectées par la forte gêne';
+            COMMENT ON COLUMN cbs_uge_output.expo_global_dept.hsd IS 'Nombre de personnes affectées par les fortes perturbations du sommeil';
+            COMMENT ON COLUMN cbs_uge_output.expo_global_dept.total_pop IS 'Population totale pour le calcul des indicateurs';
             ALTER TABLE cbs_uge_output.expo_global_dept ALTER COLUMN insee_dep SET NOT NULL;
             ALTER TABLE cbs_uge_output.expo_global_dept ADD PRIMARY KEY (insee_dep);            
             ALTER TABLE cbs_uge_output.expo_global_dept OWNER TO cbs_uge_group;
