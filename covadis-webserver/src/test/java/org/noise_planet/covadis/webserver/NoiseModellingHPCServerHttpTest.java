@@ -23,6 +23,7 @@ import net.opengis.wps10.ExecuteResponseType;
 import org.h2.value.ValueBoolean;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.shp.SHPRead;
+import org.h2gis.utilities.JDBCUtilities;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -125,7 +126,12 @@ public class NoiseModellingHPCServerHttpTest {
     public void clearInstance() throws SQLException {
         if (app != null) {
             try(Connection connection = app.getServerDataSource().getConnection()) {
-                connection.createStatement().execute("TRUNCATE TABLE JOBS");
+                if(JDBCUtilities.tableExists(connection, "LOGS")) {
+                    connection.createStatement().execute("DELETE FROM LOGS");
+                }
+                if(JDBCUtilities.tableExists(connection, "JOBS")) {
+                    connection.createStatement().execute("DELETE FROM JOBS");
+                }
             }
         }
     }
