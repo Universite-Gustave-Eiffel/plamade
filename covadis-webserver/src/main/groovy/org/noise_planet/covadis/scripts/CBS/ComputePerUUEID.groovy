@@ -980,7 +980,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
-            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true], subSteps)
+            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true, "buildingBuffer": 0.1], subSteps)
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
