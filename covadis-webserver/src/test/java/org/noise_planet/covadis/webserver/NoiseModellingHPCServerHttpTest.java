@@ -127,10 +127,10 @@ public class NoiseModellingHPCServerHttpTest {
         if (app != null) {
             try(Connection connection = app.getServerDataSource().getConnection()) {
                 if(JDBCUtilities.tableExists(connection, "LOGS")) {
-                    connection.createStatement().execute("TRUNCATE TABLE LOGS");
+                    connection.createStatement().execute("DELETE FROM LOGS");
                 }
                 if(JDBCUtilities.tableExists(connection, "JOBS")) {
-                    connection.createStatement().execute("TRUNCATE TABLE JOBS");
+                    connection.createStatement().execute("DELETE FROM JOBS");
                 }
             }
         }
