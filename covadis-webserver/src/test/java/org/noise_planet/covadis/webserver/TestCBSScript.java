@@ -1,6 +1,8 @@
 package org.noise_planet.covadis.webserver;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
 import org.h2.value.ValueBoolean;
@@ -21,6 +23,9 @@ import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.noise_planet.noisemodelling.jdbc.output.NoiseMapWriter;
+import org.noise_planet.noisemodelling.pathfinder.profilebuilder.CutProfile;
+import org.noise_planet.noisemodelling.propagation.AttenuationOutput;
 import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -353,4 +358,25 @@ public class TestCBSScript extends JDBCTestCase {
     }
 
 
+    @Test
+    @Order(4)
+    public void testRaysByUUEID() throws SQLException, JsonProcessingException {
+        assumePostGISAvailable();
+
+        new ComputePerUUEID().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "uueid_pattern", "RD_FR_00_0781651",
+                        "conf", 1,
+                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                new EmptyProgressVisitor());
+
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RAYS", 120));
+        try(Statement st = connection.createStatement();
+            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS")) {
+            assertTrue(rs.next());
+            String jsonPath = rs.getString("PATH");
+            AttenuationOutput attenuationOutput = NoiseMapWriter.jsonToAttenuationOutput(jsonPath);
+
+        }
+    }
 }

@@ -74,6 +74,13 @@ inputs = [
                 description: 'Number of parallel jobs for the computation on the Slurm server.',
                 default    : 8,
                 type       : Integer.class
+        ],
+        receiver_rays        : [
+                name       : 'Receiver rays profile',
+                title      : 'Receiver rays profile',
+                description: 'Replace computed receiver by the provided one (WKT) and combine the RAYS table to the main connection',
+                min        : 0, max: 1,
+                type       : String.class
         ]
 ]
 
@@ -87,6 +94,12 @@ static final int batchSize = 100
  */
 @Field
 static final double lengthMaxLocalComputation = 1000
+
+/**
+ * Minimal number of receivers to use HPC
+ */
+@Field
+static final double maximalReceiversToLocalComputation = 100
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -133,6 +146,17 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             logger.info("Create database for UUEID: $it in directory: $tempDirectory")
             copyConfigurationTables(h2DataSource, connection)
             computeForUUEID(it, h2DataSource, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
+
+            // Copy rays table from temporary h2 connection to local h2 table
+            try(Connection h2Connection = h2DataSource.getConnection()) {
+                if (input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0
+                        && JDBCUtilities.tableExists(h2Connection, "RAYS")) {
+                    // Copy RAYS table
+                    try(ResultSet rs = h2Connection.createStatement().executeQuery("SELECT * FROM RAYS_MERGED")) {
+                        PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, connection, "RAYS", false, 500)
+                    }
+                }
+            }
 
             // Delete the database file
             if(h2DataSource instanceof Closeable) {
@@ -239,7 +263,12 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
             fetchRoads(input, pgConnection, uueid, h2Connection, posSol)
-            doCompute = GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+            if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
+                doCompute = true
+                generateDebugReceiver(h2Connection, input)
+            } else {
+                doCompute = GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+            }
         }
         // Fetch specific road emission at this special height
         if(doCompute) {
@@ -249,6 +278,23 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             }
             // Run the simulation with this road height
             runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
+            if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
+                // Merge rays table
+                try(Connection h2Connection = h2DataSource.getConnection()) {
+                    def h2Sql = new Sql(h2Connection)
+                    if (!JDBCUtilities.tableExists(h2Connection, "RAYS_MERGED")) {
+                        h2Sql.execute("""
+                            ALTER TABLE RAYS RENAME TO RAYS_MERGED;
+                            ALTER TABLE RAYS_MERGED ADD COLUMN POS_SOL VARCHAR(5);
+                            UPDATE RAYS_MERGED SET POS_SOL = '$posSol';
+                       """)
+                    } else {
+                        h2Sql.execute("""
+                            INSERT INTO RAYS_MERGED SELECT *, '$posSol' FROM RAYS
+                            """)
+                    }
+                }
+            }
         } else {
             logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
@@ -1125,18 +1171,21 @@ def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgCon
 
 static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, String posSol, ProgressVisitor stepsProgress) {
     def totalLength
+    def nbReceivers
     try(Connection h2Connection = h2DataSource.getConnection()) {
         Sql h2Sql = new Sql(h2Connection)
         // Fetch the length of the sound source to use local computation if the length of the sources is too short
 
         totalLength = h2Sql.firstRow("SELECT SUM(ST_Length(the_geom)) FROM LW_ROADS")[0] as Double
+
+        nbReceivers = JDBCUtilities.getRowCount(h2Connection, "RECEIVERS_FILTERED")
     }
 
     def slurmTaskCount = inputs.getOrDefault("slurm_task_count", 8) as Integer
     def configurationName = inputs.getOrDefault("configuration_name", "") as String
     def keyPassword = inputs.getOrDefault("key_password", "") as String
 
-    def computeOnHPC = totalLength > lengthMaxLocalComputation && !configurationName.isEmpty()
+    def computeOnHPC = totalLength > lengthMaxLocalComputation && !configurationName.isEmpty() && nbReceivers > maximalReceiversToLocalComputation
 
     if(!computeOnHPC) {
         try(Connection h2Connection = h2DataSource.getConnection()) {
@@ -1152,7 +1201,8 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                    confMaxReflDist               : mainConfiguration.confmaxrefldist,
                                    confDiffVertical              : mainConfiguration.confdiffvertical,
                                    confDiffHorizontal            : mainConfiguration.confdiffhorizontal,
-                                   confMinWallReflDist           : 0.2 // ignore reflection distance, buildings receiver are at 0.1 m from facades
+                                   confMinWallReflDist           : 0.2, // ignore reflection distance, buildings receiver are at 0.1 m from facades
+                                   confRaysName                  : (inputs.getOrDefault("receiver_rays", "") as String).empty ? "" : "RAYS"
             ],
                     stepsProgress)
         }
@@ -1351,6 +1401,16 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
+}
+
+static void generateDebugReceiver(Connection h2Connection, Map input){
+    Sql sql = new Sql(h2Connection)
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM");
+    sql.execute("""
+            DROP TABLE IF EXISTS RECEIVERS_FILTERED;
+            CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT 1, '${input.receiver_rays}'
+        """ as String)
 }
 
 /**
