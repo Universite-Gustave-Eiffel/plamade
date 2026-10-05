@@ -170,6 +170,8 @@ public class TestCBSScript extends JDBCTestCase {
                                       ) AS d;
                                       DROP TABLE bd_alti.tiny_d091;
                                       """);
+                    // Keep only one meteo station in order to have common results between department and UUEID computation test
+                    statement.execute("DELETE FROM cbs_uge_input.nm_stations_hexa WHERE id_station <> 226");
                     // Duplicate on 028 to check for removal of duplicate DEM points
                     statement.execute("INSERT INTO bd_alti.d028 (id, the_geom) select id, the_geom from bd_alti.d091;");
                     // Set population to the nearest building from the emission road to have a result even with a low max propagation distance
@@ -392,11 +394,10 @@ public class TestCBSScript extends JDBCTestCase {
                         "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
                 new EmptyProgressVisitor());
 
-        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RAYS ORDER BY POS_SOL," +
-                " IDRECEIVER, IDSOURCE, PERIOD", 120));
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
         List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
         try(Statement st = connection.createStatement();
-            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS")) {
+            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
             while(rs.next()) {
                 String jsonPath = rs.getString("PATH");
                 CnossosAttenuationOutput attenuationOutput = jsonToAttenuationOutput(jsonPath);
@@ -418,11 +419,10 @@ public class TestCBSScript extends JDBCTestCase {
                         "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
                 new EmptyProgressVisitor());
 
-        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RAYS", 120));
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
         List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
         try(Statement st = connection.createStatement();
-            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE," +
-                    " PERIOD")) {
+            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
             while(rs.next()) {
                 String jsonPath = rs.getString("PATH");
                 CnossosAttenuationOutput attenuationOutput = jsonToAttenuationOutput(jsonPath);

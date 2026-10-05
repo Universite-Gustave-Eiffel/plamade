@@ -313,6 +313,12 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
     }
 }
 
+/**
+ * Merge the output rays table with the existing rays table
+ * @param h2DataSource Local h2 data source
+ * @param input Input parameters
+ * @param posSol Infrastructure position filter
+ */
 static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
     if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
         // Merge rays table
@@ -322,12 +328,18 @@ static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
                 h2Sql.execute("""
                             ALTER TABLE RAYS RENAME TO RAYS_MERGED;
                             ALTER TABLE RAYS_MERGED ADD COLUMN POS_SOL VARCHAR(5);
-                            UPDATE RAYS_MERGED SET POS_SOL = '$posSol';
+                            UPDATE RAYS_MERGED SET POS_SOL = $posSol;
                        """)
             } else {
+                List<String> fields = JDBCUtilities.getColumnNames(h2Connection, "RAYS")
+                // Will use the auto increment for the field PK in order to avoid conflicts
+                fields.removeElement("PK")
+                String fieldsSelect = fields.collect { "RAYS.$it" }.join(", ")
+                fields.add("POS_SOL")
+                String fieldsNames = fields.join(", ")
                 h2Sql.execute("""
-                            INSERT INTO RAYS_MERGED SELECT *, '$posSol' FROM RAYS
-                            """)
+                            INSERT INTO RAYS_MERGED($fieldsNames) SELECT $fieldsSelect, '$posSol' FROM RAYS;
+                            """ as String)
             }
         }
     }
@@ -1303,7 +1315,7 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         DROP TABLE IF EXISTS ATMOSPHERIC_SETTINGS;
         CREATE TABLE ATMOSPHERIC_SETTINGS(
             PERIOD VARCHAR,
-            WINDROSE real ARRAY[16],
+            WINDROSE varchar,
             TEMPERATURE NUMERIC,
             PRESSURE NUMERIC,
             HUMIDITY NUMERIC,
@@ -1314,24 +1326,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'D', 
-            ARRAY[
-                /* 0.0°   */ pfav_6_18_0,
-                /* 22.5°  */ (0.875 * pfav_6_18_20)  + (0.125 * pfav_6_18_40),
-                /* 45.0°  */ (0.75  * pfav_6_18_40)  + (0.25  * pfav_6_18_60),
-                /* 67.5°  */ (0.625 * pfav_6_18_60)  + (0.375 * pfav_6_18_80),
-                /* 90.0°  */ (0.5   * pfav_6_18_80)  + (0.5   * pfav_6_18_100),
-                /* 112.5° */ (0.375 * pfav_6_18_100) + (0.625 * pfav_6_18_120),
-                /* 135.0° */ (0.25  * pfav_6_18_120) + (0.75  * pfav_6_18_140),
-                /* 157.5° */ (0.125 * pfav_6_18_140) + (0.875 * pfav_6_18_160),
-                /* 180.0° */ pfav_6_18_180,
-                /* 202.5° */ (0.875 * pfav_6_18_200) + (0.125 * pfav_6_18_220),
-                /* 225.0° */ (0.75  * pfav_6_18_220) + (0.25  * pfav_6_18_240),
-                /* 247.5° */ (0.625 * pfav_6_18_240) + (0.375 * pfav_6_18_260),
-                /* 270.0° */ (0.5   * pfav_6_18_260) + (0.5   * pfav_6_18_280),
-                /* 292.5° */ (0.375 * pfav_6_18_280) + (0.625 * pfav_6_18_300),
-                /* 315.0° */ (0.25  * pfav_6_18_300) + (0.75  * pfav_6_18_320),
-                /* 337.5° */ (0.125 * pfav_6_18_320) + (0.875 * pfav_6_18_340)
-            ], 
+            CONCAT_WS(',', pfav_6_18_20, pfav_6_18_40, pfav_6_18_60, pfav_6_18_80, pfav_6_18_100, pfav_6_18_120,
+             pfav_6_18_140, pfav_6_18_160, pfav_6_18_180, pfav_6_18_200, pfav_6_18_220, pfav_6_18_240, pfav_6_18_260,
+              pfav_6_18_280, pfav_6_18_300, pfav_6_18_320, pfav_6_18_340, pfav_6_18_0), 
             temp_6_18, 
             101325, 
             hygro_6_18 * 100 
@@ -1340,24 +1337,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'E', 
-            ARRAY[
-                /* 0.0°   */ pfav_18_22_0,
-                /* 22.5°  */ (0.875 * pfav_18_22_20)  + (0.125 * pfav_18_22_40),
-                /* 45.0°  */ (0.75  * pfav_18_22_40)  + (0.25  * pfav_18_22_60),
-                /* 67.5°  */ (0.625 * pfav_18_22_60)  + (0.375 * pfav_18_22_80),
-                /* 90.0°  */ (0.5   * pfav_18_22_80)  + (0.5   * pfav_18_22_100),
-                /* 112.5° */ (0.375 * pfav_18_22_100) + (0.625 * pfav_18_22_120),
-                /* 135.0° */ (0.25  * pfav_18_22_120) + (0.75  * pfav_18_22_140),
-                /* 157.5° */ (0.125 * pfav_18_22_140) + (0.875 * pfav_18_22_160),
-                /* 180.0° */ pfav_18_22_180,
-                /* 202.5° */ (0.875 * pfav_18_22_200) + (0.125 * pfav_18_22_220),
-                /* 225.0° */ (0.75  * pfav_18_22_220) + (0.25  * pfav_18_22_240),
-                /* 247.5° */ (0.625 * pfav_18_22_240) + (0.375 * pfav_18_22_260),
-                /* 270.0° */ (0.5   * pfav_18_22_260) + (0.5   * pfav_18_22_280),
-                /* 292.5° */ (0.375 * pfav_18_22_280) + (0.625 * pfav_18_22_300),
-                /* 315.0° */ (0.25  * pfav_18_22_300) + (0.75  * pfav_18_22_320),
-                /* 337.5° */ (0.125 * pfav_18_22_320) + (0.875 * pfav_18_22_340)
-            ], 
+            CONCAT_WS(',', pfav_18_22_20, pfav_18_22_40, pfav_18_22_60, pfav_18_22_80, pfav_18_22_100, pfav_18_22_120,
+             pfav_18_22_140, pfav_18_22_160, pfav_18_22_180, pfav_18_22_200, pfav_18_22_220, pfav_18_22_240,
+              pfav_18_22_260, pfav_18_22_280, pfav_18_22_300, pfav_18_22_320, pfav_18_22_340, pfav_18_22_0),
             temp_18_22, 
             101325, 
             hygro_18_22 * 100 
@@ -1366,24 +1348,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'N', 
-            ARRAY[
-                /* 0.0°   */ pfav_22_6_0,
-                /* 22.5°  */ (0.875 * pfav_22_6_20)  + (0.125 * pfav_22_6_40),
-                /* 45.0°  */ (0.75  * pfav_22_6_40)  + (0.25  * pfav_22_6_60),
-                /* 67.5°  */ (0.625 * pfav_22_6_60)  + (0.375 * pfav_22_6_80),
-                /* 90.0°  */ (0.5   * pfav_22_6_80)  + (0.5   * pfav_22_6_100),
-                /* 112.5° */ (0.375 * pfav_22_6_100) + (0.625 * pfav_22_6_120),
-                /* 135.0° */ (0.25  * pfav_22_6_120) + (0.75  * pfav_22_6_140),
-                /* 157.5° */ (0.125 * pfav_22_6_140) + (0.875 * pfav_22_6_160),
-                /* 180.0° */ pfav_22_6_180,
-                /* 202.5° */ (0.875 * pfav_22_6_200) + (0.125 * pfav_22_6_220),
-                /* 225.0° */ (0.75  * pfav_22_6_220) + (0.25  * pfav_22_6_240),
-                /* 247.5° */ (0.625 * pfav_22_6_240) + (0.375 * pfav_22_6_260),
-                /* 270.0° */ (0.5   * pfav_22_6_260) + (0.5   * pfav_22_6_280),
-                /* 292.5° */ (0.375 * pfav_22_6_280) + (0.625 * pfav_22_6_300),
-                /* 315.0° */ (0.25  * pfav_22_6_300) + (0.75  * pfav_22_6_320),
-                /* 337.5° */ (0.125 * pfav_22_6_320) + (0.875 * pfav_22_6_340)
-            ], 
+            CONCAT_WS(',', pfav_22_6_20, pfav_22_6_40, pfav_22_6_60, pfav_22_6_80, pfav_22_6_100, pfav_22_6_120,
+             pfav_22_6_140, pfav_22_6_160, pfav_22_6_180, pfav_22_6_200, pfav_22_6_220, pfav_22_6_240, pfav_22_6_260,
+              pfav_22_6_280, pfav_22_6_300, pfav_22_6_320, pfav_22_6_340, pfav_22_6_0),
             temp_22_6, 
             101325, 
             hygro_22_6 * 100 
