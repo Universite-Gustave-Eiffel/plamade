@@ -147,16 +147,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             copyConfigurationTables(h2DataSource, connection)
             computeForUUEID(it, h2DataSource, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
 
-            // Copy rays table from temporary h2 connection to local h2 table
-            try(Connection h2Connection = h2DataSource.getConnection()) {
-                if (input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0
-                        && JDBCUtilities.tableExists(h2Connection, "RAYS")) {
-                    // Copy RAYS table
-                    try(ResultSet rs = h2Connection.createStatement().executeQuery("SELECT * FROM RAYS_MERGED")) {
-                        PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, connection, "RAYS", false, 500)
-                    }
-                }
-            }
+            copyRaysTableToMainConnection(h2DataSource, input, connection)
 
             // Delete the database file
             if(h2DataSource instanceof Closeable) {
@@ -170,6 +161,19 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
 
+}
+
+static void copyRaysTableToMainConnection(HikariDataSource h2DataSource, Map input, Connection connection) {
+// Copy rays table from temporary h2 connection to local h2 table
+    try (Connection h2Connection = h2DataSource.getConnection()) {
+        if (input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0
+                && JDBCUtilities.tableExists(h2Connection, "RAYS")) {
+            // Copy RAYS table
+            try (ResultSet rs = h2Connection.createStatement().executeQuery("SELECT * FROM RAYS_MERGED")) {
+                PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, connection, "RAYS", false, 500)
+            }
+        }
+    }
 }
 
 static Map<String, String> fetchCodeDeptToNutsMap(Sql sql) {
@@ -278,23 +282,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             }
             // Run the simulation with this road height
             runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
-            if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
-                // Merge rays table
-                try(Connection h2Connection = h2DataSource.getConnection()) {
-                    def h2Sql = new Sql(h2Connection)
-                    if (!JDBCUtilities.tableExists(h2Connection, "RAYS_MERGED")) {
-                        h2Sql.execute("""
-                            ALTER TABLE RAYS RENAME TO RAYS_MERGED;
-                            ALTER TABLE RAYS_MERGED ADD COLUMN POS_SOL VARCHAR(5);
-                            UPDATE RAYS_MERGED SET POS_SOL = '$posSol';
-                       """)
-                    } else {
-                        h2Sql.execute("""
-                            INSERT INTO RAYS_MERGED SELECT *, '$posSol' FROM RAYS
-                            """)
-                    }
-                }
-            }
+            mergeOutputRaysTable(h2DataSource, input, posSol)
         } else {
             logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
@@ -325,6 +313,25 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
     }
 }
 
+static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
+    if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
+        // Merge rays table
+        try(Connection h2Connection = h2DataSource.getConnection()) {
+            def h2Sql = new Sql(h2Connection)
+            if (!JDBCUtilities.tableExists(h2Connection, "RAYS_MERGED")) {
+                h2Sql.execute("""
+                            ALTER TABLE RAYS RENAME TO RAYS_MERGED;
+                            ALTER TABLE RAYS_MERGED ADD COLUMN POS_SOL VARCHAR(5);
+                            UPDATE RAYS_MERGED SET POS_SOL = '$posSol';
+                       """)
+            } else {
+                h2Sql.execute("""
+                            INSERT INTO RAYS_MERGED SELECT *, '$posSol' FROM RAYS
+                            """)
+            }
+        }
+    }
+}
 /**
  * Upload the content of the facade exposure table to PostGIS
  * @param h2Connection Local h2 connection

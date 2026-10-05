@@ -1,7 +1,10 @@
 package org.noise_planet.covadis.webserver;
 
 
+import com.bedatadriven.jackson.datatype.jts.JtsModule;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
@@ -14,6 +17,7 @@ import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.junit.jupiter.api.*;
+import org.locationtech.jts.geom.Coordinate;
 import org.noise_planet.covadis.scripts.CBS.ComputePerDepartment;
 import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
 import org.noise_planet.covadis.scripts.CBS.Generate_sources;
@@ -25,7 +29,9 @@ import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
 import org.noise_planet.noisemodelling.jdbc.output.NoiseMapWriter;
 import org.noise_planet.noisemodelling.pathfinder.profilebuilder.CutProfile;
+import org.noise_planet.noisemodelling.pathfinder.utils.geometry.CoordinateMixin;
 import org.noise_planet.noisemodelling.propagation.AttenuationOutput;
+import org.noise_planet.noisemodelling.propagation.cnossos.CnossosAttenuationOutput;
 import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -357,6 +363,22 @@ public class TestCBSScript extends JDBCTestCase {
 
     }
 
+    /**
+     * Deserialize AttenuationOutput object or AttenuationOutput child object.
+     * Note: the FAIL_ON_UNKNOWN_PROPERTIES feature ensure that the deserialization won't fail for children of
+     * AttenuationOutput with additional attributes.
+     *
+     * @param json The serialized AttenuationOutput
+     * @return Deserialized AttenuationOutput object
+     * @throws JsonProcessingException if the deserialization fails
+     */
+    public static CnossosAttenuationOutput jsonToAttenuationOutput(String json) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.addMixIn(Coordinate.class, CoordinateMixin.class);
+        mapper.registerModule(new JtsModule());
+        return mapper.readValue(json, CnossosAttenuationOutput.class);
+
+    }
 
     @Test
     @Order(4)
@@ -370,13 +392,43 @@ public class TestCBSScript extends JDBCTestCase {
                         "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
                 new EmptyProgressVisitor());
 
-        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RAYS", 120));
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RAYS ORDER BY POS_SOL," +
+                " IDRECEIVER, IDSOURCE, PERIOD", 120));
+        List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
         try(Statement st = connection.createStatement();
             ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS")) {
-            assertTrue(rs.next());
-            String jsonPath = rs.getString("PATH");
-            AttenuationOutput attenuationOutput = NoiseMapWriter.jsonToAttenuationOutput(jsonPath);
-
+            while(rs.next()) {
+                String jsonPath = rs.getString("PATH");
+                CnossosAttenuationOutput attenuationOutput = jsonToAttenuationOutput(jsonPath);
+                attenuationOutputs.add(attenuationOutput);
+            }
         }
+        assertEquals(30, attenuationOutputs.size());
+    }
+
+    @Test
+    @Order(4)
+    public void testRaysByDepartment() throws SQLException, JsonProcessingException {
+        assumePostGISAvailable();
+
+        new ComputePerDepartment().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "department", "78",
+                        "conf", 1,
+                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                new EmptyProgressVisitor());
+
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RAYS", 120));
+        List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
+        try(Statement st = connection.createStatement();
+            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE," +
+                    " PERIOD")) {
+            while(rs.next()) {
+                String jsonPath = rs.getString("PATH");
+                CnossosAttenuationOutput attenuationOutput = jsonToAttenuationOutput(jsonPath);
+                attenuationOutputs.add(attenuationOutput);
+            }
+        }
+        assertEquals(30, attenuationOutputs.size());
     }
 }

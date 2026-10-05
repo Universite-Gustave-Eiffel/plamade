@@ -69,6 +69,13 @@ inputs = [
                 description: 'Number of parallel jobs for the computation on the Slurm server.',
                 default    : 8,
                 type       : Integer.class
+        ],
+        receiver_rays        : [
+                name       : 'Receiver rays profile',
+                title      : 'Receiver rays profile',
+                description: 'Replace computed receiver by the provided one (WKT) and combine the RAYS table to the main connection',
+                min        : 0, max: 1,
+                type       : String.class
         ]
 ]
 
@@ -111,6 +118,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         ComputePerUUEID.copyConfigurationTables(h2DataSource, connection)
 
         computeForDepartment(input.department as String, h2DataSource, pgConnection, progress, input, mainConfiguration, codeDeptToNuts)
+
+        ComputePerUUEID.copyRaysTableToMainConnection(h2DataSource, input, connection)
 
         // Delete the database file
         if (h2DataSource instanceof Closeable) {
@@ -192,7 +201,12 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
             fetchRoads(input, pgConnection,  h2Connection, new EmptyProgressVisitor(), posSol)
-            doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+            if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
+                doCompute = true
+                ComputePerUUEID.generateDebugReceiver(h2Connection, input)
+            }else {
+                doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+            }
         }
 
         // Fetch specific road emission at this special height
@@ -203,6 +217,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
             }
             // Run the simulation with this road height
             ComputePerUUEID.runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
+            ComputePerUUEID.mergeOutputRaysTable(h2DataSource, input, posSol)
         } else {
             logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
