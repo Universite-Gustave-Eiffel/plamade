@@ -18,10 +18,7 @@ import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.junit.jupiter.api.*;
 import org.locationtech.jts.geom.Coordinate;
-import org.noise_planet.covadis.scripts.CBS.ComputePerDepartment;
-import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
-import org.noise_planet.covadis.scripts.CBS.Generate_sources;
-import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
+import org.noise_planet.covadis.scripts.CBS.*;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
@@ -430,5 +427,37 @@ public class TestCBSScript extends JDBCTestCase {
             }
         }
         assertEquals(30, attenuationOutputs.size());
+    }
+
+    @Test
+    @Order(4)
+    public void testExposeDem() throws SQLException {
+        new ExposeDEMforUniqueUUEID().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "uueid", "RD_FR_00_0781651",
+                        "conf", 1),
+                new EmptyProgressVisitor());
+
+        // Check dem_hexa
+        try (Connection pgConnection = pgDataSource.getConnection()) {
+            assertTrue(JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.dem_hexa"));
+            int rows = JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.dem_hexa");
+            assertTrue(rows > 0, "No contour line was pushed to cbs_uge_output.dem_hexa");
+            // All the contour lines belong to the processed uueid and lie on their level
+            try (Statement statement = pgConnection.createStatement();
+                 ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.dem_hexa " +
+                         "WHERE uueid = 'RD_FR_00_0781651' " +
+                         "AND ABS(ST_ZMin(the_geom) - idiso) < 0.01 AND ABS(ST_ZMax(the_geom) - idiso) < 0.01")) {
+                assertTrue(resultSet.next());
+                assertEquals(rows, resultSet.getInt("CPT"));
+            }
+            // Contour levels are multiples of the 1 m interval
+            try (Statement statement = pgConnection.createStatement();
+                 ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.dem_hexa " +
+                         "WHERE ABS(idiso - ROUND(idiso)) > 0.01")) {
+                assertTrue(resultSet.next());
+                assertEquals(0, resultSet.getInt("CPT"));
+            }
+        }
     }
 }
