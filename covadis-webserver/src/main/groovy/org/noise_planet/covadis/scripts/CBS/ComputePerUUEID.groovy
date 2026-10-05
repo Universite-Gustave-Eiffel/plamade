@@ -328,8 +328,8 @@ static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
                 h2Sql.execute("""
                             ALTER TABLE RAYS RENAME TO RAYS_MERGED;
                             ALTER TABLE RAYS_MERGED ADD COLUMN POS_SOL VARCHAR(5);
-                            UPDATE RAYS_MERGED SET POS_SOL = $posSol;
-                       """)
+                            UPDATE RAYS_MERGED SET POS_SOL = '$posSol';
+                       """ as String)
             } else {
                 List<String> fields = JDBCUtilities.getColumnNames(h2Connection, "RAYS")
                 // Will use the auto increment for the field PK in order to avoid conflicts
