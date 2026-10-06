@@ -74,6 +74,13 @@ inputs = [
                 description: 'Number of parallel jobs for the computation on the Slurm server.',
                 default    : 8,
                 type       : Integer.class
+        ],
+        receiver_rays        : [
+                name       : 'Receiver rays profile',
+                title      : 'Receiver rays profile',
+                description: 'Replace computed receiver by the provided one (WKT) and combine the RAYS table to the main connection',
+                min        : 0, max: 1,
+                type       : String.class
         ]
 ]
 
@@ -87,6 +94,12 @@ static final int batchSize = 100
  */
 @Field
 static final double lengthMaxLocalComputation = 1000
+
+/**
+ * Minimal number of receivers to use HPC
+ */
+@Field
+static final double maximalReceiversToLocalComputation = 100
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -134,6 +147,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             copyConfigurationTables(h2DataSource, connection)
             computeForUUEID(it, h2DataSource, pgConnection, stepsProgress, input, mainConfiguration, codeDeptToNuts)
 
+            copyRaysTableToMainConnection(h2DataSource, input, connection)
+
             // Delete the database file
             if(h2DataSource instanceof Closeable) {
                 ((Closeable) h2DataSource).close()
@@ -146,6 +161,19 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
 
+}
+
+static void copyRaysTableToMainConnection(HikariDataSource h2DataSource, Map input, Connection connection) {
+// Copy rays table from temporary h2 connection to local h2 table
+    try (Connection h2Connection = h2DataSource.getConnection()) {
+        if (input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0
+                && JDBCUtilities.tableExists(h2Connection, "RAYS")) {
+            // Copy RAYS table
+            try (ResultSet rs = h2Connection.createStatement().executeQuery("SELECT * FROM RAYS_MERGED")) {
+                PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, connection, "RAYS", false, 500)
+            }
+        }
+    }
 }
 
 static Map<String, String> fetchCodeDeptToNutsMap(Sql sql) {
@@ -239,7 +267,12 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
             fetchRoads(input, pgConnection, uueid, h2Connection, posSol)
-            doCompute = GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+            if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
+                doCompute = true
+                generateDebugReceiver(h2Connection, input)
+            } else {
+                doCompute = GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+            }
         }
         // Fetch specific road emission at this special height
         if(doCompute) {
@@ -249,6 +282,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             }
             // Run the simulation with this road height
             runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
+            mergeOutputRaysTable(h2DataSource, input, posSol)
         } else {
             logger.info("Skip pos_sol {}", posSol)
             posSols.removeElement(posSol)
@@ -279,6 +313,37 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
     }
 }
 
+/**
+ * Merge the output rays table with the existing rays table
+ * @param h2DataSource Local h2 data source
+ * @param input Input parameters
+ * @param posSol Infrastructure position filter
+ */
+static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
+    if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
+        // Merge rays table
+        try(Connection h2Connection = h2DataSource.getConnection()) {
+            def h2Sql = new Sql(h2Connection)
+            if (!JDBCUtilities.tableExists(h2Connection, "RAYS_MERGED")) {
+                h2Sql.execute("""
+                            ALTER TABLE RAYS RENAME TO RAYS_MERGED;
+                            ALTER TABLE RAYS_MERGED ADD COLUMN POS_SOL VARCHAR(5);
+                            UPDATE RAYS_MERGED SET POS_SOL = '$posSol';
+                       """ as String)
+            } else {
+                List<String> fields = JDBCUtilities.getColumnNames(h2Connection, "RAYS")
+                // Will use the auto increment for the field PK in order to avoid conflicts
+                fields.removeElement("PK")
+                String fieldsSelect = fields.collect { "RAYS.$it" }.join(", ")
+                fields.add("POS_SOL")
+                String fieldsNames = fields.join(", ")
+                h2Sql.execute("""
+                            INSERT INTO RAYS_MERGED($fieldsNames) SELECT $fieldsSelect, '$posSol' FROM RAYS;
+                            """ as String)
+            }
+        }
+    }
+}
 /**
  * Upload the content of the facade exposure table to PostGIS
  * @param h2Connection Local h2 connection
@@ -1125,18 +1190,21 @@ def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgCon
 
 static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, String posSol, ProgressVisitor stepsProgress) {
     def totalLength
+    def nbReceivers
     try(Connection h2Connection = h2DataSource.getConnection()) {
         Sql h2Sql = new Sql(h2Connection)
         // Fetch the length of the sound source to use local computation if the length of the sources is too short
 
         totalLength = h2Sql.firstRow("SELECT SUM(ST_Length(the_geom)) FROM LW_ROADS")[0] as Double
+
+        nbReceivers = JDBCUtilities.getRowCount(h2Connection, "RECEIVERS_FILTERED")
     }
 
     def slurmTaskCount = inputs.getOrDefault("slurm_task_count", 8) as Integer
     def configurationName = inputs.getOrDefault("configuration_name", "") as String
     def keyPassword = inputs.getOrDefault("key_password", "") as String
 
-    def computeOnHPC = totalLength > lengthMaxLocalComputation && !configurationName.isEmpty()
+    def computeOnHPC = totalLength > lengthMaxLocalComputation && !configurationName.isEmpty() && nbReceivers > maximalReceiversToLocalComputation
 
     if(!computeOnHPC) {
         try(Connection h2Connection = h2DataSource.getConnection()) {
@@ -1152,7 +1220,8 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                    confMaxReflDist               : mainConfiguration.confmaxrefldist,
                                    confDiffVertical              : mainConfiguration.confdiffvertical,
                                    confDiffHorizontal            : mainConfiguration.confdiffhorizontal,
-                                   confMinWallReflDist           : 0.2 // ignore reflection distance, buildings receiver are at 0.1 m from facades
+                                   confMinWallReflDist           : 0.2, // ignore reflection distance, buildings receiver are at 0.1 m from facades
+                                   confRaysName                  : (inputs.getOrDefault("receiver_rays", "") as String).empty ? "" : "RAYS"
             ],
                     stepsProgress)
         }
@@ -1246,7 +1315,7 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         DROP TABLE IF EXISTS ATMOSPHERIC_SETTINGS;
         CREATE TABLE ATMOSPHERIC_SETTINGS(
             PERIOD VARCHAR,
-            WINDROSE real ARRAY[16],
+            WINDROSE varchar,
             TEMPERATURE NUMERIC,
             PRESSURE NUMERIC,
             HUMIDITY NUMERIC,
@@ -1257,24 +1326,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'D', 
-            ARRAY[
-                /* 0.0°   */ pfav_6_18_0,
-                /* 22.5°  */ (0.875 * pfav_6_18_20)  + (0.125 * pfav_6_18_40),
-                /* 45.0°  */ (0.75  * pfav_6_18_40)  + (0.25  * pfav_6_18_60),
-                /* 67.5°  */ (0.625 * pfav_6_18_60)  + (0.375 * pfav_6_18_80),
-                /* 90.0°  */ (0.5   * pfav_6_18_80)  + (0.5   * pfav_6_18_100),
-                /* 112.5° */ (0.375 * pfav_6_18_100) + (0.625 * pfav_6_18_120),
-                /* 135.0° */ (0.25  * pfav_6_18_120) + (0.75  * pfav_6_18_140),
-                /* 157.5° */ (0.125 * pfav_6_18_140) + (0.875 * pfav_6_18_160),
-                /* 180.0° */ pfav_6_18_180,
-                /* 202.5° */ (0.875 * pfav_6_18_200) + (0.125 * pfav_6_18_220),
-                /* 225.0° */ (0.75  * pfav_6_18_220) + (0.25  * pfav_6_18_240),
-                /* 247.5° */ (0.625 * pfav_6_18_240) + (0.375 * pfav_6_18_260),
-                /* 270.0° */ (0.5   * pfav_6_18_260) + (0.5   * pfav_6_18_280),
-                /* 292.5° */ (0.375 * pfav_6_18_280) + (0.625 * pfav_6_18_300),
-                /* 315.0° */ (0.25  * pfav_6_18_300) + (0.75  * pfav_6_18_320),
-                /* 337.5° */ (0.125 * pfav_6_18_320) + (0.875 * pfav_6_18_340)
-            ], 
+            CONCAT_WS(',', pfav_6_18_20, pfav_6_18_40, pfav_6_18_60, pfav_6_18_80, pfav_6_18_100, pfav_6_18_120,
+             pfav_6_18_140, pfav_6_18_160, pfav_6_18_180, pfav_6_18_200, pfav_6_18_220, pfav_6_18_240, pfav_6_18_260,
+              pfav_6_18_280, pfav_6_18_300, pfav_6_18_320, pfav_6_18_340, pfav_6_18_0), 
             temp_6_18, 
             101325, 
             hygro_6_18 * 100 
@@ -1283,24 +1337,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'E', 
-            ARRAY[
-                /* 0.0°   */ pfav_18_22_0,
-                /* 22.5°  */ (0.875 * pfav_18_22_20)  + (0.125 * pfav_18_22_40),
-                /* 45.0°  */ (0.75  * pfav_18_22_40)  + (0.25  * pfav_18_22_60),
-                /* 67.5°  */ (0.625 * pfav_18_22_60)  + (0.375 * pfav_18_22_80),
-                /* 90.0°  */ (0.5   * pfav_18_22_80)  + (0.5   * pfav_18_22_100),
-                /* 112.5° */ (0.375 * pfav_18_22_100) + (0.625 * pfav_18_22_120),
-                /* 135.0° */ (0.25  * pfav_18_22_120) + (0.75  * pfav_18_22_140),
-                /* 157.5° */ (0.125 * pfav_18_22_140) + (0.875 * pfav_18_22_160),
-                /* 180.0° */ pfav_18_22_180,
-                /* 202.5° */ (0.875 * pfav_18_22_200) + (0.125 * pfav_18_22_220),
-                /* 225.0° */ (0.75  * pfav_18_22_220) + (0.25  * pfav_18_22_240),
-                /* 247.5° */ (0.625 * pfav_18_22_240) + (0.375 * pfav_18_22_260),
-                /* 270.0° */ (0.5   * pfav_18_22_260) + (0.5   * pfav_18_22_280),
-                /* 292.5° */ (0.375 * pfav_18_22_280) + (0.625 * pfav_18_22_300),
-                /* 315.0° */ (0.25  * pfav_18_22_300) + (0.75  * pfav_18_22_320),
-                /* 337.5° */ (0.125 * pfav_18_22_320) + (0.875 * pfav_18_22_340)
-            ], 
+            CONCAT_WS(',', pfav_18_22_20, pfav_18_22_40, pfav_18_22_60, pfav_18_22_80, pfav_18_22_100, pfav_18_22_120,
+             pfav_18_22_140, pfav_18_22_160, pfav_18_22_180, pfav_18_22_200, pfav_18_22_220, pfav_18_22_240,
+              pfav_18_22_260, pfav_18_22_280, pfav_18_22_300, pfav_18_22_320, pfav_18_22_340, pfav_18_22_0),
             temp_18_22, 
             101325, 
             hygro_18_22 * 100 
@@ -1309,24 +1348,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'N', 
-            ARRAY[
-                /* 0.0°   */ pfav_22_6_0,
-                /* 22.5°  */ (0.875 * pfav_22_6_20)  + (0.125 * pfav_22_6_40),
-                /* 45.0°  */ (0.75  * pfav_22_6_40)  + (0.25  * pfav_22_6_60),
-                /* 67.5°  */ (0.625 * pfav_22_6_60)  + (0.375 * pfav_22_6_80),
-                /* 90.0°  */ (0.5   * pfav_22_6_80)  + (0.5   * pfav_22_6_100),
-                /* 112.5° */ (0.375 * pfav_22_6_100) + (0.625 * pfav_22_6_120),
-                /* 135.0° */ (0.25  * pfav_22_6_120) + (0.75  * pfav_22_6_140),
-                /* 157.5° */ (0.125 * pfav_22_6_140) + (0.875 * pfav_22_6_160),
-                /* 180.0° */ pfav_22_6_180,
-                /* 202.5° */ (0.875 * pfav_22_6_200) + (0.125 * pfav_22_6_220),
-                /* 225.0° */ (0.75  * pfav_22_6_220) + (0.25  * pfav_22_6_240),
-                /* 247.5° */ (0.625 * pfav_22_6_240) + (0.375 * pfav_22_6_260),
-                /* 270.0° */ (0.5   * pfav_22_6_260) + (0.5   * pfav_22_6_280),
-                /* 292.5° */ (0.375 * pfav_22_6_280) + (0.625 * pfav_22_6_300),
-                /* 315.0° */ (0.25  * pfav_22_6_300) + (0.75  * pfav_22_6_320),
-                /* 337.5° */ (0.125 * pfav_22_6_320) + (0.875 * pfav_22_6_340)
-            ], 
+            CONCAT_WS(',', pfav_22_6_20, pfav_22_6_40, pfav_22_6_60, pfav_22_6_80, pfav_22_6_100, pfav_22_6_120,
+             pfav_22_6_140, pfav_22_6_160, pfav_22_6_180, pfav_22_6_200, pfav_22_6_220, pfav_22_6_240, pfav_22_6_260,
+              pfav_22_6_280, pfav_22_6_300, pfav_22_6_320, pfav_22_6_340, pfav_22_6_0),
             temp_22_6, 
             101325, 
             hygro_22_6 * 100 
@@ -1351,6 +1375,16 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
+}
+
+static void generateDebugReceiver(Connection h2Connection, Map input){
+    Sql sql = new Sql(h2Connection)
+    GeometryMetaData metaData =
+            GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM");
+    sql.execute("""
+            DROP TABLE IF EXISTS RECEIVERS_FILTERED;
+            CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT 1, '${input.receiver_rays}'
+        """ as String)
 }
 
 /**

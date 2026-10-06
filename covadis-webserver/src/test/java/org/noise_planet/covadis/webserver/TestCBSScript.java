@@ -1,6 +1,11 @@
 package org.noise_planet.covadis.webserver;
 
 
+import com.bedatadriven.jackson.datatype.jts.JtsModule;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
 import org.h2.value.ValueBoolean;
@@ -12,15 +17,18 @@ import org.h2gis.utilities.JDBCUtilities;
 import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.junit.jupiter.api.*;
-import org.noise_planet.covadis.scripts.CBS.ComputePerDepartment;
-import org.noise_planet.covadis.scripts.CBS.ComputePerUUEID;
-import org.noise_planet.covadis.scripts.CBS.Generate_sources;
-import org.noise_planet.covadis.scripts.CBS.Write_PostGIS_Settings;
+import org.locationtech.jts.geom.Coordinate;
+import org.noise_planet.covadis.scripts.CBS.*;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.noise_planet.noisemodelling.jdbc.output.NoiseMapWriter;
+import org.noise_planet.noisemodelling.pathfinder.profilebuilder.CutProfile;
+import org.noise_planet.noisemodelling.pathfinder.utils.geometry.CoordinateMixin;
+import org.noise_planet.noisemodelling.propagation.AttenuationOutput;
+import org.noise_planet.noisemodelling.propagation.cnossos.CnossosAttenuationOutput;
 import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,6 +167,8 @@ public class TestCBSScript extends JDBCTestCase {
                                       ) AS d;
                                       DROP TABLE bd_alti.tiny_d091;
                                       """);
+                    // Keep only one meteo station in order to have common results between department and UUEID computation test
+                    statement.execute("DELETE FROM cbs_uge_input.nm_stations_hexa WHERE id_station <> 226");
                     // Duplicate on 028 to check for removal of duplicate DEM points
                     statement.execute("INSERT INTO bd_alti.d028 (id, the_geom) select id, the_geom from bd_alti.d091;");
                     // Set population to the nearest building from the emission road to have a result even with a low max propagation distance
@@ -352,5 +362,102 @@ public class TestCBSScript extends JDBCTestCase {
 
     }
 
+    /**
+     * Deserialize AttenuationOutput object or AttenuationOutput child object.
+     * Note: the FAIL_ON_UNKNOWN_PROPERTIES feature ensure that the deserialization won't fail for children of
+     * AttenuationOutput with additional attributes.
+     *
+     * @param json The serialized AttenuationOutput
+     * @return Deserialized AttenuationOutput object
+     * @throws JsonProcessingException if the deserialization fails
+     */
+    public static CnossosAttenuationOutput jsonToAttenuationOutput(String json) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.addMixIn(Coordinate.class, CoordinateMixin.class);
+        mapper.registerModule(new JtsModule());
+        return mapper.readValue(json, CnossosAttenuationOutput.class);
 
+    }
+
+    @Test
+    @Order(4)
+    public void testRaysByUUEID() throws SQLException, JsonProcessingException {
+        assumePostGISAvailable();
+
+        new ComputePerUUEID().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "uueid_pattern", "RD_FR_00_0781651",
+                        "conf", 1,
+                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                new EmptyProgressVisitor());
+
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
+        List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
+        try(Statement st = connection.createStatement();
+            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
+            while(rs.next()) {
+                String jsonPath = rs.getString("PATH");
+                CnossosAttenuationOutput attenuationOutput = jsonToAttenuationOutput(jsonPath);
+                attenuationOutputs.add(attenuationOutput);
+            }
+        }
+        assertEquals(30, attenuationOutputs.size());
+    }
+
+    @Test
+    @Order(4)
+    public void testRaysByDepartment() throws SQLException, JsonProcessingException {
+        assumePostGISAvailable();
+
+        new ComputePerDepartment().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "department", "78",
+                        "conf", 1,
+                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                new EmptyProgressVisitor());
+
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
+        List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
+        try(Statement st = connection.createStatement();
+            ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
+            while(rs.next()) {
+                String jsonPath = rs.getString("PATH");
+                CnossosAttenuationOutput attenuationOutput = jsonToAttenuationOutput(jsonPath);
+                attenuationOutputs.add(attenuationOutput);
+            }
+        }
+        assertEquals(30, attenuationOutputs.size());
+    }
+
+    @Test
+    @Order(4)
+    public void testExposeDem() throws SQLException {
+        new ExposeDEMforUniqueUUEID().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "uueid", "RD_FR_00_0781651",
+                        "conf", 1),
+                new EmptyProgressVisitor());
+
+        // Check dem_hexa
+        try (Connection pgConnection = pgDataSource.getConnection()) {
+            assertTrue(JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.dem_hexa"));
+            int rows = JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.dem_hexa");
+            assertTrue(rows > 0, "No contour line was pushed to cbs_uge_output.dem_hexa");
+            // All the contour lines belong to the processed uueid and lie on their level
+            try (Statement statement = pgConnection.createStatement();
+                 ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.dem_hexa " +
+                         "WHERE uueid = 'RD_FR_00_0781651' " +
+                         "AND ABS(ST_ZMin(the_geom) - idiso) < 0.01 AND ABS(ST_ZMax(the_geom) - idiso) < 0.01")) {
+                assertTrue(resultSet.next());
+                assertEquals(rows, resultSet.getInt("CPT"));
+            }
+            // Contour levels are multiples of the 1 m interval
+            try (Statement statement = pgConnection.createStatement();
+                 ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.dem_hexa " +
+                         "WHERE ABS(idiso - ROUND(idiso)) > 0.01")) {
+                assertTrue(resultSet.next());
+                assertEquals(0, resultSet.getInt("CPT"));
+            }
+        }
+    }
 }
