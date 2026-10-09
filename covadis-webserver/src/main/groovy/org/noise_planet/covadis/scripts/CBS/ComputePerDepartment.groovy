@@ -154,7 +154,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
     ProgressVisitor departmentProgress = progress.subProcess(2)
     try (Connection h2Connection = h2DataSource.getConnection()) {
         // Compute envelope of the simulation
-        def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+        def projectionCode = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
         def res = pgSql.firstRow("""SELECT 
              st_simplify(st_buffer(the_geom, ${
             mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
@@ -246,11 +246,13 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
 
         ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
 
-        // Upload CBS Table to remote PostGIS database
-        uploadCBS(h2Connection, pgConnection, department, input.projectionName as String)
+        if(!(input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0)) {
+            // Upload CBS Table to remote PostGIS database
+            uploadCBS(h2Connection, pgConnection, department, input.projectionName as String)
 
-        // Upload indicators
-        uploadIndicatorsTables(h2Connection, pgConnection, department, nutsCode, input.projectionName as String)
+            // Upload indicators
+            uploadIndicatorsTables(h2Connection, pgConnection, department, nutsCode, input.projectionName as String)
+        }
     }
 }
 
@@ -413,7 +415,7 @@ def enrichDem(Map input, String department, Connection h2Connection, Connection 
     }
 
     // Create a new DEM with road platforms
-    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth: "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
 }
 
@@ -454,7 +456,7 @@ static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Conne
 static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connection h2Connection) {
     def pgSql = new Sql(pgConnection)
     def h2Sql = new Sql(h2Connection)
-    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def projectionCode = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
     def department = input.department as String
     def extractionEnvelopeGeometry = getDepartmentGeometry(pgSql, projectionCode, department)
     // Remove from the table all triangles that does not touch the department geometry
@@ -490,7 +492,7 @@ static Geometry getDepartmentGeometry(Sql pgSql, int projectionCode, department)
 
 static void cutCbsByDepartmentPolygon(Map input,Connection pgConnection, Connection h2Connection) {
     def h2Sql = new Sql(h2Connection)
-    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def projectionCode = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
     def department = input.department as String
     def extractionEnvelopeGeometry = getDepartmentGeometry(new Sql(pgConnection), projectionCode, department)
     h2Sql.executeUpdate("""
