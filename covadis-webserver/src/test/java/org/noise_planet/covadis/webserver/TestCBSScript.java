@@ -24,12 +24,8 @@ import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
-import org.noise_planet.noisemodelling.jdbc.output.NoiseMapWriter;
-import org.noise_planet.noisemodelling.pathfinder.profilebuilder.CutProfile;
 import org.noise_planet.noisemodelling.pathfinder.utils.geometry.CoordinateMixin;
-import org.noise_planet.noisemodelling.propagation.AttenuationOutput;
 import org.noise_planet.noisemodelling.propagation.cnossos.CnossosAttenuationOutput;
-import org.noise_planet.noisemodelling.scripts.Import_and_Export.Export_Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -153,9 +149,18 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/nm_nuts.sql.zip");
                     runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql");
-                    runSqlFile(pgConnection, "database/n_ferroviaire_ligne.sql.zip");
-                    runSqlFile(pgConnection, "database/n_ferroviaire_troncon.sql.zip");
                     runSqlFile(pgConnection, "database/nm_departement_2154.sql.zip");
+                    // n_ferroviaire_ligne.sql.zip
+                    //n_ferroviaire_protection_acoust.sql
+                    //n_ferroviaire_trafic.sql.zip
+                    //n_ferroviaire_troncon_l.sql.zip
+                    //n_ferroviaire_tunnel.sql
+                    //n_ferroviaire_vitesse.sql.zip
+                    runSqlFile(pgConnection, "database/n_ferroviaire_ligne.sql.zip");
+                    runSqlFile(pgConnection, "database/n_ferroviaire_troncon_l.sql.zip");
+                    runSqlFile(pgConnection, "database/n_ferroviaire_tunnel.sql");
+                    runSqlFile(pgConnection, "database/n_ferroviaire_vitesse.sql.zip");
+                    runSqlFile(pgConnection, "database/n_ferroviaire_protection_acoust.sql");
                     // Extract DEM data from tiny wkb
                     statement.execute("""
                                       INSERT INTO bd_alti.d091 (the_geom)
@@ -190,7 +195,7 @@ public class TestCBSScript extends JDBCTestCase {
     @Order(2)
     public void testGenerateSource() throws SQLException {
         assumePostGISAvailable();
-        ScriptUtilities.execScript(new Generate_sources(), connection, Map.of("projectionName", "hexa"));
+        ScriptUtilities.execScript(new Generate_roads_sources(), connection, Map.of("projectionName", "hexa"));
         try(Connection pgConnection = pgDataSource.getConnection()) {
             assertEquals(20, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_trafic_hexa"));
             assertEquals(20, JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.routier_emission_hexa"));

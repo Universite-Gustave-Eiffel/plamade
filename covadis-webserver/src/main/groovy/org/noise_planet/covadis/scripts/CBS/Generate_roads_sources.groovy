@@ -14,8 +14,8 @@ import org.slf4j.LoggerFactory
 import javax.sql.DataSource
 import java.sql.Connection
 
-title = 'Create sources table in PostGIS database'
-description = 'Create sources table in PostGIS database'
+title = 'Create roads sources table in PostGIS database'
+description = 'Create roads sources table in PostGIS database'
 
 inputs = [
         projectionName: [

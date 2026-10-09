@@ -306,10 +306,11 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         generateBuildingsFacadeExpo(h2Connection)
         generateExposureStatisticsFromFacadeExpo(h2Connection)
 
-        // Upload CBS Table to remote PostGIS database
-        uploadCBS(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
-
-        uploadIndicatorsTables(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
+        if(!(input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0)) {
+            // Upload CBS Table to remote PostGIS database
+            uploadCBS(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
+            uploadIndicatorsTables(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
+        }
     }
 }
 
@@ -1184,7 +1185,7 @@ def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgCon
     }
 
     // Create a new DEM with road platforms
-    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
 }
 
@@ -1269,7 +1270,7 @@ static def processLandCover(Map input,Connection pgConnection, String extraction
     }
 
     // Apply projection to the table (if issues with copy or table is empty)
-    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
     new Sql(h2Connection).execute("CALL UpdateGeometrySRID('LANDCOVER', 'THE_GEOM', $srid)")
 }
 
