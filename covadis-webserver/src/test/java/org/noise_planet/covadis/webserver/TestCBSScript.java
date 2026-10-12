@@ -150,12 +150,6 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/nm_nuts.sql.zip");
                     runSqlFile(pgConnection, "database/c_batimentsensible_hexa.sql");
                     runSqlFile(pgConnection, "database/nm_departement_2154.sql.zip");
-                    // n_ferroviaire_ligne.sql.zip
-                    //n_ferroviaire_protection_acoust.sql
-                    //n_ferroviaire_trafic.sql.zip
-                    //n_ferroviaire_troncon_l.sql.zip
-                    //n_ferroviaire_tunnel.sql
-                    //n_ferroviaire_vitesse.sql.zip
                     runSqlFile(pgConnection, "database/n_ferroviaire_ligne.sql.zip");
                     runSqlFile(pgConnection, "database/n_ferroviaire_troncon_l.sql.zip");
                     runSqlFile(pgConnection, "database/n_ferroviaire_tunnel.sql");

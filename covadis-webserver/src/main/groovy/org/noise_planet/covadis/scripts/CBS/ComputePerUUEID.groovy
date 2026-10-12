@@ -1046,7 +1046,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
-            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true, "buildingBuffer": 0.1], subSteps)
+            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true, "buildingBuffer": 0.5], subSteps)
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
@@ -1079,7 +1079,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM FROM RECEIVERS_DELAUNAY;
             -- For buildings facades without receivers (rare issue with encapsulated buildings)
             -- Create a receiver point on top of the building, it is still better than ignoring the building
-            INSERT INTO RECEIVERS_BUILDINGS(the_geom, build_pk) SELECT st_updatez(ST_Centroid(B.the_geom), COALESCE(height, 4) + 0.2) the_geom, pk FROM BUILDINGS_FOR_EXPOSURE B WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS_BUILDINGS);
+            INSERT INTO RECEIVERS_BUILDINGS(the_geom, build_pk) SELECT st_updatez(ST_Centroid(B.the_geom), COALESCE(height, 4) + 0.5) the_geom, pk FROM BUILDINGS_FOR_EXPOSURE B WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS_BUILDINGS);
             -- Insert receivers buildings table
             INSERT INTO RECEIVERS(PK, THE_GEOM) SELECT PK+@LASTDELAUNAY, THE_GEOM FROM RECEIVERS_BUILDINGS;
             CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);
@@ -1462,8 +1462,11 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
 
     //remove constraint on geometry type
     // add barriers with densification 1 meter (will follow the dem)
-    // remove Z when Z altitude is not good (will use HEIGHT field)
+    // remove Z of buildings (will use HEIGHT field)
     def insertBarriersSql = """
+
+        -- Never use the PolygonZ of buildings, always use the HEIGHT field
+        UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM);
 
         ALTER TABLE BUILDINGS_BARRIERS ADD COLUMN G float DEFAULT 0;
     
@@ -1472,15 +1475,16 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
         
         DROP TABLE IF EXISTS BUILDINGS_BARRIER_EXPLODED;
         CREATE TABLE BUILDINGS_BARRIER_EXPLODED AS SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, 1)) the_geom, height, G, idprotacou FROM BUILDINGS_BARRIERS)');
+        -- Some acoustics barriers may have invalid PolygonZ, in this case we will use the barrier height
+        UPDATE BUILDINGS_BARRIER_EXPLODED SET THE_GEOM = ST_Force2D(THE_GEOM) 
+        WHERE ST_ZMIN(THE_GEOM) < -999 
+        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0);
         
         -- Use generic type in order to mix polygon and linestring
         ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
         -- Add origin column, road is acoustic protection along roads
         ALTER TABLE BUILDINGS ADD COLUMN origin varchar DEFAULT 'building';
         INSERT INTO BUILDINGS(the_geom, height, G, origin, pop, idbat, bat_idtopo) SELECT the_geom, height, G, 'road', 0, '', idprotacou from BUILDINGS_BARRIER_EXPLODED;
-        UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM) 
-        WHERE ST_ZMIN(THE_GEOM) < -999 
-        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0);
         
         DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
         """
