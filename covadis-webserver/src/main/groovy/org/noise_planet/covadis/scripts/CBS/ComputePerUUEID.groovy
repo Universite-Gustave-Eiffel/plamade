@@ -1013,7 +1013,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
         """)
     } else {
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
-                [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 4.1, distance : 0.1],
+                [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 4, distance : 0.1],
                 subSteps) as String)
 
         int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
@@ -1046,7 +1046,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
             skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
-            maxArea : 500, height: 4.1, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true, "buildingBuffer": 0.5], subSteps)
+            maxArea : 500, height: 4, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true, "buildingBuffer": 0.5], subSteps)
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
@@ -1061,8 +1061,8 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             -- It will be used later to fill areas under buildings with the same noise level
             DROP TABLE IF EXISTS TRIANGLES_OVER_BUILDINGS;
             CREATE TABLE TRIANGLES_OVER_BUILDINGS(PK INTEGER NOT NULL PRIMARY KEY, PK_1 INTEGER, PK_2 INTEGER,
-             PK_3 INTEGER, THE_GEOM ${metaData.getSQL()}, build_pk INTEGER) AS SELECT T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM, MIN(B.PK) PKBAT
-              FROM TRIANGLES T, BUILDINGS B
+             PK_3 INTEGER, THE_GEOM ${metaData.getSQL()}, build_pk INTEGER) AS SELECT T.PK, T.PK_1, T.PK_2, T.PK_3,
+                 T.THE_GEOM, MIN(B.PK) PKBAT FROM TRIANGLES T, BUILDINGS B
               WHERE T.THE_GEOM && B.THE_GEOM AND ST_Intersects(B.THE_GEOM, T.THE_GEOM)
               GROUP BY T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM;
             CREATE INDEX ON TRIANGLES_OVER_BUILDINGS (build_pk);
@@ -1079,7 +1079,9 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM FROM RECEIVERS_DELAUNAY;
             -- For buildings facades without receivers (rare issue with encapsulated buildings)
             -- Create a receiver point on top of the building, it is still better than ignoring the building
-            INSERT INTO RECEIVERS_BUILDINGS(the_geom, build_pk) SELECT st_updatez(ST_Centroid(B.the_geom), COALESCE(height, 4) + 0.5) the_geom, pk FROM BUILDINGS_FOR_EXPOSURE B WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS_BUILDINGS);
+            INSERT INTO RECEIVERS_BUILDINGS(the_geom, build_pk) SELECT st_updatez(ST_Centroid(B.the_geom),
+             COALESCE(height, 4) + 0.5) the_geom, pk FROM BUILDINGS_FOR_EXPOSURE B
+              WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS_BUILDINGS);
             -- Insert receivers buildings table
             INSERT INTO RECEIVERS(PK, THE_GEOM) SELECT PK+@LASTDELAUNAY, THE_GEOM FROM RECEIVERS_BUILDINGS;
             CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);
