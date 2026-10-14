@@ -1176,7 +1176,7 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
             new EmptyProgressVisitor())
 }
 
-def enrichDem(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String extractionEnvelopeGeometry) {
+static enrichDem(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String extractionEnvelopeGeometry) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Adapting digital elevation model..")
     ProgressVisitor demProgress = stepsProgress.subProcess(2)
