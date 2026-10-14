@@ -220,6 +220,8 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
     def pgSql = new Sql(pgConnection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for UUEID: $uueid")
+    String extractionEnvelopeGeometryWKT
+
     try(Connection h2Connection = h2DataSource.getConnection()) {
         // Compute envelope of the simulation
         def res = pgSql.firstRow("""SELECT 
@@ -231,7 +233,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         }
 
         def extractionEnvelopeGeometry = res.geomenv as Geometry
-        def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
+        extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
 
         logger.info("SRID: {}", (extractionEnvelopeGeometry).getSRID())
 
@@ -277,8 +279,8 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         // Fetch specific road emission at this special height
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
-                // Adapt the DEM with this special road height platforms
-                enrichDem(input, uueid, h2Connection, pgConnection, solProgress, posSol)
+                // Adapt the DEM with this special road/train infrastructure height platforms
+                enrichDem(input, h2Connection, pgConnection, solProgress, posSol, extractionEnvelopeGeometryWKT)
             }
             // Run the simulation with this road height
             runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
@@ -294,19 +296,19 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
 
         mergeReceiversLevels(posSols, h2Connection)
 
-        // Generate IsoContours
-
-        // Extract metadata
-        def codeDept = uueid.split("_")[3].substring(0, 3)
-        def nutsCode = codeDeptToNuts.get(codeDept)
-        logger.info("Processing CBS codeDept: $codeDept, nutsCode: $nutsCode")
-
-        generateRoadsCBS(h2Connection, stepsProgress)
-
-        generateBuildingsFacadeExpo(h2Connection)
-        generateExposureStatisticsFromFacadeExpo(h2Connection)
-
         if(!(input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0)) {
+            // Generate IsoContours
+
+            // Extract metadata
+            def codeDept = uueid.split("_")[3].substring(0, 3)
+            def nutsCode = codeDeptToNuts.get(codeDept)
+            logger.info("Processing CBS codeDept: $codeDept, nutsCode: $nutsCode")
+
+            generateRoadsCBS(h2Connection, stepsProgress)
+
+            generateBuildingsFacadeExpo(h2Connection)
+            generateExposureStatisticsFromFacadeExpo(h2Connection)
+
             // Upload CBS Table to remote PostGIS database
             uploadCBS(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
             uploadIndicatorsTables(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
@@ -1001,7 +1003,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             Map.of("sqlQueries", """
             DROP TABLE IF EXISTS BUILDINGS_FOR_EXPOSURE;
             -- Filter buildings and force 2D as there is accum and union of geometries in Building_Grid script, we can not mix 2D and 3D polygons
-            CREATE TABLE BUILDINGS_FOR_EXPOSURE(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT, KEEP BOOLEAN) AS SELECT PK, ST_Force2D(THE_GEOM) AS THE_GEOM, POP, 10, (nb_logts_c > 0 OR erps_nature IS NOT NULL) KEEP FROM BUILDINGS;
+            CREATE TABLE BUILDINGS_FOR_EXPOSURE(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT, KEEP BOOLEAN) AS SELECT PK, ST_Force2D(THE_GEOM) AS THE_GEOM, POP, HEIGHT, (nb_logts_c > 0 OR erps_nature IS NOT NULL) KEEP FROM BUILDINGS;
         """ as String, "outputFormat", "json"),
             new EmptyProgressVisitor())
     def buildingsCountWithPop = h2Sql.firstRow("SELECT COUNT(*) CPT FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP")[0] as Integer
@@ -1044,9 +1046,12 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
     runSqlQuery(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;");
 
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
-            fence: extractionEnvelopeGeometry, tableBuilding: "BUILDINGS", sourcesTableName: "ROADS", maxCellDist: 1200,
-            skipCellNoSourcesMinimalDistance : 2 * (mainConfiguration.confmaxsrcdist as Double),
-            maxArea : 500, height: 4, outputTableName: "RECEIVERS_DELAUNAY", isoSurfaceInBuildings : true, exportTrianglesGeometries : true, "buildingBuffer": 0.5], subSteps)
+            fence                           : extractionEnvelopeGeometry, tableBuilding: "BUILDINGS",
+            sourcesTableName: "ROADS", maxCellDist: 1200,
+            skipCellNoSourcesMinimalDistance: 2 * (mainConfiguration.confmaxsrcdist as Double),
+            maxArea                         : 500, height: 4, outputTableName: "RECEIVERS_DELAUNAY",
+            isoSurfaceInBuildings: true, exportTrianglesGeometries : true, "buildingBuffer": 0.5, roadWidth: 2,
+            fenceNegativeBuffer: 0], subSteps)
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
@@ -1171,15 +1176,15 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
             new EmptyProgressVisitor())
 }
 
-def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
+def enrichDem(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String extractionEnvelopeGeometry) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Adapting digital elevation model..")
     ProgressVisitor demProgress = stepsProgress.subProcess(2)
 
-    // Fetch road table with altitude using the UUEID query
+    // Fetch road table with altitude with the same pos_sol and envelope
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE uueid = '${uueid}' and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
+        WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
     try( Statement st = pgConnection.createStatement() ;
          ResultSet rs = st.executeQuery(roadQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
@@ -1192,6 +1197,7 @@ def enrichDem(Map input, String uueid, Connection h2Connection, Connection pgCon
 }
 
 static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, String posSol, ProgressVisitor stepsProgress) {
+    Logger logger = LoggerFactory.getLogger(this.class)
     def totalLength
     def nbReceivers
     try(Connection h2Connection = h2DataSource.getConnection()) {
@@ -1227,6 +1233,9 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                    confRaysName                  : (inputs.getOrDefault("receiver_rays", "") as String).empty ? "" : "RAYS"
             ],
                     stepsProgress)
+            if(nbReceivers == 1) {
+                logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), "SELECT '$posSol' pos_sol, * FROM RECEIVERS_LEVEL ORDER BY IDRECEIVER, PERIOD" as String, 120));
+            }
         }
     } else {
         new org.noise_planet.covadis.scripts.Slurm.Noise_level_from_source().exec(h2DataSource, [
@@ -1384,9 +1393,11 @@ static void generateDebugReceiver(Connection h2Connection, Map input){
     Sql sql = new Sql(h2Connection)
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM");
+    // receiver_rays could be a multipoint
     sql.execute("""
-            DROP TABLE IF EXISTS RECEIVERS_FILTERED;
-            CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT 1, '${input.receiver_rays}'
+            DROP TABLE IF EXISTS RECEIVERS_FILTERED, DEBUG_RECEIVER;            
+            CREATE TABLE DEBUG_RECEIVER(THE_GEOM GEOMETRY) AS SELECT '${input.receiver_rays}'::geometry;
+            CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT EXPLOD_ID, THE_GEOM FROM ST_EXPLODE('DEBUG_RECEIVER');
         """ as String)
 }
 

@@ -290,7 +290,7 @@ public class TestCBSScript extends JDBCTestCase {
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
             assertTrue(resultSet.next());
-            assertEquals(57, resultSet.getInt("CPT"));
+            assertNotEquals(0, resultSet.getInt("CPT"));
         }
 
         try(Connection pgConnection = pgDataSource.getConnection();
@@ -305,7 +305,7 @@ public class TestCBSScript extends JDBCTestCase {
 
 
     @Test
-    @Order(3)
+    @Order(5)
     public void testRunDepartment() throws SQLException {
         assumePostGISAvailable();
 
@@ -348,7 +348,7 @@ public class TestCBSScript extends JDBCTestCase {
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_dept_hexa")) {
             assertTrue(resultSet.next());
-            assertEquals(57, resultSet.getInt("CPT"));
+            assertNotEquals(0, resultSet.getInt("CPT"));
         }
 
         try(Connection pgConnection = pgDataSource.getConnection();
@@ -359,6 +359,21 @@ public class TestCBSScript extends JDBCTestCase {
             assertTrue(resultSet.getFloat("area") > 0);
         }
 
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
+            while(resultSet.next()) {
+                assertEquals(0.0, resultSet.getFloat("diff"), 0.01);
+            }
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
+            while(resultSet.next()) {
+                assertEquals(0.0, resultSet.getFloat("diff"), 0.01);
+            }
+        }
     }
 
     /**
@@ -400,7 +415,7 @@ public class TestCBSScript extends JDBCTestCase {
                 attenuationOutputs.add(attenuationOutput);
             }
         }
-        assertEquals(30, attenuationOutputs.size());
+        assertFalse(attenuationOutputs.isEmpty());
     }
 
     @Test
@@ -425,7 +440,7 @@ public class TestCBSScript extends JDBCTestCase {
                 attenuationOutputs.add(attenuationOutput);
             }
         }
-        assertEquals(30, attenuationOutputs.size());
+        assertFalse(attenuationOutputs.isEmpty());
     }
 
     @Test

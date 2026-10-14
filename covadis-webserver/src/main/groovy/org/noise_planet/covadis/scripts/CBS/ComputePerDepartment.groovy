@@ -226,27 +226,28 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
     }
 
 
+
     try(Connection h2Connection = h2DataSource.getConnection()) {
         // Merge noise levels for each pos sols
         ComputePerUUEID.mergeReceiversLevels(posSols, h2Connection)
 
-        // Generate IsoContours
-        // Convert 78 to 078 and A71 to A71
-        def nutsCode = ""
-        try {
-            nutsCode = codeDeptToNuts.get(department.length() < 3 ? department.padLeft(3, '0') : department)
-        } catch (NumberFormatException e) {
-            logger.error("Invalid department code: {}", department)
-        }
-        ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
-
-        cutCbsByDepartmentPolygon(input, pgConnection, h2Connection)
-
-        ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
-
-        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
-
         if(!(input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0)) {
+            // Generate IsoContours
+            // Convert 78 to 078 and A71 to A71
+            def nutsCode = ""
+            try {
+                nutsCode = codeDeptToNuts.get(department.length() < 3 ? department.padLeft(3, '0') : department)
+            } catch (NumberFormatException e) {
+                logger.error("Invalid department code: {}", department)
+            }
+            ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
+
+            cutCbsByDepartmentPolygon(input, pgConnection, h2Connection)
+
+            ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
+
+            ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
+
             // Upload CBS Table to remote PostGIS database
             uploadCBS(h2Connection, pgConnection, department, input.projectionName as String)
 
