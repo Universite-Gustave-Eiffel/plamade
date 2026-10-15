@@ -1338,9 +1338,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'D', 
-            CONCAT_WS(',', pfav_6_18_20, pfav_6_18_40, pfav_6_18_60, pfav_6_18_80, pfav_6_18_100, pfav_6_18_120,
-             pfav_6_18_140, pfav_6_18_160, pfav_6_18_180, pfav_6_18_200, pfav_6_18_220, pfav_6_18_240, pfav_6_18_260,
-              pfav_6_18_280, pfav_6_18_300, pfav_6_18_320, pfav_6_18_340, pfav_6_18_0), 
+            CONCAT_WS(',', ROUND(pfav_6_18_20, 2), ROUND(pfav_6_18_40, 2), ROUND(pfav_6_18_60, 2), ROUND(pfav_6_18_80, 2), ROUND(pfav_6_18_100, 2), ROUND(pfav_6_18_120, 2),
+             ROUND(pfav_6_18_140, 2), ROUND(pfav_6_18_160, 2), ROUND(pfav_6_18_180, 2), ROUND(pfav_6_18_200, 2), ROUND(pfav_6_18_220, 2), ROUND(pfav_6_18_240, 2), ROUND(pfav_6_18_260, 2),
+              ROUND(pfav_6_18_280, 2), ROUND(pfav_6_18_300, 2), ROUND(pfav_6_18_320, 2), ROUND(pfav_6_18_340, 2), ROUND(pfav_6_18_0, 2)), 
             temp_6_18, 
             101325, 
             hygro_6_18 * 100 
@@ -1349,9 +1349,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'E', 
-            CONCAT_WS(',', pfav_18_22_20, pfav_18_22_40, pfav_18_22_60, pfav_18_22_80, pfav_18_22_100, pfav_18_22_120,
-             pfav_18_22_140, pfav_18_22_160, pfav_18_22_180, pfav_18_22_200, pfav_18_22_220, pfav_18_22_240,
-              pfav_18_22_260, pfav_18_22_280, pfav_18_22_300, pfav_18_22_320, pfav_18_22_340, pfav_18_22_0),
+            CONCAT_WS(',', ROUND(pfav_18_22_20, 2), ROUND(pfav_18_22_40, 2), ROUND(pfav_18_22_60, 2), ROUND(pfav_18_22_80, 2), ROUND(pfav_18_22_100, 2), ROUND(pfav_18_22_120, 2),
+             ROUND(pfav_18_22_140, 2), ROUND(pfav_18_22_160, 2), ROUND(pfav_18_22_180, 2), ROUND(pfav_18_22_200, 2), ROUND(pfav_18_22_220, 2), ROUND(pfav_18_22_240, 2),
+              ROUND(pfav_18_22_260, 2), ROUND(pfav_18_22_280, 2), ROUND(pfav_18_22_300, 2), ROUND(pfav_18_22_320, 2), ROUND(pfav_18_22_340, 2), ROUND(pfav_18_22_0, 2)),
             temp_18_22, 
             101325, 
             hygro_18_22 * 100 
@@ -1360,9 +1360,9 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'N', 
-            CONCAT_WS(',', pfav_22_6_20, pfav_22_6_40, pfav_22_6_60, pfav_22_6_80, pfav_22_6_100, pfav_22_6_120,
-             pfav_22_6_140, pfav_22_6_160, pfav_22_6_180, pfav_22_6_200, pfav_22_6_220, pfav_22_6_240, pfav_22_6_260,
-              pfav_22_6_280, pfav_22_6_300, pfav_22_6_320, pfav_22_6_340, pfav_22_6_0),
+            CONCAT_WS(',', ROUND(pfav_22_6_20, 2), ROUND(pfav_22_6_40, 2), ROUND(pfav_22_6_60, 2), ROUND(pfav_22_6_80, 2), ROUND(pfav_22_6_100, 2), ROUND(pfav_22_6_120, 2),
+             ROUND(pfav_22_6_140, 2), ROUND(pfav_22_6_160, 2), ROUND(pfav_22_6_180, 2), ROUND(pfav_22_6_200, 2), ROUND(pfav_22_6_220, 2), ROUND(pfav_22_6_240, 2), ROUND(pfav_22_6_260, 2),
+              ROUND(pfav_22_6_280, 2), ROUND(pfav_22_6_300, 2), ROUND(pfav_22_6_320, 2), ROUND(pfav_22_6_340, 2), ROUND(pfav_22_6_0, 2)),
             temp_22_6, 
             101325, 
             hygro_22_6 * 100 
