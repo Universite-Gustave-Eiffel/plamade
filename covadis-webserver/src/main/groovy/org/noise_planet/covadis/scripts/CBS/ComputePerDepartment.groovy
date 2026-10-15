@@ -152,9 +152,11 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Computing for department: $department")
     ProgressVisitor departmentProgress = progress.subProcess(2)
+    String extractionEnvelopeGeometryWKT
+
     try (Connection h2Connection = h2DataSource.getConnection()) {
         // Compute envelope of the simulation
-        def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+        def projectionCode = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
         def res = pgSql.firstRow("""SELECT 
              st_simplify(st_buffer(the_geom, ${
             mainConfiguration.confmaxsrcdist * 1.2 + mainConfiguration.confmaxrefldist}), 25) geomenv
@@ -167,7 +169,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         // Switch the geometry factory in order to use the SRID of the geometry into the geometry factory
         GeometryFactory geometryFactory = new GeometryFactory(extractionEnvelopeGeometry.getFactory().getPrecisionModel(), extractionEnvelopeGeometry.getSRID())
         extractionEnvelopeGeometry = geometryFactory.createGeometry(extractionEnvelopeGeometry)
-        def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
+        extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
 
 
         fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, departmentProgress)
@@ -212,8 +214,8 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         // Fetch specific road emission at this special height
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
-                // Adapt the DEM with this special road height platforms
-                enrichDem(input, department, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol)
+                // Adapt the DEM with this special road/train infrastructure height platforms
+                ComputePerUUEID.enrichDem(input, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol, extractionEnvelopeGeometryWKT)
             }
             // Run the simulation with this road height
             ComputePerUUEID.runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
@@ -226,31 +228,34 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
     }
 
 
+
     try(Connection h2Connection = h2DataSource.getConnection()) {
         // Merge noise levels for each pos sols
         ComputePerUUEID.mergeReceiversLevels(posSols, h2Connection)
 
-        // Generate IsoContours
-        // Convert 78 to 078 and A71 to A71
-        def nutsCode = ""
-        try {
-            nutsCode = codeDeptToNuts.get(department.length() < 3 ? department.padLeft(3, '0') : department)
-        } catch (NumberFormatException e) {
-            logger.error("Invalid department code: {}", department)
+        if(!(input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0)) {
+            // Generate IsoContours
+            // Convert 78 to 078 and A71 to A71
+            def nutsCode = ""
+            try {
+                nutsCode = codeDeptToNuts.get(department.length() < 3 ? department.padLeft(3, '0') : department)
+            } catch (NumberFormatException e) {
+                logger.error("Invalid department code: {}", department)
+            }
+            ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
+
+            cutCbsByDepartmentPolygon(input, pgConnection, h2Connection)
+
+            ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
+
+            ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
+
+            // Upload CBS Table to remote PostGIS database
+            uploadCBS(h2Connection, pgConnection, department, input.projectionName as String)
+
+            // Upload indicators
+            uploadIndicatorsTables(h2Connection, pgConnection, department, nutsCode, input.projectionName as String)
         }
-        ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
-
-        cutCbsByDepartmentPolygon(input, pgConnection, h2Connection)
-
-        ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
-
-        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
-
-        // Upload CBS Table to remote PostGIS database
-        uploadCBS(h2Connection, pgConnection, department, input.projectionName as String)
-
-        // Upload indicators
-        uploadIndicatorsTables(h2Connection, pgConnection, department, nutsCode, input.projectionName as String)
     }
 }
 
@@ -396,26 +401,6 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String de
 
 
 }
-def enrichDem(Map input, String department, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol) {
-    Logger logger = LoggerFactory.getLogger(this.class)
-    logger.info("Adapting digital elevation model..")
-    ProgressVisitor demProgress = stepsProgress.subProcess(2)
-
-    // Fetch road table with altitude using the UUEID query
-    def roadQuery = """SELECT geom as the_geom, largeur as width
-        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE uueid IN (SELECT uueid FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} WHERE insee_dep = '${department}')
-        and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
-    try( Statement st = pgConnection.createStatement() ;
-         ResultSet rs = st.executeQuery(roadQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
-        demProgress.endStep()
-    }
-
-    // Create a new DEM with road platforms
-    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
-    ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth: "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
-}
 
 def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
     Sql pgSql = new Sql(pgConnection)
@@ -454,7 +439,7 @@ static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Conne
 static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connection h2Connection) {
     def pgSql = new Sql(pgConnection)
     def h2Sql = new Sql(h2Connection)
-    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def projectionCode = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
     def department = input.department as String
     def extractionEnvelopeGeometry = getDepartmentGeometry(pgSql, projectionCode, department)
     // Remove from the table all triangles that does not touch the department geometry
@@ -490,7 +475,7 @@ static Geometry getDepartmentGeometry(Sql pgSql, int projectionCode, department)
 
 static void cutCbsByDepartmentPolygon(Map input,Connection pgConnection, Connection h2Connection) {
     def h2Sql = new Sql(h2Connection)
-    def projectionCode = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
+    def projectionCode = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName as String]
     def department = input.department as String
     def extractionEnvelopeGeometry = getDepartmentGeometry(new Sql(pgConnection), projectionCode, department)
     h2Sql.executeUpdate("""
