@@ -81,11 +81,25 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TUNNEL", true, batchSize)
                 }
         }
+
+        //
+        //                name : 'Railway traffic table name',
+        //                title : 'Railway traffic table name',
+        //                description : '<b>Name of the Rail traffic table.</b>  </br><br>' +
+        //                        'This function recognize the following columns (* mandatory): </br><ul>' +
+        //                        '<li><b>IDTRAFFIC</b>* : A traffic identifier (PRIMARY KEY) (INTEGER) </li>' +
+        //                        '<li><b>IDSECTION</b>* : A section identifier, refering to RAIL_SECTIONS table (INTEGER)</li>' +
+        //                        '<li><b>TRAINTYPE</b>* : Type of vehicle, listed in the <a href="https://github.com/Universite-Gustave-Eiffel/NoiseModelling/blob/4.X/noisemodelling-emission/src/main/resources/org/noise_planet/noisemodelling/emission/Rail_Train_SNCF_2021.json" target="_blank">Rail_Train_SNCF_2021</a> file (mainly for french SNCF) (STRING)</li>' +
+        //                        '<li><b>TRAINSPD</b>* : Maximum Train speed (in km/h) (DOUBLE)</li>' +
+        //                        '<li><b>TDAY</b>, <b>TEVENING</b> and <b>TNIGHT</b> : Hourly average train count (6-18h)(18-22h)(22-6h) (INTEGER)</li></ul>',
+        //
         // Generate compatible column names with noisemodelling
         runSqlQuery(connection, """
             DROP TABLE IF EXISTS RAILWAY_TRACK;
-            CREATE TABLE RAILWAY_TRACK(idsection SERIAL,the_geom geometry,idtroncon varchar,idligne varchar,numligne varchar, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
+            CREATE TABLE RAILWAY_TRACK(idsection SERIAL PRIMARY KEY, the_geom geometry, idtroncon varchar, 
+            idligne varchar,numligne varchar, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
              roughness VARCHAR, impact VARCHAR, curvature INTEGER, bridge VARCHAR, istunnel BOOLEAN);
+             
             INSERT INTO RAILWAY_TRACK(the_geom,idtroncon,idligne,numligne, ntrack, trackspd, transfer, roughness, impact, curvature, bridge, istunnel) 
              SELECT
                 geom as the_geom,
@@ -108,9 +122,18 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 '' as bridge,
                 idtunnel is not null as istunnel
             FROM N_ferroviaire_TRONCON_L T LEFT JOIN n_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon);
+            
+            DROP TABLE IF EXISTS RAILWAY_TRAFFIC;
+            CREATE TABLE RAILWAY_TRAFFIC (IDTRAFFIC SERIAL PRIMARY KEY, IDSECTION INTEGER, TRAINTYPE VARCHAR,
+             TRAINSPD DOUBLE, TDAY INTEGER, TEVENING INTEGER, TNIGHT INTEGER);
+             
+            INSERT INTO RAILWAY_TRAFFIC(IDSECTION, TRAINTYPE, TRAINSPD, TDAY, TEVENING, TNIGHT)
+              SELECT
+              FROM N_FERROVIAIRE_TRAFIC;
+            
         """)
 
-        //ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic:"RAILWAY_TRAFFIC", tableRailwayTrack : "RAILWAY_TRACK"])
+        ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic:"RAILWAY_TRAFFIC", tableRailwayTrack : "RAILWAY_TRACK"])
 }
 
 
