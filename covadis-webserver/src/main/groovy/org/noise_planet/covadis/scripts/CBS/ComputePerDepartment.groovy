@@ -389,7 +389,7 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String de
         h2Sql.eachRow("SELECT the_geom, cbstype, typesource, PERIOD, noiselevel FROM ISOPHONES" as String) { row ->
             // Insert into PostGIS table
             it.addBatch(
-                    department+ '_' + row.getString("noiselevel"),
+                    department+ '_' + row.getString("noiselevel")+"_"+row.getString("typesource"),
                     twkbWriter.write(row.getObject("the_geom") as Geometry),
                     department,
                     row.getString("cbstype"),

@@ -763,7 +763,7 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
             it.addBatch(twkbWriter.write(row.getObject("the_geom") as Geometry),
                     row.getString("cbstype"), row.getString("typesource"),
                     row.getString("PERIOD"), row.getString("nutscode"),
-                    uueid+'_'+row.getString("noiselevel"), uueid,
+                    uueid+'_'+row.getString("noiselevel")+"_"+row.getString("typesource"), uueid,
                     row.getString("noiselevel"))
         }
     }
