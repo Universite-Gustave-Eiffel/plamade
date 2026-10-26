@@ -94,18 +94,17 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         //                        '<li><b>TDAY</b>, <b>TEVENING</b> and <b>TNIGHT</b> : Hourly average train count (6-18h)(18-22h)(22-6h) (INTEGER)</li></ul>',
         //
         // Generate compatible column names with noisemodelling
+        // idtroncon and idtraffic is original string foreign key of the database
+        // we will update the local pktrack and pktraffic integer foreign key to match with this original links
         runSqlQuery(connection, """
             DROP TABLE IF EXISTS RAILWAY_TRACK;
-            CREATE TABLE RAILWAY_TRACK(idsection SERIAL PRIMARY KEY, the_geom geometry, idtroncon varchar, 
-            idligne varchar,numligne varchar, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
+            CREATE TABLE RAILWAY_TRACK(PKTRACK SERIAL PRIMARY KEY, the_geom geometry, IDSECTION VARCHAR, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
              roughness VARCHAR, impact VARCHAR, curvature INTEGER, bridge VARCHAR, istunnel BOOLEAN);
              
-            INSERT INTO RAILWAY_TRACK(the_geom,idtroncon,idligne,numligne, ntrack, trackspd, transfer, roughness, impact, curvature, bridge, istunnel) 
+            INSERT INTO RAILWAY_TRACK(the_geom, IDSECTION, ntrack, trackspd, transfer, roughness, impact, curvature, bridge, istunnel) 
              SELECT
                 geom as the_geom,
-                t.idtroncon,
-                t.idligne,
-                t.numligne,
+                t.idtroncon as IDSECTION,
                 t.nb_voies as ntrack, 
                 t.vmaxinfra as trackspd,
                (CASE   WHEN  T.BASEVOIE = 'C' THEN 5::integer 
@@ -120,20 +119,31 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 END) as impact,  
                 0::integer as curvature,
                 '' as bridge,
-                idtunnel is not null as istunnel
-            FROM N_ferroviaire_TRONCON_L T LEFT JOIN n_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon);
+                idtunnel is not null as istunnel,
+                (CASE   WHEN ligne.typeligne = '01' THEN 3.67::float 
+                        WHEN ligne.typeligne = '02' THEN 4.5::float 
+                END) as trackspc,
+                VITESSE as comspd,
+                'SNCF' as PLATFORM 
+            FROM N_ferroviaire_TRONCON_L T 
+             INNER JOIN N_ferroviaire_vitesse V ON (T.idtroncon = V.idtroncon)
+             INNER JOIN n_ferroviaire_ligne ligne ON (T.idtroncon = ligne.idtroncon)
+             LEFT JOIN N_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon);
+            CREATE UNIQUE INDEX ON RAILWAY_TRACK (IDSECTION);
             
             DROP TABLE IF EXISTS RAILWAY_TRAFFIC;
-            CREATE TABLE RAILWAY_TRAFFIC (IDTRAFFIC SERIAL PRIMARY KEY, IDSECTION INTEGER, TRAINTYPE VARCHAR,
+            CREATE TABLE RAILWAY_TRAFFIC (PKTRAFFIC SERIAL PRIMARY KEY, IDSECTION VARCHAR, TRAINTYPE VARCHAR,
              TRAINSPD DOUBLE, TDAY INTEGER, TEVENING INTEGER, TNIGHT INTEGER);
              
             INSERT INTO RAILWAY_TRAFFIC(IDSECTION, TRAINTYPE, TRAINSPD, TDAY, TEVENING, TNIGHT)
-              SELECT
+              SELECT IDTRONCON, ENGMOTEUR, VMAX, (TDIURNE/12), (TSOIR/4), (TNUIT/8)
               FROM N_FERROVIAIRE_TRAFIC;
-            
+              CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);            
         """)
 
         ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic:"RAILWAY_TRAFFIC", tableRailwayTrack : "RAILWAY_TRACK"])
+
+
 }
 
 
