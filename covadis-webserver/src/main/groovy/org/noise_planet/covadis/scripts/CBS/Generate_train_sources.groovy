@@ -51,7 +51,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
         // Fetch PostGIS connection settings from the configuration table
         Sql h2sql = new Sql(connection)
-        if(!JDBCUtilities.tableExists(connection, "POSTGIS_CONFIGURATION")) {
+        if (!JDBCUtilities.tableExists(connection, "POSTGIS_CONFIGURATION")) {
                 throw new RuntimeException("The table POSTGIS_CONFIGURATION does not exist. Please run the Write_PostGIS_Settings process first to create and fill this table with the connection settings to the PostGIS database.")
         }
 
@@ -65,90 +65,84 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 logger.info("Connected to PostgreSQL database")
                 pgConnection.setAutoCommit(true)
                 // Fetch train data tables
-                try(ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_ligne")) {
+                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_ligne")) {
                         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_LIGNE", true, batchSize)
                 }
-                try(ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_trafic")) {
+                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_trafic")) {
                         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TRAFIC", true, batchSize)
                 }
-                try(ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_troncon_l")) {
+                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_troncon_l")) {
                         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TRONCON_L", true, batchSize)
                 }
-                try(ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_vitesse")) {
+                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_vitesse")) {
                         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_VITESSE", true, batchSize)
                 }
-                try(ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_tunnel")) {
+                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_tunnel")) {
                         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TUNNEL", true, batchSize)
                 }
+                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_pont_metallique")) {
+                        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_PONT_METALLIQUE", true, batchSize)
+                }
+
+                runSqlQuery(connection, """
+                    DROP TABLE IF EXISTS RAILWAY_TRACK;
+                    CREATE TABLE RAILWAY_TRACK(PKTRACK SERIAL PRIMARY KEY, the_geom geometry, IDSECTION VARCHAR, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
+                     roughness VARCHAR, impact VARCHAR, curvature INTEGER, bridge VARCHAR, istunnel BOOLEAN, trackspc DOUBLE, comspd DOUBLE, platform VARCHAR);
+                     
+                    INSERT INTO RAILWAY_TRACK(the_geom, IDSECTION, ntrack, trackspd, transfer, roughness, impact, curvature, bridge, istunnel, trackspc, comspd, platform) 
+                     SELECT
+                        geom as the_geom,
+                        t.idtroncon as IDSECTION,
+                        t.nb_voies as ntrack, 
+                        t.vmaxinfra as trackspd,
+                       (CASE   WHEN  PMT.idpont IS NOT NULL THEN 'SNCF8'
+                                WHEN T.BASEVOIE = 'C' THEN 'SNCF5' 
+                                WHEN T.BASEVOIE = 'W' THEN 'SNCF7' 
+                                ELSE 'SNCF8'
+                        END) as transfer,
+                        (CASE   WHEN T.RUGOSITE = 'E' THEN 'SNCF1'
+                                ELSE 'SNCF2'
+                        END) as roughness,
+                        (CASE   WHEN T.JOINTRAIL = 'N' THEN '' 
+                                ELSE 'SNCF1' 
+                        END) as impact,  
+                        0::integer as curvature,
+                        '' as bridge,
+                        idtunnel is not null as istunnel,
+                        (CASE   WHEN ligne.typeligne = '01' THEN 3.67::float 
+                                WHEN ligne.typeligne = '02' THEN 4.5::float 
+                        END) as trackspc,
+                        VITESSE as comspd,
+                        'SNCF' as PLATFORM 
+                    FROM N_ferroviaire_TRONCON_L T 
+                     INNER JOIN N_ferroviaire_vitesse V ON (T.idtroncon = V.idtroncon)
+                     INNER JOIN n_ferroviaire_ligne ligne ON (T.idligne = ligne.idligne)
+                     LEFT JOIN N_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon)
+                     LEFT JOIN N_ferroviaire_pont_metallique pmt ON (T.idtroncon = PMT.idtroncon);
+                    CREATE UNIQUE INDEX ON RAILWAY_TRACK (IDSECTION);
+                    
+                    DROP TABLE IF EXISTS RAILWAY_TRAFFIC;
+                    CREATE TABLE RAILWAY_TRAFFIC (PKTRAFFIC SERIAL PRIMARY KEY, IDSECTION VARCHAR, TRAINTYPE VARCHAR,
+                     TRAINSPD DOUBLE, TDAY INTEGER, TEVENING INTEGER, TNIGHT INTEGER);
+                     
+                    INSERT INTO RAILWAY_TRAFFIC(IDSECTION, TRAINTYPE, TRAINSPD, TDAY, TEVENING, TNIGHT)
+                      SELECT IDTRONCON, ENGMOTEUR, VMAX, (TDIURNE/12), (TSOIR/4), (TNUIT/8)
+                      FROM N_FERROVIAIRE_TRAFIC;
+                      CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);            
+                        """)
+
+                ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic: "RAILWAY_TRAFFIC", tableRailwayTrack: "RAILWAY_TRACK"])
+
+                // Copy output table to postgis
+                try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
+                        PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_emission_hexa", true, batchSize);
+                }
         }
-
-        //
-        //                name : 'Railway traffic table name',
-        //                title : 'Railway traffic table name',
-        //                description : '<b>Name of the Rail traffic table.</b>  </br><br>' +
-        //                        'This function recognize the following columns (* mandatory): </br><ul>' +
-        //                        '<li><b>IDTRAFFIC</b>* : A traffic identifier (PRIMARY KEY) (INTEGER) </li>' +
-        //                        '<li><b>IDSECTION</b>* : A section identifier, refering to RAIL_SECTIONS table (INTEGER)</li>' +
-        //                        '<li><b>TRAINTYPE</b>* : Type of vehicle, listed in the <a href="https://github.com/Universite-Gustave-Eiffel/NoiseModelling/blob/4.X/noisemodelling-emission/src/main/resources/org/noise_planet/noisemodelling/emission/Rail_Train_SNCF_2021.json" target="_blank">Rail_Train_SNCF_2021</a> file (mainly for french SNCF) (STRING)</li>' +
-        //                        '<li><b>TRAINSPD</b>* : Maximum Train speed (in km/h) (DOUBLE)</li>' +
-        //                        '<li><b>TDAY</b>, <b>TEVENING</b> and <b>TNIGHT</b> : Hourly average train count (6-18h)(18-22h)(22-6h) (INTEGER)</li></ul>',
-        //
-        // Generate compatible column names with noisemodelling
-        // idtroncon and idtraffic is original string foreign key of the database
-        // we will update the local pktrack and pktraffic integer foreign key to match with this original links
-        runSqlQuery(connection, """
-            DROP TABLE IF EXISTS RAILWAY_TRACK;
-            CREATE TABLE RAILWAY_TRACK(PKTRACK SERIAL PRIMARY KEY, the_geom geometry, IDSECTION VARCHAR, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
-             roughness VARCHAR, impact VARCHAR, curvature INTEGER, bridge VARCHAR, istunnel BOOLEAN);
-             
-            INSERT INTO RAILWAY_TRACK(the_geom, IDSECTION, ntrack, trackspd, transfer, roughness, impact, curvature, bridge, istunnel) 
-             SELECT
-                geom as the_geom,
-                t.idtroncon as IDSECTION,
-                t.nb_voies as ntrack, 
-                t.vmaxinfra as trackspd,
-               (CASE   WHEN  T.BASEVOIE = 'C' THEN 5::integer 
-                        WHEN T.BASEVOIE = 'W' THEN 7::integer 
-                        ELSE 8::integer
-                END) as transfer,
-                (CASE   WHEN T.RUGOSITE = 'E' THEN 1::integer 
-                        ELSE 2::integer
-                END) as roughness,
-                (CASE   WHEN T.JOINTRAIL = 'N' THEN 0::integer 
-                        ELSE 1::integer 
-                END) as impact,  
-                0::integer as curvature,
-                '' as bridge,
-                idtunnel is not null as istunnel,
-                (CASE   WHEN ligne.typeligne = '01' THEN 3.67::float 
-                        WHEN ligne.typeligne = '02' THEN 4.5::float 
-                END) as trackspc,
-                VITESSE as comspd,
-                'SNCF' as PLATFORM 
-            FROM N_ferroviaire_TRONCON_L T 
-             INNER JOIN N_ferroviaire_vitesse V ON (T.idtroncon = V.idtroncon)
-             INNER JOIN n_ferroviaire_ligne ligne ON (T.idtroncon = ligne.idtroncon)
-             LEFT JOIN N_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon);
-            CREATE UNIQUE INDEX ON RAILWAY_TRACK (IDSECTION);
-            
-            DROP TABLE IF EXISTS RAILWAY_TRAFFIC;
-            CREATE TABLE RAILWAY_TRAFFIC (PKTRAFFIC SERIAL PRIMARY KEY, IDSECTION VARCHAR, TRAINTYPE VARCHAR,
-             TRAINSPD DOUBLE, TDAY INTEGER, TEVENING INTEGER, TNIGHT INTEGER);
-             
-            INSERT INTO RAILWAY_TRAFFIC(IDSECTION, TRAINTYPE, TRAINSPD, TDAY, TEVENING, TNIGHT)
-              SELECT IDTRONCON, ENGMOTEUR, VMAX, (TDIURNE/12), (TSOIR/4), (TNUIT/8)
-              FROM N_FERROVIAIRE_TRAFIC;
-              CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);            
-        """)
-
-        ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic:"RAILWAY_TRAFFIC", tableRailwayTrack : "RAILWAY_TRACK"])
-
-
 }
 
 
 @CompileStatic
 static void runSqlQuery(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
         Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
-        logger.info(ScriptUtilities.execScript(new Execute_Query(),connection, [sqlQueries: query, "outputFormat": "JSON"], progressVisitor) as String)
+        logger.info(ScriptUtilities.execScript(new Execute_Query(), connection, [sqlQueries: query, "outputFormat": "JSON"], progressVisitor) as String)
 }

@@ -284,7 +284,7 @@ public class PostGISUtilities {
             if(pkInfo != null && columnNames.stream().anyMatch(n -> n.equalsIgnoreCase(pkInfo.first()))) {
                 String pkName = pkInfo.first();
                 try (Statement h2Stmt = targetConnection.createStatement()) {
-                    h2Stmt.execute("ALTER TABLE " + targetTableName + " ADD CONSTRAINT " + targetTableName + "_pk PRIMARY KEY (" + pkName + ")");
+                    h2Stmt.execute("ALTER TABLE " + targetTableName + " ADD PRIMARY KEY (" + pkName + ")");
                 }
             }
         }

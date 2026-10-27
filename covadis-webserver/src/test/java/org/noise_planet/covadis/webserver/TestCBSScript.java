@@ -181,6 +181,9 @@ public class TestCBSScript extends JDBCTestCase {
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET idbat = 'BAT2023130018310.1203408' WHERE idbat = 'BAT2023130018310.20548432';"));
                     assertEquals(1, statement.executeUpdate("UPDATE cbs_uge_input.c_correspond_batiment_batimentsensible_hexa SET geom3d = (SELECT geom3d from cbs_uge_input.c_batiment_s_hexa bh WHERE idbat = 'BAT2023130018310.1203408') WHERE idbat = 'BAT2023130018310.1203408';"));
                     logger.info("Database tables created in {}ms", System.currentTimeMillis() - start);
+                    // Issue with train names TODO remove when JSON or BDD updated
+                    statement.execute("UPDATE cbs_uge_input.n_ferroviaire_trafic SET engmoteur = REPLACE(engmoteur, '-U', 'U') WHERE engmoteur LIKE '%-U%';");
+                    statement.execute("UPDATE cbs_uge_input.n_ferroviaire_trafic SET engmoteur = REPLACE(REPLACE(engmoteur, '-U', 'U'), '--', '-') WHERE engmoteur LIKE '%--%';");
                 }
             }
         }
@@ -483,6 +486,15 @@ public class TestCBSScript extends JDBCTestCase {
         assumePostGISAvailable();
 
         new Generate_train_sources().exec(connection, Map.of("projectionName","hexa"), new EmptyProgressVisitor());
+
+        // assert that LW_RAILWAY exists
+
+        assertTrue(JDBCUtilities.tableExists(connection, "LW_RAILWAY"));
+
+        try (Connection pgConnection = pgDataSource.getConnection()) {
+            assertTrue(JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.ferroviaire_emission_hexa"));
+            logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(pgConnection), "SELECT * FROM cbs_uge_output.ferroviaire_emission_hexa LIMIT 10", 120));
+        }
 
 
     }
