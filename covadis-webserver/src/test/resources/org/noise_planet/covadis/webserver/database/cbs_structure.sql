@@ -474,6 +474,97 @@ CREATE TABLE cbs_uge_input.nm_nuts (
 	CONSTRAINT nuts_pkey PRIMARY KEY (code_2021)
 );
 
+CREATE TABLE cbs_uge_input.nm_departement_2154 (
+	the_geom public.geometry NULL,
+	id varchar(24) NULL,
+	nom_dep varchar(30) NULL,
+	insee_dep varchar(3) NULL,
+	insee_reg varchar(2) NULL
+);
+
+CREATE TABLE cbs_uge_input.n_ferroviaire_ligne (
+	idligne varchar(32) NULL,
+	annee varchar(4) NULL,
+	codedept varchar NULL,
+	refprod varchar(9) NULL,
+	numligne varchar(20) NULL,
+	nomprop varchar(32) NULL,
+	refprop varchar(9) NULL,
+	nomgest varchar(32) NULL,
+	refgest varchar(9) NULL,
+	typeligne varchar(2) NULL,
+	itineurope varchar(1) NULL,
+	uueid varchar(20) NULL,
+	libelle varchar(100) NULL,
+	lib_type varchar(50) NULL,
+	mnemo_type varchar(5) NULL
+);
+
+CREATE TABLE cbs_uge_input.n_ferroviaire_pont_metallique (
+	idpont varchar(32) NULL,
+	annee varchar(4) NULL,
+	codedept varchar NULL,
+	refprod varchar(9) NULL,
+	numligne varchar(30) NULL,
+	idtroncon varchar(32) NULL,
+	nomouvrage varchar(32) NULL,
+	nomobstacl varchar(32) NULL,
+	pr varchar(8) NULL,
+	porteemaxi numeric NULL,
+	basevoie varchar(1) NULL
+);
+
+CREATE TABLE cbs_uge_input.n_ferroviaire_protection_acoust (
+	idprotacou varchar(32) NULL,
+	annee int8 NULL,
+	codedept varchar(3) NULL,
+	refprod varchar(9) NULL,
+	idligne varchar(32) NULL,
+	numligne varchar(254) NULL,
+	refsource varchar(16) NULL,
+	millsource varchar(4) NULL,
+	idsource varchar(32) NULL,
+	typeprot varchar(2) NULL,
+	nomprot varchar(32) NULL,
+	prdeb varchar(8) NULL,
+	prfin varchar(8) NULL,
+	longueur numeric NULL,
+	zdeb numeric NULL,
+	zfin numeric NULL,
+	hauteur numeric NULL,
+	propriete varchar(254) NULL,
+	materiau1 varchar(2) NULL,
+	materiau2 varchar(2) NULL,
+	accessoire int8 NULL,
+	vegetalise varchar(254) NULL,
+	inclinaiso int8 NULL,
+	"support" varchar(2) NULL,
+	validedeb date NULL,
+	validefin date NULL,
+	geom public.geometry NULL
+);
+CREATE INDEX n_ferroviaire_protection_acoust_geom ON cbs_uge_input.n_ferroviaire_protection_acoust USING gist (geom);
+
+CREATE TABLE cbs_uge_input.n_ferroviaire_trafic (
+	idtrafic varchar(32) NULL,
+	annee varchar(4) NULL,
+	codedept varchar NULL,
+	refprod varchar(9) NULL,
+	idtroncon varchar(32) NULL,
+	categorie varchar(10) NULL,
+	engmoteur varchar(20) NULL,
+	typvoitwag varchar(12) NULL,
+	lgem numeric NULL,
+	nbvoitwag numeric NULL,
+	lguvoitwag numeric NULL,
+	lgtottrain numeric NULL,
+	vmax numeric NULL,
+	tdiurne numeric NULL,
+	tsoir numeric NULL,
+	tnuit numeric NULL,
+	tmjatot numeric NULL
+);
+
 CREATE TABLE cbs_uge_input.n_ferroviaire_troncon_l (
 	idtroncon varchar(32) NULL,
 	annee varchar(4) NULL,
@@ -500,32 +591,33 @@ CREATE TABLE cbs_uge_input.n_ferroviaire_troncon_l (
 	courbure varchar(1) NULL,
 	geom public.geometry NULL
 );
+CREATE INDEX n_ferroviaire_troncon_l_geom ON cbs_uge_input.n_ferroviaire_troncon_l USING gist (geom);
 
-CREATE TABLE cbs_uge_input.n_ferroviaire_ligne (
-	idligne varchar(32) NULL,
+CREATE TABLE cbs_uge_input.n_ferroviaire_tunnel (
+	idtunnel varchar(32) NULL,
 	annee varchar(4) NULL,
 	codedept varchar NULL,
 	refprod varchar(9) NULL,
 	numligne varchar(30) NULL,
-	nomprop varchar(32) NULL,
-	refprop varchar(9) NULL,
-	nomgest varchar(32) NULL,
-	refgest varchar(9) NULL,
-	typeligne varchar(2) NULL,
-	itineurope varchar(1) NULL,
-	uueid varchar(20) NULL,
-	libelle varchar(100) NULL,
-	lib_type varchar(50) NULL,
-	mnemo_type varchar(5) NULL
+	idtroncon varchar(32) NULL,
+	nomouvrage varchar(32) NULL,
+	pr varchar(8) NULL,
+	longueur numeric NULL
 );
 
-CREATE TABLE cbs_uge_input.nm_departement_2154 (
-	the_geom public.geometry NULL,
-	id varchar(24) NULL,
-	nom_dep varchar(30) NULL,
-	insee_dep varchar(3) NULL,
-	insee_reg varchar(2) NULL
+CREATE TABLE cbs_uge_input.n_ferroviaire_vitesse (
+	idvitesse varchar(32) NULL,
+	annee varchar(4) NULL,
+	codedept varchar NULL,
+	refprod varchar(9) NULL,
+	numligne varchar(30) NULL,
+	idtroncon varchar(32) NULL,
+	voie varchar(6) NULL,
+	prdeb varchar(8) NULL,
+	prfin varchar(8) NULL,
+	vitesse numeric NULL
 );
+
 CREATE INDEX nm_departement_2154_geom_idx ON cbs_uge_input.nm_departement_2154 USING gist (the_geom);
 CREATE INDEX nm_departement_2154_insee_dep_idx ON cbs_uge_input.nm_departement_2154 USING btree (insee_dep);
 
