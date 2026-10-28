@@ -133,6 +133,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
                 ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic: "RAILWAY_TRAFFIC", tableRailwayTrack: "RAILWAY_TRACK"])
 
+                logger.info("Removed {} source lines from LW_RAILWAY (no emission values)", h2sql.executeUpdate("DELETE FROM LW_RAILWAY WHERE hzd500 = -99 and hze500 = -99 and hzn500 = -99;"))
+
                 // Copy output table to postgis
                 try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
                         PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_emission_hexa", true, batchSize);

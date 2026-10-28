@@ -493,7 +493,15 @@ public class TestCBSScript extends JDBCTestCase {
 
         try (Connection pgConnection = pgDataSource.getConnection()) {
             assertTrue(JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.ferroviaire_emission_hexa"));
-            logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(pgConnection), "SELECT * FROM cbs_uge_output.ferroviaire_emission_hexa LIMIT 10", 120));
+            // table must contains rows
+            int rowCount = JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.ferroviaire_emission_hexa");
+            assertNotEquals(0, rowCount);
+            // table must not contain rows with HZD500 HZE500 and HZN500 at -99 dB
+            try(Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.ferroviaire_emission_hexa WHERE hzd500 = -99 and hze500 = -99 and hzn500 = -99")) {
+                assertTrue(resultSet.next());
+                assertEquals(0, resultSet.getInt("CPT"));
+            }
         }
 
 
