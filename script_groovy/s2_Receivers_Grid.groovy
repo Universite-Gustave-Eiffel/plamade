@@ -99,10 +99,10 @@ def exec(Connection connection, input) {
     String building_table_name = "BUILDINGS_SCREENS"
     building_table_name = building_table_name.toUpperCase()
 
-    // The receivers height is set to 4.1m
-    Double height = 4.1
-    // The receivers height is set to 4.1m
-    Double h = 4.1
+    // The receivers height is set to 4m
+    Double height = 4.0
+    // The receivers height is set to 4m
+    Double h = 4.0
 
     Sql sql = new Sql(connection)
 
