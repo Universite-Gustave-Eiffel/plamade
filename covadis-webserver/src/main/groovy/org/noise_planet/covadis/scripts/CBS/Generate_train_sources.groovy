@@ -18,6 +18,7 @@ import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.pathfinder.profilebuilder.ProfileBuilder
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Railway_Emission_from_Traffic
 import org.slf4j.Logger
@@ -87,9 +88,9 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 runSqlQuery(connection, """
                     DROP TABLE IF EXISTS RAILWAY_TRACK;
                     CREATE TABLE RAILWAY_TRACK(PKTRACK SERIAL PRIMARY KEY, the_geom geometry, IDSECTION VARCHAR, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
-                     roughness VARCHAR, impact VARCHAR, curvature INTEGER, bridge VARCHAR, istunnel BOOLEAN, trackspc DOUBLE, comspd DOUBLE, platform VARCHAR);
+                     roughness VARCHAR, impact VARCHAR, curvature INTEGER, bridge VARCHAR, istunnel BOOLEAN, comspd DOUBLE, platform VARCHAR);
                      
-                    INSERT INTO RAILWAY_TRACK(the_geom, IDSECTION, ntrack, trackspd, transfer, roughness, impact, curvature, bridge, istunnel, trackspc, comspd, platform) 
+                    INSERT INTO RAILWAY_TRACK(the_geom, IDSECTION, ntrack, trackspd, transfer, roughness, impact, curvature, bridge, istunnel, comspd, platform) 
                      SELECT
                         geom as the_geom,
                         t.idtroncon as IDSECTION,
@@ -98,7 +99,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                        (CASE   WHEN  PMT.idpont IS NOT NULL THEN 'SNCF8'
                                 WHEN T.BASEVOIE = 'C' THEN 'SNCF5' 
                                 WHEN T.BASEVOIE = 'W' THEN 'SNCF7' 
-                                ELSE 'SNCF8'
+                                ELSE 'SNCF5'
                         END) as transfer,
                         (CASE   WHEN T.RUGOSITE = 'E' THEN 'SNCF1'
                                 ELSE 'SNCF2'
@@ -109,11 +110,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                         0::integer as curvature,
                         '' as bridge,
                         idtunnel is not null as istunnel,
-                        (CASE   WHEN ligne.typeligne = '01' THEN 3.67::float 
-                                WHEN ligne.typeligne = '02' THEN 4.5::float 
-                        END) as trackspc,
                         VITESSE as comspd,
-                        'SNCF' as PLATFORM 
+                        (CASE WHEN ligne.typeligne = '01' THEN 'SNCF' ELSE 'SNCF_LGV' END) as PLATFORM 
                     FROM N_ferroviaire_TRONCON_L T 
                      INNER JOIN N_ferroviaire_vitesse V ON (T.idtroncon = V.idtroncon)
                      INNER JOIN n_ferroviaire_ligne ligne ON (T.idligne = ligne.idligne)
@@ -133,7 +131,21 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
                 ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic: "RAILWAY_TRAFFIC", tableRailwayTrack: "RAILWAY_TRACK"])
 
-                logger.info("Removed {} source lines from LW_RAILWAY (no emission values)", h2sql.executeUpdate("DELETE FROM LW_RAILWAY WHERE hzd500 = -99 and hze500 = -99 and hzn500 = -99;"))
+                StringBuilder queryFrequencies = new StringBuilder()
+                for(int frequency : ProfileBuilder.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
+                        for(String period : ["D", "E", "N"]) {
+                                if(!queryFrequencies.isEmpty()) {
+                                        queryFrequencies.append(" AND ")
+                                }
+                                queryFrequencies.append("HZ")
+                                queryFrequencies.append(period)
+                                queryFrequencies.append(frequency)
+                                queryFrequencies.append(" = -99")
+                        }
+                }
+
+                int numberOfLines = JDBCUtilities.getRowCount(connection, "LW_RAILWAY")
+                logger.info("Removed {} / {}  source lines from LW_RAILWAY (no emission values)", h2sql.executeUpdate("DELETE FROM LW_RAILWAY WHERE " + queryFrequencies.toString()), numberOfLines)
 
                 // Copy output table to postgis
                 try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
