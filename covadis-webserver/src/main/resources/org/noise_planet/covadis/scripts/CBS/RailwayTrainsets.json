@@ -1,0 +1,1447 @@
+{
+  "AM96-3U3": {
+    "SNCF6": 1,
+    "SNCF73": 9
+  },
+  "B81500-4U1": {
+    "SNCF29": 1
+  },
+  "B81500-4U2": {
+    "SNCF29": 2
+  },
+  "B81500-4U3": {
+    "SNCF29": 3
+  },
+  "B82500-4U1": {
+    "SNCF29": 1
+  },
+  "B82500-4U2": {
+    "SNCF29": 2
+  },
+  "B82500-4U3": {
+    "SNCF29": 3
+  },
+  "B83500-6U1": {
+    "SNCF31": 1
+  },
+  "B83500-6U2": {
+    "SNCF31": 2
+  },
+  "B84500-4U3": {
+    "SNCF30": 3
+  },
+  "B84500-6U1": {
+    "SNCF31": 1
+  },
+  "B84500-6U2": {
+    "SNCF31": 2
+  },
+  "BB27000": {
+    "SNCF13": 1
+  },
+  "CORAIL": {
+    "SNCF6": 1,
+    "SNCF73": 9
+  },
+  "FLIRT-4U1": {
+    "SNCF47": 1
+  },
+  "FLIRT-4U2": {
+    "SNCF47": 2
+  },
+  "FRET": {
+    "SNCF13": 1,
+    "SNCF79": 7,
+    "SNCF78": 11
+  },
+  "ICE3-10U1": {
+    "SNCF2": 1
+  },
+  "TGV-A-12U1": {
+    "SNCF3": 1
+  },
+  "TGV-A-12U2": {
+    "SNCF3": 2
+  },
+  "TGV-D-10U1": {
+    "SNCF2": 1
+  },
+  "TGV-D-10U2": {
+    "SNCF2": 2
+  },
+  "TGVSE-10U1": {
+    "SNCF1": 1
+  },
+  "TGVSE-10U2": {
+    "SNCF1": 2
+  },
+  "TMST-20U1": {
+    "SNCF4": 1
+  },
+  "U25500-5U1": {
+    "SNCF67": 1
+  },
+  "U52500-4U1": {
+    "SNCF68": 1
+  },
+  "U52500-4U2": {
+    "SNCF68": 2
+  },
+  "U52500-4U3": {
+    "SNCF68": 3
+  },
+  "U53500-4U1": {
+    "SNCF68": 1
+  },
+  "U53500-4U2": {
+    "SNCF68": 2
+  },
+  "V2N": {
+    "SNCF8": 1,
+    "SNCF69": 4
+  },
+  "VB2N": {
+    "SNCF22": 1,
+    "SNCF70": 7
+  },
+  "X72500-2U1": {
+    "SNCF33": 1
+  },
+  "X72500-2U2": {
+    "SNCF33": 2
+  },
+  "X72500-2U3": {
+    "SNCF33": 3
+  },
+  "X73500-1U1": {
+    "SNCF35": 1
+  },
+  "X73500-1U2": {
+    "SNCF35": 2
+  },
+  "X73500-1U3": {
+    "SNCF35": 3
+  },
+  "X76500-4U1": {
+    "SNCF37": 1
+  },
+  "X76500-4U2": {
+    "SNCF37": 2
+  },
+  "X76500-4U3": {
+    "SNCF37": 3
+  },
+  "Z11500-2U1": {
+    "SNCF64": 1
+  },
+  "Z11500-2U2": {
+    "SNCF64": 2
+  },
+  "Z20500-5U1": {
+    "SNCF39": 1
+  },
+  "Z20500-5U2": {
+    "SNCF39": 2
+  },
+  "Z21500-3U1": {
+    "SNCF40": 1
+  },
+  "Z21500-3U2": {
+    "SNCF40": 2
+  },
+  "Z21500-3U3": {
+    "SNCF40": 3
+  },
+  "Z22500-5U1": {
+    "SNCF41": 1
+  },
+  "Z22500-5U2": {
+    "SNCF41": 2
+  },
+  "Z23500-2U1": {
+    "SNCF42": 1
+  },
+  "Z23500-2U2": {
+    "SNCF42": 2
+  },
+  "Z24500-3U1": {
+    "SNCF43": 1
+  },
+  "Z24500-3U2": {
+    "SNCF43": 2
+  },
+  "Z24500-3U3": {
+    "SNCF43": 3
+  },
+  "Z26500-4U1": {
+    "SNCF44": 1
+  },
+  "Z26500-4U2": {
+    "SNCF44": 2
+  },
+  "Z27500-4U1": {
+    "SNCF47": 1
+  },
+  "Z27500-4U2": {
+    "SNCF47": 2
+  },
+  "Z27500-4U3": {
+    "SNCF47": 3
+  },
+  "Z50000-7U1": {
+    "SNCF48": 1
+  },
+  "Z50000-7U2": {
+    "SNCF48": 2
+  },
+  "Z51500-4U2": {
+    "SNCF50": 2
+  },
+  "Z51500-6U1": {
+    "SNCF51": 1
+  },
+  "Z54900-4U1": {
+    "SNCF50": 1
+  },
+  "Z54900-4U2": {
+    "SNCF50": 2
+  },
+  "Z55500-6U1": {
+    "SNCF53": 1
+  },
+  "Z55500-6U2": {
+    "SNCF53": 2
+  },
+  "Z55500-6U3": {
+    "SNCF53": 3
+  },
+  "Z5600-5U1": {
+    "SNCF61": 1
+  },
+  "Z5600-5U2": {
+    "SNCF61": 2
+  },
+  "Z6400-4U1": {
+    "SNCF63": 1
+  },
+  "Z6400-4U2": {
+    "SNCF63": 2
+  },
+  "Z7300-2U1": {
+    "SNCF64": 1
+  },
+  "Z7300-2U2": {
+    "SNCF64": 2
+  },
+  "Z8100-4U1": {
+    "SNCF65": 1
+  },
+  "Z8100-4U2": {
+    "SNCF65": 2
+  },
+  "Z8800-4U1": {
+    "SNCF66": 1
+  },
+  "Z8800-4U2": {
+    "SNCF66": 2
+  },
+  "Z9500-2U1": {
+    "SNCF64": 1
+  },
+  "Z9500-2U2": {
+    "SNCF64": 2
+  },
+  "Z9500-2U3": {
+    "SNCF64": 3
+  },
+  "NL_CAT1": {
+    "NL_CAT1": 1
+  },
+  "NL_CAT2": {
+    "NL_CAT2": 1
+  },
+  "NL_CAT3": {
+    "NL_CAT3": 1
+  },
+  "NL_CAT4": {
+    "NL_CAT4": 1
+  },
+  "NL_CAT5": {
+    "NL_CAT5": 1
+  },
+  "NL_CAT6": {
+    "NL_CAT6": 1
+  },
+  "NL_CAT7": {
+    "NL_CAT7": 1
+  },
+  "NL_CAT8": {
+    "NL_CAT8": 1
+  },
+  "NL_CAT10": {
+    "NL_CAT10": 1
+  },
+  "NL_CAT11": {
+    "NL_CAT11": 1
+  },
+  "NL_CAT12": {
+    "NL_CAT12": 1
+  },
+  "NL_trams": {
+    "NL_trams": 1
+  },
+  "B84500-6U3": {
+    "SNCF31": 3
+  },
+  "BB15000": {
+    "SNCF6_CSB5": 1,
+    "SNCF73": 9
+  },
+  "BB67400": {
+    "SNCF22": 1,
+    "SNCF70": 7
+  },
+  "TGV-10U1": {
+    "SNCF2": 1
+  },
+  "TGV-10U2": {
+    "SNCF2": 2
+  },
+  "TGV-TMST-20U1": {
+    "SNCF4": 1
+  },
+  "U53500-4U3": {
+    "SNCF68": 3
+  },
+  "X72500-3U1": {
+    "SNCF33_CSB5": 1
+  },
+  "X72500-3U2": {
+    "SNCF33_CSB5": 2
+  },
+  "X72500-3U3": {
+    "SNCF33_CSB5": 3
+  },
+  "Z26500-5U1": {
+    "SNCF45": 1
+  },
+  "Z26500-5U2": {
+    "SNCF45": 2
+  },
+  "Z31500-4U1": {
+    "SNCF52_CSB5": 1
+  },
+  "Z50000-8U1": {
+    "SNCF49": 1
+  },
+  "Z50000-8U2": {
+    "SNCF49": 2
+  },
+  "Z51500-6U2": {
+    "SNCF51": 2
+  },
+  "Z51500-6U3": {
+    "SNCF51": 3
+  },
+  "Z55500-10U1": {
+    "SNCF58": 1
+  },
+  "Z55500-10U2": {
+    "SNCF58": 2
+  },
+  "Z5600-6U1": {
+    "SNCF62": 1
+  },
+  "Z5600-6U2": {
+    "SNCF62": 2
+  },
+  "Z56500-8U1": {
+    "SNCF57": 1
+  },
+  "Z56600-10U1": {
+    "SNCF59": 1
+  },
+  "Z57000-8U1": {
+    "SNCF56": 1
+  },
+  "_EXCEL_FIELDS": {
+    "AM96-3U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "AM96-3U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 79.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 237.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "Train à constituer (UM3 à remplacer par 1 train CORAIL)",
+      "APPELLATION_COMPLETE": "équivalence CORAIL : 1 BB15000 + 9 Voiture freinée fonte (CORAIL, VU-VTU, VSE)",
+      "DATE": "2026-11-02"
+    },
+    "B81500-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B81500-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 72.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "B81500 quadricaisse (AGC bimode)",
+      "DATE": "2026-11-02"
+    },
+    "B81500-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B81500-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 145.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "B81500 quadricaisse (AGC bimode)",
+      "DATE": "2026-11-02"
+    },
+    "B81500-4U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B81500-4-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 218.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "B81500 quadricaisse (AGC bimode)",
+      "DATE": "2026-11-02"
+    },
+    "B82500-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B82500-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 72.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "B81500 quadricaisse (AGC bimode)",
+      "DATE": "2026-11-02"
+    },
+    "B82500-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B82500-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 145.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "B81500 quadricaisse (AGC bimode)",
+      "DATE": "2026-11-02"
+    },
+    "B82500-4U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B82500-4-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 218.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "B81500 quadricaisse (AGC bimode)",
+      "DATE": "2026-11-02"
+    },
+    "B83500-6U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B83500-6-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 110,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "B83500 - B84500-B85000 6 caisses (Regiolis)",
+      "DATE": "2026-11-02"
+    },
+    "B83500-6U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B83500-6-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 220,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "B83500 - B84500-B85000 6 caisses (Regiolis)",
+      "DATE": "2026-11-02"
+    },
+    "B84500-6U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B84500-6-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 110,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "B83500 - B84500-B85000 6 caisses (Regiolis)",
+      "DATE": "2026-11-02"
+    },
+    "B84500-6U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B84500-6-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 220,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "B83500 - B84500-B85000 6 caisses (Regiolis)",
+      "DATE": "2026-11-02"
+    },
+    "B84500-6U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "B84500-6-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 330,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "B83500 - B84500-B85000 6 caisses (Regiolis)",
+      "DATE": "2026-11-02"
+    },
+    "BB15000": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "BB15000",
+      "TYPVOITWAG": "9v_CORAIL",
+      "LGEM": 17.5,
+      "NBVOITWAG": 9,
+      "LGUVOITWAG": 26.4,
+      "LGTVOITWAG": 255.1,
+      "LGTOTTRAIN": 237.6,
+      "VMAX_MR": 200,
+      "NOMBRE_UNITES": "Train à constituer",
+      "APPELLATION_COMPLETE": "1 BB15000 + 9 Voiture freinée fonte (CORAIL, VU-VTU, VSE)",
+      "DATE": "2026-11-02"
+    },
+    "BB27000": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "BB27000",
+      "TYPVOITWAG": "0",
+      "LGEM": 19.7,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 19.7,
+      "LGTOTTRAIN": 306,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "BB27000(-BB27100)",
+      "DATE": "2026-11-02"
+    },
+    "FRET": {
+      "CATEGORIE": "FRET",
+      "ENGMOTEUR": "BB27000",
+      "TYPVOITWAG": "7w_FF+11w_FC",
+      "LGEM": 19.7,
+      "NBVOITWAG": 18,
+      "LGUVOITWAG": 17,
+      "LGTVOITWAG": 750.7,
+      "LGTOTTRAIN": 306,
+      "VMAX_MR": 120,
+      "NOMBRE_UNITES": "Train à constituer",
+      "APPELLATION_COMPLETE": "1 BB27000(-BB27100) + 7 Wagons FRET freinés fonte + 11 Wagons FRET freinés composite",
+      "DATE": "2026-11-02"
+    },
+    "BB67400": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "BB67400",
+      "TYPVOITWAG": "7v_VB2N",
+      "LGEM": 17.1,
+      "NBVOITWAG": 7,
+      "LGUVOITWAG": 24.3,
+      "LGTVOITWAG": 187.2,
+      "LGTOTTRAIN": 170.1,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "Train à constituer",
+      "APPELLATION_COMPLETE": "1 BB67400(-BB67500-BB67600) + 7 Voitures VB2N",
+      "DATE": "2026-11-02"
+    },
+    "TGV-A-12U1": {
+      "CATEGORIE": "TGV",
+      "ENGMOTEUR": "TGV-A-12-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 237.6,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 237.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 300,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "TGV300-400 (TGV-A)",
+      "DATE": "2026-11-02"
+    },
+    "TGV-A-12U2": {
+      "CATEGORIE": "TGV",
+      "ENGMOTEUR": "TGV-A-12-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 237.6,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 475.2,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 300,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "TGV300-400 (TGV-A)",
+      "DATE": "2026-11-02"
+    },
+    "TGV-10U1": {
+      "CATEGORIE": "TGV",
+      "ENGMOTEUR": "TGV-10-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 200.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 200.2,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 320,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "TGV200-600-700 (TGV-Duplex-DASYE) TGV800-4700 (TGV-2N2) TGV4300 (TGV Thalys PBKA) TGV500-4500 (TGV-R, TGV Thalys PBA), TGV4400 (TGV-POS)",
+      "DATE": "2026-11-02"
+    },
+    "TGV-10U2": {
+      "CATEGORIE": "TGV",
+      "ENGMOTEUR": "TGV-10-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 200.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 400.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 320,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "TGV200-600-700 (TGV-Duplex-DASYE) TGV800-4700 (TGV-2N2) TGV4300 (TGV Thalys PBKA) TGV500-4500 (TGV-R, TGV Thalys PBA), TGV4400 (TGV-POS)",
+      "DATE": "2026-11-02"
+    },
+    "TGV-TMST-20U1": {
+      "CATEGORIE": "TGV",
+      "ENGMOTEUR": "TGV-TMST-20-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 393.7,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 393.7,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 300,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "TGV3200 (TGV-TMST Eurostar)",
+      "DATE": "2026-11-02"
+    },
+    "U25500-5U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "U25500-5-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 36.7,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 36.7,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 100,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "U25500 (Tram Train Avento)",
+      "DATE": "2026-11-02"
+    },
+    "U52500-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "U52500-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 42,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 42,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 100,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "U25500-U53500-U53600-U53700 (Tram Train Citadis Dualis - TTNG)",
+      "DATE": "2026-11-02"
+    },
+    "U52500-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "U52500-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 42,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 84,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 100,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "U25500-U53500-U53600-U53700 (Tram Train Citadis Dualis - TTNG)",
+      "DATE": "2026-11-02"
+    },
+    "U52500-4U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "U52500-4-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 42,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 126,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 100,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "U25500-U53500-U53600-U53700 (Tram Train Citadis Dualis - TTNG)",
+      "DATE": "2026-11-02"
+    },
+    "U53500-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "U53500-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 42,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 42,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 100,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "U25500-U53500-U53600-U53700 (Tram Train Citadis Dualis - TTNG)",
+      "DATE": "2026-11-02"
+    },
+    "U53500-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "U53500-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 42,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 84,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 100,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "U25500-U53500-U53600-U53700 (Tram Train Citadis Dualis - TTNG)",
+      "DATE": "2026-11-02"
+    },
+    "U53500-4U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "U53500-4-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 42,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 126,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 100,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "U25500-U53500-U53600-U53700 (Tram Train Citadis Dualis - TTNG)",
+      "DATE": "2026-11-02"
+    },
+    "X72500-3U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X72500-3-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 52.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 52.9,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "X72500(-X72600-X72700) tricaisse (X TER)",
+      "DATE": "2026-11-02"
+    },
+    "X72500-3U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X72500-3-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 52.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 105.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "X72500(-X72600-X72700) tricaisse (X TER)",
+      "DATE": "2026-11-02"
+    },
+    "X72500-3U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X72500-3-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 52.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 158.7,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "X72500(-X72600-X72700) tricaisse (X TER)",
+      "DATE": "2026-11-02"
+    },
+    "X73500-1U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X73500-1-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 28.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 28.9,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "X73500(-X73600-X73700-X73800) -X73900 (A TER)",
+      "DATE": "2026-11-02"
+    },
+    "X73500-1U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X73500-1-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 28.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 57.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "X73500(-X73600-X73700-X73800) -X73900 (A TER)",
+      "DATE": "2026-11-02"
+    },
+    "X73500-1U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X73500-1-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 28.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 86.7,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "X73500(-X73600-X73700-X73800) -X73900 (A TER)",
+      "DATE": "2026-11-02"
+    },
+    "X76500-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X76500-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 72.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "X76500 quadricaisse (AGC)",
+      "DATE": "2026-11-02"
+    },
+    "X76500-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "X76500-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 145.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "X76500 quadricaisse (AGC)",
+      "DATE": "2026-11-02"
+    },
+    "Z11500-2U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z11500-2-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 50.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 50.2,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z7300-Z7500-Z9500-Z9600-Z11500 (Z2)",
+      "DATE": "2026-11-02"
+    },
+    "Z11500-2U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z11500-2-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 50.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 100.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z7300-Z7500-Z9500-Z9600-Z11500 (Z2)",
+      "DATE": "2026-11-02"
+    },
+    "Z20500-5U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z20500-5-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 129.4,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 129.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z20500(-Z20600-Z20700-Z20800) pentacaisse (Z2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z20500-5U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z20500-5-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 129.4,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 258.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z20500(-Z20600-Z20700-Z20800) pentacaisse (Z2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z21500-3U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z21500-3-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 79.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 79.2,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 200,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z21500(-Z21600-Z21700) (ZTER)",
+      "DATE": "2026-11-02"
+    },
+    "Z21500-3U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z21500-3-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 79.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 158.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 200,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z21500(-Z21600-Z21700) (ZTER)",
+      "DATE": "2026-11-02"
+    },
+    "Z21500-3U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z21500-3-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 79.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 237.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 200,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "Z21500(-Z21600-Z21700) (ZTER)",
+      "DATE": "2026-11-02"
+    },
+    "Z22500-5U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z22500-5-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 112,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 112,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z22500(-Z22600) pentacaisse (MI2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z22500-5U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z22500-5-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 112,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 224,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z22500(-Z22600) pentacaisse (MI2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z23500-2U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z23500-2-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 52.5,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 52.5,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z23500 (TER 2N PG)",
+      "DATE": "2026-11-02"
+    },
+    "Z23500-2U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z23500-2-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 52.5,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 105,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z23500 (TER 2N PG)",
+      "DATE": "2026-11-02"
+    },
+    "Z24500-3U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z24500-3-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 81.1,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 81.1,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z24500(-Z24600-Z24700-Z24800) tricaisse (TER 2N NG)",
+      "DATE": "2026-11-02"
+    },
+    "Z24500-3U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z24500-3-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 81.1,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 162.2,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z24500(-Z24600-Z24700-Z24800) tricaisse (TER 2N NG)",
+      "DATE": "2026-11-02"
+    },
+    "Z24500-3U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z24500-3-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 81.1,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 243.3,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "Z24500(-Z24600-Z24700-Z24800) tricaisse (TER 2N NG)",
+      "DATE": "2026-11-02"
+    },
+    "Z26500-5U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z26500-5-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 133.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 133.9,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z26500(-Z26600) pentacaisse (TER 2N NG)",
+      "DATE": "2026-11-02"
+    },
+    "Z26500-5U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z26500-5-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 133.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 267.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z26500(-Z26600) pentacaisse (TER 2N NG)",
+      "DATE": "2026-11-02"
+    },
+    "Z27500-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z27500-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 72.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z27500(-Z27600-Z27700-Z27800-Z27900) quadricaisse (ZGC)",
+      "DATE": "2026-11-02"
+    },
+    "Z27500-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z27500-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 145.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z27500(-Z27600-Z27700-Z27800-Z27900) quadricaisse (ZGC)",
+      "DATE": "2026-11-02"
+    },
+    "Z27500-4U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z27500-4-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 218.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "Z27500(-Z27600-Z27700-Z27800-Z27900) quadricaisse (ZGC)",
+      "DATE": "2026-11-02"
+    },
+    "Z31500-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z31500-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 72.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 72.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z31500 (REGIOLIS LEX)",
+      "DATE": "2026-11-02"
+    },
+    "Z50000-8U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z50000-8-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 112.5,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 112.5,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z50000 8 caisses (NAT)",
+      "DATE": "2026-11-02"
+    },
+    "Z50000-8U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z50000-8-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 112.5,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 225,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z50000 8 caisses (NAT)",
+      "DATE": "2026-11-02"
+    },
+    "Z51500-6U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z51500-6-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 110,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z51500 6 caisses (REGIOLIS)",
+      "DATE": "2026-11-02"
+    },
+    "Z51500-6U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z51500-6-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 220,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z51500 6 caisses (REGIOLIS)",
+      "DATE": "2026-11-02"
+    },
+    "Z51500-6U3": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z51500-6-U3",
+      "TYPVOITWAG": "0",
+      "LGEM": 110,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 330,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "3",
+      "APPELLATION_COMPLETE": "Z51500 6 caisses (REGIOLIS)",
+      "DATE": "2026-11-02"
+    },
+    "Z54900-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z54900-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 71.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 71.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z51500-Z54500-Z54900 4 caisses (REGIOLIS)",
+      "DATE": "2026-11-02"
+    },
+    "Z54900-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z54900-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 71.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 143.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z51500-Z54500-Z54900 4 caisses (REGIOLIS)",
+      "DATE": "2026-11-02"
+    },
+    "Z55500-10U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z55500-10-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 135.4,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 135.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z55500(-Z55600-Z55700)-extra-longue (REGIO 2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z55500-10U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z55500-10-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 135.4,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 270.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z55500(-Z55600-Z55700)-extra-longue (REGIO 2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z5600-6U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z5600-6-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 147.3,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 147.3,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z5600(-Z5700) hexacaisse",
+      "DATE": "2026-11-02"
+    },
+    "Z5600-6U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z5600-6-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 147.3,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 294.6,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z5600(-Z5700) hexacaisse",
+      "DATE": "2026-11-02"
+    },
+    "Z56500-8U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z56500-8-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 109.91,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 109.91,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 200,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z56500-Z56700-V200 intervilles (REGIO 2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z56600-10U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z56600-10-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 135.4,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 135.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 200,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z56600-extra-longue (REGIO 2N) V200",
+      "DATE": "2026-11-02"
+    },
+    "Z57000-8U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z57000-8-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 109.9,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 109.9,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z55500(-Z55600-Z55700)-Z57000-longue (REGIO 2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z7300-2U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z7300-2-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 50.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 100.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z7300-Z7500-Z9500-Z9600-Z11500 (Z2)",
+      "DATE": "2026-11-02"
+    },
+    "Z8100-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z8100-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 104.1,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 104.1,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z8100(-Z8200) (MI79)",
+      "DATE": "2026-11-02"
+    },
+    "Z8100-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z8100-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 104.1,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 208.1,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z8100(-Z8200) (MI79)",
+      "DATE": "2026-11-02"
+    },
+    "Z8800-4U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z8800-4-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 98.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 98.8,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z8800(-8900) (Z2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z8800-4U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z8800-4-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 98.8,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 197.5,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 140,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z8800(-8900) (Z2N)",
+      "DATE": "2026-11-02"
+    },
+    "Z9500-2U1": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z9500-2-U1",
+      "TYPVOITWAG": "0",
+      "LGEM": 50.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 50.2,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "1",
+      "APPELLATION_COMPLETE": "Z7300-Z7500-Z9500-Z9600-Z11500 (Z2)",
+      "DATE": "2026-11-02"
+    },
+    "Z9500-2U2": {
+      "CATEGORIE": "TER",
+      "ENGMOTEUR": "Z9500-2-U2",
+      "TYPVOITWAG": "0",
+      "LGEM": 50.2,
+      "NBVOITWAG": 0,
+      "LGUVOITWAG": 0,
+      "LGTVOITWAG": 100.4,
+      "LGTOTTRAIN": 0,
+      "VMAX_MR": 160,
+      "NOMBRE_UNITES": "2",
+      "APPELLATION_COMPLETE": "Z7300-Z7500-Z9500-Z9600-Z11500 (Z2)",
+      "DATE": "2026-11-02"
+    }
+  }
+}
