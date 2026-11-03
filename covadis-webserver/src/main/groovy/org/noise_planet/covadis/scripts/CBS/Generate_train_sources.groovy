@@ -124,7 +124,13 @@ static convertTrafficToNoiseSources(Connection connection) {
                       CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);            
                         """)
 
-        ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic: "RAILWAY_TRAFFIC", tableRailwayTrack: "RAILWAY_TRACK"])
+        ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [
+                tableRailwayTraffic: "RAILWAY_TRAFFIC",
+                tableRailwayTrack: "RAILWAY_TRACK",
+                trainSetDataFile : "/org/noise_planet/covadis/scripts/CBS/RailwayTrainsets.json",
+                vehicleDataFile : "/org/noise_planet/covadis/scripts/CBS/RailwayVehiclesCnossos.json"
+                ]
+        )
 }
 
 static copyTrainTableFromPostgres(Connection pgConnection, Connection connection) {
