@@ -66,26 +66,21 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 logger.info("Connected to PostgreSQL database")
                 pgConnection.setAutoCommit(true)
                 // Fetch train data tables
-                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_ligne")) {
-                        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_LIGNE", true, batchSize)
-                }
-                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_trafic")) {
-                        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TRAFIC", true, batchSize)
-                }
-                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_troncon_l")) {
-                        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TRONCON_L", true, batchSize)
-                }
-                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_vitesse")) {
-                        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_VITESSE", true, batchSize)
-                }
-                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_tunnel")) {
-                        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TUNNEL", true, batchSize)
-                }
-                try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_pont_metallique")) {
-                        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_PONT_METALLIQUE", true, batchSize)
-                }
+                copyTrainTableFromPostgres(pgConnection, connection)
 
-                runSqlQuery(connection, """
+                convertTrafficToNoiseSources(connection)
+
+                removeSilentSources(connection, logger, h2sql)
+
+                // Copy output table to postgis
+                try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
+                        PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_emission_hexa", true, batchSize);
+                }
+        }
+}
+
+static convertTrafficToNoiseSources(Connection connection) {
+        runSqlQuery(connection, """
                     DROP TABLE IF EXISTS RAILWAY_TRACK;
                     CREATE TABLE RAILWAY_TRACK(PKTRACK SERIAL PRIMARY KEY, the_geom geometry, IDSECTION VARCHAR, ntrack INTEGER, trackspd DOUBLE, transfer VARCHAR,
                      roughness VARCHAR, impact VARCHAR, curvature INTEGER, bridge VARCHAR, istunnel BOOLEAN, comspd DOUBLE, platform VARCHAR);
@@ -129,29 +124,47 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                       CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);            
                         """)
 
-                ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic: "RAILWAY_TRAFFIC", tableRailwayTrack: "RAILWAY_TRACK"])
+        ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [tableRailwayTraffic: "RAILWAY_TRAFFIC", tableRailwayTrack: "RAILWAY_TRACK"])
+}
 
-                StringBuilder queryFrequencies = new StringBuilder()
-                for(int frequency : ProfileBuilder.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-                        for(String period : ["D", "E", "N"]) {
-                                if(!queryFrequencies.isEmpty()) {
-                                        queryFrequencies.append(" AND ")
-                                }
-                                queryFrequencies.append("HZ")
-                                queryFrequencies.append(period)
-                                queryFrequencies.append(frequency)
-                                queryFrequencies.append(" = -99")
+static copyTrainTableFromPostgres(Connection pgConnection, Connection connection) {
+        try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_ligne")) {
+                PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_LIGNE", true, batchSize)
+        }
+        try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_trafic")) {
+                PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TRAFIC", true, batchSize)
+        }
+        try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_troncon_l")) {
+                PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TRONCON_L", true, batchSize)
+        }
+        try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_vitesse")) {
+                PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_VITESSE", true, batchSize)
+        }
+        try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_tunnel")) {
+                PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_TUNNEL", true, batchSize)
+        }
+        try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_pont_metallique")) {
+                PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_PONT_METALLIQUE", true, batchSize)
+        }
+}
+
+
+static removeSilentSources(Connection connection, Logger logger, Sql h2sql) {
+        StringBuilder queryFrequencies = new StringBuilder()
+        for (int frequency : ProfileBuilder.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
+                for (String period : ["D", "E", "N"]) {
+                        if (!queryFrequencies.isEmpty()) {
+                                queryFrequencies.append(" AND ")
                         }
-                }
-
-                int numberOfLines = JDBCUtilities.getRowCount(connection, "LW_RAILWAY")
-                logger.info("Removed {} / {}  source lines from LW_RAILWAY (no emission values)", h2sql.executeUpdate("DELETE FROM LW_RAILWAY WHERE " + queryFrequencies.toString()), numberOfLines)
-
-                // Copy output table to postgis
-                try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
-                        PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_emission_hexa", true, batchSize);
+                        queryFrequencies.append("HZ")
+                        queryFrequencies.append(period)
+                        queryFrequencies.append(frequency)
+                        queryFrequencies.append(" = -99")
                 }
         }
+
+        int numberOfLines = JDBCUtilities.getRowCount(connection, "LW_RAILWAY")
+        logger.info("Removed {} / {}  source lines from LW_RAILWAY (no emission values)", h2sql.executeUpdate("DELETE FROM LW_RAILWAY WHERE " + queryFrequencies.toString()), numberOfLines)
 }
 
 
