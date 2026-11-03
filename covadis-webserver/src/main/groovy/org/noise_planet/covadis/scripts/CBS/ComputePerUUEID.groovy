@@ -1448,7 +1448,7 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch buildings..")
     def projectionName = input.projectionName
-    def tableQuery = """SELECT b.geom3d as the_geom, b.bat_haut as height, b.idbat, COALESCE(p.pop_bat, 0) as pop, COALESCE(b.nb_logts_c, 0) as nb_logts_c, b.bat_idtopo, bs.erps_nature
+    def tableQuery = """SELECT ST_Force2D(b.geom3d) as the_geom, b.bat_haut as height, b.idbat, COALESCE(p.pop_bat, 0) as pop, COALESCE(b.nb_logts_c, 0) as nb_logts_c, b.bat_idtopo, bs.erps_nature
              FROM cbs_uge_input.c_batiment_s_${projectionName} b 
                 LEFT JOIN cbs_uge_input.c_population_${projectionName} p ON b.idbat = p.idbat  
                 LEFT JOIN cbs_uge_input.c_correspond_batiment_batimentsensible_${projectionName} s ON b.idbat = s.idbat
