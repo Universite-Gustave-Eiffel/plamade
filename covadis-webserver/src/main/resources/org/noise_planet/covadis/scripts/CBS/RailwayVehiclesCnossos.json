@@ -1884,7 +1884,7 @@
         "RefTraction": null
     },
     "SNCF6_CSB5": {
-        "Description": "BB15000 (Excel CSB5)",
+        "Description": "BB15000 (convoi CORAIL E5, Vmax 200)",
         "Reference": "SNCF 25/02/2022",
         "Vmax": 200,
         "Length": 17.5,
@@ -1924,18 +1924,18 @@
         "RefTraction": "SNCF7"
     },
     "SNCF52_CSB5": {
-        "Description": "Z31500-REGIOLIS-LEX (Excel CSB5, 72.8 m)",
+        "Description": "Z31500-REGIOLIS-LEX (Excel CSB5, 71.8 m)",
         "Reference": "SNCF 25/02/2022",
         "Vmax": 160,
-        "Length": 72.8,
+        "Length": 71.8,
         "TrailerBogieBraking": "Disque-garniture-frittee",
         "MotorBogieBraking": "-",
         "MotorWheelDiameter": 840,
         "TrailerWheelDiameter": 840,
         "ReflectingBarrierEffect": 1,
         "NbCoach": 4,
-        "FirstSourcePosition": 9.1,
-        "SourceSpacing": 18.2,
+        "FirstSourcePosition": 8.975,
+        "SourceSpacing": 17.95,
         "NbAxlePerVeh": 2.5,
         "RefAerodynamic": "SNCF0",
         "RefRoughness": "SNCF4",

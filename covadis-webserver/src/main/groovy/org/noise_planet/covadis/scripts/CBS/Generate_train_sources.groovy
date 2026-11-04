@@ -70,8 +70,6 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 
                 convertTrafficToNoiseSources(connection)
 
-                removeSilentSources(connection, logger, h2sql)
-
                 // Copy output table to postgis
                 try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
                         PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_emission_hexa", true, batchSize);
@@ -116,10 +114,10 @@ static convertTrafficToNoiseSources(Connection connection) {
                     
                     DROP TABLE IF EXISTS RAILWAY_TRAFFIC;
                     CREATE TABLE RAILWAY_TRAFFIC (PKTRAFFIC SERIAL PRIMARY KEY, IDSECTION VARCHAR, TRAINTYPE VARCHAR,
-                     TRAINSPD DOUBLE, TDAY INTEGER, TEVENING INTEGER, TNIGHT INTEGER);
+                     TRAINSPD DOUBLE, TDAY DOUBLE, TEVENING DOUBLE, TNIGHT DOUBLE);
                      
                     INSERT INTO RAILWAY_TRAFFIC(IDSECTION, TRAINTYPE, TRAINSPD, TDAY, TEVENING, TNIGHT)
-                      SELECT IDTRONCON, ENGMOTEUR, VMAX, (TDIURNE/12), (TSOIR/4), (TNUIT/8)
+                      SELECT IDTRONCON, ENGMOTEUR, VMAX, (TDIURNE/12.0), (TSOIR/4.0), (TNUIT/8.0)
                       FROM N_FERROVIAIRE_TRAFIC;
                       CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);            
                         """)
@@ -131,6 +129,12 @@ static convertTrafficToNoiseSources(Connection connection) {
                 vehicleDataFile : "/org/noise_planet/covadis/scripts/CBS/RailwayVehiclesCnossos.json"
                 ]
         )
+
+        // Add a column to insert the idsection from original track
+        runSqlQuery(connection, """
+                ALTER TABLE LW_RAILWAY ADD COLUMN idtroncon VARCHAR;
+                UPDATE LW_RAILWAY SET idtroncon = (SELECT idsection FROM RAILWAY_TRACK WHERE PKTRACK = pk_section);
+                """, new EmptyProgressVisitor())
 }
 
 static copyTrainTableFromPostgres(Connection pgConnection, Connection connection) {
@@ -152,27 +156,8 @@ static copyTrainTableFromPostgres(Connection pgConnection, Connection connection
         try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_pont_metallique")) {
                 PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_PONT_METALLIQUE", true, batchSize)
         }
+        LoggerFactory.getLogger("debug").info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM N_FERROVIAIRE_TRAFIC LIMIT 10", 120))
 }
-
-
-static removeSilentSources(Connection connection, Logger logger, Sql h2sql) {
-        StringBuilder queryFrequencies = new StringBuilder()
-        for (int frequency : ProfileBuilder.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
-                for (String period : ["D", "E", "N"]) {
-                        if (!queryFrequencies.isEmpty()) {
-                                queryFrequencies.append(" AND ")
-                        }
-                        queryFrequencies.append("HZ")
-                        queryFrequencies.append(period)
-                        queryFrequencies.append(frequency)
-                        queryFrequencies.append(" = -99")
-                }
-        }
-
-        int numberOfLines = JDBCUtilities.getRowCount(connection, "LW_RAILWAY")
-        logger.info("Removed {} / {}  source lines from LW_RAILWAY (no emission values)", h2sql.executeUpdate("DELETE FROM LW_RAILWAY WHERE " + queryFrequencies.toString()), numberOfLines)
-}
-
 
 @CompileStatic
 static void runSqlQuery(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {

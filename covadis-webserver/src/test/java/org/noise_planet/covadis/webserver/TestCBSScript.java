@@ -34,11 +34,9 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.math.BigDecimal;
 import java.net.URL;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -246,6 +244,86 @@ public class TestCBSScript extends JDBCTestCase {
             assertEquals(1, JDBCUtilities.getIntegerPrimaryKey(pgConnection, TableLocation.parse("BUILDINGS", DBTypes.POSTGIS)));
         }
     }
+
+    @Test
+    @Order(3)
+    public void testCopyPostGISToH2PreservesDecimals() throws SQLException {
+        assumePostGISAvailable();
+
+        String pgTableName = "temp_test_numeric_precision";
+        String h2TableName = "TEST_NUMERIC_PRECISION";
+
+        try (Connection pgConnection = pgDataSource.getConnection();
+             Statement pgStatement = pgConnection.createStatement()) {
+
+            // 1. Create a dummy table on PostgreSQL testing both:
+            //    - constrained NUMERIC(10, 4)
+            //    - unconstrained NUMERIC
+            //    - DOUBLE PRECISION
+            pgStatement.execute("DROP TABLE IF EXISTS " + pgTableName);
+            pgStatement.execute("CREATE TABLE " + pgTableName + " (" +
+                    "id INT PRIMARY KEY, " +
+                    "val_numeric_constrained NUMERIC(10, 4), " +
+                    "val_numeric_unconstrained NUMERIC, " +
+                    "val_double DOUBLE PRECISION" +
+                    ")");
+
+            // 2. Insert test data with non-zero decimal digits
+            try (PreparedStatement insertStmt = pgConnection.prepareStatement(
+                    "INSERT INTO " + pgTableName + " VALUES (?, ?, ?, ?)")) {
+                insertStmt.setInt(1, 1);
+                insertStmt.setBigDecimal(2, new BigDecimal("123.4567"));
+                insertStmt.setBigDecimal(3, new BigDecimal("89.123456789"));
+                insertStmt.setDouble(4, 42.9876);
+                insertStmt.executeUpdate();
+            }
+
+            // 3. Copy the table to H2 using copyResultSetToDatabase
+            try (ResultSet resultSet = pgStatement.executeQuery("SELECT * FROM " + pgTableName)) {
+                PostGISUtilities.copyResultSetToDatabase(pgConnection, resultSet, connection, h2TableName, true, 5);
+            }
+
+            // 4. Assert table and rows exist in H2
+            assertTrue(JDBCUtilities.tableExists(connection, h2TableName));
+            assertEquals(1, JDBCUtilities.getRowCount(connection, h2TableName));
+
+            // 5. Query H2 and assert that the decimal values were preserved
+            try (Statement h2Statement = connection.createStatement();
+                 ResultSet rsH2 = h2Statement.executeQuery("SELECT * FROM " + h2TableName + " WHERE id = 1")) {
+
+                assertTrue(rsH2.next(), "Row should exist in target database");
+
+                // (A) Test constrained NUMERIC(10, 4): should equal 123.4567, NOT 123
+                BigDecimal constrainedVal = rsH2.getBigDecimal("val_numeric_constrained");
+                assertNotNull(constrainedVal);
+                assertEquals(0, new BigDecimal("123.4567").compareTo(constrainedVal),
+                        "Constrained NUMERIC lost decimal values: " + constrainedVal);
+
+                // (B) Test unconstrained NUMERIC: should preserve decimal fraction (e.g. 89.123456789), NOT round to 89
+                double unconstrainedVal = rsH2.getDouble("val_numeric_unconstrained");
+                assertEquals(89.123456789, unconstrainedVal, 1e-6,
+                        "Unconstrained NUMERIC lost decimal values (rounded to int): " + unconstrainedVal);
+
+                // (C) Test DOUBLE PRECISION
+                double doubleVal = rsH2.getDouble("val_double");
+                assertEquals(42.9876, doubleVal, 1e-4);
+            }
+
+        } finally {
+            // Clean up both PostgreSQL and H2 test tables
+            try (Connection pgConnection = pgDataSource.getConnection();
+                 Statement stmt = pgConnection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + pgTableName);
+            } catch (SQLException ignored) {
+            }
+
+            try (Statement h2Stmt = connection.createStatement()) {
+                h2Stmt.execute("DROP TABLE IF EXISTS " + h2TableName);
+            } catch (SQLException ignored) {
+            }
+        }
+    }
+
 
     @Test
     @Order(4)
@@ -482,7 +560,7 @@ public class TestCBSScript extends JDBCTestCase {
     public void testGenerateTrainSources() throws SQLException {
         assumePostGISAvailable();
 
-        new Generate_train_sources().exec(connection, Map.of("projectionName","hexa"), new EmptyProgressVisitor());
+        new Generate_train_sources().exec(connection, Map.of("projectionName", "hexa"), new EmptyProgressVisitor());
 
         // assert that LW_RAILWAY exists
 
@@ -493,15 +571,19 @@ public class TestCBSScript extends JDBCTestCase {
             // table must contains rows
             int rowCount = JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.ferroviaire_emission_hexa");
             assertNotEquals(0, rowCount);
-            // table must not contain rows with HZD500 HZE500 and HZN500 at -99 dB
-            try(Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.ferroviaire_emission_hexa WHERE hzd500 = -99 and hze500 = -99 and hzn500 = -99")) {
-                assertTrue(resultSet.next());
-                assertEquals(0, resultSet.getInt("CPT"));
+            // Check if all train lines have been converted to line source
+            List<String> missingTroncon = new ArrayList<>();
+            try (Statement statement = pgConnection.createStatement(); ResultSet resultSet = statement.executeQuery(
+                    "SELECT DISTINCT t.idtroncon, nt.engmoteur FROM cbs_uge_input.n_ferroviaire_trafic nt, cbs_uge_input.n_ferroviaire_troncon_l t, cbs_uge_input.n_ferroviaire_vitesse nfv WHERE nt.idtroncon = t.idtroncon AND t.idtroncon = nfv.idtroncon AND nt.idtroncon " +
+                            "NOT IN (SELECT DISTINCT idtroncon FROM cbs_uge_output.ferroviaire_emission_hexa) ORDER BY nt.engmoteur, t.idtroncon")) {
+                while (resultSet.next()) {
+                    missingTroncon.add(resultSet.getString("idtroncon") + " - " + resultSet.getString("engmoteur"));
+                }
             }
+            for (String troncon : missingTroncon) {
+                logger.warn("Missing troncon: {}", troncon);
+            }
+            assertEquals(0, missingTroncon.size());
         }
-
-
     }
-
 }
