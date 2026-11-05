@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get update && apt-get install -y \
     environment-modules \
     apptainer \
+    apptainer-suid \
     && echo "dash dash/sh boolean false" | debconf-set-selections \
     && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash \
     && rm -f /etc/profile.d/modules.sh /usr/share/modules/init/bash \
@@ -16,7 +17,7 @@ RUN apt-get update && apt-get install -y \
                   -e 's/^mount dev =.*/mount dev = yes/' \
                   -e 's/^mount home =.*/mount home = no/' /etc/apptainer/apptainer.conf \
     && echo "bind path = /scratch" >> /etc/apptainer/apptainer.conf \
-    && find /usr -name starter-suid -exec chmod u+s {} + \
+    && find /usr -name starter-suid -exec chmod 4755 {} + \
     && rm -f /usr/bin/singularity && chmod 777 /usr/local/bin \
     && printf "#!/bin/bash\n\
 case \"\$1\" in\n\

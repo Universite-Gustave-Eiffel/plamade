@@ -52,6 +52,7 @@ public class PostGISUtilities {
         config.addDataSourceProperty("portNumbers", Integer.parseInt(port));
         config.addDataSourceProperty("databaseName", database);
         config.addDataSourceProperty("serverNames", host);
+        config.setMaximumPoolSize(2);
         return new HikariDataSource(config);
     }
 

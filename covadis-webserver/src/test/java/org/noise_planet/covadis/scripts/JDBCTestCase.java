@@ -60,10 +60,7 @@ public class JDBCTestCase {
     }
 
     @BeforeEach
-    void initConnection() throws SQLException {
-        //        if(System.getenv("POSTGRES_HOST") != null) {
-        //            dataSource = getPostGISParametersFromEnv();
-        //        }
+    public void initConnection() throws SQLException {
         dataSource = DatabaseManagement.createH2DataSource("jdbc:h2:mem:junit"+System.currentTimeMillis(), "sa", "sa", "", false);
         try(Connection rawConnection = dataSource.getConnection()) {
             DBTypes dbType = DBUtils.getDBType(rawConnection);
@@ -78,7 +75,7 @@ public class JDBCTestCase {
     }
 
     @AfterEach
-    void closeConnection() throws SQLException {
+    public void closeConnection() throws SQLException {
         connection.close();
         try {
             // close connection pool, we are supposed to have a single connection pool

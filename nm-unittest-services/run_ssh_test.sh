@@ -3,6 +3,7 @@
 # Run
 # docker compose -f nm-unittest-services/docker-compose.yml up -d
 # Before running this file
+export POSTGRES_HOST=localhost
 export SSH_HOST=localhost
 export SSH_PORT=2222
 export SSH_USER=testuser
