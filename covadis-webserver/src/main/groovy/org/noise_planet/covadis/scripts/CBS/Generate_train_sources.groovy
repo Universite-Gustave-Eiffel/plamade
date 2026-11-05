@@ -74,6 +74,9 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
                         PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_emission_hexa", true, batchSize);
                 }
+
+                // Remove local intermediate tables
+                runSqlQuery(connection, "DROP TABLE IF EXISTS RAILWAY_TRACK, LW_RAILWAY, RAILWAY_TRAFFIC;");
         }
 }
 
@@ -119,7 +122,9 @@ static convertTrafficToNoiseSources(Connection connection) {
                     INSERT INTO RAILWAY_TRAFFIC(IDSECTION, TRAINTYPE, TRAINSPD, TDAY, TEVENING, TNIGHT)
                       SELECT IDTRONCON, ENGMOTEUR, VMAX, (TDIURNE/12.0), (TSOIR/4.0), (TNUIT/8.0)
                       FROM N_FERROVIAIRE_TRAFIC;
-                      CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);            
+                      CREATE INDEX ON RAILWAY_TRAFFIC (IDSECTION);
+                      
+                    DROP TABLE n_ferroviaire_troncon_l, n_ferroviaire_vitesse, n_ferroviaire_ligne, n_ferroviaire_tunnel, n_ferroviaire_pont_metallique, n_ferroviaire_trafic;        
                         """)
 
         ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [
@@ -156,7 +161,6 @@ static copyTrainTableFromPostgres(Connection pgConnection, Connection connection
         try (ResultSet rs = pgConnection.createStatement().executeQuery("SELECT * FROM cbs_uge_input.n_ferroviaire_pont_metallique")) {
                 PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, connection, "N_FERROVIAIRE_PONT_METALLIQUE", true, batchSize)
         }
-        LoggerFactory.getLogger("debug").info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM N_FERROVIAIRE_TRAFIC LIMIT 10", 120))
 }
 
 @CompileStatic

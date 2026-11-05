@@ -562,10 +562,6 @@ public class TestCBSScript extends JDBCTestCase {
 
         new Generate_train_sources().exec(connection, Map.of("projectionName", "hexa"), new EmptyProgressVisitor());
 
-        // assert that LW_RAILWAY exists
-
-        assertTrue(JDBCUtilities.tableExists(connection, "LW_RAILWAY"));
-
         try (Connection pgConnection = pgDataSource.getConnection()) {
             assertTrue(JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.ferroviaire_emission_hexa"));
             // table must contains rows
@@ -574,10 +570,14 @@ public class TestCBSScript extends JDBCTestCase {
             // Check if all train lines have been converted to line source
             List<String> missingTroncon = new ArrayList<>();
             try (Statement statement = pgConnection.createStatement(); ResultSet resultSet = statement.executeQuery(
-                    "SELECT DISTINCT t.idtroncon, nt.engmoteur FROM cbs_uge_input.n_ferroviaire_trafic nt, cbs_uge_input.n_ferroviaire_troncon_l t, cbs_uge_input.n_ferroviaire_vitesse nfv WHERE nt.idtroncon = t.idtroncon AND t.idtroncon = nfv.idtroncon AND nt.idtroncon " +
-                            "NOT IN (SELECT DISTINCT idtroncon FROM cbs_uge_output.ferroviaire_emission_hexa) ORDER BY nt.engmoteur, t.idtroncon")) {
+                    "SELECT t.idtroncon, nt.engmoteur, max(nt.tdiurne) traffic_jour, max(nt.tnuit) traffic_nuit, max(nt.tsoir) traffic_soir" +
+                            "  FROM cbs_uge_input.n_ferroviaire_trafic nt, cbs_uge_input.n_ferroviaire_troncon_l t LEFT JOIN cbs_uge_input.N_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon) , cbs_uge_input.n_ferroviaire_vitesse nfv" +
+                            " WHERE idtunnel is null and nt.idtroncon = t.idtroncon AND t.idtroncon = nfv.idtroncon AND nt.idtroncon " +
+                            "NOT IN (SELECT DISTINCT idtroncon FROM cbs_uge_output.ferroviaire_emission_hexa) GROUP BY t.idtroncon, nt.engmoteur ORDER BY nt.engmoteur, t.idtroncon")) {
                 while (resultSet.next()) {
-                    missingTroncon.add(resultSet.getString("idtroncon") + " - " + resultSet.getString("engmoteur"));
+                    missingTroncon.add(new Formatter(Locale.ROOT).format("%s - %s - j:%.2f - n:%.2f - s:%.2f", resultSet.getString("idtroncon"),
+                            resultSet.getString("engmoteur"), resultSet.getDouble("traffic_jour"),
+                            resultSet.getDouble("traffic_nuit"), resultSet.getDouble("traffic_soir")).toString());
                 }
             }
             for (String troncon : missingTroncon) {
