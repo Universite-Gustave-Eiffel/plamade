@@ -564,16 +564,20 @@ public class TestCBSScript extends JDBCTestCase {
 
         try (Connection pgConnection = pgDataSource.getConnection()) {
             assertTrue(JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.ferroviaire_emission_hexa"));
-            // table must contains rows
+            // table must contain rows
             int rowCount = JDBCUtilities.getRowCount(pgConnection, "cbs_uge_output.ferroviaire_emission_hexa");
             assertNotEquals(0, rowCount);
             // Check if all train lines have been converted to line source
+            String query = """
+                    SELECT t.idtroncon, nt.engmoteur, max(nt.tdiurne) traffic_jour, max(nt.tnuit) traffic_nuit, max(nt.tsoir) traffic_soir
+                    FROM cbs_uge_input.n_ferroviaire_trafic nt, cbs_uge_input.n_ferroviaire_troncon_l t LEFT JOIN cbs_uge_input.N_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon) , cbs_uge_input.n_ferroviaire_vitesse nfv
+                    WHERE idtunnel is null and nt.idtroncon = t.idtroncon AND t.idtroncon = nfv.idtroncon AND nt.idtroncon
+                    NOT IN (SELECT DISTINCT idtroncon FROM cbs_uge_output.ferroviaire_emission_hexa) GROUP BY t.idtroncon, nt.engmoteur ORDER BY nt.engmoteur, t.idtroncon
+                    """;
+
             List<String> missingTroncon = new ArrayList<>();
             try (Statement statement = pgConnection.createStatement(); ResultSet resultSet = statement.executeQuery(
-                    "SELECT t.idtroncon, nt.engmoteur, max(nt.tdiurne) traffic_jour, max(nt.tnuit) traffic_nuit, max(nt.tsoir) traffic_soir" +
-                            "  FROM cbs_uge_input.n_ferroviaire_trafic nt, cbs_uge_input.n_ferroviaire_troncon_l t LEFT JOIN cbs_uge_input.N_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon) , cbs_uge_input.n_ferroviaire_vitesse nfv" +
-                            " WHERE idtunnel is null and nt.idtroncon = t.idtroncon AND t.idtroncon = nfv.idtroncon AND nt.idtroncon " +
-                            "NOT IN (SELECT DISTINCT idtroncon FROM cbs_uge_output.ferroviaire_emission_hexa) GROUP BY t.idtroncon, nt.engmoteur ORDER BY nt.engmoteur, t.idtroncon")) {
+                    query)) {
                 while (resultSet.next()) {
                     missingTroncon.add(new Formatter(Locale.ROOT).format("%s - %s - j:%.2f - n:%.2f - s:%.2f", resultSet.getString("idtroncon"),
                             resultSet.getString("engmoteur"), resultSet.getDouble("traffic_jour"),
