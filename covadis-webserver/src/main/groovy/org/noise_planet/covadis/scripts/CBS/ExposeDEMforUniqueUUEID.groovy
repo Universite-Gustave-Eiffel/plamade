@@ -215,7 +215,7 @@ def enrichDemWithRoads(Map input, String uueid, Connection h2Connection, Connect
     }
 
     // Create a new DEM with road platforms
-    def srid = Generate_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
 }
 

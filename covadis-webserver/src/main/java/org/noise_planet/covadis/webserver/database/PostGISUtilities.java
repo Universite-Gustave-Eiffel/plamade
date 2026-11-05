@@ -52,6 +52,7 @@ public class PostGISUtilities {
         config.addDataSourceProperty("portNumbers", Integer.parseInt(port));
         config.addDataSourceProperty("databaseName", database);
         config.addDataSourceProperty("serverNames", host);
+        config.setMaximumPoolSize(2);
         return new HikariDataSource(config);
     }
 
@@ -195,13 +196,14 @@ public class PostGISUtilities {
         List<String> columnTypes = new ArrayList<>();
         List<Boolean> columnNullables = new ArrayList<>();
         List<TableLocation> fieldTableLocations = new ArrayList<>();
-        for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+
+        for (int i = 1; i <= columnCount; i++) {
             columnNullables.add(resultSetMetaData.isNullable(i) != ResultSetMetaData.columnNoNulls);
             columnNames.add(TableLocation.capsIdentifier(resultSetMetaData.getColumnLabel(i), dbType));
+
             TableLocation t;
-            if(resultSetMetaData.isWrapperFor(PgResultSetMetaData.class)) {
+            if (resultSetMetaData.isWrapperFor(PgResultSetMetaData.class)) {
                 PgResultSetMetaData pgResultSetMetaData = resultSetMetaData.unwrap(PgResultSetMetaData.class);
-                // Issue with PGConnection, schema is always empty when using resultSetMetaData.getSchemaName(i)
                 t = new TableLocation(pgResultSetMetaData.getBaseSchemaName(i),
                         pgResultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
             } else {
@@ -209,27 +211,46 @@ public class PostGISUtilities {
                         resultSetMetaData.getTableName(i), dbType);
             }
             fieldTableLocations.add(t);
-            if(resultSetMetaData.getColumnTypeName(i).toLowerCase(Locale.ROOT).contains("geometry")) {
-                // Fetch geometry type and srid
+
+            int dataType = resultSetMetaData.getColumnType(i);
+            String typeName = resultSetMetaData.getColumnTypeName(i);
+
+            // 1. Handle Geometry columns
+            if (typeName.toLowerCase(Locale.ROOT).contains("geometry")) {
                 GeometryMetaData metaData =
                         GeometryTableUtilities.getMetaData(resultSetConnection, t, resultSetMetaData.getColumnLabel(i));
-                if(metaData != null) {
+                if (metaData != null) {
                     columnTypes.add(metaData.getSQL());
-                } else  {
-                    columnTypes.add(resultSetMetaData.getColumnTypeName(i));
+                } else {
+                    columnTypes.add(typeName);
                 }
+                // 2. Handle NUMERIC / DECIMAL to preserve decimal scale
+            } else if (dataType == Types.NUMERIC || dataType == Types.DECIMAL) {
+                int precision = resultSetMetaData.getPrecision(i);
+                int scale = resultSetMetaData.getScale(i);
+
+                if (precision > 0 && scale > 0) {
+                    columnTypes.add(typeName + "(" + precision + ", " + scale + ")");
+                } else if (precision > 0 && scale == 0) {
+                    columnTypes.add(typeName + "(" + precision + ", 0)");
+                } else {
+                    // Unconstrained NUMERIC (e.g. Postgres NUMERIC) defaults to scale 0 in H2.
+                    // DOUBLE PRECISION avoids the integer truncation.
+                    columnTypes.add("DOUBLE PRECISION");
+                }
+                // 3. Other column types
             } else {
-                columnTypes.add(resultSetMetaData.getColumnTypeName(i));
+                columnTypes.add(typeName);
             }
         }
+
         // Drop and Create target table
-        if(!JDBCUtilities.tableExists(targetConnection, targetTableName) || dropTargetTable) {
-            if(dropTargetTable) {
+        if (!JDBCUtilities.tableExists(targetConnection, targetTableName) || dropTargetTable) {
+            if (dropTargetTable) {
                 try (Statement targetConnectionStatement = targetConnection.createStatement()) {
                     targetConnectionStatement.execute("DROP TABLE IF EXISTS " + targetTableName);
                 }
             }
-            // Generate the target table according to the result set metadata
             StringBuilder createTableSql = new StringBuilder();
             createTableSql.append("CREATE TABLE ").append(targetTableName).append(" (");
             for (int i = 0; i < columnNames.size(); i++) {
@@ -248,6 +269,8 @@ public class PostGISUtilities {
                 rethrowException(e, createTableSql.toString());
             }
         }
+
+        // Insert values using batch
         StringBuilder insertSql = new StringBuilder();
         insertSql.append("INSERT INTO ").append(targetTableName).append(" VALUES (");
         for (int i = 0; i < columnNames.size(); i++) {
@@ -257,7 +280,7 @@ public class PostGISUtilities {
             }
         }
         insertSql.append(")");
-        // Insert values using batch
+
         try (PreparedStatement ps = targetConnection.prepareStatement(insertSql.toString())) {
             int count = 0;
             boolean nonPushedBatch = false;
@@ -273,18 +296,19 @@ public class PostGISUtilities {
                     nonPushedBatch = false;
                 }
             }
-            if(nonPushedBatch) {
+            if (nonPushedBatch) {
                 ps.executeBatch();
             }
         }
-        // Add primary key if all columns are from the same table and the original table had a primary key in our column list
-        if(!fieldTableLocations.isEmpty() && !fieldTableLocations.getFirst().getTable().isEmpty() &&
+
+        // Add primary key if applicable
+        if (!fieldTableLocations.isEmpty() && !fieldTableLocations.getFirst().getTable().isEmpty() &&
                 fieldTableLocations.stream().allMatch(t -> t.equals(fieldTableLocations.getFirst()))) {
             Tuple<String, Integer> pkInfo = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(resultSetConnection, fieldTableLocations.getFirst());
-            if(pkInfo != null && columnNames.stream().anyMatch(n -> n.equalsIgnoreCase(pkInfo.first()))) {
+            if (pkInfo != null && columnNames.stream().anyMatch(n -> n.equalsIgnoreCase(pkInfo.first()))) {
                 String pkName = pkInfo.first();
                 try (Statement h2Stmt = targetConnection.createStatement()) {
-                    h2Stmt.execute("ALTER TABLE " + targetTableName + " ADD CONSTRAINT " + targetTableName + "_pk PRIMARY KEY (" + pkName + ")");
+                    h2Stmt.execute("ALTER TABLE " + targetTableName + " ADD PRIMARY KEY (" + pkName + ")");
                 }
             }
         }
