@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -107,6 +108,56 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
             assertEquals(13454.849, rs.getFloat("HSD"), 0.01);
             assertFalse(rs.next());
         }
+    }
+
+    @Test
+    public void testGenerateBuildingsFacadeExpoUsesOriginalDelaunayOffset() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("CREATE TABLE RECEIVERS_DELAUNAY(PK INTEGER PRIMARY KEY, THE_GEOM GEOMETRY(POINTZ,2154))");
+            stmt.execute("CREATE TABLE RECEIVERS(PK INTEGER PRIMARY KEY, THE_GEOM GEOMETRY(POINTZ,2154))");
+            stmt.execute("CREATE TABLE RECEIVERS_BUILDINGS(PK INTEGER PRIMARY KEY, THE_GEOM GEOMETRY(POINTZ,2154), BUILD_PK INTEGER)");
+            stmt.execute("CREATE TABLE BUILDINGS(PK INTEGER PRIMARY KEY, IDBAT VARCHAR, THE_GEOM GEOMETRY(POINTZ,2154))");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVEL_MERGED(THE_GEOM GEOMETRY(POINTZ,2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2))");
+            stmt.execute("CREATE TABLE RECEIVERS_OFFSET(last_delaunay INTEGER)");
+            for (int i = 1; i <= 10; i++) {
+                stmt.execute("INSERT INTO RECEIVERS_DELAUNAY VALUES (" + i +
+                        ", ST_SetSRID(ST_MakePoint(" + i + ", 0, 4), 2154))");
+            }
+            // Reproduce keepOnlyReceiversInDepartment deleting the highest Delaunay PK.
+            stmt.execute("DELETE FROM RECEIVERS_DELAUNAY WHERE PK = 10");
+            // Original offset captured before the deletion.
+            stmt.execute("INSERT INTO RECEIVERS_OFFSET VALUES (10)");
+            stmt.execute("INSERT INTO RECEIVERS_BUILDINGS VALUES (1, ST_SetSRID(ST_MakePoint(100,0,4),2154), 1)");
+            stmt.execute("INSERT INTO RECEIVERS_BUILDINGS VALUES (2, ST_SetSRID(ST_MakePoint(200,0,4),2154), 2)");
+            stmt.execute("INSERT INTO RECEIVERS_BUILDINGS VALUES (3, ST_SetSRID(ST_MakePoint(300,0,4),2154), 3)");
+            stmt.execute("INSERT INTO BUILDINGS VALUES (1, 'BAT1', ST_SetSRID(ST_MakePoint(100,0,4),2154))");
+            stmt.execute("INSERT INTO BUILDINGS VALUES (2, 'BAT2', ST_SetSRID(ST_MakePoint(200,0,4),2154))");
+            stmt.execute("INSERT INTO BUILDINGS VALUES (3, 'BAT3', ST_SetSRID(ST_MakePoint(300,0,4),2154))");
+            // Building receivers inserted with the original offset (10): PK 11, 12, 13.
+            stmt.execute("INSERT INTO RECEIVERS VALUES (11, ST_SetSRID(ST_MakePoint(100,0,4),2154))");
+            stmt.execute("INSERT INTO RECEIVERS VALUES (12, ST_SetSRID(ST_MakePoint(200,0,4),2154))");
+            stmt.execute("INSERT INTO RECEIVERS VALUES (13, ST_SetSRID(ST_MakePoint(300,0,4),2154))");
+            stmt.execute("INSERT INTO RECEIVERS_LEVEL_MERGED VALUES (ST_SetSRID(ST_MakePoint(100,0,4),2154), 11, 'DEN', 55.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVEL_MERGED VALUES (ST_SetSRID(ST_MakePoint(200,0,4),2154), 12, 'DEN', 55.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVEL_MERGED VALUES (ST_SetSRID(ST_MakePoint(300,0,4),2154), 13, 'DEN', 55.0)");
+        }
+
+        ComputePerUUEID.generateBuildingsFacadeExpo(connection);
+
+        Map<Integer, String> idbatByReceiver = new HashMap<>();
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("""
+                     SELECT R.PK, F.IDBAT
+                     FROM RECEIVERS R
+                     INNER JOIN FACADE_EXPO F ON ST_Equals(R.THE_GEOM, F.THE_GEOM)
+                     """)) {
+            while (rs.next()) {
+                idbatByReceiver.put(rs.getInt("PK"), rs.getString("IDBAT"));
+            }
+        }
+        assertEquals("BAT1", idbatByReceiver.get(11));
+        assertEquals("BAT2", idbatByReceiver.get(12));
+        assertEquals("BAT3", idbatByReceiver.get(13));
     }
 }
 
