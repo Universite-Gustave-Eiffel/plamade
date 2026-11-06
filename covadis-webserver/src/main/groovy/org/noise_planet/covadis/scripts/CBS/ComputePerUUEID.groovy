@@ -684,7 +684,10 @@ static def generateBuildingsFacadeExpo(Connection h2Connection) {
     runSqlQuery(h2Connection, """
         DROP TABLE IF EXISTS FACADE_EXPO;
         CREATE TABLE FACADE_EXPO (THE_GEOM ${metaData.getSQL()}, idbat varchar(32), pkbat int, uueid varchar, lden numeric(5,2), ln numeric(5,2));
-        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        -- Use the offset captured before keepOnlyReceiversInDepartment.
+        -- MAX(PK) FROM RECEIVERS_DELAUNAY may have decreased, which would misalign
+        -- building receivers with their RECEIVERS_BUILDINGS rows.
+        SET @LASTDELAUNAY=(SELECT last_delaunay FROM RECEIVERS_OFFSET);
         -- Receivers from delaunay triangulation and on buildings are merged, we used the last delaunay
         -- primary key to find the appropriate index from the RECEIVERS_BUILDINGS table
         -- Generate exposition per receiver on each building
@@ -1081,6 +1084,12 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             -- Push the new receivers to the global receivers table
             DROP TABLE IF EXISTS RECEIVERS;
             SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+            -- Keep the original Delaunay PK offset for building receivers.
+            -- keepOnlyReceiversInDepartment may delete receivers and lower MAX(PK);
+            -- generateBuildingsFacadeExpo must still use the original offset.
+            DROP TABLE IF EXISTS RECEIVERS_OFFSET;
+            CREATE TABLE RECEIVERS_OFFSET(last_delaunay INTEGER);
+            INSERT INTO RECEIVERS_OFFSET VALUES (@LASTDELAUNAY);
             CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM FROM RECEIVERS_DELAUNAY;
             -- For buildings facades without receivers (rare issue with encapsulated buildings)
             -- Create a receiver point on top of the building, it is still better than ignoring the building
