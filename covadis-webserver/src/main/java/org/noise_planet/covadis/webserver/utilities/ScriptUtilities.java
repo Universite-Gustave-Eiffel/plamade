@@ -5,8 +5,12 @@ import groovy.lang.Script;
 import groovy.sql.Sql;
 import groovy.util.ConfigObject;
 import groovy.util.ConfigSlurper;
+
+import org.h2.util.geometry.EWKTUtils;
+import org.h2.util.geometry.JTSUtils;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
+import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.noisemodelling.webserver.script.ExecutionPlan;
 import org.noise_planet.noisemodelling.webserver.script.ScriptMetadata;
@@ -138,6 +142,9 @@ public class ScriptUtilities {
                     }
                 } else if (val instanceof Number && !(val instanceof Integer || val instanceof Long)) {
                     formattedVal = String.format(Locale.US, "%.2f", ((Number) val).doubleValue());
+                } else if (val instanceof Geometry) {
+                    // Format to EWKT
+                    formattedVal = EWKTUtils.ewkb2ewkt(JTSUtils.geometry2ewkb((Geometry) val));
                 } else {
                     formattedVal = val.toString().replace("\n", " "); // Markdown tables must be single line
                 }
