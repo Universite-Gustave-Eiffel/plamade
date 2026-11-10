@@ -170,7 +170,11 @@ static void copyRaysTableToMainConnection(HikariDataSource h2DataSource, Map inp
                 && JDBCUtilities.tableExists(h2Connection, "RAYS")) {
             // Copy RAYS table
             try (ResultSet rs = h2Connection.createStatement().executeQuery("SELECT * FROM RAYS_MERGED")) {
-                PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, connection, "RAYS", false, 500)
+                PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, connection, "RAYS", true, 500)
+            }
+            // Copy RECEIVERS_LEVEL_MERGED table
+            try (ResultSet rs = h2Connection.createStatement().executeQuery("SELECT * FROM RECEIVERS_LEVEL_MERGED")) {
+                PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, connection, "RECEIVERS_LEVEL", true, 500)
             }
         }
     }

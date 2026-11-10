@@ -454,22 +454,22 @@ public class TestCBSScript extends JDBCTestCase {
 
         // TODO fix this issue, could be on NoiseModelling side ?
 
-// Department noise level should be the same as UUEID noise level
-//        try(Connection pgConnection = pgDataSource.getConnection();
-//            Statement statement = pgConnection.createStatement();
-//            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
-//            while(resultSet.next()) {
-//                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_lden"), resultSet.getFloat("uueid_lden"), resultSet.getObject("the_geom")));
-//            }
-//        }
-//
-//        try(Connection pgConnection = pgDataSource.getConnection();
-//            Statement statement = pgConnection.createStatement();
-//            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
-//            while(resultSet.next()) {
-//                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_ln"), resultSet.getFloat("uueid_ln"), resultSet.getObject("the_geom")));
-//            }
-//        }
+        // Department noise level should be the same as UUEID noise level
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
+            while(resultSet.next()) {
+                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("LDEN Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_lden"), resultSet.getFloat("uueid_lden"), resultSet.getObject("the_geom")));
+            }
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
+            while(resultSet.next()) {
+                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("LN Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_ln"), resultSet.getFloat("uueid_ln"), resultSet.getObject("the_geom")));
+            }
+        }
     }
 
     /**
@@ -498,10 +498,11 @@ public class TestCBSScript extends JDBCTestCase {
                 Map.of("projectionName", "hexa",
                         "uueid_pattern", "RD_FR_00_0781651",
                         "conf", 1,
-                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                        "receiver_rays", "SRID=2154 ;Point Z (619374.6236716803 6823858.270862409 4)"),
                 new EmptyProgressVisitor());
 
         logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RECEIVERS_LEVEL", 120));
         List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
         try(Statement st = connection.createStatement();
             ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
@@ -523,10 +524,12 @@ public class TestCBSScript extends JDBCTestCase {
                 Map.of("projectionName", "hexa",
                         "department", "78",
                         "conf", 1,
-                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                        "receiver_rays", "SRID=2154 ;Point Z (619374.6236716803 6823858.270862409 4)"),
                 new EmptyProgressVisitor());
 
         logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RECEIVERS_LEVEL", 120));
+
         List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
         try(Statement st = connection.createStatement();
             ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
