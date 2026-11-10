@@ -9,6 +9,8 @@ import com.zaxxer.hikari.HikariDataSource;
 import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
+import org.h2.util.geometry.EWKTUtils;
+import org.h2.util.geometry.JTSUtils;
 import org.h2.value.ValueBoolean;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.shp.SHPRead;
@@ -19,6 +21,7 @@ import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.junit.jupiter.api.*;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.scripts.CBS.*;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
@@ -452,14 +455,17 @@ public class TestCBSScript extends JDBCTestCase {
             assertTrue(resultSet.getFloat("area") > 0);
         }
 
-        // TODO fix this issue, could be on NoiseModelling side ?
-
-        // Department noise level should be the same as UUEID noise level
+        // Department noise level should be the same as UUEID noise level (there is a single UUEID in the input data)
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
             while(resultSet.next()) {
-                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("LDEN Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_lden"), resultSet.getFloat("uueid_lden"), resultSet.getObject("the_geom")));
+                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format(
+                        "LDEN Department %.2f dB UUEID %.2f dB for geometry: %s",
+                        resultSet.getFloat("dep_lden"),
+                        resultSet.getFloat("uueid_lden"),
+                        EWKTUtils.ewkb2ewkt(JTSUtils.geometry2ewkb((Geometry) resultSet.getObject("the_geom")))
+                ));
             }
         }
 

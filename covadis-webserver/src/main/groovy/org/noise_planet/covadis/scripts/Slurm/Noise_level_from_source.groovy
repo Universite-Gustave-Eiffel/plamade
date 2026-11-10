@@ -11,6 +11,7 @@
  */
 package org.noise_planet.covadis.scripts.Slurm
 
+import groovy.json.JsonSlurper
 import groovy.sql.Sql
 import groovy.transform.CompileStatic
 import groovy.transform.Field
@@ -300,7 +301,7 @@ outputs = [
 ]
 
 @Field
-int POLL_SLURM_STATUS_TIME = 5000;
+int POLL_SLURM_STATUS_TIME = 5000
 /**
  * Main run function
  * @param dataSource
@@ -344,7 +345,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         logger.info("Export database..")
         uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder+ "/h2database.zip")
 
-        def bashCode = generateSlurmBashScript("~/noisemodelling.sif", inputs, slurmConfig.serverWorkspaceFolder)
+        def bashCode = generateSlurmBashScript(inputs, slurmConfig.serverWorkspaceFolder)
 
         // upload bash script
         logger.info("Upload slurm bash script")
@@ -366,7 +367,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         // Wait some time before fetching logs
         Thread.sleep(1000)
         // Capture logs of all the tasks
-        Map<String, Long> bytesReadInFiles = new HashMap<>();
+        Map<String, Long> bytesReadInFiles = new HashMap<>()
 
         ProgressVisitor tasksProgress = progress.subProcess(slurmConfig.maxTasksPerJobs)
         Map<Integer, SlurmJobStatus> jobStatusMap = new HashMap<>()
@@ -376,21 +377,21 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
                 slurmSession.runCommand(String.format("scancel %d", slurmConfig.jobId), true)
                 throw new CancellationException("The job has been canceled as requested by the user")
             }
-            long lastPullTime = System.currentTimeMillis();
+            long lastPullTime = System.currentTimeMillis()
             // Log task outputs
-            SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles);
+            SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles)
 
             // Check status of jobs on cluster side
             if (slurmSession.updateSlurmJobProgression(tasksProgress, jobStatusMap)) {
                 // All tasks done or the main task failed
-                break;
+                break
             }
 
             Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
         }
         // All the tasks are completed download results in a temporary directory
         List<String> output = slurmSession.runCommand(String.format("find %s/*.sql.gz -type f -printf \"%%s,%%f\\n\"",
-                slurmConfig.serverWorkspaceFolder), false);
+                slurmConfig.serverWorkspaceFolder), false)
         List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
         List<String> remoteFiles = new ArrayList<>()
         for (FileAttributes file : files) {
@@ -431,7 +432,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
  * @param workspacePath
  * @return
  */
-public static String generateSlurmBashScript(String noisemodellingPath, Map inputs, String workspacePath) {
+static String generateSlurmBashScript(Map inputs, String workspacePath) {
 
     // remove specific keys of this WPS process
     Map<String, Object> inputsCopy = new HashMap<>(inputs)
@@ -475,7 +476,44 @@ singularity exec --bind $workspacePath:/output --bind /scratch/job."$$SLURM_JOB_
 }
 
 private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl) {
+    def logger = LoggerFactory.getLogger(Thread.currentThread().name)
+    
+    // 1. Get the Remote SHA (Git commit hash) using Skopeo running inside a Singularity container
+    String skopeoUrl = nmUrl.startsWith("docker://") ? nmUrl : "docker://$nmUrl"
+    def skopeoCmd = "module load singularity/singularity-3.9.5 && singularity run docker://quay.io/skopeo/stable:latest inspect $skopeoUrl"
+    
+    def shaOutput = slurmSession.runCommand(skopeoCmd, false)
+    
+    def remoteSha = null
+    def digest = null
+    try {
+        // Join the output lines into a single JSON string
+        String jsonText = shaOutput.join('\n')
+        def json = new JsonSlurper().parseText(jsonText.substring(jsonText.indexOf("{") - 1, jsonText.lastIndexOf("}") + 1))
+        
+        // Get the last tag that starts with 'sha-'
+        def repoTags = json.RepoTags as List
+        def commitTag = repoTags?.last()
+        remoteSha = commitTag?.replace("sha-", "")
+        digest = json.Digest
+    } catch (Exception e) {
+        logger.error("Failed to parse Skopeo JSON output: {}", e.message)
+    }
+
+    if (remoteSha) {
+        logger.info("Targeting NoiseModelling Image $digest Git SHA: $remoteSha")
+        // Update nmUrl to reference the specific commit tag to bypass singularity cache (compare the tag only) and ensure latest version
+        // Expected format: docker://ghcr.io/owner/image:sha-abcdef...
+        // Strip the tag from the last colon (e.g. docker://ghcr.io/owner/image:tag -> docker://ghcr.io/owner/image)
+        String baseUrl = nmUrl.substring(0, nmUrl.lastIndexOf(":"))
+        nmUrl = "${baseUrl}:sha-${remoteSha}"
+    } else {
+        logger.info("Could not extract SHA digest via Skopeo container.")
+    }
+
+    // 2. Perform the pull
     slurmSession.runCommand("module load singularity/singularity-3.9.5 && singularity pull --force ~/noisemodelling.sif $nmUrl", true)
+
     if (!isRemoteFileExists(slurmSession, "~/noisemodelling.sif")) {
         throw new IllegalStateException("NoiseModelling image not found after pulling it")
     }
@@ -496,12 +534,12 @@ private static String createRemoteWorkspace(SlurmSession slurmSession, String jo
 }
 
 @CompileStatic
-void uploadFile(ScpClient scpClient, File localFile, String remotePath) {
+static void uploadFile(ScpClient scpClient, File localFile, String remotePath) {
     scpClient.upload(localFile.absolutePath, remotePath)
 }
 
 @CompileStatic
-void downloadFiles(ScpClient scpClient, String[] remote, Path local, ProgressVisitor progress) {
+static void downloadFiles(ScpClient scpClient, String[] remote, Path local, ProgressVisitor progress) {
     ProgressVisitor subProgress = progress.subProcess(remote.length)
     for(String remoteFile : remote) {
         scpClient.download(remoteFile, local)
@@ -510,7 +548,7 @@ void downloadFiles(ScpClient scpClient, String[] remote, Path local, ProgressVis
 }
 
 @CompileStatic
-void createRemoteFile(String fileContent, ScpClient scpClient, String remoteFileName) {    // 1. Convert to bytes using a fixed Charset
+static void createRemoteFile(String fileContent, ScpClient scpClient, String remoteFileName) {    // 1. Convert to bytes using a fixed Charset
     byte[] data = fileContent.getBytes(StandardCharsets.UTF_8)
 
     // 2. Use the length of the BYTE array, not the string length

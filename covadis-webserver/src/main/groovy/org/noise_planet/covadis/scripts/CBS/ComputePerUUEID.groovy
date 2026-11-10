@@ -1237,7 +1237,7 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                    tableDEM                      : "DEM_ENRICHED",
                                    tableGroundAbs                : "LANDCOVER",
                                    tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
-                                   confReflOrder                 : mainConfiguration.confreflorder,
+                                   confReflOrder                 : 0,
                                    confMaxSrcDist                : mainConfiguration.confmaxsrcdist,
                                    confMaxReflDist               : mainConfiguration.confmaxrefldist,
                                    confDiffVertical              : mainConfiguration.confdiffvertical,
