@@ -229,6 +229,9 @@ public class SlurmSession implements AutoCloseable {
                 try (ChannelExec shell = session.createExecChannel(command)) {
                     shell.setRedirectErrorStream(false);
                     shell.setErr(new LoggingOutputStream(logger, Level.ERROR));
+                    if(logResult) {
+                        logger.info("Running command: {}", command);
+                    }
                     shell.open().verify(SFTP_TIMEOUT);
 
                     InputStream in = shell.getInvertedOut();

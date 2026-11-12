@@ -328,7 +328,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
                 maxTasksPerJobs: inputs.getOrDefault("slurm_task_count", 8) as Integer,
                 serverKey: res.ssl_key,
                 serverKeyType: res.ssh_key_type,
-                javaBinaryPath: res.java_binary_path)
+                sbatchScriptHeader: res.sbatch_script_header)
         exportDir = exportDatabase(connection)
         exportDir.deleteOnExit()
     }
@@ -345,7 +345,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         logger.info("Export database..")
         uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder+ "/h2database.zip")
 
-        def bashCode = generateSlurmBashScript(inputs, slurmConfig.serverWorkspaceFolder)
+        def bashCode = generateSlurmBashScript(inputs, slurmConfig.serverWorkspaceFolder, slurmConfig.sbatchScriptHeader)
 
         // upload bash script
         logger.info("Upload slurm bash script")
@@ -401,7 +401,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
         logger.info("Download remote sql files..")
         downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir, progress)
         // remove remote slurm working folder
-        slurmSession.runCommand(String.format("rm -rf %s", slurmConfig.serverWorkspaceFolder), false)
+        slurmSession.runCommand(String.format("rm -rfv %s", slurmConfig.serverWorkspaceFolder), true)
         // merge sql files
         List<String> filesToImport = new ArrayList<>()
         for (FileAttributes file : files) {
@@ -432,7 +432,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
  * @param workspacePath
  * @return
  */
-static String generateSlurmBashScript(Map inputs, String workspacePath) {
+static String generateSlurmBashScript(Map inputs, String workspacePath, String sbatchScriptHeader) {
 
     // remove specific keys of this WPS process
     Map<String, Object> inputsCopy = new HashMap<>(inputs)
@@ -450,6 +450,7 @@ static String generateSlurmBashScript(Map inputs, String workspacePath) {
 
     def script = $/#!/bin/bash
 
+$sbatchScriptHeader
 module load singularity/singularity-3.9.5
 
 # run with this command
