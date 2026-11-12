@@ -342,6 +342,7 @@ public class SlurmSession implements AutoCloseable {
             for (Map.Entry<Integer, SlurmJobStatus> entry : taskIdToTaskState.entrySet()) {
                 logger.info("Task {}: {}", entry.getKey(), entry.getValue().status);
             }
+            runCommand(String.format("scontrol show job %d", slurmConfig.jobId), true);
         }
 
         // If all the tasks are finished, return true. If there is no task returned, we consider that the job is finished.

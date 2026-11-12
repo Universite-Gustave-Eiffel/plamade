@@ -342,83 +342,87 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
 
         slurmConfig.serverWorkspaceFolder = createRemoteWorkspace(slurmSession, jobIdentifier)
 
-        logger.info("Export database..")
-        uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder+ "/h2database.zip")
+        try {
+            logger.info("Export database..")
+            uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder + "/h2database.zip")
 
-        def bashCode = generateSlurmBashScript(inputs, slurmConfig.serverWorkspaceFolder, slurmConfig.sbatchScriptHeader)
+            def bashCode = generateSlurmBashScript(inputs, slurmConfig.serverWorkspaceFolder, slurmConfig.sbatchScriptHeader)
 
-        // upload bash script
-        logger.info("Upload slurm bash script")
-        createRemoteFile(bashCode, scpClient, "${slurmConfig.serverWorkspaceFolder}/noisemodelling_batch.sh")
-        // upload groovy script
-        logger.info("Upload slurm main groovy script")
-        createRemoteFile(getClass().classLoader.getResource("scripts/Slurm/Main_Remote_Script.groovy").text, scpClient, "${slurmConfig.serverWorkspaceFolder}/Main_Remote_Script.groovy")
-        String command = "cd ${slurmConfig.serverWorkspaceFolder} && sbatch --array=1-${slurmConfig.maxTasksPerJobs} noisemodelling_batch.sh"
-        logger.info("Main groovy script uploaded, run command:\n$command")
-        // Fetch the job id from the output of the sbatch command
-        def response = slurmSession.runCommand(command, true).first()
-        Matcher matcher = (response =~ /Submitted batch job (\d+)/)
-        if (matcher) {
-            slurmConfig.jobId = Integer.parseInt(matcher.group(1) as String) // [index of match][index of capture group]
-        } else {
-            return ["result": "No job ID found"]
-        }
-        logger.info("Slurm job submitted with id {}", slurmConfig.jobId)
-        // Wait some time before fetching logs
-        Thread.sleep(1000)
-        // Capture logs of all the tasks
-        Map<String, Long> bytesReadInFiles = new HashMap<>()
-
-        ProgressVisitor tasksProgress = progress.subProcess(slurmConfig.maxTasksPerJobs)
-        Map<Integer, SlurmJobStatus> jobStatusMap = new HashMap<>()
-        while(true) {
-            if (progress.isCanceled()) {
-                // User cancel the computation, cancel the job on the remote slurm cluster
-                slurmSession.runCommand(String.format("scancel %d", slurmConfig.jobId), true)
-                throw new CancellationException("The job has been canceled as requested by the user")
+            // upload bash script
+            logger.info("Upload slurm bash script")
+            createRemoteFile(bashCode, scpClient, "${slurmConfig.serverWorkspaceFolder}/noisemodelling_batch.sh")
+            // upload groovy script
+            logger.info("Upload slurm main groovy script")
+            createRemoteFile(getClass().classLoader.getResource("scripts/Slurm/Main_Remote_Script.groovy").text, scpClient, "${slurmConfig.serverWorkspaceFolder}/Main_Remote_Script.groovy")
+            String command = "cd ${slurmConfig.serverWorkspaceFolder} && sbatch --array=1-${slurmConfig.maxTasksPerJobs} noisemodelling_batch.sh"
+            logger.info("Main groovy script uploaded, run command:\n$command")
+            // Fetch the job id from the output of the sbatch command
+            def response = slurmSession.runCommand(command, true).first()
+            Matcher matcher = (response =~ /Submitted batch job (\d+)/)
+            if (matcher) {
+                slurmConfig.jobId = Integer.parseInt(matcher.group(1) as String)
+                // [index of match][index of capture group]
+            } else {
+                return ["result": "No job ID found"]
             }
-            long lastPullTime = System.currentTimeMillis()
-            // Log task outputs
-            SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles)
+            logger.info("Slurm job submitted with id {}", slurmConfig.jobId)
+            // Wait some time before fetching logs
+            Thread.sleep(1000)
+            // Capture logs of all the tasks
+            Map<String, Long> bytesReadInFiles = new HashMap<>()
 
-            // Check status of jobs on cluster side
-            if (slurmSession.updateSlurmJobProgression(tasksProgress, jobStatusMap)) {
-                // All tasks done or the main task failed
-                break
+            ProgressVisitor tasksProgress = progress.subProcess(slurmConfig.maxTasksPerJobs)
+            Map<Integer, SlurmJobStatus> jobStatusMap = new HashMap<>()
+            while (true) {
+                if (progress.isCanceled()) {
+                    // User cancel the computation, cancel the job on the remote slurm cluster
+                    slurmSession.runCommand(String.format("scancel %d", slurmConfig.jobId), true)
+                    throw new CancellationException("The job has been canceled as requested by the user")
+                }
+                long lastPullTime = System.currentTimeMillis()
+                // Log task outputs
+                SlurmUtilities.logSlurmJobs(slurmSession, slurmConfig.serverWorkspaceFolder, bytesReadInFiles)
+
+                // Check status of jobs on cluster side
+                if (slurmSession.updateSlurmJobProgression(tasksProgress, jobStatusMap)) {
+                    // All tasks done or the main task failed
+                    break
+                }
+
+                Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
             }
+            // All the tasks are completed download results in a temporary directory
+            List<String> output = slurmSession.runCommand(String.format("find %s/*.sql.gz -type f -printf \"%%s,%%f\\n\"",
+                    slurmConfig.serverWorkspaceFolder), false)
+            List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
+            List<String> remoteFiles = new ArrayList<>()
+            for (FileAttributes file : files) {
+                remoteFiles.add(new File(slurmConfig.serverWorkspaceFolder, file.fileName).getPath())
+            }
+            def temporaryDataDir = Files.createTempDirectory(getDateString())
+            logger.info("Download remote sql files..")
+            downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir, progress)
+            // merge sql files
+            List<String> filesToImport = new ArrayList<>()
+            for (FileAttributes file : files) {
+                filesToImport.add(new File(temporaryDataDir.toFile(), file.fileName).getPath())
+            }
+            // Use GZIPOutputStream to create the compressed output file
+            def mergedFile = new File(temporaryDataDir.toFile(), "RECEIVERS_LEVEL.sql.gz")
+            logger.info("Merge sql files to ${mergedFile.path}..")
+            FileUtilities.mergeSqlFiles(filesToImport, mergedFile, progress)
 
-            Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
-        }
-        // All the tasks are completed download results in a temporary directory
-        List<String> output = slurmSession.runCommand(String.format("find %s/*.sql.gz -type f -printf \"%%s,%%f\\n\"",
-                slurmConfig.serverWorkspaceFolder), false)
-        List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
-        List<String> remoteFiles = new ArrayList<>()
-        for (FileAttributes file : files) {
-            remoteFiles.add(new File(slurmConfig.serverWorkspaceFolder ,file.fileName).getPath())
-        }
-        def temporaryDataDir = Files.createTempDirectory(getDateString())
-        logger.info("Download remote sql files..")
-        downloadFiles(scpClient, remoteFiles.toArray(new String[0]), temporaryDataDir, progress)
-        // remove remote slurm working folder
-        slurmSession.runCommand(String.format("rm -rfv %s", slurmConfig.serverWorkspaceFolder), true)
-        // merge sql files
-        List<String> filesToImport = new ArrayList<>()
-        for (FileAttributes file : files) {
-            filesToImport.add(new File(temporaryDataDir.toFile() ,file.fileName).getPath())
-        }
-        // Use GZIPOutputStream to create the compressed output file
-        def mergedFile = new File(temporaryDataDir.toFile(), "RECEIVERS_LEVEL.sql.gz")
-        logger.info("Merge sql files to ${mergedFile.path}..")
-        FileUtilities.mergeSqlFiles(filesToImport, mergedFile, progress)
-
-        // Transfer results into a single table
-        try (Connection connection = dataSource.connection) {
-            // Drop current output table if it already exists
-            connection.createStatement().execute("DROP TABLE IF EXISTS RECEIVERS_LEVEL")
-            // Import the first file as usual
-            logger.info("Load SQL file")
-            connection.createStatement().execute("RUNSCRIPT FROM '${mergedFile.path}' COMPRESSION GZIP")
+            // Transfer results into a single table
+            try (Connection connection = dataSource.connection) {
+                // Drop current output table if it already exists
+                connection.createStatement().execute("DROP TABLE IF EXISTS RECEIVERS_LEVEL")
+                // Import the first file as usual
+                logger.info("Load SQL file")
+                connection.createStatement().execute("RUNSCRIPT FROM '${mergedFile.path}' COMPRESSION GZIP")
+            }
+        } finally {
+            // remove remote slurm working folder
+            slurmSession.runCommand(String.format("rm -rfv %s", slurmConfig.serverWorkspaceFolder), true)
         }
         return ["result": "Setup completed"]
     }
