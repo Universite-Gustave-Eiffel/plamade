@@ -133,7 +133,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 }
 
 
-def fetchRoads(Map input, Connection pgConnection, Connection h2Connection, ProgressVisitor stepsProgress, String posSol) {
+def fetchRoads(Map input, Connection pgConnection, Connection h2Connection, ProgressVisitor stepsProgress, String posSol, extractionEnvelopeGeometry) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
     Sql h2Sql = new Sql(h2Connection)
@@ -145,6 +145,13 @@ def fetchRoads(Map input, Connection pgConnection, Connection h2Connection, Prog
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
+
+    // Truncate road source by the department + maximum propagation distance
+    ComputePerUUEID.runSqlQuery(h2Connection,"""
+        -- Truncate roads by the department + maximum propagation distance
+        UPDATE LW_ROADS SET THE_GEOM = ST_Intersection(THE_GEOM, '$extractionEnvelopeGeometry'::geometry);
+        DELETE FROM LW_ROADS WHERE ST_ISEMPTY(THE_GEOM);
+        """ as String)
 }
 
 def computeForDepartment(String department, DataSource h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map<String, String> codeDeptToNuts) {
@@ -179,10 +186,12 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
                 extractionEnvelopeGeometryWKT,
                 h2Connection, new EmptyProgressVisitor(), mainConfiguration.wall_alpha as Double)
 
-        fetchAllRoadsUsingInseeDep(input, pgConnection, h2Connection)
+        fetchAllRoadsUsingInseeDep(input, pgConnection, h2Connection, extractionEnvelopeGeometryWKT)
 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
-                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor())
+                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor(),
+                ComputePerUUEID.distanceFacadeBuildingsReceivers,
+                ComputePerUUEID.distanceDelaunayBufferFacade)
 
         keepOnlyReceiversInDepartment(input, pgConnection, h2Connection)
 
@@ -202,12 +211,14 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         logger.info("Compute for pos_sol = $posSol")
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
-            fetchRoads(input, pgConnection,  h2Connection, new EmptyProgressVisitor(), posSol)
+            fetchRoads(input, pgConnection,  h2Connection, new EmptyProgressVisitor(), posSol, extractionEnvelopeGeometryWKT)
             if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
                 doCompute = true
                 ComputePerUUEID.generateDebugReceiver(h2Connection, input)
             }else {
-                doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+                doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol,
+                        mainConfiguration.confmaxsrcdist * 1.2d as Double,
+                        ComputePerUUEID.distanceFacadeBuildingsReceivers + 0.2) // add an epsilon to guaranty ignoring the closest wall
             }
         }
 
@@ -422,7 +433,7 @@ def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connecti
 }
 
 
-static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Connection h2Connection) {
+static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Connection h2Connection, String extractionEnvelopeGeometry) {
     // Fetch all roads using the UUEID query
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName} INNER JOIN cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}
@@ -434,6 +445,12 @@ static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Conne
     }
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], new EmptyProgressVisitor())
+
+    ComputePerUUEID.runSqlQuery(h2Connection,"""
+        -- Truncate roads by the department + maximum propagation distance
+        UPDATE ROADS SET THE_GEOM = ST_Intersection(THE_GEOM, '$extractionEnvelopeGeometry'::geometry);
+        DELETE FROM ROADS WHERE ST_ISEMPTY(THE_GEOM);
+        """ as String)
 }
 
 static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connection h2Connection) {
@@ -452,7 +469,7 @@ static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connecti
             WHERE NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_1 = R.PK)
               AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_2 = R.PK)
               AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_3 = R.PK);
-        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        SET @LASTDELAUNAY=(SELECT last_delaunay FROM RECEIVERS_OFFSET);
         -- Remove receivers that does not exists anymore on RECEIVERS table
         DELETE FROM RECEIVERS WHERE PK <= @LASTDELAUNAY AND PK NOT IN (SELECT PK FROM RECEIVERS_DELAUNAY);
         """ as String)
