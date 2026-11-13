@@ -62,6 +62,7 @@ public class ScriptUtilities {
      * @param groovyClass Groovy class to extract metadata
      * @param inputs Parameters of the exec method
      * @return Filled inputs
+     * @throws IllegalArgumentException Unexpected input(s) for script
      */
     public static Map fillDefaultValues(Class groovyClass, Map inputs) {
         Map filledInputs = new HashMap(inputs);
@@ -85,6 +86,15 @@ public class ScriptUtilities {
                     }
                     filledInputs.put(entry.getKey(), defaultValue);
                 });
+        // Check if there is more inputs key than expected by the groovy class
+        Set<String> expectedInputs = ((Map<String, Map>) config.get("inputs")).keySet();
+        Set<String> unexpectedInputs = new LinkedHashSet<>(filledInputs.keySet());
+        unexpectedInputs.removeAll(expectedInputs);
+        if (!unexpectedInputs.isEmpty()) {
+            throw new IllegalArgumentException("Unexpected input(s) for script " + groovyClass.getSimpleName()
+                    + ": " + unexpectedInputs + ". Declared inputs are: " + expectedInputs);
+        }
+
         return filledInputs;
     }
 
