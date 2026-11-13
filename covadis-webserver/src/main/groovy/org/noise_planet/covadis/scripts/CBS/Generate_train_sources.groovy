@@ -74,7 +74,15 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                 try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM LW_RAILWAY")) {
                         PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_emission_hexa", true, batchSize);
                 }
-
+                try (ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM RAILWAY_TRACK")) {
+                        PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_troncon_hexa", true, batchSize);
+                }
+                new Execute_Query().exec(pgConnection, [sqlQueries: """            
+                    CREATE INDEX ON cbs_uge_output.ferroviaire_emission_hexa (THE_GEOM) USING GIST;
+                    CREATE INDEX ON cbs_uge_output.ferroviaire_troncon_hexa (THE_GEOM) USING GIST;                    
+                    ALTER TABLE cbs_uge_output.ferroviaire_emission_hexa OWNER TO cbs_uge_group;                   
+                    ALTER TABLE cbs_uge_output.ferroviaire_troncon_hexa OWNER TO cbs_uge_group;
+                """ as String, outputFormat: "json"], new EmptyProgressVisitor())
                 // Remove local intermediate tables
                 runSqlQuery(connection, "DROP TABLE IF EXISTS RAILWAY_TRACK, LW_RAILWAY, RAILWAY_TRAFFIC;");
         }

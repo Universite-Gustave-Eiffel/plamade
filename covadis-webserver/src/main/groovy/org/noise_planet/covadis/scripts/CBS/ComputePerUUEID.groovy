@@ -18,6 +18,7 @@ import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
+import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_Landcover_with_rail
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source
 import org.noise_planet.noisemodelling.scripts.Receivers.Building_Grid
 import org.noise_planet.noisemodelling.scripts.Receivers.Delaunay_Grid
@@ -1318,10 +1319,23 @@ static def processLandCover(Map input,Connection pgConnection, String extraction
          ResultSet rs = st.executeQuery(landCoverQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LANDCOVER", true, batchSize)
     }
-
+    // Fetch train tracks
+    try( Statement st = pgConnection.createStatement() ;
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)""" as String)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
+    }
     // Apply projection to the table (if issues with copy or table is empty)
     def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
     new Sql(h2Connection).execute("CALL UpdateGeometrySRID('LANDCOVER', 'THE_GEOM', $srid)")
+
+    // Update landcover with train tracks
+    ScriptUtilities.execScript(new Enrich_Landcover_with_rail(),h2Connection, [
+            inputLandcover:"LANDCOVER",
+            gColumn : "G",
+            inputRail: "FERROVIAIRE_TRONCON",
+            railWidth : "",
+
+    ])
 }
 
 /**
