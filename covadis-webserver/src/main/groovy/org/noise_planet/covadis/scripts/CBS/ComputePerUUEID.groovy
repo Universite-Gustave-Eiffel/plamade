@@ -101,6 +101,18 @@ static final double lengthMaxLocalComputation = 1000
 @Field
 static final double maximalReceiversToLocalComputation = 100
 
+/**
+ * Distance in meters to place receivers near building facades (for population exposures)
+ */
+@Field
+static final double distanceFacadeBuildingsReceivers = 2.0
+
+/**
+ * Minimal distance in meters to place receivers near building facades (for iso contours)
+ */
+@Field
+static final double distanceDelaunayBufferFacade = 0.5
+
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
 
@@ -251,7 +263,8 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         fetchAllRoadsUsingUUEID(input, uueid, pgConnection, h2Connection)
 
         generateReceivers(extractionEnvelopeGeometry, h2Connection,
-                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress)
+                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress,
+                distanceFacadeBuildingsReceivers, distanceDelaunayBufferFacade)
 
         processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection)
 
@@ -277,7 +290,9 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
                 doCompute = true
                 generateDebugReceiver(h2Connection, input)
             } else {
-                doCompute = GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+                doCompute = GenerateReceiversFiltered(h2Connection, logger, posSol,
+                        mainConfiguration.confmaxsrcdist * 1.2d as Double,
+                        distanceFacadeBuildingsReceivers + 0.2)
             }
         }
         // Fetch specific road emission at this special height
@@ -995,9 +1010,13 @@ static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) 
  * @param deltaBuildingsReceivers Delta for building receivers
  * @param mainConfiguration Main configuration map from config table on PostGIS database
  * @param stepsProgress Progress visitor for tracking steps
+ * @param distanceBuildingsReceiverFromFacade Distance in meters to place receivers associated with a building
+ * @param distanceDelaunayFromFacade Minimal distance in meters to place Delaunay receivers
  * @return
  */
-static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2Connection,double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress) {
+static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2Connection,
+                             double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress,
+                             double distanceBuildingsReceiverFromFacade, double distanceDelaunayFromFacade) {
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor subSteps = stepsProgress.subProcess(4)
 
@@ -1022,7 +1041,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
         """)
     } else {
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
-                [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 4, distance : 0.1],
+                [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 4, distance : distanceBuildingsReceiverFromFacade],
                 subSteps) as String)
 
         int numberOfBuildingsWithoutReceivers = h2Sql.firstRow("SELECT COUNT(*) FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS)")[0] as Integer
@@ -1053,12 +1072,20 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
     runSqlQuery(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;");
 
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
-            fence                           : extractionEnvelopeGeometry, tableBuilding: "BUILDINGS",
-            sourcesTableName: "ROADS", maxCellDist: 1200,
+            fence                           : extractionEnvelopeGeometry,
+            tableBuilding                   : "BUILDINGS",
+            sourcesTableName                : "ROADS",
+            maxCellDist                     : 1200,
             skipCellNoSourcesMinimalDistance: 2 * (mainConfiguration.confmaxsrcdist as Double),
-            maxArea                         : 500, height: 4, outputTableName: "RECEIVERS_DELAUNAY",
-            isoSurfaceInBuildings: true, exportTrianglesGeometries : true, "buildingBuffer": 0.5, roadWidth: 2,
-            fenceNegativeBuffer: 0], subSteps)
+            maxArea                         : 500,
+            height                          : 4,
+            outputTableName                 : "RECEIVERS_DELAUNAY",
+            isoSurfaceInBuildings           : true,
+            exportTrianglesGeometries       : true,
+            "buildingBuffer"                : distanceDelaunayFromFacade,
+            roadWidth                       : 2,
+            fenceNegativeBuffer             : 0],
+            subSteps)
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
@@ -1094,14 +1121,14 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             DROP TABLE IF EXISTS RECEIVERS_OFFSET;
             CREATE TABLE RECEIVERS_OFFSET(last_delaunay INTEGER);
             INSERT INTO RECEIVERS_OFFSET VALUES (@LASTDELAUNAY);
-            CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM FROM RECEIVERS_DELAUNAY;
+            CREATE TABLE RECEIVERS AS SELECT PK, THE_GEOM, 'D' as SOURCE FROM RECEIVERS_DELAUNAY;
             -- For buildings facades without receivers (rare issue with encapsulated buildings)
             -- Create a receiver point on top of the building, it is still better than ignoring the building
             INSERT INTO RECEIVERS_BUILDINGS(the_geom, build_pk) SELECT st_updatez(ST_Centroid(B.the_geom),
              COALESCE(height, 4) + 0.5) the_geom, pk FROM BUILDINGS_FOR_EXPOSURE B
               WHERE KEEP AND PK NOT IN (SELECT DISTINCT BUILD_PK FROM RECEIVERS_BUILDINGS);
             -- Insert receivers buildings table
-            INSERT INTO RECEIVERS(PK, THE_GEOM) SELECT PK+@LASTDELAUNAY, THE_GEOM FROM RECEIVERS_BUILDINGS;
+            INSERT INTO RECEIVERS(PK, THE_GEOM, SOURCE) SELECT PK+@LASTDELAUNAY, THE_GEOM, 'B' FROM RECEIVERS_BUILDINGS;
             CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);
             ALTER TABLE RECEIVERS ALTER COLUMN PK INTEGER NOT NULL;
             ALTER TABLE RECEIVERS ADD PRIMARY KEY (PK);
@@ -1242,7 +1269,6 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                    confMaxReflDist               : mainConfiguration.confmaxrefldist,
                                    confDiffVertical              : mainConfiguration.confdiffvertical,
                                    confDiffHorizontal            : mainConfiguration.confdiffhorizontal,
-                                   confMinWallReflDist           : 0.2, // ignore reflection distance, buildings receiver are at 0.1 m from facades
                                    confRaysName                  : (inputs.getOrDefault("receiver_rays", "") as String).empty ? "" : "RAYS"
             ],
                     stepsProgress)
@@ -1410,7 +1436,7 @@ static void generateDebugReceiver(Connection h2Connection, Map input){
     sql.execute("""
             DROP TABLE IF EXISTS RECEIVERS_FILTERED, DEBUG_RECEIVER;            
             CREATE TABLE DEBUG_RECEIVER(THE_GEOM GEOMETRY) AS SELECT '${input.receiver_rays}'::geometry;
-            CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT EXPLOD_ID, THE_GEOM FROM ST_EXPLODE('DEBUG_RECEIVER');
+            CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}, REFL_IGNOR double) AS SELECT EXPLOD_ID, THE_GEOM, 0 FROM ST_EXPLODE('DEBUG_RECEIVER');
         """ as String)
 }
 
@@ -1421,9 +1447,10 @@ static void generateDebugReceiver(Connection h2Connection, Map input){
  * @param posSol The position solution.
  * @param h2Sql The H2 SQL instance.
  * @param maxSourceDistance The maximum source distance.
+ * @param distanceReceiverIgnoreFacade Distance in meters to ignore reflection when the receivers are associated with a building
  * @return True if receivers were found, false otherwise.
  */
-static boolean GenerateReceiversFiltered(Connection h2Connection, Logger logger, String posSol, double maxSourceDistance) {
+static boolean GenerateReceiversFiltered(Connection h2Connection, Logger logger, String posSol, double maxSourceDistance, double distanceReceiverIgnoreFacade) {
     Sql h2Sql = new Sql(h2Connection)
     if (JDBCUtilities.getRowCount(h2Connection, "LW_ROADS") == 0) {
         logger.info("No roads found for pos_sol = {}", posSol)
@@ -1440,7 +1467,7 @@ static boolean GenerateReceiversFiltered(Connection h2Connection, Logger logger,
     runSqlQuery(h2Connection, """
         CREATE SPATIAL INDEX ON LW_ROADS(THE_GEOM);
         DROP TABLE IF EXISTS RECEIVERS_FILTERED;
-        CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}) AS SELECT PK, THE_GEOM from RECEIVERS R 
+        CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}, REFL_IGNOR DOUBLE) AS SELECT PK, THE_GEOM, CASE WHEN SOURCE = 'B' THEN $distanceReceiverIgnoreFacade ELSE 0 END from RECEIVERS R 
             WHERE exists (select 1 from LW_ROADS LW where LW.THE_GEOM && st_expand(R.THE_geom, $maxSourceDistance) AND ST_Distance(LW.THE_GEOM, R.THE_GEOM) <= $maxSourceDistance limit 1);
     """)
     int receiverCount = h2Sql.firstRow("SELECT COUNT(*) FROM RECEIVERS_FILTERED")[0] as Integer

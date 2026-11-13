@@ -189,7 +189,9 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         fetchAllRoadsUsingInseeDep(input, pgConnection, h2Connection, extractionEnvelopeGeometryWKT)
 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
-                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor())
+                mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor(),
+                ComputePerUUEID.distanceFacadeBuildingsReceivers,
+                ComputePerUUEID.distanceDelaunayBufferFacade)
 
         keepOnlyReceiversInDepartment(input, pgConnection, h2Connection)
 
@@ -214,7 +216,9 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
                 doCompute = true
                 ComputePerUUEID.generateDebugReceiver(h2Connection, input)
             }else {
-                doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol, mainConfiguration.confmaxsrcdist * 1.2d as Double)
+                doCompute = ComputePerUUEID.GenerateReceiversFiltered(h2Connection, logger, posSol,
+                        mainConfiguration.confmaxsrcdist * 1.2d as Double,
+                        ComputePerUUEID.distanceFacadeBuildingsReceivers + 0.2) // add an epsilon to guaranty ignoring the closest wall
             }
         }
 
