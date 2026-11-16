@@ -452,7 +452,11 @@ static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connecti
             WHERE NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_1 = R.PK)
               AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_2 = R.PK)
               AND NOT EXISTS (SELECT 1 FROM TRIANGLES T WHERE T.PK_3 = R.PK);
-        SET @LASTDELAUNAY=(SELECT MAX(PK) FROM RECEIVERS_DELAUNAY);
+        -- Use the offset captured before the department filter to classify
+        -- Delaunay versus building receivers. MAX(PK) may have decreased
+        -- after deleting Delaunay receivers and would misclassify building
+        -- receivers.
+        SET @LASTDELAUNAY=(SELECT last_delaunay FROM RECEIVERS_OFFSET);
         -- Remove receivers that does not exists anymore on RECEIVERS table
         DELETE FROM RECEIVERS WHERE PK <= @LASTDELAUNAY AND PK NOT IN (SELECT PK FROM RECEIVERS_DELAUNAY);
         """ as String)
