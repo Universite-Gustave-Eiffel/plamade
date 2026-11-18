@@ -98,7 +98,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     try (DataSource dataSource = PostGISUtilities.createPostgisDataSource(
             postgisConfig['user_name'] as String,
             postgisConfig['password'] as String,
-            postgisConfig['port'].toString(), postgisConfig['database_name'] as String, postgisConfig['host'] as String);
+            postgisConfig['port'].toString(), postgisConfig['database_name'] as String, postgisConfig['host'] as String)
          Connection pgConnection = dataSource.getConnection()) {
         logger.info("Connected to PostgreSQL database")
         pgConnection.setAutoCommit(true)
@@ -135,12 +135,11 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
 def fetchRoads(Map input, Connection pgConnection, Connection h2Connection, ProgressVisitor stepsProgress, String posSol, extractionEnvelopeGeometry) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
-    Sql h2Sql = new Sql(h2Connection)
     def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} 
       WHERE uueid IN (SELECT DISTINCT uueid FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} WHERE insee_dep = '${input.department}') 
       AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
 
-    try( Statement st = pgConnection.createStatement() ;
+    try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
@@ -225,7 +224,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
                 // Adapt the DEM with this special road/train infrastructure height platforms
-                ComputePerUUEID.enrichDem(input, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol, extractionEnvelopeGeometryWKT)
+                ComputePerUUEID.enrichDem(input, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol, "ST_Intersects(geom, '$extractionEnvelopeGeometryWKT'::geometry)")
             }
             // Run the simulation with this road height
             ComputePerUUEID.runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
@@ -285,7 +284,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
         """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
-    try( Statement st = h2Connection.createStatement() ;
+    try( Statement st = h2Connection.createStatement()
          ResultSet rs = st.executeQuery("""SELECT '$department' insee_dep,'R' as typesource, the_geom, idbat, lden, ln FROM FACADE_EXPO""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.facade_expo_dept_$projectionName", false, batchSize)
@@ -309,7 +308,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             DELETE FROM cbs_uge_output.expo_dept WHERE insee_dep = '$department' and typesource = 'R';
         """, pgConnection, new EmptyProgressVisitor(), logger)
     }
-    try( Statement st = h2Connection.createStatement() ;
+    try( Statement st = h2Connection.createStatement()
          ResultSet rs = st.executeQuery("""SELECT CONCAT('${department}', '_R_', NOISELEVEL) pk,'R' as typesource, '${nutsCode}' nutscode ,
                  '$department' insee_dep, NOISELEVEL, ROUND(PEOPLE)::integer PEOPLE,
                  ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , HA  , HSD , AREA , INDICETYPE 
@@ -335,7 +334,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             DELETE FROM cbs_uge_output.expo_global_dept WHERE insee_dep = '$department';
         """, pgConnection, new EmptyProgressVisitor(), logger)
     }
-    try( Statement st = h2Connection.createStatement() ;
+    try( Statement st = h2Connection.createStatement()
          ResultSet rs = st.executeQuery("""SELECT '$department' insee_dep, '$nutsCode' as NUTSCODE , CPI, HA, HSD, TOTAL_POP FROM EXPO_GLOBAL""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo_global_dept", false, batchSize)
@@ -365,7 +364,7 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String de
     Logger logger = LoggerFactory.getLogger(ComputePerDepartment.class)
 
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM")
 
     if (!JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.CBS_DEPT_$projectionName")) {
         DataBaseUtilities.parseScript("""
@@ -440,7 +439,7 @@ static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Conne
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName} INNER JOIN cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}
         ON cbs_uge_input.n_routier_troncon_l_${input.projectionName}.uueid = cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}.uueid
         WHERE cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}.insee_dep = '${input.department}'"""
-    try (Statement st = pgConnection.createStatement();
+    try (Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(roadQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
     }

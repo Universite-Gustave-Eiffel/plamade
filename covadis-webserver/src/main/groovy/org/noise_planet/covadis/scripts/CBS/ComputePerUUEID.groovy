@@ -17,6 +17,7 @@ import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.jdbc.utils.DataBaseUtilities
 import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
+import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_rail
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_Landcover_with_rail
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source
@@ -128,7 +129,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     try (DataSource dataSource = PostGISUtilities.createPostgisDataSource(
             postgisConfig['user_name'] as String,
             postgisConfig['password'] as String,
-            postgisConfig['port'].toString(), postgisConfig['database_name'] as String, postgisConfig['host'] as String);
+            postgisConfig['port'].toString(), postgisConfig['database_name'] as String, postgisConfig['host'] as String)
          Connection pgConnection = dataSource.getConnection()) {
         logger.info("Connected to PostgreSQL database")
         pgConnection.setAutoCommit(true)
@@ -299,8 +300,8 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         // Fetch specific road emission at this special height
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
-                // Adapt the DEM with this special road/train infrastructure height platforms
-                enrichDem(input, h2Connection, pgConnection, solProgress, posSol, extractionEnvelopeGeometryWKT)
+                // Adapt the DEM with our special road/train infrastructure height platforms (overwrite dem points located at our sources lines)
+                enrichDem(input, h2Connection, pgConnection, solProgress, posSol, "uueid = '$uueid'")
             }
             // Run the simulation with this road height
             runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
@@ -347,7 +348,6 @@ static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
     if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
         // Merge rays table
         try(Connection h2Connection = h2DataSource.getConnection()) {
-            def h2Sql = new Sql(h2Connection)
             if (!JDBCUtilities.tableExists(h2Connection, "RAYS_MERGED")) {
                 DataBaseUtilities.parseScript("""
                             ALTER TABLE RAYS RENAME TO RAYS_MERGED;
@@ -376,7 +376,7 @@ static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
  * @param projectionName Projection name ex: hexa
  */
 static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, String uueid, String nutsCode, String projectionName) {
-    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
+    Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     boolean tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.facade_expo_$projectionName")
     if(tableExists) {
         DataBaseUtilities.parseScript("""
@@ -384,7 +384,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
         """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
-    try( Statement st = h2Connection.createStatement() ;
+    try( Statement st = h2Connection.createStatement()
          ResultSet rs = st.executeQuery("""SELECT the_geom, idbat , '$uueid' uueid, lden , ln FROM FACADE_EXPO""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.facade_expo_$projectionName", false, batchSize)
@@ -407,7 +407,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             DELETE FROM cbs_uge_output.expo WHERE uueid = '$uueid';
         """, pgConnection, new EmptyProgressVisitor(), logger)
     }
-    try( Statement st = h2Connection.createStatement() ;
+    try( Statement st = h2Connection.createStatement()
          ResultSet rs = st.executeQuery("""SELECT CONCAT('${uueid}','_', NOISELEVEL) pk, '${nutsCode}' nutscode ,
                  '$uueid' UUEID, NOISELEVEL, ROUND(PEOPLE)::integer PEOPLE,
                  ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , HA  , HSD , AREA , INDICETYPE 
@@ -433,7 +433,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             DELETE FROM cbs_uge_output.expo_global WHERE uueid = '$uueid';
         """, pgConnection, new EmptyProgressVisitor(), logger)
     }
-    try( Statement st = h2Connection.createStatement() ;
+    try( Statement st = h2Connection.createStatement()
          ResultSet rs = st.executeQuery("""SELECT '$uueid' uueid, '$nutsCode' nutscode , CPI, HA, HSD, TOTAL_POP FROM EXPO_GLOBAL""")) {
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo_global", false, batchSize)
@@ -701,7 +701,7 @@ static def generateBuildingsFacadeExpo(Connection h2Connection) {
     def receiversLevelTable = "RECEIVERS_LEVEL_MERGED"
 
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, receiversLevelTable, "THE_GEOM")
 
     runSqlQuery(h2Connection, """
         DROP TABLE IF EXISTS FACADE_EXPO;
@@ -749,7 +749,7 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
 
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM")
 
     if (!JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.CBS_$projectionName")) {
         DataBaseUtilities.parseScript("""
@@ -919,9 +919,9 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
  */
 private static void processIsoContouring(Connection conn, ProgressVisitor progress, String sourceTable, String isoClass, String period, String cbsType, String filter) {
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
-    String noiseLevelExpr = generateIsoCaseStatement(period, isoClass);
+    String noiseLevelExpr = generateIsoCaseStatement(period, isoClass)
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
+            GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM")
     // Initialize ISOPHONES table if not exists
     DataBaseUtilities.parseScript("""CREATE TABLE IF NOT EXISTS ISOPHONES
                 (the_geom GEOMETRY(MULTIPOLYGONZ, ${metaData.getSRID()}),
@@ -976,7 +976,7 @@ static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) 
     def posSolsToProcess = new ArrayList<String>(posSols)
     def firstPosSol = posSolsToProcess.pop()
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, getRoadsLevelsTableName(firstPosSol), "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, getRoadsLevelsTableName(firstPosSol), "THE_GEOM")
     def mergeLevelsQuery = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_MERGED;
         CREATE TABLE RECEIVERS_LEVEL_MERGED(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
@@ -1072,7 +1072,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
 
     logger.info("Generate Delaunay receivers")
 
-    runSqlQuery(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;");
+    runSqlQuery(h2Connection, "DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;")
 
     ScriptUtilities.execScript(new Delaunay_Grid(), h2Connection, [
             fence                           : extractionEnvelopeGeometry,
@@ -1091,7 +1091,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             subSteps)
 
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM")
 
     DataBaseUtilities.parseScript("""
             -- Create index
@@ -1142,7 +1142,7 @@ static void fetchAllRoadsUsingUUEID(Map input, String uueid, Connection pgConnec
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
         WHERE uueid = '${uueid}'"""
-    try (Statement st = pgConnection.createStatement();
+    try (Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(roadQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
     }
@@ -1185,18 +1185,13 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
     def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
          FROM bd_topo.n_ligne_orographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
 
-    try (Statement st = pgConnection.createStatement();
+    try (Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(fetchOroTableQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "OROGRAPHIC", true, batchSize)
     }
 
-
-    // Insert lines into DEM table
-    def insertOroQuery = """
-        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
-        DROP TABLE OROGRAPHIC;            
-        """
     DataBaseUtilities.parseScript("""
+        -- Enhance DEM points with orography ruptures lines
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
         DROP TABLE OROGRAPHIC;            
         """, h2Connection, new EmptyProgressVisitor(), logger)
@@ -1204,32 +1199,60 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
     def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
          FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0 AND position_par_rapport_au_sol = '0'"""
 
-    try (Statement st = pgConnection.createStatement();
+    try (Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(fetchHydroTableQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "HYDROGRAPHIC", true, batchSize)
     }
 
-    // Insert lines into DEM table
-    def insertHydroQuery = """
-        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
-        DROP TABLE HYDROGRAPHIC;            
-        """
     DataBaseUtilities.parseScript("""
+        -- Enhance DEM points with hydrography ruptures lines
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
         DROP TABLE HYDROGRAPHIC;            
         """, h2Connection, new EmptyProgressVisitor(), logger)
+
+    // Fetch train tracks
+    try( Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry)""" as String)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
+    }
+
+    ScriptUtilities.execScript(new Enrich_DEM_with_rail(), h2Connection, [inputDEM: "DEM",
+                                                                          inputRail: "FERROVIAIRE_TRONCON"], new EmptyProgressVisitor())
+
+    DataBaseUtilities.parseScript("""
+         DROP TABLE IF EXISTS DEM;
+         ALTER TABLE DEM_ENRICHED RENAME TO DEM;
+         """, h2Connection, new EmptyProgressVisitor(), logger)
+
+    // Fetch all roads
+    logger.info("Enrich DEM with all roads (pos_sol=0 and neither bridge or tunnel) in the propagation area")
+    def roadQuery = """SELECT geom as the_geom, largeur as width
+        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
+        WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry) AND pos_sol='0' and franchisst is null"""
+    try (Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery(roadQuery)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS_FOR_DEM", true, batchSize)
+    }
+
+    def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
+    ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS_FOR_DEM", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], new EmptyProgressVisitor())
+
+    DataBaseUtilities.parseScript("""
+         DROP TABLE IF EXISTS DEM;
+         ALTER TABLE DEM_ENRICHED RENAME TO DEM;
+         """, h2Connection, new EmptyProgressVisitor(), logger)
 }
 
-static enrichDem(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String extractionEnvelopeGeometry) {
+static enrichDem(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String sqlFilterCondition) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Adapting digital elevation model..")
     ProgressVisitor demProgress = stepsProgress.subProcess(2)
 
-    // Fetch road table with altitude with the same pos_sol and envelope
+    // Fetch road table with altitude with the same pos_sol and envelope, already fetched enriched dem points from roads will be removed
     def roadQuery = """SELECT geom as the_geom, largeur as width
         FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
-    try( Statement st = pgConnection.createStatement() ;
+        WHERE $sqlFilterCondition and pos_sol = '$posSol' and (franchisst is null or franchisst = 'Pont')"""
+    try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(roadQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
         demProgress.endStep()
@@ -1268,7 +1291,7 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                    tableDEM                      : "DEM_ENRICHED",
                                    tableGroundAbs                : "LANDCOVER_ENRICHED",
                                    tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
-                                   confReflOrder                 : 0,
+                                   confReflOrder                 : mainConfiguration.confreflorder,
                                    confMaxSrcDist                : mainConfiguration.confmaxsrcdist,
                                    confMaxReflDist               : mainConfiguration.confmaxrefldist,
                                    confDiffVertical              : mainConfiguration.confdiffvertical,
@@ -1277,7 +1300,7 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
             ],
                     stepsProgress)
             if(nbReceivers == 1) {
-                logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), "SELECT '$posSol' pos_sol, * FROM RECEIVERS_LEVEL ORDER BY IDRECEIVER, PERIOD" as String, 120));
+                logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), "SELECT '$posSol' pos_sol, * FROM RECEIVERS_LEVEL ORDER BY IDRECEIVER, PERIOD" as String, 120))
             }
         }
     } else {
@@ -1286,14 +1309,13 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                tableSources                  : "LW_ROADS",
                                tableReceivers                : "RECEIVERS_FILTERED",
                                tableDEM                      : "DEM_ENRICHED",
-                               tableGroundAbs                : "LANDCOVER",
+                               tableGroundAbs                : "LANDCOVER_ENRICHED",
                                tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
                                confReflOrder                 : mainConfiguration.confreflorder,
                                confMaxSrcDist                : mainConfiguration.confmaxsrcdist,
                                confMaxReflDist               : mainConfiguration.confmaxrefldist,
                                confDiffVertical              : mainConfiguration.confdiffvertical,
                                confDiffHorizontal            : mainConfiguration.confdiffhorizontal,
-                               confMinWallReflDist           : 0.2, // ignore reflection distance, buildings receiver are at 0.1 m from facades,
                                configuration_name            : configurationName,
                                key_password                  : keyPassword,
                                slurm_task_count              : slurmTaskCount
@@ -1318,15 +1340,11 @@ static def processLandCover(Map input,Connection pgConnection, String extraction
         FROM cbs_uge_input.c_naturesol_${input.projectionName} 
         WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry) AND NATSOL_CNO > 0"""
 
-    try( Statement st = pgConnection.createStatement() ;
+    try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(landCoverQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LANDCOVER", true, batchSize)
     }
-    // Fetch train tracks
-    try( Statement st = pgConnection.createStatement() ;
-         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry)""" as String)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
-    }
+
     // Apply projection to the table (if issues with copy or table is empty)
     def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
     DataBaseUtilities.parseScript("CALL UpdateGeometrySRID('LANDCOVER', 'THE_GEOM', $srid)", h2Connection, new EmptyProgressVisitor(), logger)
@@ -1360,7 +1378,7 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         FROM cbs_uge_input.nm_stations_${input.projectionName} a
         ORDER BY a.the_geom <-> ST_GeomFromEWKT('$locationWKT') LIMIT 1
     """
-    try( Statement st = pgConnection.createStatement() ;
+    try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(atmosphericQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ATMOSPHERIC", true, batchSize)
     }
@@ -1425,7 +1443,7 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
     def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid = '$uueid' AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
-    try( Statement st = pgConnection.createStatement() ;
+    try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
     }
@@ -1434,7 +1452,7 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
 static void generateDebugReceiver(Connection h2Connection, Map input){
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM")
     // receiver_rays could be a multipoint
     DataBaseUtilities.parseScript("""
             DROP TABLE IF EXISTS RECEIVERS_FILTERED, DEBUG_RECEIVER;            
@@ -1463,7 +1481,7 @@ static boolean GenerateReceiversFiltered(Connection h2Connection, Logger logger,
     // Filter receivers only reachable from the roads geometries
 
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM");
+            GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM")
 
     logger.info("Receivers before filtering {}", h2Sql.firstRow("SELECT COUNT(*) FROM RECEIVERS")[0])
 
@@ -1498,7 +1516,7 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
                 LEFT JOIN cbs_uge_input.c_batimentsensible_${projectionName} bs ON s.iderps = bs.iderps
              WHERE ST_Intersects(b.geom3d, '${extractionEnvelopeGeometry}'::geometry)"""
 
-    try( Statement st = pgConnection.createStatement() ;
+    try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(tableQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS", true, batchSize)
     }
@@ -1509,7 +1527,7 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
 
     def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
-    try( Statement st = pgConnection.createStatement() ;
+    try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(noiseBarrierQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS_BARRIERS", true, batchSize)
     }
@@ -1517,32 +1535,6 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
     //remove constraint on geometry type
     // add barriers with densification 1 meter (will follow the dem)
     // remove Z of buildings (will use HEIGHT field)
-    def insertBarriersSql = """
-
-        -- Never use the PolygonZ of buildings, always use the HEIGHT field
-        UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM);
-
-        ALTER TABLE BUILDINGS_BARRIERS ADD COLUMN G float DEFAULT 0;
-    
-        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE propriete = '01';
-        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
-        
-        DROP TABLE IF EXISTS BUILDINGS_BARRIER_EXPLODED;
-        CREATE TABLE BUILDINGS_BARRIER_EXPLODED AS SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, 1)) the_geom, height, G, idprotacou FROM BUILDINGS_BARRIERS)');
-        -- Some acoustics barriers may have invalid PolygonZ, in this case we will use the barrier height
-        UPDATE BUILDINGS_BARRIER_EXPLODED SET THE_GEOM = ST_Force2D(THE_GEOM) 
-        WHERE ST_ZMIN(THE_GEOM) < -999 
-        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0);
-        
-        -- Use generic type in order to mix polygon and linestring
-        ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
-        -- Add origin column, road is acoustic protection along roads
-        ALTER TABLE BUILDINGS ADD COLUMN origin varchar DEFAULT 'building';
-        INSERT INTO BUILDINGS(the_geom, height, G, origin, pop, idbat, bat_idtopo) SELECT the_geom, height, G, 'road', 0, '', idprotacou from BUILDINGS_BARRIER_EXPLODED;
-        
-        DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
-        """
-
     DataBaseUtilities.parseScript("""
 
         -- Never use the PolygonZ of buildings, always use the HEIGHT field
@@ -1578,6 +1570,7 @@ static Map getDeptCodeFromExt() {
 
 @CompileStatic
 static void runSqlQuery(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
+    // We use Thread.currentThread().getName() because it holds the current JOBID
     Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     DataBaseUtilities.parseScript(query, connection, progressVisitor, logger)
 }
