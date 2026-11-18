@@ -1212,7 +1212,7 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
 
     // Fetch train tracks
     try( Statement st = pgConnection.createStatement()
-         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry)""" as String)) {
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry) and not istunnel and bridge = ''""" as String)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
     }
 
