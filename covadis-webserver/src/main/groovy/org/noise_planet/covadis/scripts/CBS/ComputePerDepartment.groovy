@@ -110,22 +110,24 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         def codeDeptToNuts = ComputePerUUEID.fetchCodeDeptToNutsMap(sql)
 
         def tempDirectory = File.createTempDir()
+        String databaseName = "h2_${input.department}_" + System.currentTimeSeconds()
         // Create a local H2 database for this task
         DataSource h2DataSource = DatabaseManagement.createH2DataSource(tempDirectory.getAbsolutePath(),
-                "h2_${input.department}", "sa", "sa", "", true)
+                databaseName, "sa", "sa", "", true)
         logger.info("Create database for department ${input.department} in directory: $tempDirectory")
-        ComputePerUUEID.copyConfigurationTables(h2DataSource, connection)
+        try {
+            ComputePerUUEID.copyConfigurationTables(h2DataSource, connection)
 
-        computeForDepartment(input.department as String, h2DataSource, pgConnection, progress, input, mainConfiguration, codeDeptToNuts)
+            computeForDepartment(input.department as String, h2DataSource, pgConnection, progress, input, mainConfiguration, codeDeptToNuts)
 
-        ComputePerUUEID.copyRaysTableToMainConnection(h2DataSource, input, connection)
-
-        // Delete the database file
-        if (h2DataSource instanceof Closeable) {
-            ((Closeable) h2DataSource).close()
+            ComputePerUUEID.copyRaysTableToMainConnection(h2DataSource, input, connection)
+        } finally {
+            // Delete the database file
+            if (h2DataSource instanceof Closeable) {
+                ((Closeable) h2DataSource).close()
+            }
+            new File(tempDirectory, "${databaseName}.mv.db").delete()
         }
-        new File(tempDirectory, "h2_${input.department}.mv.db").delete()
-
         // Return results
         return [result: "OK"]
     }

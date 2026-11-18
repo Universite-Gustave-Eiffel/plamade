@@ -44,10 +44,10 @@ inputs = [
                 type         : String.class
         ],
         uueid_pattern : [
-                title      : "UUEID pattern",
-                name       : "UUEID pattern",
-                description: "UUEID pattern on roads to extract. eg. RD_FR_00_044% <p>A percent sign % - represents zero, one, or multiple characters</p>" +
-                        "<p>A underscore sign _ - represents a single character</p>",
+                title      : "UUEID(s)",
+                name       : "UUEID(s)",
+                description: "UUEID pattern on roads/rails to compute. eg. RD_FR_00_044% <p>A percent sign % - represents zero, one, or multiple characters.</p>" +
+                        "<p>A underscore sign _ - represents a single character</p><p>Or a list of UUEID separated by comma</p>",
                 type       : String.class
         ],
         conf          : [
@@ -141,10 +141,14 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         Map<String, String> codeDeptToNuts = fetchCodeDeptToNutsMap(sql)
 
 
+        // Collect the list of UUEID to compute
         List<String> uueids = new ArrayList<>()
-        sql.rows("SELECT DISTINCT uueid from cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '${input.uueid_pattern}'" as String).each {
-            row ->
-                uueids.add(row.uueid as String)
+        if((input.uueid_pattern as String).contains(",")) {
+            (input.uueid_pattern as String).split(",").stream().forEach {
+                listUUEID(it.trim() as String, sql, input, uueids)
+            }
+        } else {
+            listUUEID(input.uueid_pattern as String, sql, input, uueids)
         }
         ProgressVisitor stepsProgress = progress.subProcess(uueids.size()) // long running sub tasks
 
@@ -175,6 +179,17 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
 
+}
+
+static void listUUEID(String uueid, Sql sql, Map input, ArrayList<String> idList) {
+    if (uueid.contains("%") || uueid.contains("_")) {
+        sql.rows("SELECT DISTINCT uueid from cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid LIKE '$uueid' UNION SELECT DISTINCT uueid from cbs_uge_input.n_ferroviaire_ligne WHERE uueid LIKE '$uueid'" as String).each {
+            row ->
+                idList.add(row.uueid as String)
+        }
+    } else {
+        idList.add(uueid)
+    }
 }
 
 static void copyRaysTableToMainConnection(HikariDataSource h2DataSource, Map input, Connection connection) {
