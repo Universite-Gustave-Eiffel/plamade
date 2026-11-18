@@ -17,7 +17,6 @@ import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.noise_planet.noisemodelling.jdbc.utils.DataBaseUtilities
 import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
-import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
 import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_Landcover_with_rail
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source
@@ -344,16 +343,17 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
  * @param posSol Infrastructure position filter
  */
 static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
         // Merge rays table
         try(Connection h2Connection = h2DataSource.getConnection()) {
             def h2Sql = new Sql(h2Connection)
             if (!JDBCUtilities.tableExists(h2Connection, "RAYS_MERGED")) {
-                h2Sql.execute("""
+                DataBaseUtilities.parseScript("""
                             ALTER TABLE RAYS RENAME TO RAYS_MERGED;
                             ALTER TABLE RAYS_MERGED ADD COLUMN POS_SOL VARCHAR(5);
                             UPDATE RAYS_MERGED SET POS_SOL = '$posSol';
-                       """ as String)
+                       """, h2Connection, new EmptyProgressVisitor(), logger)
             } else {
                 List<String> fields = JDBCUtilities.getColumnNames(h2Connection, "RAYS")
                 // Will use the auto increment for the field PK in order to avoid conflicts
@@ -361,9 +361,9 @@ static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
                 String fieldsSelect = fields.collect { "RAYS.$it" }.join(", ")
                 fields.add("POS_SOL")
                 String fieldsNames = fields.join(", ")
-                h2Sql.execute("""
+                DataBaseUtilities.parseScript("""
                             INSERT INTO RAYS_MERGED($fieldsNames) SELECT $fieldsSelect, '$posSol' FROM RAYS;
-                            """ as String)
+                            """, h2Connection, new EmptyProgressVisitor(), logger)
             }
         }
     }
@@ -376,11 +376,12 @@ static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
  * @param projectionName Projection name ex: hexa
  */
 static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, String uueid, String nutsCode, String projectionName) {
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     boolean tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.facade_expo_$projectionName")
     if(tableExists) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.facade_expo_$projectionName WHERE uueid = '$uueid';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
     try( Statement st = h2Connection.createStatement() ;
@@ -391,20 +392,20 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
 
     if(!tableExists) {
         // Create index
-        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+        DataBaseUtilities.parseScript("""            
             CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName USING GIST (the_geom);
             CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName (uueid);
             CREATE INDEX ON cbs_uge_output.facade_expo_$projectionName (idbat);
             ALTER TABLE cbs_uge_output.facade_expo_$projectionName OWNER TO cbs_uge_group;
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
 
     }
 
     tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.expo")
     if(tableExists) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.expo WHERE uueid = '$uueid';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
     try( Statement st = h2Connection.createStatement() ;
          ResultSet rs = st.executeQuery("""SELECT CONCAT('${uueid}','_', NOISELEVEL) pk, '${nutsCode}' nutscode ,
@@ -416,21 +417,21 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
     }
     if(!tableExists) {
         // Create index
-        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+        DataBaseUtilities.parseScript("""            
             CREATE INDEX ON cbs_uge_output.expo (uueid);
             CREATE INDEX ON cbs_uge_output.expo (NUTSCODE);
             ALTER TABLE cbs_uge_output.expo ALTER COLUMN pk SET NOT NULL;
             ALTER TABLE cbs_uge_output.expo ADD PRIMARY KEY (pk);
             ALTER TABLE cbs_uge_output.expo OWNER TO cbs_uge_group;
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
 
     tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.expo_global")
     if(tableExists) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.expo_global WHERE uueid = '$uueid';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
     try( Statement st = h2Connection.createStatement() ;
          ResultSet rs = st.executeQuery("""SELECT '$uueid' uueid, '$nutsCode' nutscode , CPI, HA, HSD, TOTAL_POP FROM EXPO_GLOBAL""")) {
@@ -439,7 +440,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
     }
     if(!tableExists) {
         // Create index
-        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+        DataBaseUtilities.parseScript("""            
             ALTER TABLE cbs_uge_output.expo_global OWNER TO cbs_uge_group;
             COMMENT ON TABLE cbs_uge_output.expo_global IS 'Global exposure table for each infrastructure';
             COMMENT ON COLUMN cbs_uge_output.expo_global.uueid IS 'Unique Infrastructure Identifier';
@@ -448,7 +449,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             COMMENT ON COLUMN cbs_uge_output.expo_global.ha IS 'Nombre de personnes affectées par la forte gêne';
             COMMENT ON COLUMN cbs_uge_output.expo_global.hsd IS 'Nombre de personnes affectées par les fortes perturbations du sommeil';
             COMMENT ON COLUMN cbs_uge_output.expo_global.total_pop IS 'Population totale pour le calcul des indicateurs';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 }
 
@@ -745,12 +746,13 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
     Sql pgSql = new Sql(pgConnection)
     Sql h2Sql = new Sql(h2Connection)
     int batchSize = 100
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM");
 
     if (!JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.CBS_$projectionName")) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             CREATE TABLE cbs_uge_output.CBS_$projectionName (
                 the_geom ${metaData.getSQL()},
                 cbstype varchar,
@@ -764,12 +766,12 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
             CREATE INDEX ON cbs_uge_output.CBS_$projectionName USING GIST (the_geom);
             CREATE INDEX ON cbs_uge_output.CBS_$projectionName (uueid);
             ALTER TABLE cbs_uge_output.CBS_$projectionName OWNER TO cbs_uge_group;
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
-    new Execute_Query().exec(pgConnection, [sqlQueries: """
+    DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.CBS_$projectionName WHERE uueid = '$uueid';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
 
     def insertSql = """
         INSERT INTO cbs_uge_output.CBS_$projectionName
@@ -833,13 +835,14 @@ static def generateIsoCaseStatement(String period, String isoClass) {
  * @param codeDeptToNuts Mapping of department codes to NUTS codes
  */
 static def generateRoadsCBS(Connection h2Connection, ProgressVisitor progress) {
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     ProgressVisitor stepsProgress = progress.subProcess(2)
 
     // Prepare Noise Level Tables
     setupResultTables(h2Connection)
 
     // Generate the 4 CBS Maps
-    new Execute_Query().exec(h2Connection, [sqlQueries: "DROP TABLE IF EXISTS ISOPHONES;", outputFormat: "json"], new EmptyProgressVisitor())
+    DataBaseUtilities.parseScript("DROP TABLE IF EXISTS ISOPHONES;", h2Connection, new EmptyProgressVisitor(), logger)
 
     // CBS A - Day/Evening/Night
     processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
@@ -861,6 +864,7 @@ static def generateRoadsCBS(Connection h2Connection, ProgressVisitor progress) {
  * @param h2Connection The database connection
  */
 static void setupResultTables(Connection h2Connection) {
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     def sql = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_MERGED, RECEIVERS_LEVEL_NIGHT_MERGED;
         CREATE TABLE RECEIVERS_LEVEL_DEN_MERGED AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE PERIOD='DEN';
@@ -870,7 +874,7 @@ static void setupResultTables(Connection h2Connection) {
         ALTER TABLE RECEIVERS_LEVEL_NIGHT_MERGED ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
         ALTER TABLE RECEIVERS_LEVEL_NIGHT_MERGED ADD PRIMARY KEY (IDRECEIVER);
     """
-    new Execute_Query().exec(h2Connection, [sqlQueries: sql, outputFormat: "json"], new EmptyProgressVisitor())
+    DataBaseUtilities.parseScript(sql, h2Connection, new EmptyProgressVisitor(), logger)
 }
 
 static def generateIsoClassSql(String fieldName, String rangeStr) {
@@ -914,14 +918,15 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
  * @param progress Progression instance
  */
 private static void processIsoContouring(Connection conn, ProgressVisitor progress, String sourceTable, String isoClass, String period, String cbsType, String filter) {
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     String noiseLevelExpr = generateIsoCaseStatement(period, isoClass);
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(conn, sourceTable, "THE_GEOM");
     // Initialize ISOPHONES table if not exists
-    new Execute_Query().exec(conn, [sqlQueries: """CREATE TABLE IF NOT EXISTS ISOPHONES
+    DataBaseUtilities.parseScript("""CREATE TABLE IF NOT EXISTS ISOPHONES
                 (the_geom GEOMETRY(MULTIPOLYGONZ, ${metaData.getSRID()}),
                  PERIOD varchar, NOISELEVEL varchar, AREA float, cbstype varchar, typesource varchar);
-                """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+                """, conn, new EmptyProgressVisitor(), logger)
 
 
     // Execute Isosurface creation for standard receivers
@@ -935,7 +940,7 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
     def caseWhenSql = generateIsoClassSql("MIN(LAEQ)", isoClass)
 
     // Insert results into ISOPHONES
-    new Execute_Query().exec(conn, [sqlQueries: """
+    DataBaseUtilities.parseScript("""
         -- Fetch the minimum level for each buildings
         DROP TABLE IF EXISTS BUILDINGS_MINIMUM_LEVEL;
         CREATE TABLE BUILDINGS_MINIMUM_LEVEL(build_pk int not null primary key, isolabel varchar) AS SELECT build_pk, $caseWhenSql MIN_LAEQ FROM $sourceTable S 
@@ -952,7 +957,7 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
         GROUP BY ISOLABEL;
         -- Remove isophones with null values in noiselevel
         DELETE FROM ISOPHONES WHERE noiselevel IS NULL;
-    """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+    """, conn, new EmptyProgressVisitor(), logger)
 }
 
 static String getRoadsLevelsTableName(String posSol) {
@@ -1027,20 +1032,18 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
 
     // Create a building table with KEEP field associated with with buildings with population or linked with erps
     // we will compute all the buildings, but remove receivers afterwards if the building is not erps or hold population
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", """
+    DataBaseUtilities.parseScript("""
             DROP TABLE IF EXISTS BUILDINGS_FOR_EXPOSURE;
             -- Filter buildings and force 2D as there is accum and union of geometries in Building_Grid script, we can not mix 2D and 3D polygons
             CREATE TABLE BUILDINGS_FOR_EXPOSURE(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, HEIGHT FLOAT, KEEP BOOLEAN) AS SELECT PK, ST_Force2D(THE_GEOM) AS THE_GEOM, POP, HEIGHT, (nb_logts_c > 0 OR erps_nature IS NOT NULL) KEEP FROM BUILDINGS;
-        """ as String, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+        """, h2Connection, new EmptyProgressVisitor(), logger)
     def buildingsCountWithPop = h2Sql.firstRow("SELECT COUNT(*) CPT FROM BUILDINGS_FOR_EXPOSURE WHERE KEEP")[0] as Integer
     if(buildingsCountWithPop == 0) {
         logger.warn("No buildings with population found")
-        h2Sql.execute("""
+        DataBaseUtilities.parseScript("""
             CREATE TABLE RECEIVERS_BUILDINGS(PK INTEGER NOT NULL PRIMARY KEY, THE_GEOM GEOMETRY, POP FLOAT, BUILD_PK INTEGER);
             CREATE INDEX ON RECEIVERS_BUILDINGS(BUILD_PK);
-        """)
+        """, h2Connection, new EmptyProgressVisitor(), logger)
     } else {
         logger.info(ScriptUtilities.execScript(new Building_Grid(), h2Connection,
                 [tableBuilding: "BUILDINGS_FOR_EXPOSURE", delta: deltaBuildingsReceivers, height: 4, distance : distanceBuildingsReceiverFromFacade],
@@ -1056,15 +1059,13 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
                     }
         }
 
-        new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", """
+        DataBaseUtilities.parseScript("""
             -- Remove receivers not associated with a building not concerned by exposure computation
             DELETE FROM RECEIVERS WHERE build_pk NOT IN (SELECT B.PK FROM BUILDINGS_FOR_EXPOSURE B WHERE B.KEEP = TRUE);
             DROP TABLE IF EXISTS RECEIVERS_BUILDINGS;
             -- Rename receivers of buildings
             ALTER TABLE RECEIVERS RENAME TO RECEIVERS_BUILDINGS;            
-        """),
-            new EmptyProgressVisitor())
+        """, h2Connection, new EmptyProgressVisitor(), logger)
     }
 
     logger.info(ScriptUtilities.formatSqlQueryResult(h2Sql, "SELECT MIN(NBRECEIVERS) MIN_RECEIVERS, AVG(NBRECEIVERS) AVG_RECEIVERS, MAX(NBRECEIVERS) MAX_RECEIVERS, SUM(NBRECEIVERS) ALL_RECEIVERS FROM (SELECT build_pk, COUNT(PK) NBRECEIVERS FROM RECEIVERS_BUILDINGS GROUP BY build_pk)", 120))
@@ -1092,8 +1093,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "TRIANGLES", "THE_GEOM");
 
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", """
+    DataBaseUtilities.parseScript("""
             -- Create index
             CREATE INDEX ON TRIANGLES(PK_1);
             CREATE INDEX ON TRIANGLES(PK_2);
@@ -1134,8 +1134,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             CREATE SPATIAL INDEX ON RECEIVERS(THE_GEOM);
             ALTER TABLE RECEIVERS ALTER COLUMN PK INTEGER NOT NULL;
             ALTER TABLE RECEIVERS ADD PRIMARY KEY (PK);
-        """ as String, "outputFormat", "html"),
-            new EmptyProgressVisitor())
+        """, h2Connection, new EmptyProgressVisitor(), logger)
 }
 
 static void fetchAllRoadsUsingUUEID(Map input, String uueid, Connection pgConnection, Connection h2Connection) {
@@ -1170,6 +1169,7 @@ def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connect
 }
 
 static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> bdAltiTableName, Connection pgConnection, Connection h2Connection, String extractionEnvelopeGeometry, Map input) {
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     ProgressVisitor subProgress = stepsProgress.subProcess(bdAltiTableName.size())
 
     def xyPrecision = 2
@@ -1196,9 +1196,10 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
         DROP TABLE OROGRAPHIC;            
         """
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+    DataBaseUtilities.parseScript("""
+        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
+        DROP TABLE OROGRAPHIC;            
+        """, h2Connection, new EmptyProgressVisitor(), logger)
 
     def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
          FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0 AND position_par_rapport_au_sol = '0'"""
@@ -1213,9 +1214,10 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
         INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
         DROP TABLE HYDROGRAPHIC;            
         """
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", insertHydroQuery, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+    DataBaseUtilities.parseScript("""
+        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
+        DROP TABLE HYDROGRAPHIC;            
+        """, h2Connection, new EmptyProgressVisitor(), logger)
 }
 
 static enrichDem(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String extractionEnvelopeGeometry) {
@@ -1301,11 +1303,11 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
     // Rename output table
     def outputTableName = getRoadsLevelsTableName(posSol)
     try(Connection h2Connection = h2DataSource.getConnection()) {
-        new Sql(h2Connection).execute("""
+        DataBaseUtilities.parseScript("""
         DROP TABLE IF EXISTS $outputTableName;
         ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName;
         CREATE INDEX ON $outputTableName ("IDRECEIVER", "PERIOD");
-    """ as String)
+    """, h2Connection, new EmptyProgressVisitor(), logger)
     }
 }
 
@@ -1327,7 +1329,7 @@ static def processLandCover(Map input,Connection pgConnection, String extraction
     }
     // Apply projection to the table (if issues with copy or table is empty)
     def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
-    new Sql(h2Connection).execute("CALL UpdateGeometrySRID('LANDCOVER', 'THE_GEOM', $srid)")
+    DataBaseUtilities.parseScript("CALL UpdateGeometrySRID('LANDCOVER', 'THE_GEOM', $srid)", h2Connection, new EmptyProgressVisitor(), logger)
 
     // Update landcover with train tracks
     ScriptUtilities.execScript(new Enrich_Landcover_with_rail(),h2Connection, [
@@ -1430,15 +1432,15 @@ def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Co
 }
 
 static void generateDebugReceiver(Connection h2Connection, Map input){
-    Sql sql = new Sql(h2Connection)
+    Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "RECEIVERS", "THE_GEOM");
     // receiver_rays could be a multipoint
-    sql.execute("""
+    DataBaseUtilities.parseScript("""
             DROP TABLE IF EXISTS RECEIVERS_FILTERED, DEBUG_RECEIVER;            
             CREATE TABLE DEBUG_RECEIVER(THE_GEOM GEOMETRY) AS SELECT '${input.receiver_rays}'::geometry;
             CREATE TABLE RECEIVERS_FILTERED(pk int not null primary key, the_geom ${metaData.getSQL()}, REFL_IGNOR double) AS SELECT EXPLOD_ID, THE_GEOM, 0 FROM ST_EXPLODE('DEBUG_RECEIVER');
-        """ as String)
+        """, h2Connection, new EmptyProgressVisitor(), logger)
 }
 
 /**
@@ -1500,12 +1502,10 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
          ResultSet rs = st.executeQuery(tableQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS", true, batchSize)
     }
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", """
+    DataBaseUtilities.parseScript("""
                 CREATE SPATIAL INDEX ON BUILDINGS (THE_GEOM);
                 ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;
-                """ as String, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+                """, h2Connection, new EmptyProgressVisitor(), logger)
 
     def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
 
@@ -1543,9 +1543,31 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
         DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
         """
 
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", insertBarriersSql, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+    DataBaseUtilities.parseScript("""
+
+        -- Never use the PolygonZ of buildings, always use the HEIGHT field
+        UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM);
+
+        ALTER TABLE BUILDINGS_BARRIERS ADD COLUMN G float DEFAULT 0;
+    
+        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE propriete = '01';
+        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
+        
+        DROP TABLE IF EXISTS BUILDINGS_BARRIER_EXPLODED;
+        CREATE TABLE BUILDINGS_BARRIER_EXPLODED AS SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, 1)) the_geom, height, G, idprotacou FROM BUILDINGS_BARRIERS)');
+        -- Some acoustics barriers may have invalid PolygonZ, in this case we will use the barrier height
+        UPDATE BUILDINGS_BARRIER_EXPLODED SET THE_GEOM = ST_Force2D(THE_GEOM) 
+        WHERE ST_ZMIN(THE_GEOM) < -999 
+        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0);
+        
+        -- Use generic type in order to mix polygon and linestring
+        ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
+        -- Add origin column, road is acoustic protection along roads
+        ALTER TABLE BUILDINGS ADD COLUMN origin varchar DEFAULT 'building';
+        INSERT INTO BUILDINGS(the_geom, height, G, origin, pop, idbat, bat_idtopo) SELECT the_geom, height, G, 'road', 0, '', idprotacou from BUILDINGS_BARRIER_EXPLODED;
+        
+        DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
+        """, h2Connection, new EmptyProgressVisitor(), logger)
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "BUILDINGS", pkName: "PK"], stepsProgress)
 }
@@ -1557,5 +1579,5 @@ static Map getDeptCodeFromExt() {
 @CompileStatic
 static void runSqlQuery(Connection connection, String query, ProgressVisitor progressVisitor = new EmptyProgressVisitor()) {
     Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
-    logger.info(ScriptUtilities.execScript(new Execute_Query(),connection, [sqlQueries: query, "outputFormat" : "JSON"], progressVisitor) as String)
+    DataBaseUtilities.parseScript(query, connection, progressVisitor, logger)
 }

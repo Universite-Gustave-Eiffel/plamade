@@ -14,9 +14,8 @@ import org.locationtech.jts.geom.GeometryFactory
 import org.locationtech.jts.io.twkb.TWKBWriter
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.jdbc.utils.DataBaseUtilities
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
-import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
-import org.noise_planet.noisemodelling.scripts.Geometric_Tools.Enrich_DEM_with_road
 import org.noise_planet.noisemodelling.webserver.database.DatabaseManagement
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -278,11 +277,12 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
  * @param projectionName Projection name ex: hexa
  */
 static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, String department, String nutsCode, String projectionName) {
+    Logger logger = LoggerFactory.getLogger(ComputePerDepartment.class)
     boolean tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.facade_expo_dept_$projectionName")
     if(tableExists) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.facade_expo_dept_$projectionName WHERE insee_dep = '$department';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
     try( Statement st = h2Connection.createStatement() ;
@@ -293,21 +293,21 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
 
     if(!tableExists) {
         // Create index
-        new Execute_Query().exec(pgConnection, [sqlQueries: """            
+        DataBaseUtilities.parseScript("""            
             CREATE INDEX ON cbs_uge_output.facade_expo_dept_$projectionName USING GIST (the_geom);
             CREATE INDEX ON cbs_uge_output.facade_expo_dept_$projectionName (insee_dep);
             CREATE INDEX ON cbs_uge_output.facade_expo_dept_$projectionName (idbat);
             ALTER TABLE cbs_uge_output.facade_expo_dept_$projectionName OWNER TO cbs_uge_group;
             COMMENT ON TABLE cbs_uge_output.facade_expo_dept_$projectionName IS 'Contains the noise levels on receivers placed on the facade of buildings for each department.';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
 
     }
 
     tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.expo_dept")
     if(tableExists) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.expo_dept WHERE insee_dep = '$department' and typesource = 'R';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
     try( Statement st = h2Connection.createStatement() ;
          ResultSet rs = st.executeQuery("""SELECT CONCAT('${department}', '_R_', NOISELEVEL) pk,'R' as typesource, '${nutsCode}' nutscode ,
@@ -319,21 +319,21 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
     }
     if(!tableExists) {
         // Create index
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             CREATE INDEX ON cbs_uge_output.expo_dept(insee_dep);       
             ALTER TABLE cbs_uge_output.expo_dept ALTER COLUMN pk SET NOT NULL;
             ALTER TABLE cbs_uge_output.expo_dept ADD PRIMARY KEY (pk);
             ALTER TABLE cbs_uge_output.expo_dept OWNER TO cbs_uge_group;
             COMMENT ON TABLE cbs_uge_output.expo_dept IS 'Assessment of health risks (HA, HSD) associated with exposure to transportation noise for each noise levels';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
 
     tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.expo_global_dept")
     if(tableExists) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.expo_global_dept WHERE insee_dep = '$department';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
     try( Statement st = h2Connection.createStatement() ;
          ResultSet rs = st.executeQuery("""SELECT '$department' insee_dep, '$nutsCode' as NUTSCODE , CPI, HA, HSD, TOTAL_POP FROM EXPO_GLOBAL""")) {
@@ -342,7 +342,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
     }
     if(!tableExists) {
         // Create index, set insee_dep as primary key
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             COMMENT ON TABLE cbs_uge_output.expo_global_dept IS 'Global exposure table for each department';
             COMMENT ON COLUMN cbs_uge_output.expo_global_dept.insee_dep IS 'Department Code';
             COMMENT ON COLUMN cbs_uge_output.expo_global_dept.nutscode IS 'NUTS Code';
@@ -353,7 +353,7 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             ALTER TABLE cbs_uge_output.expo_global_dept ALTER COLUMN insee_dep SET NOT NULL;
             ALTER TABLE cbs_uge_output.expo_global_dept ADD PRIMARY KEY (insee_dep);            
             ALTER TABLE cbs_uge_output.expo_global_dept OWNER TO cbs_uge_group;
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 }
 
@@ -362,12 +362,13 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String de
     Sql pgSql = new Sql(pgConnection)
     Sql h2Sql = new Sql(h2Connection)
     int batchSize = 100
+    Logger logger = LoggerFactory.getLogger(ComputePerDepartment.class)
 
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM");
 
     if (!JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.CBS_DEPT_$projectionName")) {
-        new Execute_Query().exec(pgConnection, [sqlQueries: """
+        DataBaseUtilities.parseScript("""
             CREATE TABLE cbs_uge_output.CBS_DEPT_$projectionName (
                 pk varchar not null primary key,
                 the_geom ${metaData.getSQL()},
@@ -379,12 +380,12 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String de
             CREATE INDEX ON cbs_uge_output.CBS_DEPT_$projectionName USING GIST (the_geom);
             CREATE INDEX ON cbs_uge_output.CBS_DEPT_$projectionName (insee_dep);
             ALTER TABLE cbs_uge_output.CBS_DEPT_$projectionName OWNER TO cbs_uge_group;
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
     }
 
-    new Execute_Query().exec(pgConnection, [sqlQueries: """
+    DataBaseUtilities.parseScript("""
             DELETE FROM cbs_uge_output.CBS_DEPT_$projectionName WHERE insee_dep = '$department';
-        """ as String, outputFormat: "json"], new EmptyProgressVisitor())
+        """, pgConnection, new EmptyProgressVisitor(), logger)
 
     def insertSql = """
         INSERT INTO cbs_uge_output.CBS_DEPT_$projectionName
