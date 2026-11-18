@@ -18,7 +18,6 @@ import org.h2gis.api.ProgressVisitor
 import org.h2gis.utilities.JDBCUtilities
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
-import org.noise_planet.noisemodelling.pathfinder.profilebuilder.ProfileBuilder
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
 import org.noise_planet.noisemodelling.scripts.NoiseModelling.Railway_Emission_from_Traffic
 import org.slf4j.Logger
@@ -27,7 +26,6 @@ import org.slf4j.LoggerFactory
 import javax.sql.DataSource
 import java.sql.Connection
 import java.sql.ResultSet
-
 
 title = 'Create trains sounds sources table in PostGIS database'
 description = 'Create trains sounds sources table in PostGIS database'
@@ -78,8 +76,8 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                         PostGISUtilities.copyResultSetToDatabase(connection, resultSet, pgConnection, "cbs_uge_output.ferroviaire_troncon_hexa", true, batchSize);
                 }
                 new Execute_Query().exec(pgConnection, [sqlQueries: """            
-                    CREATE INDEX ON cbs_uge_output.ferroviaire_emission_hexa (THE_GEOM) USING GIST;
-                    CREATE INDEX ON cbs_uge_output.ferroviaire_troncon_hexa (THE_GEOM) USING GIST;                    
+                    CREATE INDEX ON cbs_uge_output.ferroviaire_emission_hexa  USING GIST (THE_GEOM);
+                    CREATE INDEX ON cbs_uge_output.ferroviaire_troncon_hexa  USING GIST (THE_GEOM);                    
                     ALTER TABLE cbs_uge_output.ferroviaire_emission_hexa OWNER TO cbs_uge_group;                   
                     ALTER TABLE cbs_uge_output.ferroviaire_troncon_hexa OWNER TO cbs_uge_group;
                 """ as String, outputFormat: "json"], new EmptyProgressVisitor())

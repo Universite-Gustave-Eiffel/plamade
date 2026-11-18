@@ -14,6 +14,7 @@ import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.io.twkb.TWKBWriter
 import org.noise_planet.covadis.webserver.database.PostGISUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.jdbc.utils.DataBaseUtilities
 import org.noise_planet.noisemodelling.scripts.Acoustic_Tools.Create_Isosurface
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Add_Primary_Key
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Execute_Query
@@ -1263,7 +1264,7 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                                    tableSources                  : "LW_ROADS",
                                    tableReceivers                : "RECEIVERS_FILTERED",
                                    tableDEM                      : "DEM_ENRICHED",
-                                   tableGroundAbs                : "LANDCOVER",
+                                   tableGroundAbs                : "LANDCOVER_ENRICHED",
                                    tablePeriodAtmosphericSettings: "ATMOSPHERIC_SETTINGS",
                                    confReflOrder                 : 0,
                                    confMaxSrcDist                : mainConfiguration.confmaxsrcdist,
@@ -1321,7 +1322,7 @@ static def processLandCover(Map input,Connection pgConnection, String extraction
     }
     // Fetch train tracks
     try( Statement st = pgConnection.createStatement() ;
-         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)""" as String)) {
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry)""" as String)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
     }
     // Apply projection to the table (if issues with copy or table is empty)
@@ -1348,16 +1349,6 @@ static def processLandCover(Map input,Connection pgConnection, String extraction
  */
 static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection, Geometry location, Connection h2Connection, ProgressVisitor stepsProgress) {
     // tablePeriodAtmosphericSettings — Atmospheric settings table name for each time period
-    //
-    //    Name of the Atmospheric settings table The table must contain the following columns:
-    //
-    //        PERIOD : time period (VARCHAR PRIMARY KEY)
-    //        WINDROSE : probability of occurrences of favourable propagation conditions (ARRAY(16))
-    //        TEMPERATURE : Temperature in celsius (FLOAT)
-    //        PRESSURE : air pressure in pascal (FLOAT)
-    //        HUMIDITY : air humidity in percentage (FLOAT)
-    //        GDISC : choose between accept G discontinuity or not (BOOLEAN) default true
-    //        PRIME2520 : choose to use prime values to compute eq. 2.5.20 (BOOLEAN) default false
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch nearest atmospheric points periods for location: {}", location)
     String locationWKT = ValueGeometry.getFromGeometry(location).string
@@ -1376,7 +1367,7 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
     def distanceStation = sql.firstRow("SELECT distance_station FROM ATMOSPHERIC")
     logger.info("Distance of ${location} to nearest station: ${Math.round(distanceStation.distance_station as double)} m")
 
-    def generateAtmosphericSettingsQuery = """
+    DataBaseUtilities.parseScript("""
         DROP TABLE IF EXISTS ATMOSPHERIC_SETTINGS;
         CREATE TABLE ATMOSPHERIC_SETTINGS(
             PERIOD VARCHAR,
@@ -1387,7 +1378,7 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
             GDISC BOOLEAN DEFAULT TRUE,
             PRIME2520 BOOLEAN DEFAULT FALSE
         );
-        -- Insert time periods
+        -- Insert time periods for Atmospheric settings table
         INSERT INTO ATMOSPHERIC_SETTINGS (PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY)
         SELECT 
             'D', 
@@ -1422,11 +1413,7 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
         FROM ATMOSPHERIC;
 
         DROP TABLE ATMOSPHERIC;
-    """
-
-    new Execute_Query().exec(sql.connection,
-            Map.of("sqlQueries", generateAtmosphericSettingsQuery, "outputFormat", "json"),
-            new EmptyProgressVisitor())
+    """, h2Connection, new EmptyProgressVisitor(), logger)
 
     logger.info( ScriptUtilities.formatSqlQueryResult(sql, "SELECT PERIOD, WINDROSE, TEMPERATURE, PRESSURE, HUMIDITY FROM ATMOSPHERIC_SETTINGS", 120))
 

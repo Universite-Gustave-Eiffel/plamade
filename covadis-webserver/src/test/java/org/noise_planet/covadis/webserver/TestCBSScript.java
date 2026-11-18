@@ -5,7 +5,6 @@ import com.bedatadriven.jackson.datatype.jts.JtsModule;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zaxxer.hikari.HikariDataSource;
 import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
@@ -582,7 +581,7 @@ public class TestCBSScript extends JDBCTestCase {
 
 
     @Test
-    @Order(4)
+    @Order(3)
     public void testGenerateTrainSources() throws SQLException {
         assumePostGISAvailable();
 
