@@ -248,8 +248,9 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
             // Generate IsoContours
             // Convert 78 to 078 and A71 to A71
             def nutsCode = ""
+            def codeDept = department.length() < 3 ? department.padLeft(3, '0') : department
             try {
-                nutsCode = codeDeptToNuts.get(department.length() < 3 ? department.padLeft(3, '0') : department)
+                nutsCode = codeDeptToNuts.get(codeDept)
             } catch (NumberFormatException e) {
                 logger.error("Invalid department code: {}", department)
             }
@@ -259,7 +260,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
 
             ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
 
-            def cpi = pgSql.firstRow("SELECT (taux_incidence / 100000) cpi_per_person FROM cbs_uge_input.cpi WHERE codedept = '$nutsCode'").cpi_per_person as Double
+            def cpi = pgSql.firstRow("SELECT (taux_incidence / 100000) cpi_per_person FROM cbs_uge_input.cpi WHERE codedept = $codeDept").cpi_per_person as Double
             logger.info("CPI per person for department {}: {}", department, cpi)
             ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection, cpi)
 

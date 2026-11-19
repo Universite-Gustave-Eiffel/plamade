@@ -203,7 +203,7 @@ public class TestCBSScript extends JDBCTestCase {
 
     @Test
     @Order(2)
-    public void testGenerateSource() throws SQLException {
+    public void testGenerateRoadSource() throws SQLException {
         assumePostGISAvailable();
         ScriptUtilities.execScript(new Generate_roads_sources(), connection, Map.of("projectionName", "hexa"));
         try(Connection pgConnection = pgDataSource.getConnection()) {
@@ -582,7 +582,7 @@ public class TestCBSScript extends JDBCTestCase {
 
 
     @Test
-    @Order(3)
+    @Order(2)
     public void testGenerateTrainSources() throws SQLException {
         assumePostGISAvailable();
 

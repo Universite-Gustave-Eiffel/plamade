@@ -354,7 +354,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             generateBuildingsFacadeExpo(h2Connection)
 
 
-            def cpi = pgSql.firstRow("SELECT (taux_incidence / 100000) cpi_per_person FROM cbs_uge_input.CPI WHERE codedept = '$codeDept'").cpi_per_person as Double
+            def cpi = pgSql.firstRow("SELECT (taux_incidence / 100000) cpi_per_person FROM cbs_uge_input.CPI WHERE codedept = $codeDept").cpi_per_person as Double
             logger.info("CPI per person for department {}: {}", codeDept, cpi)
             generateExposureStatisticsFromFacadeExpo(h2Connection, cpi)
 
@@ -1248,7 +1248,7 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
 
     // Fetch train tracks
     try( Statement st = pgConnection.createStatement()
-         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry) where pos_sol = '0'""" as String)) {
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry) and pos_sol = '0'""" as String)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
     }
 
