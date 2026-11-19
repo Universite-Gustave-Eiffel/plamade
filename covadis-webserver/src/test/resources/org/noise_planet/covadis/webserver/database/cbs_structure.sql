@@ -589,8 +589,10 @@ CREATE TABLE cbs_uge_input.n_ferroviaire_troncon_l (
 	protectsup varchar(1) NULL,
 	jointrail varchar(1) NULL,
 	courbure varchar(1) NULL,
-	geom public.geometry NULL
+	geom public.geometry NULL,
+	pos_sol varchar(5) NULL
 );
+
 CREATE INDEX n_ferroviaire_troncon_l_geom ON cbs_uge_input.n_ferroviaire_troncon_l USING gist (geom);
 
 CREATE TABLE cbs_uge_input.n_ferroviaire_tunnel (
@@ -617,6 +619,14 @@ CREATE TABLE cbs_uge_input.n_ferroviaire_vitesse (
 	prfin varchar(8) NULL,
 	vitesse numeric NULL
 );
+
+
+CREATE TABLE cbs_uge_input.cpi (
+                                   codedept varchar NULL,
+                                   pop_dept numeric NULL,
+                                   taux_incidence numeric NULL
+);
+COMMENT ON TABLE cbs_uge_input.cpi IS 'taux de cardiopathies ischémiques calculés depuis table cpi_2023';
 
 CREATE INDEX nm_departement_2154_geom_idx ON cbs_uge_input.nm_departement_2154 USING gist (the_geom);
 CREATE INDEX nm_departement_2154_insee_dep_idx ON cbs_uge_input.nm_departement_2154 USING btree (insee_dep);

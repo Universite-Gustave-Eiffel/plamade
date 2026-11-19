@@ -285,10 +285,6 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
 
         processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection)
 
-        Sql h2Sql = new Sql(h2Connection)
-        def roadGeometry = h2Sql.firstRow("SELECT ST_Centroid(ST_ACCUM(the_geom)) FROM ROADS")[0] as Geometry
-
-        fetchAtmosphericPeriodFromStations(input, pgConnection, roadGeometry, h2Connection, stepsProgress)
     }
 
     def posSolQuery = """SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName
@@ -302,7 +298,11 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         logger.info("Compute for pos_sol = $posSol")
         boolean doCompute
         try(Connection h2Connection = h2DataSource.getConnection()) {
-            fetchRoads(input, pgConnection, uueid, h2Connection, posSol)
+            if(isRoadUUEID(uueid)) {
+                fetchTrafficSources(input, pgConnection, uueid, h2Connection, posSol)
+            } else {
+                fetchTrainSources(input, pgConnection, uueid, h2Connection, posSol)
+            }
             if( input.containsKey("receiver_rays") && (input.receiver_rays as String).length() > 0) {
                 doCompute = true
                 generateDebugReceiver(h2Connection, input)
@@ -316,7 +316,16 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
                 // Adapt the DEM with our special road/train infrastructure height platforms (overwrite dem points located at our sources lines)
-                enrichDem(input, h2Connection, pgConnection, solProgress, posSol, "uueid = '$uueid'")
+                Sql h2Sql = new Sql(h2Connection)
+                def sourcesCentroid
+                if(isRoadUUEID(uueid)) {
+                    enrichDemWithRoads(input, h2Connection, pgConnection, solProgress, posSol, "uueid = '$uueid'")
+                    sourcesCentroid = h2Sql.firstRow("SELECT ST_Centroid(ST_ACCUM(the_geom)) FROM LW_ROADS")[0] as Geometry
+                } else {
+                    enrichDemWithRails(input, h2Connection, pgConnection, solProgress, posSol, "uueid = '$uueid'")
+                    sourcesCentroid = h2Sql.firstRow("SELECT ST_Centroid(ST_ACCUM(the_geom)) FROM LW_TRAIN")[0] as Geometry
+                }
+                fetchAtmosphericPeriodFromStations(input, pgConnection, sourcesCentroid, h2Connection, stepsProgress)
             }
             // Run the simulation with this road height
             runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
@@ -343,13 +352,26 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             generateRoadsCBS(h2Connection, stepsProgress)
 
             generateBuildingsFacadeExpo(h2Connection)
-            generateExposureStatisticsFromFacadeExpo(h2Connection)
+
+
+            def cpi = pgSql.firstRow("SELECT (taux_incidence / 100000) cpi_per_person FROM cbs_uge_input.CPI WHERE codedept = '$codeDept'").cpi_per_person as Double
+            logger.info("CPI per person for department {}: {}", codeDept, cpi)
+            generateExposureStatisticsFromFacadeExpo(h2Connection, cpi)
 
             // Upload CBS Table to remote PostGIS database
             uploadCBS(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
             uploadIndicatorsTables(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
         }
     }
+}
+
+/**
+ * Check if the given UUEID represents a road
+ * @param uueid The UUEID to check
+ * @return true if the UUEID represents a road, false otherwise
+ */
+static boolean isRoadUUEID(String uueid) {
+    return uueid.toLowerCase().startsWith("rd")
 }
 
 /**
@@ -532,9 +554,9 @@ CREATE TABLE ROAD_NOISE_LEVEL_RANGES(cbstype varchar, period varchar, noiselevel
     return sql.toString()
 }
 
-static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection) {
+static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection, double cpiPerPersonPerYear) {
     // First compute statistics using 1dB step
-    generateExposureStatisticsByStep(h2Connection, 1.0)
+    generateExposureStatisticsByStep(h2Connection, 1.0, cpiPerPersonPerYear)
 
     // Create the expected ranges (5dB step) for the original EXPO
 
@@ -583,7 +605,7 @@ static def generateExposureStatisticsFromFacadeExpo(Connection h2Connection) {
     logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(h2Connection), """SELECT * FROM EXPO""" as String, 120))
 }
 
-static def generateExposureStatisticsByStep(Connection h2Connection, double step) {
+static def generateExposureStatisticsByStep(Connection h2Connection, double step, double cpiPerPersonPerYear) {
 
     def rangeSql = generateNoiseRangesSql(
             35.0,
@@ -677,12 +699,11 @@ static def generateExposureStatisticsByStep(Connection h2Connection, double step
                indicetype = 'LN' AND FE.LN >= noiselevel_start AND FE.LN < noiselevel_end), 0);
         """)
 
-    generateHealthStatistics(h2Connection)
+    generateHealthStatistics(h2Connection, cpiPerPersonPerYear)
 }
 
-static def generateHealthStatistics(Connection h2Connection) {
+static def generateHealthStatistics(Connection h2Connection, double cpiPerPersonPerYear) {
 
-    def cpiPerPersonPerYear = 0.001377
 
     runSqlQuery(h2Connection, """
         -- Compute RR
@@ -1227,7 +1248,7 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
 
     // Fetch train tracks
     try( Statement st = pgConnection.createStatement()
-         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry) and not istunnel and bridge = ''""" as String)) {
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE ST_Intersects(the_geom, '${extractionEnvelopeGeometry}'::geometry) where pos_sol = '0'""" as String)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
     }
 
@@ -1258,7 +1279,7 @@ static def fetchDemFromTableList(ProgressVisitor stepsProgress, HashSet<String> 
          """, h2Connection, new EmptyProgressVisitor(), logger)
 }
 
-static enrichDem(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String sqlFilterCondition) {
+static enrichDemWithRoads(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String sqlFilterCondition) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Adapting digital elevation model..")
     ProgressVisitor demProgress = stepsProgress.subProcess(2)
@@ -1276,6 +1297,20 @@ static enrichDem(Map input, Connection h2Connection, Connection pgConnection, Pr
     // Create a new DEM with road platforms
     def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
+}
+
+static enrichDemWithRails(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String sqlFilterCondition) {
+    Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
+    logger.info("Adapting digital elevation model..")
+
+    // Fetch rails table with altitude with the same pos_sol and envelope, already fetched enriched dem points from roads/rails will be removed
+    try( Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviaire_troncon_${input.projectionName} WHERE $sqlFilterCondition and not istunnel and bridge = ''""" as String)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "FERROVIAIRE_TRONCON", true, batchSize)
+    }
+
+    ScriptUtilities.execScript(new Enrich_DEM_with_rail(), h2Connection, [inputDEM: "DEM",
+                                                                          inputRail: "FERROVIAIRE_TRONCON"], new EmptyProgressVisitor())
 }
 
 static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSource, String posSol, ProgressVisitor stepsProgress) {
@@ -1454,13 +1489,22 @@ static def fetchAtmosphericPeriodFromStations(Map input, Connection pgConnection
 
 }
 
-def fetchRoads(Map input, Connection pgConnection, String uueid, Connection h2Connection, String posSol) {
+def fetchTrafficSources(Map input, Connection pgConnection, String uueid, Connection h2Connection, String posSol) {
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
     def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} WHERE uueid = '$uueid' AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
     try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(roadsQuery)) {
         PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
+    }
+}
+
+def fetchTrainSources(Map input, Connection pgConnection, String uueid, Connection h2Connection, String posSol) {
+    Logger logger = LoggerFactory.getLogger(this.class)
+    logger.info("Fetch train sources..")
+    try( Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery("""SELECT * FROM cbs_uge_output.ferroviere_emission_${input.projectionName} WHERE uueid = '$uueid' AND pos_sol='$posSol'""")) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_TRAIN", true, batchSize)
     }
 }
 

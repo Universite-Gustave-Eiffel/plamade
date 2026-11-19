@@ -226,7 +226,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         if(doCompute) {
             try(Connection h2Connection = h2DataSource.getConnection()) {
                 // Adapt the DEM with this special road/train infrastructure height platforms
-                ComputePerUUEID.enrichDem(input, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol, "ST_Intersects(geom, '$extractionEnvelopeGeometryWKT'::geometry)")
+                ComputePerUUEID.enrichDemWithRoads(input, h2Connection, pgConnection, new EmptyProgressVisitor(), posSol, "ST_Intersects(geom, '$extractionEnvelopeGeometryWKT'::geometry)")
             }
             // Run the simulation with this road height
             ComputePerUUEID.runSimulation(input, mainConfiguration, h2DataSource, posSol, solProgress)
@@ -259,7 +259,9 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
 
             ComputePerUUEID.generateBuildingsFacadeExpo(h2Connection)
 
-            ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection)
+            def cpi = pgSql.firstRow("SELECT (taux_incidence / 100000) cpi_per_person FROM cbs_uge_input.cpi WHERE codedept = '$nutsCode'").cpi_per_person as Double
+            logger.info("CPI per person for department {}: {}", department, cpi)
+            ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(h2Connection, cpi)
 
             // Upload CBS Table to remote PostGIS database
             uploadCBS(h2Connection, pgConnection, department, input.projectionName as String)
