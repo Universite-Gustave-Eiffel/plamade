@@ -116,7 +116,7 @@ static convertTrafficToNoiseSources(Connection connection) {
                         END) as impact,  
                         0::integer as curvature,
                         '' as bridge,
-                        idtunnel is not null as istunnel,
+                        pos_sol LIKE '-%' as istunnel,
                         VITESSE as comspd,
                         (CASE WHEN ligne.typeligne = '01' THEN 'SNCF' ELSE 'SNCF_LGV' END) as PLATFORM,
                         ligne.uueid,
@@ -124,7 +124,6 @@ static convertTrafficToNoiseSources(Connection connection) {
                     FROM N_ferroviaire_TRONCON_L T 
                      INNER JOIN N_ferroviaire_vitesse V ON (T.idtroncon = V.idtroncon)
                      INNER JOIN n_ferroviaire_ligne ligne ON (T.idligne = ligne.idligne)
-                     LEFT JOIN N_ferroviaire_tunnel tun ON (T.idtroncon = TUN.idtroncon)
                      LEFT JOIN N_ferroviaire_pont_metallique pmt ON (T.idtroncon = PMT.idtroncon);
                     CREATE UNIQUE INDEX ON RAILWAY_TRACK (IDSECTION);
                     

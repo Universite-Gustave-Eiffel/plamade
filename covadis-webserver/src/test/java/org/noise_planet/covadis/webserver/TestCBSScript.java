@@ -157,7 +157,6 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/c_correspond_batiment_batimentsensible_hexa.sql");
                     runSqlFile(pgConnection, "database/n_routier_protection_acoustique_hexa.sql");
                     runSqlFile(pgConnection, "database/c_naturesol_hexa.sql.zip");
-                    runSqlFile(pgConnection, "database/nm_link_dept_infra_road_hexa.sql.zip");
                     runSqlFile(pgConnection, "database/tiny_d091.sql.zip");
                     runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
@@ -344,7 +343,7 @@ public class TestCBSScript extends JDBCTestCase {
 
     @Test
     @Order(4)
-    public void testRunByUUEID() throws SQLException {
+    public void testRunRoadByUUEID() throws SQLException {
         assumePostGISAvailable();
 
        // Create SLURM Configuration
@@ -399,6 +398,33 @@ public class TestCBSScript extends JDBCTestCase {
 
     }
 
+
+    @Test
+    @Order(4)
+    public void testRunTrainByUUEID() throws SQLException {
+        assumePostGISAvailable();
+
+        // Create SLURM Configuration
+        SlurmConfig config = NoiseModellingHPCServerHttpTest.fetchSlurmConfigFromEnv();
+
+        new Write_HPC_Settings().exec(connection,
+                Map.of("configuration_name", "local",
+                        "host" , config.host,
+                        "port", config.port,
+                        "user", config.user,
+                        "key", config.sshKeyArmoredString
+                ), new EmptyProgressVisitor());
+
+        new ComputePerUUEID().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "uueid_pattern", "RL_FR_00_07800432",
+                        "conf", 1,
+                        "configuration_name", "local",
+                        "slurm_task_count", 1,
+                        "key_password", config.sshKeyPassword),
+                new EmptyProgressVisitor());
+
+    }
 
     @Test
     @Order(5)
