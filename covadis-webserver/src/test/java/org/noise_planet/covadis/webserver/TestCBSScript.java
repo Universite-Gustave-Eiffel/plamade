@@ -404,24 +404,10 @@ public class TestCBSScript extends JDBCTestCase {
     public void testRunTrainByUUEID() throws SQLException {
         assumePostGISAvailable();
 
-        // Create SLURM Configuration
-        SlurmConfig config = NoiseModellingHPCServerHttpTest.fetchSlurmConfigFromEnv();
-
-        new Write_HPC_Settings().exec(connection,
-                Map.of("configuration_name", "local",
-                        "host" , config.host,
-                        "port", config.port,
-                        "user", config.user,
-                        "key", config.sshKeyArmoredString
-                ), new EmptyProgressVisitor());
-
         new ComputePerUUEID().exec(connection,
                 Map.of("projectionName", "hexa",
-                        "uueid_pattern", "RL_FR_00_07800432",
-                        "conf", 1,
-                        "configuration_name", "local",
-                        "slurm_task_count", 1,
-                        "key_password", config.sshKeyPassword),
+                        "uueid_pattern", "RL_FR_00_07800432,RL_FR_00_09100496",
+                        "conf", 2),
                 new EmptyProgressVisitor());
 
     }

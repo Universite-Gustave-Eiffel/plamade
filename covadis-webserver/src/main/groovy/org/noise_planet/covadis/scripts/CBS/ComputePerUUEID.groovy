@@ -359,7 +359,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             def nutsCode = codeDeptToNuts.get(codeDept)
             logger.info("Processing CBS codeDept: $codeDept, nutsCode: $nutsCode")
 
-            generateRoadsCBS(h2Connection, stepsProgress)
+            generateCBS(h2Connection, stepsProgress, isRoadUUEID(uueid))
 
             generateBuildingsFacadeExpo(h2Connection)
 
@@ -835,7 +835,7 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
             it.addBatch(twkbWriter.write(row.getObject("the_geom") as Geometry),
                     row.getString("cbstype"), row.getString("typesource"),
                     row.getString("PERIOD"), row.getString("nutscode"),
-                    uueid+'_'+row.getString("noiselevel")+"_"+row.getString("typesource"), uueid,
+                    uueid+'_'+row.getString("noiselevel"), uueid,
                     row.getString("noiselevel"))
         }
     }
@@ -880,7 +880,7 @@ static def generateIsoCaseStatement(String period, String isoClass) {
  * @param progress Progress feedback instance
  * @param codeDeptToNuts Mapping of department codes to NUTS codes
  */
-static def generateRoadsCBS(Connection h2Connection, ProgressVisitor progress) {
+static def generateCBS(Connection h2Connection, ProgressVisitor progress, boolean roads) {
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     ProgressVisitor stepsProgress = progress.subProcess(2)
 
@@ -891,16 +891,16 @@ static def generateRoadsCBS(Connection h2Connection, ProgressVisitor progress) {
     DataBaseUtilities.parseScript("DROP TABLE IF EXISTS ISOPHONES;", h2Connection, new EmptyProgressVisitor(), logger)
 
     // CBS A - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0", roads)
 
     // CBS A - Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0")
+    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0", roads)
 
     // CBS C - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "68.0,200.0", "LD", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "68.0,200.0", "LD", "C", "ISOLVL = 1", roads)
 
     // CBS C - Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "62.0,200.0", "LN", "C", "ISOLVL = 1")
+    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "62.0,200.0", "LN", "C", "ISOLVL = 1", roads)
 }
 
 /**
@@ -963,7 +963,7 @@ static def generateIsoClassSql(String fieldName, String rangeStr) {
  * @param conn H2 database connection
  * @param progress Progression instance
  */
-private static void processIsoContouring(Connection conn, ProgressVisitor progress, String sourceTable, String isoClass, String period, String cbsType, String filter) {
+private static void processIsoContouring(Connection conn, ProgressVisitor progress, String sourceTable, String isoClass, String period, String cbsType, String filter, boolean roads) {
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     String noiseLevelExpr = generateIsoCaseStatement(period, isoClass)
     GeometryMetaData metaData =
@@ -985,6 +985,7 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
     // For IsoSurface convert in sql the LAEQ value into the expected ISOLABEL that should be produced by Create_Isosurface block
     def caseWhenSql = generateIsoClassSql("MIN(LAEQ)", isoClass)
 
+    def typeSource = roads ? 'R' : 'F'
     // Insert results into ISOPHONES
     DataBaseUtilities.parseScript("""
         -- Fetch the minimum level for each buildings
@@ -997,7 +998,7 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
         -- Insert standard isophones value from contouring noise map
         INSERT INTO ISOPHONES(the_geom, area, period, noiselevel, cbstype, typesource) 
         SELECT ST_Multi(ST_Union(ST_Accum(THE_GEOM))) THE_GEOM, SUM(st_area(the_geom)) / 1e6 area, 
-               '$period', $noiseLevelExpr, '$cbsType', 'R'
+               '$period', $noiseLevelExpr, '$cbsType', '$typeSource'
         FROM CONTOURING_NOISE_MAP 
         WHERE $filter 
         GROUP BY ISOLABEL;

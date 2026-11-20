@@ -254,7 +254,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
             } catch (NumberFormatException e) {
                 logger.error("Invalid department code: {}", department)
             }
-            ComputePerUUEID.generateRoadsCBS(h2Connection, new EmptyProgressVisitor())
+            ComputePerUUEID.generateCBS(h2Connection, new EmptyProgressVisitor(), true)
 
             cutCbsByDepartmentPolygon(input, pgConnection, h2Connection)
 
