@@ -138,19 +138,18 @@ def fetchRoads(Map input, Connection pgConnection, Connection h2Connection, Prog
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch roads..")
     def roadsQuery = """SELECT * FROM cbs_uge_output.routier_emission_${input.projectionName} 
-      WHERE uueid IN (SELECT DISTINCT uueid FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} WHERE insee_dep = '${input.department}') 
-      AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
+      WHERE ST_Intersects(THE_GEOM, '$extractionEnvelopeGeometry'::geometry) AND pos_sol='$posSol' AND (franchisst IS NULL OR franchisst = 'Pont')"""
 
     try( Statement st = pgConnection.createStatement()
          ResultSet rs = st.executeQuery(roadsQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_ROADS", true, batchSize)
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "LW_SOURCES", true, batchSize)
     }
 
     // Truncate road source by the department + maximum propagation distance
     ComputePerUUEID.runSqlQuery(h2Connection,"""
         -- Truncate roads by the department + maximum propagation distance
-        UPDATE LW_ROADS SET THE_GEOM = ST_Intersection(THE_GEOM, '$extractionEnvelopeGeometry'::geometry);
-        DELETE FROM LW_ROADS WHERE ST_ISEMPTY(THE_GEOM);
+        UPDATE LW_SOURCES SET THE_GEOM = ST_Intersection(THE_GEOM, '$extractionEnvelopeGeometry'::geometry);
+        DELETE FROM LW_SOURCES WHERE ST_ISEMPTY(THE_GEOM);
         """ as String)
 }
 
@@ -178,15 +177,12 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         extractionEnvelopeGeometry = geometryFactory.createGeometry(extractionEnvelopeGeometry)
         extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
 
-
-        fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, departmentProgress)
+        ComputePerUUEID.fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, departmentProgress)
 
         ComputePerUUEID.fetchBuildings(input,
                 pgConnection,
                 extractionEnvelopeGeometryWKT,
                 h2Connection, new EmptyProgressVisitor(), mainConfiguration.wall_alpha as Double)
-
-        fetchAllRoadsUsingInseeDep(input, pgConnection, h2Connection, extractionEnvelopeGeometryWKT)
 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor(),
@@ -201,8 +197,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         ComputePerUUEID.fetchAtmosphericPeriodFromStations(input, pgConnection, extractionEnvelopeGeometry.centroid, h2Connection, new EmptyProgressVisitor())
     }
     def posSols = pgSql.rows("""SELECT DISTINCT pos_sol FROM cbs_uge_output.routier_emission_${input.projectionName} AS reg
-        WHERE (franchisst IS NULL OR franchisst = 'Pont') and UUEID IN (SELECT DISTINCT UUEID 
-        FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} WHERE insee_dep = '${input.department}')""" as String)
+        WHERE ST_Intersects(THE_GEOM, '$extractionEnvelopeGeometryWKT'::geometry) AND (franchisst IS NULL OR franchisst = 'Pont')""" as String)
             .collect { it.pos_sol as String
     }
 
@@ -416,46 +411,6 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String de
     }
 
 
-}
-
-def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
-    Sql pgSql = new Sql(pgConnection)
-    Logger logger = LoggerFactory.getLogger(this.class)
-    logger.info("Fetch digital elevation model..")
-    def fetchTableNamesQuery = """
-        SELECT distinct bd_alti
-        FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
-        WHERE nldirh.uueid IN
-         (SELECT distinct d.uueid 
-         FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} d where d.insee_dep = '${input.department}');
-    """
-    def bdAltiTableName = new HashSet<String>()
-    pgSql.rows(fetchTableNamesQuery as String).each { row ->
-        bdAltiTableName.add(row.bd_alti as String)
-    }
-
-    ComputePerUUEID.fetchDemFromTableList(stepsProgress, bdAltiTableName, pgConnection, h2Connection, extractionEnvelopeGeometry, input)
-}
-
-
-static void fetchAllRoadsUsingInseeDep(Map input, Connection pgConnection, Connection h2Connection, String extractionEnvelopeGeometry) {
-    // Fetch all roads using the UUEID query
-    def roadQuery = """SELECT geom as the_geom, largeur as width
-        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName} INNER JOIN cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}
-        ON cbs_uge_input.n_routier_troncon_l_${input.projectionName}.uueid = cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}.uueid
-        WHERE cbs_uge_input.nm_link_dept_infra_road_${input.projectionName}.insee_dep = '${input.department}'"""
-    try (Statement st = pgConnection.createStatement()
-         ResultSet rs = st.executeQuery(roadQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
-    }
-
-    ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], new EmptyProgressVisitor())
-
-    ComputePerUUEID.runSqlQuery(h2Connection,"""
-        -- Truncate roads by the department + maximum propagation distance
-        UPDATE ROADS SET THE_GEOM = ST_Intersection(THE_GEOM, '$extractionEnvelopeGeometry'::geometry);
-        DELETE FROM ROADS WHERE ST_ISEMPTY(THE_GEOM);
-        """ as String)
 }
 
 static keepOnlyReceiversInDepartment(Map input,Connection pgConnection, Connection h2Connection) {

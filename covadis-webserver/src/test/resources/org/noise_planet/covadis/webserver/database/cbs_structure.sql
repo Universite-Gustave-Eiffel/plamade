@@ -334,14 +334,6 @@ CREATE TABLE cbs_uge_input.c_naturesol_hexa (
 	pkey int4 NULL
 );
 
-CREATE TABLE cbs_uge_input.nm_link_dept_infra_road_hexa (
-	uueid varchar(20) NULL,
-	insee_dep varchar(3) NULL,
-	bd_alti varchar(4) NULL
-);
-CREATE INDEX nm_link_dept_infra_road_hexa_insee_dep ON cbs_uge_input.nm_link_dept_infra_road_hexa USING btree (insee_dep);
-CREATE INDEX nm_link_dept_infra_road_hexa_uueid ON cbs_uge_input.nm_link_dept_infra_road_hexa USING btree (uueid);
-
 --
 -- Name: bd_alti; Type: SCHEMA; Schema: -; Owner: cbs_uge_group
 --

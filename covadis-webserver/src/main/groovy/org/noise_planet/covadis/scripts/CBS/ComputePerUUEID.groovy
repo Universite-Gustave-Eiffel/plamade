@@ -277,7 +277,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
 
         logger.info("SRID: {}", (extractionEnvelopeGeometry).getSRID())
 
-        fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, stepsProgress)
+        fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, stepsProgress)
 
         fetchBuildings(
                 input,
@@ -1020,6 +1020,9 @@ static String getRoadsLevelsTableName(String posSol) {
  * @param h2Sql h2 SQL instance
  */
 static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) {
+    if (posSols.isEmpty()) {
+        return
+    }
     def posSolsToProcess = new ArrayList<String>(posSols)
     def firstPosSol = posSolsToProcess.pop()
     GeometryMetaData metaData =
@@ -1193,20 +1196,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
         """, h2Connection, new EmptyProgressVisitor(), logger)
 }
 
-static void fetchAllRoadsUsingUUEID(Map input, String uueid, Connection pgConnection, Connection h2Connection) {
-    // Fetch all roads using the UUEID query
-    def roadQuery = """SELECT geom as the_geom, largeur as width
-        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE uueid = '${uueid}'"""
-    try (Statement st = pgConnection.createStatement()
-         ResultSet rs = st.executeQuery(roadQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
-    }
-
-    ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "ROADS", pkName: "PK"], new EmptyProgressVisitor())
-}
-
-def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
+static def fetchDem(Map input, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
     Sql pgSql = new Sql(pgConnection)
     Logger logger = LoggerFactory.getLogger(this.class)
     logger.info("Fetch digital elevation model..")

@@ -470,7 +470,7 @@ public class TestCBSScript extends JDBCTestCase {
         // Department noise level should be the same as UUEID noise level (there is a single UUEID in the input data)
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651'")) {
             while(resultSet.next()) {
                 assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format(
                         "LDEN Department %.2f dB UUEID %.2f dB for geometry: %s",
@@ -483,7 +483,7 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651'")) {
             while(resultSet.next()) {
                 assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("LN Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_ln"), resultSet.getFloat("uueid_ln"), resultSet.getObject("the_geom")));
             }
