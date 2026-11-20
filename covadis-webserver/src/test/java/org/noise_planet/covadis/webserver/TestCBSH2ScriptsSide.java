@@ -24,7 +24,7 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
             stmt.execute("RUNSCRIPT FROM '" + Objects.requireNonNull(TestCBSH2ScriptsSide.class.getResource("testGenerateExposureStatisticsFromFacadeExpo.sql")).getFile() + "'");
         }
 
-        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(connection);
+        ComputePerUUEID.generateExposureStatisticsFromFacadeExpo(connection, 0.001377);
 
         // Check peoples on single dwelling
         try(Statement stmt = connection.createStatement();
@@ -92,7 +92,7 @@ public class TestCBSH2ScriptsSide extends JDBCTestCase {
             stmt.execute("RUNSCRIPT FROM '" + Objects.requireNonNull(TestCBSH2ScriptsSide.class.getResource("testGenerateHealthStatistics.sql")).getFile() + "'");
         }
 
-        ComputePerUUEID.generateHealthStatistics(connection);
+        ComputePerUUEID.generateHealthStatistics(connection, 0.001377);
 
         LoggerFactory.getLogger(TestCBSH2ScriptsSide.class).info(
                 ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM EXPOSURE_RANGES", 120));

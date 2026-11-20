@@ -19,6 +19,6 @@ public class SlurmConfig {
     public String serverKeyType;
     public String serverWorkspaceFolder;
     public int jobId=-1;
-    public String javaBinaryPath;
+    public String sbatchScriptHeader;
 }
 

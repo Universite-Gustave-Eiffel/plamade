@@ -70,11 +70,11 @@ inputs = [
                         '<pre>gpg --armor --export-secret-key joe@foo.bar -w0 | xclip</pre>',
                 type       : String.class
         ],
-        java_binary_path   : [
-                name       : 'Java path',
-                title      : 'Java path',
-                description: '<p>Absolute or relative path (from home) of the Java binary' +
-                        '<pre>~/jdk-11.0.13/bin/java</pre>',
+        sbatch_script_header   : [
+                name       : 'SBatch script header',
+                title      : 'SBatch script header',
+                description: '<p>Additional header to add on sbatch scripts. See <a href=\"https://hpc.pages.unistra.fr/doc/slurm#grant\">https://hpc.pages.unistra.fr/doc/slurm#grant</a></p>' +
+                        '<pre>#SBATCH -p grant\n#SBATCH -A g20XX</pre>',
                 type       : String.class
         ]
 ]
@@ -109,7 +109,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
             "ssh_key_type varchar," +
             "user_name varchar," +
             "private_key varchar," +
-            "java_binary_path varchar)")
+            "sbatch_script_header varchar)")
 
     try(PreparedStatement deleteSt = connection.prepareStatement("DELETE FROM SLURM_CONFIGURATION WHERE configuration_name = ?")) {
         deleteSt.setString(1, input['configuration_name'] as String)
@@ -117,7 +117,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
     }
 
     try(PreparedStatement pst = connection.prepareStatement("INSERT INTO SLURM_CONFIGURATION(" +
-            "configuration_name, host, port, ssl_key, ssh_key_type, user_name, private_key, java_binary_path) " +
+            "configuration_name, host, port, ssl_key, ssh_key_type, user_name, private_key, sbatch_script_header) " +
             "VALUES(?, ?, ?, ?, ?, ?, ?, ?)")) {
         pst.setString(1, input['configuration_name'] as String)
         pst.setString(2, input['host'] as String)
@@ -126,7 +126,7 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
         pst.setString(5, input['ssh_key_type'] as String)
         pst.setString(6, input['user'] as String)
         pst.setString(7, input['key'] as String)
-        pst.setString(8, input['java_binary_path'] as String)
+        pst.setString(8, input['sbatch_script_header'] as String)
         pst.executeUpdate()
     }
 

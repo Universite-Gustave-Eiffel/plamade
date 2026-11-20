@@ -5,8 +5,12 @@ import groovy.lang.Script;
 import groovy.sql.Sql;
 import groovy.util.ConfigObject;
 import groovy.util.ConfigSlurper;
+
+import org.h2.util.geometry.EWKTUtils;
+import org.h2.util.geometry.JTSUtils;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
+import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.noisemodelling.webserver.script.ExecutionPlan;
 import org.noise_planet.noisemodelling.webserver.script.ScriptMetadata;
@@ -58,6 +62,7 @@ public class ScriptUtilities {
      * @param groovyClass Groovy class to extract metadata
      * @param inputs Parameters of the exec method
      * @return Filled inputs
+     * @throws IllegalArgumentException Unexpected input(s) for script
      */
     public static Map fillDefaultValues(Class groovyClass, Map inputs) {
         Map filledInputs = new HashMap(inputs);
@@ -81,6 +86,15 @@ public class ScriptUtilities {
                     }
                     filledInputs.put(entry.getKey(), defaultValue);
                 });
+        // Check if there is more inputs key than expected by the groovy class
+        Set<String> expectedInputs = ((Map<String, Map>) config.get("inputs")).keySet();
+        Set<String> unexpectedInputs = new LinkedHashSet<>(filledInputs.keySet());
+        unexpectedInputs.removeAll(expectedInputs);
+        if (!unexpectedInputs.isEmpty()) {
+            throw new IllegalArgumentException("Unexpected input(s) for script " + groovyClass.getSimpleName()
+                    + ": " + unexpectedInputs + ". Declared inputs are: " + expectedInputs);
+        }
+
         return filledInputs;
     }
 
@@ -138,6 +152,9 @@ public class ScriptUtilities {
                     }
                 } else if (val instanceof Number && !(val instanceof Integer || val instanceof Long)) {
                     formattedVal = String.format(Locale.US, "%.2f", ((Number) val).doubleValue());
+                } else if (val instanceof Geometry) {
+                    // Format to EWKT
+                    formattedVal = EWKTUtils.ewkb2ewkt(JTSUtils.geometry2ewkb((Geometry) val));
                 } else {
                     formattedVal = val.toString().replace("\n", " "); // Markdown tables must be single line
                 }
