@@ -28,6 +28,7 @@ import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
 import org.noise_planet.noisemodelling.pathfinder.utils.geometry.CoordinateMixin;
+import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor;
 import org.noise_planet.noisemodelling.propagation.cnossos.CnossosAttenuationOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -407,9 +408,9 @@ public class TestCBSScript extends JDBCTestCase {
         new ComputePerUUEID().exec(connection,
                 Map.of("projectionName", "hexa",
                         "uueid_pattern", "RL_FR_00_07800432,RL_FR_00_09100496",
-                        "conf", 2),
-                new EmptyProgressVisitor());
-
+                        "conf", 1,
+                        "upload_receivers_level", true),
+                new RootProgressVisitor(1, true, 5));
     }
 
     @Test

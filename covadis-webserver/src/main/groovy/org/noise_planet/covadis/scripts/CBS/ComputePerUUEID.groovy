@@ -7,6 +7,7 @@ import groovy.transform.Field
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+import org.h2gis.functions.io.fgb.FGBWrite
 import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
@@ -83,6 +84,13 @@ inputs = [
                 description: 'Replace computed receiver by the provided one (WKT) and combine the RAYS table to the main connection',
                 min        : 0, max: 1,
                 type       : String.class
+        ],
+        upload_receivers_level: [
+                name       : 'Upload receivers levels',
+                title      : 'Upload receivers levels',
+                description: 'Upload the table cbs_uge_output.RECEIVERS_LEVEL_POS containing the noise levels of all receivers (lot of rows)',
+                type       : Boolean.class,
+                default    : false
         ]
 ]
 
@@ -286,7 +294,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
 
         generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, stepsProgress,
-                distanceFacadeBuildingsReceivers, distanceDelaunayBufferFacade)
+                distanceFacadeBuildingsReceivers, distanceDelaunayBufferFacade, pgConnection, input.projectionName as String)
 
         processLandCover(input, pgConnection, extractionEnvelopeGeometryWKT, h2Connection)
 
@@ -371,6 +379,9 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             // Upload CBS Table to remote PostGIS database
             uploadCBS(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
             uploadIndicatorsTables(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
+            // Upload other tables
+            uploadOptionalTables(h2Connection, pgConnection, uueid, posSols,
+                    input)
         }
     }
 }
@@ -497,6 +508,35 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             COMMENT ON COLUMN cbs_uge_output.expo_global.hsd IS 'Nombre de personnes affectées par les fortes perturbations du sommeil';
             COMMENT ON COLUMN cbs_uge_output.expo_global.total_pop IS 'Population totale pour le calcul des indicateurs';
         """, pgConnection, new EmptyProgressVisitor(), logger)
+    }
+
+}
+
+static void uploadOptionalTables(Connection h2Connection, Connection pgConnection, String uueid, List<String> posSols,Map input) {
+
+    if(input.containsKey("upload_receivers_level") ? input.upload_receivers_level as Boolean : false) {
+        def tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.RECEIVERS_LEVEL_POS")
+        for (pos_sol in posSols) {
+            String tableName = getReceiversLevelsTableName(pos_sol)
+            if (tableExists) {
+                runSqlQuery(pgConnection, """
+                    DELETE FROM cbs_uge_output.RECEIVERS_LEVEL_POS where uueid = '$uueid' and pos_sol='$pos_sol';
+                """)
+            }
+            try (Statement st = h2Connection.createStatement()
+                 ResultSet rs = st.executeQuery("""SELECT '$uueid' uueid, $pos_sol pos_sol, * FROM $tableName""")) {
+                PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
+                        "cbs_uge_output.RECEIVERS_LEVEL_POS", false, batchSize)
+            }
+        }
+        if(!tableExists) {
+            // Create index
+            runSqlQuery(pgConnection, """            
+            ALTER TABLE cbs_uge_output.RECEIVERS_LEVEL_POS OWNER TO cbs_uge_group;
+            CREATE INDEX ON cbs_uge_output.RECEIVERS_LEVEL_POS USING GIST(THE_GEOM);
+            CREATE INDEX ON cbs_uge_output.RECEIVERS_LEVEL_POS (uueid);            
+        """)
+        }
     }
 }
 
@@ -794,6 +834,8 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String uu
     int batchSize = 100
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
 
+    // FGBWrite.execute(h2Connection, "/tmp/isophones_${uueid}.fgb", "ISOPHONES", true)
+
     GeometryMetaData metaData =
             GeometryTableUtilities.getMetaData(h2Connection, "ISOPHONES", "THE_GEOM")
 
@@ -912,11 +954,12 @@ static def generateCBS(Connection h2Connection, ProgressVisitor progress, boolea
 static void setupResultTables(Connection h2Connection) {
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     def sql = """
+        SET @LASTDELAUNAY=(SELECT last_delaunay FROM RECEIVERS_OFFSET);
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_DEN_MERGED, RECEIVERS_LEVEL_NIGHT_MERGED;
-        CREATE TABLE RECEIVERS_LEVEL_DEN_MERGED AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE PERIOD='DEN';
+        CREATE TABLE RECEIVERS_LEVEL_DEN_MERGED AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE PERIOD='DEN' AND IDRECEIVER < @LASTDELAUNAY;
         ALTER TABLE RECEIVERS_LEVEL_DEN_MERGED ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
         ALTER TABLE RECEIVERS_LEVEL_DEN_MERGED ADD PRIMARY KEY (IDRECEIVER);
-        CREATE TABLE RECEIVERS_LEVEL_NIGHT_MERGED AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE PERIOD='N';
+        CREATE TABLE RECEIVERS_LEVEL_NIGHT_MERGED AS SELECT THE_GEOM, IDRECEIVER, LAEQ FROM RECEIVERS_LEVEL_MERGED WHERE PERIOD='N' AND IDRECEIVER < @LASTDELAUNAY;
         ALTER TABLE RECEIVERS_LEVEL_NIGHT_MERGED ALTER COLUMN IDRECEIVER INTEGER NOT NULL;
         ALTER TABLE RECEIVERS_LEVEL_NIGHT_MERGED ADD PRIMARY KEY (IDRECEIVER);
     """
@@ -982,6 +1025,9 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
             isoClass: isoClass
     ], progress)
 
+    // TODO remove
+    FGBWrite.execute(conn, "/tmp/CONTOURING_NOISE_MAP_${period}_${cbsType}_${System.currentTimeSeconds()}.fgb", "CONTOURING_NOISE_MAP", true)
+
     // For IsoSurface convert in sql the LAEQ value into the expected ISOLABEL that should be produced by Create_Isosurface block
     def caseWhenSql = generateIsoClassSql("MIN(LAEQ)", isoClass)
 
@@ -1007,8 +1053,8 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
     """, conn, new EmptyProgressVisitor(), logger)
 }
 
-static String getRoadsLevelsTableName(String posSol) {
-    return """ROADS_LEVELS_${posSol.replace("-", "m")}"""
+static String getReceiversLevelsTableName(String posSol) {
+    return """RECEIVERS_LEVELS_${posSol.replace("-", "m")}"""
 }
 
 /**
@@ -1026,16 +1072,16 @@ static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) 
     def posSolsToProcess = new ArrayList<String>(posSols)
     def firstPosSol = posSolsToProcess.pop()
     GeometryMetaData metaData =
-            GeometryTableUtilities.getMetaData(h2Connection, getRoadsLevelsTableName(firstPosSol), "THE_GEOM")
+            GeometryTableUtilities.getMetaData(h2Connection, getReceiversLevelsTableName(firstPosSol), "THE_GEOM")
     def mergeLevelsQuery = """
         DROP TABLE IF EXISTS RECEIVERS_LEVEL_MERGED;
         CREATE TABLE RECEIVERS_LEVEL_MERGED(THE_GEOM ${metaData.getSQL()}, IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5, 2) NOT NULL);
-        INSERT INTO RECEIVERS_LEVEL_MERGED SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getRoadsLevelsTableName(firstPosSol)};
+        INSERT INTO RECEIVERS_LEVEL_MERGED SELECT THE_GEOM, IDRECEIVER, PERIOD, LAEQ FROM ${getReceiversLevelsTableName(firstPosSol)};
         CREATE INDEX ON RECEIVERS_LEVEL_MERGED(IDRECEIVER, PERIOD);
     """ as String
 
     posSolsToProcess.each { posSol ->
-        def posSolTable = getRoadsLevelsTableName(posSol)
+        def posSolTable = getReceiversLevelsTableName(posSol)
         // Energetic merge of this pos_sol into the accumulated table, period-aware
         // on (IDRECEIVER, PERIOD): rows present on both sides are summed, rows present
         // only in this pos_sol are inserted. COALESCE guards against NULL injection when
@@ -1069,11 +1115,13 @@ static void mergeReceiversLevels(List<String> posSols, Connection h2Connection) 
  * @param stepsProgress Progress visitor for tracking steps
  * @param distanceBuildingsReceiverFromFacade Distance in meters to place receivers associated with a building
  * @param distanceDelaunayFromFacade Minimal distance in meters to place Delaunay receivers
+ * @param pgConnection Connection to PostGIS
+ * @param projectionName Projection name (ex: hexa)
  * @return
  */
 static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2Connection,
                              double deltaBuildingsReceivers, Map mainConfiguration, ProgressVisitor stepsProgress,
-                             double distanceBuildingsReceiverFromFacade, double distanceDelaunayFromFacade) {
+                             double distanceBuildingsReceiverFromFacade, double distanceDelaunayFromFacade, Connection pgConnection, String projectionName) {
     Logger logger = LoggerFactory.getLogger(this.class)
     ProgressVisitor subSteps = stepsProgress.subProcess(4)
 
@@ -1122,11 +1170,22 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
 
     logger.info("Generate Delaunay receivers")
 
+
+    def geometryEwkt = ValueGeometry.getFromGeometry(extractionEnvelopeGeometry).string
+    try( Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery("""SELECT ST_Intersection(the_geom, '${geometryEwkt}'::geometry) the_geom FROM cbs_uge_output.ferroviaire_troncon_${projectionName} WHERE ST_Intersects(the_geom, '${geometryEwkt}'::geometry)""" as String)) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "RAILS_FOR_DELAUNAY", true, batchSize)
+    }
+    try (Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery("""SELECT ST_Intersection(the_geom, '${geometryEwkt}'::geometry) the_geom FROM cbs_uge_output.routier_emission_${projectionName} WHERE ST_Intersects(the_geom, '${geometryEwkt}'::geometry)""")) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS_FOR_DELAUNAY", true, batchSize)
+    }
     runSqlQuery(h2Connection, """
         DROP TABLE IF EXISTS TRIANGLES, RECEIVERS_DELAUNAY;
         --  Merge noise emission infrastructures for CBS delaunay densification around it
         DROP TABLE IF EXISTS DELAUNAY_SRC_TABLE;
-        CREATE TABLE DELAUNAY_SRC_TABLE AS SELECT THE_GEOM FROM RAILS_FOR_DEM UNION ALL SELECT THE_GEOM FROM ROADS_FOR_DEM;
+        CREATE TABLE DELAUNAY_SRC_TABLE AS SELECT THE_GEOM FROM RAILS_FOR_DELAUNAY UNION ALL SELECT THE_GEOM FROM ROADS_FOR_DELAUNAY;
+        DROP TABLE IF EXISTS RAILS_FOR_DELAUNAY, ROADS_FOR_DELAUNAY;
         CREATE SPATIAL INDEX ON DELAUNAY_SRC_TABLE(THE_GEOM);
         ALTER TABLE DELAUNAY_SRC_TABLE ADD COLUMN PK SERIAL PRIMARY KEY;
         """)
@@ -1145,7 +1204,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             isoSurfaceInBuildings           : true,
             exportTrianglesGeometries       : true,
             "buildingBuffer"                : distanceDelaunayFromFacade,
-            roadWidth                       : 2,
+            roadWidth                       : 1,
             fenceNegativeBuffer             : 0],
             subSteps)
 
@@ -1387,7 +1446,7 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
                 stepsProgress)
     }
     // Rename output table
-    def outputTableName = getRoadsLevelsTableName(posSol)
+    def outputTableName = getReceiversLevelsTableName(posSol)
     try(Connection h2Connection = h2DataSource.getConnection()) {
         DataBaseUtilities.parseScript("""
         DROP TABLE IF EXISTS $outputTableName;

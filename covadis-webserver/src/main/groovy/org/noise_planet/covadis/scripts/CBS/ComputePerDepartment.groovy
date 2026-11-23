@@ -187,7 +187,7 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
         ComputePerUUEID.generateReceivers(extractionEnvelopeGeometry, h2Connection,
                 mainConfiguration.confdistbuildingsreceivers as Double, mainConfiguration, new EmptyProgressVisitor(),
                 ComputePerUUEID.distanceFacadeBuildingsReceivers,
-                ComputePerUUEID.distanceDelaunayBufferFacade)
+                ComputePerUUEID.distanceDelaunayBufferFacade, pgConnection, input.projectionName as String)
 
         keepOnlyReceiversInDepartment(input, pgConnection, h2Connection)
 
