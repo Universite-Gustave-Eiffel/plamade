@@ -24,29 +24,29 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
     @Test
     public void testMergePosSols() throws SQLException {
         try(Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE TABLE ROADS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
-            stmt.execute("CREATE TABLE ROADS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
 
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'DEN', 55.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'N', 45.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'DEN', 55.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'N', 45.0)");
             // receiver 5: pos_sol=0 has only the DEN period -> N must not become NULL
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'DEN', 40.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'N', 30.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'DEN', 40.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'N', 30.0)");
             // receiver 6: no N period in pos_sol=1 -> the N period of pos_sol=0 must be inserted
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (6 2 4)', 2154), 6, 'DEN', 35.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (6 2 4)', 2154), 6, 'DEN', 35.0)");
 
             // pos_sol = 0 (merged into the base table)
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
             // receiver 3: only in pos_sol=0 -> inserted as is
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (3 2 4)', 2154), 3, 'DEN', 52.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (3 2 4)', 2154), 3, 'N', 42.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'DEN', 40.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (6 2 4)', 2154), 6, 'DEN', 35.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (6 2 4)', 2154), 6, 'N', 28.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (7 2 4)', 2154), 7, 'DEN', 50.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (3 2 4)', 2154), 3, 'DEN', 52.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (3 2 4)', 2154), 3, 'N', 42.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'DEN', 40.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (6 2 4)', 2154), 6, 'DEN', 35.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (6 2 4)', 2154), 6, 'N', 28.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (7 2 4)', 2154), 7, 'DEN', 50.0)");
         }
 
         ComputePerUUEID.mergeReceiversLevels(List.of("0", "1"), connection);
@@ -91,23 +91,23 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
     @Test
     public void testMergeThreePosSols() throws SQLException {
         try(Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE TABLE ROADS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
-            stmt.execute("CREATE TABLE ROADS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
-            stmt.execute("CREATE TABLE ROADS_LEVELS_2 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_2 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
 
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (4 2 4)', 2154), 4, 'DEN', 40.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'DEN', 35.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (4 2 4)', 2154), 4, 'DEN', 40.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (5 2 4)', 2154), 5, 'DEN', 35.0)");
             // merged middle
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (3 2 4)', 2154), 3, 'DEN', 55.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (4 2 4)', 2154), 4, 'DEN', 40.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (3 2 4)', 2154), 3, 'DEN', 55.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (4 2 4)', 2154), 4, 'DEN', 40.0)");
             // merged last
-            stmt.execute("INSERT INTO ROADS_LEVELS_2 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_2 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_2 VALUES (ST_GeomFromText('POINT Z (4 2 4)', 2154), 4, 'DEN', 40.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_2 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_2 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_2 VALUES (ST_GeomFromText('POINT Z (4 2 4)', 2154), 4, 'DEN', 40.0)");
         }
 
         ComputePerUUEID.mergeReceiversLevels(List.of("0", "1", "2"), connection);
@@ -126,14 +126,14 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
     @Test
     public void testMergeEnergeticSumUnequalLevels() throws SQLException {
         try(Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE TABLE ROADS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
-            stmt.execute("CREATE TABLE ROADS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
 
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'DEN', 40.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'DEN', 40.0)");
             // merged side
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 40.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 40.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (2 2 4)', 2154), 2, 'DEN', 60.0)");
         }
 
         ComputePerUUEID.mergeReceiversLevels(List.of("0", "1"), connection);
@@ -146,9 +146,9 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
     @Test
     public void testMergeSinglePosSol() throws SQLException {
         try(Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE TABLE ROADS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'N', 50.0)");
         }
 
         ComputePerUUEID.mergeReceiversLevels(List.of("0"), connection);
@@ -167,13 +167,13 @@ public class TestMergeReceiversLevels extends JDBCTestCase {
     @Test
     public void testMergeKeepsBaseGeometry() throws SQLException {
         try(Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE TABLE ROADS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
-            stmt.execute("CREATE TABLE ROADS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_0 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
+            stmt.execute("CREATE TABLE RECEIVERS_LEVELS_1 (THE_GEOM GEOMETRY(POINT Z, 2154), IDRECEIVER INTEGER, PERIOD VARCHAR, LAEQ NUMERIC(5,2) NOT NULL)");
 
-            stmt.execute("INSERT INTO ROADS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_0 VALUES (ST_GeomFromText('POINT Z (1 2 4)', 2154), 1, 'DEN', 60.0)");
             // merged side: same receiver at a different location, plus a receiver only present here
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (10 20 4)', 2154), 1, 'DEN', 60.0)");
-            stmt.execute("INSERT INTO ROADS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (10 20 4)', 2154), 9, 'DEN', 55.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (10 20 4)', 2154), 1, 'DEN', 60.0)");
+            stmt.execute("INSERT INTO RECEIVERS_LEVELS_1 VALUES (ST_GeomFromText('POINT Z (10 20 4)', 2154), 9, 'DEN', 55.0)");
         }
 
         ComputePerUUEID.mergeReceiversLevels(List.of("0", "1"), connection);

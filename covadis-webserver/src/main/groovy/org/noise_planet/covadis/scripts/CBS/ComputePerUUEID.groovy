@@ -7,7 +7,6 @@ import groovy.transform.Field
 import org.h2.value.ValueGeometry
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
-import org.h2gis.functions.io.fgb.FGBWrite
 import org.h2gis.utilities.GeometryMetaData
 import org.h2gis.utilities.GeometryTableUtilities
 import org.h2gis.utilities.JDBCUtilities
@@ -122,6 +121,13 @@ static final double distanceFacadeBuildingsReceivers = 2.0
  */
 @Field
 static final double distanceDelaunayBufferFacade = 0.5
+
+/**
+ * Noise barriers are split by this distance in order to follow the DEM without issues
+ */
+@Field
+static final double barrier_length = 1.0;
+
 
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
@@ -367,10 +373,9 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
             def nutsCode = codeDeptToNuts.get(codeDept)
             logger.info("Processing CBS codeDept: $codeDept, nutsCode: $nutsCode")
 
-            generateCBS(h2Connection, stepsProgress, isRoadUUEID(uueid))
+            generateCBS(h2Connection, stepsProgress, fetchSourceType(pgConnection, uueid))
 
             generateBuildingsFacadeExpo(h2Connection)
-
 
             def cpi = pgSql.firstRow("SELECT (taux_incidence / 100000) cpi_per_person FROM cbs_uge_input.CPI WHERE codedept = $codeDept").cpi_per_person as Double
             logger.info("CPI per person for department {}: {}", codeDept, cpi)
@@ -920,9 +925,9 @@ static def generateIsoCaseStatement(String period, String isoClass) {
  * @param h2Connection Connection to h2 database
  * @param nutsCode NUTS code
  * @param progress Progress feedback instance
- * @param codeDeptToNuts Mapping of department codes to NUTS codes
+ * @param source Noise source
  */
-static def generateCBS(Connection h2Connection, ProgressVisitor progress, boolean roads) {
+static def generateCBS(Connection h2Connection, ProgressVisitor progress, NoiseSource source) {
     Logger logger = LoggerFactory.getLogger(ComputePerUUEID.class)
     ProgressVisitor stepsProgress = progress.subProcess(2)
 
@@ -933,16 +938,25 @@ static def generateCBS(Connection h2Connection, ProgressVisitor progress, boolea
     DataBaseUtilities.parseScript("DROP TABLE IF EXISTS ISOPHONES;", h2Connection, new EmptyProgressVisitor(), logger)
 
     // CBS A - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0", roads)
+    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,200.0", "LD", "A", "ISOLVL > 0", source == NoiseSource.ROAD)
 
     // CBS A - Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0", roads)
+    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,200.0", "LN", "A", "ISOLVL > 0", source == NoiseSource.ROAD)
 
-    // CBS C - Day/Evening/Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "68.0,200.0", "LD", "C", "ISOLVL = 1", roads)
+    if(source == NoiseSource.ROAD || source == NoiseSource.HIGH_SPEED_TRAIN) {
+        // CBS C - Day/Evening/Night
+        processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "68.0,200.0", "LD", "C", "ISOLVL = 1", source == NoiseSource.ROAD)
 
-    // CBS C - Night
-    processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "62.0,200.0", "LN", "C", "ISOLVL = 1", roads)
+        // CBS C - Night
+        processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "62.0,200.0", "LN", "C", "ISOLVL = 1", source == NoiseSource.ROAD)
+    } else {
+        // Conventional train
+        // CBS C - Day/Evening/Night
+        processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_DEN_MERGED", "73.0,200.0", "LD", "C", "ISOLVL = 1", false)
+
+        // CBS C - Night
+        processIsoContouring(h2Connection, stepsProgress, "RECEIVERS_LEVEL_NIGHT_MERGED", "65.0,200.0", "LN", "C", "ISOLVL = 1", false)
+    }
 }
 
 /**
@@ -1024,9 +1038,6 @@ private static void processIsoContouring(Connection conn, ProgressVisitor progre
             smoothCoefficient: 0,
             isoClass: isoClass
     ], progress)
-
-    // TODO remove
-    FGBWrite.execute(conn, "/tmp/CONTOURING_NOISE_MAP_${period}_${cbsType}_${System.currentTimeSeconds()}.fgb", "CONTOURING_NOISE_MAP", true)
 
     // For IsoSurface convert in sql the LAEQ value into the expected ISOLABEL that should be produced by Create_Isosurface block
     def caseWhenSql = generateIsoClassSql("MIN(LAEQ)", isoClass)
@@ -1222,7 +1233,7 @@ static def generateReceivers(Geometry extractionEnvelopeGeometry, Connection h2C
             CREATE TABLE TRIANGLES_OVER_BUILDINGS(PK INTEGER NOT NULL PRIMARY KEY, PK_1 INTEGER, PK_2 INTEGER,
              PK_3 INTEGER, THE_GEOM ${metaData.getSQL()}, build_pk INTEGER) AS SELECT T.PK, T.PK_1, T.PK_2, T.PK_3,
                  T.THE_GEOM, MIN(B.PK) PKBAT FROM TRIANGLES T, BUILDINGS B
-              WHERE T.THE_GEOM && B.THE_GEOM AND ST_Intersects(B.THE_GEOM, T.THE_GEOM)
+              WHERE T.THE_GEOM && B.THE_GEOM AND ST_Intersects(B.THE_GEOM, T.THE_GEOM) AND B.ORIGIN = 'building'
               GROUP BY T.PK, T.PK_1, T.PK_2, T.PK_3, T.THE_GEOM;
             CREATE INDEX ON TRIANGLES_OVER_BUILDINGS (build_pk);
             -- Remove triangles that are over buildings
@@ -1657,40 +1668,47 @@ static fetchBuildings(Map input, Connection pgConnection, String extractionEnvel
                 ALTER TABLE buildings ADD COLUMN g float DEFAULT $wallAlpha;
                 """, h2Connection, new EmptyProgressVisitor(), logger)
 
-    def noiseBarrierQuery = """SELECT ST_Force3DZ(ST_CollectionHomogenize(geom)) as the_geom, hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_hexa AS nrpah WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)"""
-
-    try( Statement st = pgConnection.createStatement()
-         ResultSet rs = st.executeQuery(noiseBarrierQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "BUILDINGS_BARRIERS", true, batchSize)
+    try (Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery("""SELECT ST_Force2D(ST_CollectionHomogenize(geom)) as the_geom,
+ hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_routier_protection_acoustique_${projectionName} AS nrpah
+                                         WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)""")) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS_BARRIERS", true, batchSize)
     }
 
+    try (Statement st = pgConnection.createStatement()
+         ResultSet rs = st.executeQuery("""SELECT ST_Force2D(ST_CollectionHomogenize(geom)) as the_geom,
+ hauteur as height, propriete, materiau1, idprotacou FROM cbs_uge_input.n_ferroviaire_protection_acoust AS nrpah
+                                         WHERE ST_Intersects(geom, '${extractionEnvelopeGeometry}'::geometry)""")) {
+        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "TRAIN_BARRIERS", true, batchSize)
+    }
     //remove constraint on geometry type
     // add barriers with densification 1 meter (will follow the dem)
     // remove Z of buildings (will use HEIGHT field)
     DataBaseUtilities.parseScript("""
 
-        -- Never use the PolygonZ of buildings, always use the HEIGHT field
-        UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM);
 
-        ALTER TABLE BUILDINGS_BARRIERS ADD COLUMN G float DEFAULT 0;
+        ALTER TABLE ROADS_BARRIERS ADD COLUMN G float DEFAULT 0;
+        ALTER TABLE TRAIN_BARRIERS ADD COLUMN G float DEFAULT 0;
     
-        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE propriete = '01';
-        UPDATE BUILDINGS_BARRIERS SET G = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
+        UPDATE TRAIN_BARRIERS SET G = 0.7 WHERE propriete = 'Absorbant';
+        UPDATE ROADS_BARRIERS SET G = 0.7 WHERE propriete = '01';
+        UPDATE ROADS_BARRIERS SET G = 0.7 WHERE (propriete = '00' or propriete = '99') AND (materiau1 = '01' or materiau1 = '04' or materiau1 = '06');
         
         DROP TABLE IF EXISTS BUILDINGS_BARRIER_EXPLODED;
-        CREATE TABLE BUILDINGS_BARRIER_EXPLODED AS SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, 1)) the_geom, height, G, idprotacou FROM BUILDINGS_BARRIERS)');
-        -- Some acoustics barriers may have invalid PolygonZ, in this case we will use the barrier height
-        UPDATE BUILDINGS_BARRIER_EXPLODED SET THE_GEOM = ST_Force2D(THE_GEOM) 
-        WHERE ST_ZMIN(THE_GEOM) < -999 
-        OR (ST_ZMIN(THE_GEOM) = 0 AND ST_ZMAX(THE_GEOM) = 0);
-        
+        CREATE TABLE BUILDINGS_BARRIER_EXPLODED AS SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, $barrier_length)) the_geom, height, G, idprotacou FROM ROADS_BARRIERS)');
+        INSERT INTO BUILDINGS_BARRIER_EXPLODED SELECT * FROM ST_EXPLODE('(SELECT ST_ToMultiSegments(st_densify(the_geom, $barrier_length)) the_geom, height, G, idprotacou FROM TRAIN_BARRIERS)');
+       
         -- Use generic type in order to mix polygon and linestring
         ALTER TABLE BUILDINGS ALTER COLUMN the_geom GEOMETRY;
-        -- Add origin column, road is acoustic protection along roads
+        
+        -- FORCE BUILDINGS geometry to 2D, always use the HEIGHT field
+        UPDATE BUILDINGS SET THE_GEOM = ST_Force2D(THE_GEOM);
+        
+        -- Insert train/roads barriers into BUILDINGS table..
         ALTER TABLE BUILDINGS ADD COLUMN origin varchar DEFAULT 'building';
         INSERT INTO BUILDINGS(the_geom, height, G, origin, pop, idbat, bat_idtopo) SELECT the_geom, height, G, 'road', 0, '', idprotacou from BUILDINGS_BARRIER_EXPLODED;
-        
-        DROP TABLE BUILDINGS_BARRIERS, BUILDINGS_BARRIER_EXPLODED;
+        CREATE INDEX ON BUILDINGS (ORIGIN);
+        DROP TABLE ROADS_BARRIERS, BUILDINGS_BARRIER_EXPLODED, TRAIN_BARRIERS;
         """, h2Connection, new EmptyProgressVisitor(), logger)
 
     ScriptUtilities.execScript(new Add_Primary_Key(), h2Connection, [tableName: "BUILDINGS", pkName: "PK"], stepsProgress)
@@ -1705,4 +1723,22 @@ static void runSqlQuery(Connection connection, String query, ProgressVisitor pro
     // We use Thread.currentThread().getName() because it holds the current JOBID
     Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     DataBaseUtilities.parseScript(query, connection, progressVisitor, logger)
+}
+
+enum NoiseSource { ROAD, HIGH_SPEED_TRAIN, CONVENTIONAL_TRAIN }
+
+/**
+ *
+ * @param pgConnection
+ * @param uueid
+ * @return
+ */
+static NoiseSource fetchSourceType(Connection pgConnection, String uueid) {
+    if(isRoadUUEID(uueid)) {
+        return NoiseSource.ROAD
+    } else {
+        Sql pgSql = new Sql(pgConnection)
+        def typeLigne = pgSql.firstRow("SELECT typeligne from cbs_uge_input.n_ferroviaire_ligne fl where fl.uueid = $uueid").typeligne as String
+        return "01" == typeLigne ? NoiseSource.HIGH_SPEED_TRAIN : NoiseSource.CONVENTIONAL_TRAIN
+    }
 }
