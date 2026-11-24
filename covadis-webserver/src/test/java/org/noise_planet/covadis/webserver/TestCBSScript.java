@@ -374,7 +374,7 @@ public class TestCBSScript extends JDBCTestCase {
                 "LnightGreaterThan62", "LnightGreaterThan70");
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_hexa\" order by noiselevel;")) {
+            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM cbs_uge_output.cbs_hexa where uueid='RD_FR_00_0781651' order by noiselevel;")) {
             for (String expectedCb : expectedCbs) {
                 assertTrue(resultSet.next());
                 assertEquals(expectedCb, resultSet.getString("noiselevel"));
@@ -384,7 +384,7 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa where uueid='RD_FR_00_0781651")) {
             assertTrue(resultSet.next());
             assertNotEquals(0, resultSet.getInt("CPT"));
         }
@@ -411,6 +411,36 @@ public class TestCBSScript extends JDBCTestCase {
                         "conf", 1,
                         "upload_receivers_level", true),
                 new RootProgressVisitor(1, true, 5));
+
+        // Check cbs
+        List<String> expectedCbs = Arrays.asList("Lden3539", "Lden4044", "Lden4549", "Lden5054", "Lden5559",
+                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan68", "LdenGreaterThan75", "Lnight3034",
+                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan62", "LnightGreaterThan70");
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM cbs_uge_output.cbs_hexa where uueid='RL_FR_00_07800432' order by noiselevel;")) {
+            for (String expectedCb : expectedCbs) {
+                assertTrue(resultSet.next());
+                assertEquals(expectedCb, resultSet.getString("noiselevel"));
+            }
+            assertFalse(resultSet.next());
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa where uueid='RL_FR_00_07800432'")) {
+            assertTrue(resultSet.next());
+            assertNotEquals(0, resultSet.getInt("CPT"));
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo where pk = 'RL_FR_00_07800432_Lnight4549';")) {
+            assertTrue(resultSet.next());
+            assertEquals(1, resultSet.getInt("schools"));
+            assertTrue(resultSet.getFloat("area") > 0);
+        }
     }
 
     @Test

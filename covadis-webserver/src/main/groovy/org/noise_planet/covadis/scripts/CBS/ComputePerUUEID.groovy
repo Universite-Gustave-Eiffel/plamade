@@ -31,6 +31,7 @@ import javax.sql.DataSource
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Statement
+import java.time.Instant
 
 title = 'Full NoiseModelling computation that output results for each UUEID separately'
 description = 'Full NoiseModelling computation that output results for each UUEID separately'
@@ -262,6 +263,7 @@ static void copyConfigurationTables(HikariDataSource h2DataSource, Connection so
 }
 
 def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnection, ProgressVisitor progress, Map input, Map mainConfiguration, Map<String, String> codeDeptToNuts) {
+    Instant computationStart = Instant.now()
     ProgressVisitor stepsProgress = progress.subProcess(3) // long running sub tasks
 
     def pgSql = new Sql(pgConnection)
@@ -383,7 +385,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
 
             // Upload CBS Table to remote PostGIS database
             uploadCBS(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
-            uploadIndicatorsTables(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String)
+            uploadIndicatorsTables(h2Connection, pgConnection, uueid, nutsCode, input.projectionName as String, computationStart, Instant.now())
             // Upload other tables
             uploadOptionalTables(h2Connection, pgConnection, uueid, posSols,
                     input)
@@ -438,7 +440,7 @@ static mergeOutputRaysTable(DataSource h2DataSource, Map input, String posSol) {
  * @param uueid Infrastructure identifier
  * @param projectionName Projection name ex: hexa
  */
-static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, String uueid, String nutsCode, String projectionName) {
+static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnection, String uueid, String nutsCode, String projectionName, Instant beginTime, Instant endTime) {
     Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     boolean tableExists = JDBCUtilities.tableExists(pgConnection, "cbs_uge_output.facade_expo_$projectionName")
     if(tableExists) {
@@ -470,14 +472,17 @@ static def uploadIndicatorsTables(Connection h2Connection, Connection pgConnecti
             DELETE FROM cbs_uge_output.expo WHERE uueid = '$uueid';
         """, pgConnection, new EmptyProgressVisitor(), logger)
     }
-    try( Statement st = h2Connection.createStatement()
-         ResultSet rs = st.executeQuery("""SELECT CONCAT('${uueid}','_', NOISELEVEL) pk, '${nutsCode}' nutscode ,
-                 '$uueid' UUEID, NOISELEVEL, ROUND(PEOPLE)::integer PEOPLE,
-                 ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , HA  , HSD , AREA , INDICETYPE 
-                 FROM EXPO""")) {
+    Sql h2Sql = new Sql(h2Connection)
+    h2Sql.query("""
+            SELECT CONCAT($uueid, '_', NOISELEVEL) pk, $nutsCode nutscode,
+                 $uueid UUEID, NOISELEVEL, ROUND(PEOPLE)::integer PEOPLE,
+                 ROUND(DWELLINGS)::integer DWELLINGS, HOSPITALS , SCHOOLS , HA  , HSD , AREA , INDICETYPE,
+                  CAST($beginTime AS TIMESTAMP WITH TIME ZONE) begintime,
+                  CAST($endTime AS TIMESTAMP WITH TIME ZONE) endtime
+                 FROM EXPO""", { ResultSet rs ->
         PostGISUtilities.copyResultSetToDatabase(h2Connection, rs, pgConnection,
                 "cbs_uge_output.expo", false, batchSize)
-    }
+    })
     if(!tableExists) {
         // Create index
         DataBaseUtilities.parseScript("""            
