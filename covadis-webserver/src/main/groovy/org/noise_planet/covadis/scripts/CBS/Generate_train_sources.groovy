@@ -85,6 +85,22 @@ def exec(Connection connection, Map input, ProgressVisitor progress) {
                     CREATE INDEX ON cbs_uge_output.ferroviaire_troncon_hexa (uueid);
                     ALTER TABLE cbs_uge_output.ferroviaire_emission_hexa OWNER TO cbs_uge_group;                   
                     ALTER TABLE cbs_uge_output.ferroviaire_troncon_hexa OWNER TO cbs_uge_group;
+
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.pk_section IS 'Primary key of the track section';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.the_geom IS 'Geometry of the railway section';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.idsection IS 'Identifier of the original track section (idtroncon from N_FERROVIAIRE_TRONCON_L)';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.ntrack IS 'Number of tracks';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.trackspd IS 'Maximum infrastructure speed on the section (in km/h)';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.transfer IS 'Track transfer function identifier, e.g. SNCF5, SNCF7, SNCF8 (steel bridge)';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.roughness IS 'Rail roughness identifier, e.g. SNCF1 or SNCF2';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.impact IS 'Impact noise coefficient identifier, e.g. SNCF1, empty for none';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.curvature IS 'Listed code describing the curvature of the section';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.bridge IS 'Bridge transfer function identifier, empty for none';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.istunnel IS 'Indicates whether the section is a tunnel or not (0 = no / 1 = yes)';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.comspd IS 'Commercial speed on the section (in km/h)';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.platform IS 'Platform/line type: SNCF or SNCF_LGV (high speed line)';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.uueid IS 'Identifier of the infrastructure';
+                    COMMENT ON COLUMN cbs_uge_output.ferroviaire_troncon_hexa.pos_sol IS 'Position index relative to the ground (negative = tunnel)';
                 """)
                 // Remove local intermediate tables
                 runSqlQuery(connection, "DROP TABLE IF EXISTS RAILWAY_TRACK, LW_RAILWAY, RAILWAY_TRAFFIC;");
