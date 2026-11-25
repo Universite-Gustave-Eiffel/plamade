@@ -476,7 +476,7 @@ static def uploadCBS(Connection h2Connection, Connection pgConnection, String de
     twkbWriter.setZPrecision(2)
     // Upload only CBS type A, because producing type C would require to split noise sources by train "typeligne"
     pgSql.withBatch(batchSize, insertSql) {
-        h2Sql.eachRow("SELECT the_geom, cbstype, typesource, PERIOD, noiselevel FROM ISOPHONES where cbstype = 'A'" as String) { row ->
+        h2Sql.eachRow("SELECT the_geom, cbstype, typesource, PERIOD, noiselevel FROM ISOPHONES where cbstype = 'A' OR typesource = 'R'" as String) { row ->
             // Insert into PostGIS table
             it.addBatch(
                     department+ '_' + row.getString("noiselevel")+"_"+row.getString("typesource"),
