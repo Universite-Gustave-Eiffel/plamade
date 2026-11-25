@@ -457,9 +457,9 @@ public class TestCBSScript extends JDBCTestCase {
 
         // Check cbs
         List<String> expectedCbs = Arrays.asList("Lden3539", "Lden4044", "Lden4549", "Lden5054", "Lden5559",
-                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan75", "Lnight3034",
-                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569"
-                , "LnightGreaterThan70");
+                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan68", "LdenGreaterThan75", "Lnight3034",
+                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan62", "LnightGreaterThan70");
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_dept_hexa\" order by noiselevel;")) {
