@@ -27,6 +27,7 @@ import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.noise_planet.noisemodelling.pathfinder.profilebuilder.ProfileBuilder;
 import org.noise_planet.noisemodelling.pathfinder.utils.geometry.CoordinateMixin;
 import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor;
 import org.noise_planet.noisemodelling.propagation.cnossos.CnossosAttenuationOutput;
@@ -448,31 +449,17 @@ public class TestCBSScript extends JDBCTestCase {
     public void testRunDepartment() throws SQLException {
         assumePostGISAvailable();
 
-        // Create SLURM Configuration
-        SlurmConfig config = NoiseModellingHPCServerHttpTest.fetchSlurmConfigFromEnv();
-
-        new Write_HPC_Settings().exec(connection,
-                Map.of("configuration_name", "local",
-                        "host" , config.host,
-                        "port", config.port,
-                        "user", config.user,
-                        "key", config.sshKeyArmoredString
-                ), new EmptyProgressVisitor());
-
         new ComputePerDepartment().exec(connection,
                 Map.of("projectionName", "hexa",
                         "department", "78",
-                        "conf", 1,
-                        "configuration_name", "local",
-                        "slurm_task_count", 1,
-                        "key_password", config.sshKeyPassword),
+                        "conf", 1),
                 new EmptyProgressVisitor());
 
         // Check cbs
         List<String> expectedCbs = Arrays.asList("Lden3539", "Lden4044", "Lden4549", "Lden5054", "Lden5559",
-                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan68", "LdenGreaterThan75", "Lnight3034",
-                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
-                "LnightGreaterThan62", "LnightGreaterThan70");
+                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan75", "Lnight3034",
+                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569"
+                , "LnightGreaterThan70");
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_dept_hexa\" order by noiselevel;")) {
@@ -498,10 +485,10 @@ public class TestCBSScript extends JDBCTestCase {
             assertTrue(resultSet.getFloat("area") > 0);
         }
 
-        // Department noise level should be the same as UUEID noise level (there is a single UUEID in the input data)
+        // Department noise level should be the same as UUEID noise level (there is a single UUEID for roads in the input data)
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651'")) {
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651' and d.typesource = 'R'")) {
             while(resultSet.next()) {
                 assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format(
                         "LDEN Department %.2f dB UUEID %.2f dB for geometry: %s",
@@ -514,7 +501,7 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651'")) {
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651' and d.typesource = 'R'")) {
             while(resultSet.next()) {
                 assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("LN Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_ln"), resultSet.getFloat("uueid_ln"), resultSet.getObject("the_geom")));
             }
@@ -657,6 +644,26 @@ public class TestCBSScript extends JDBCTestCase {
                 logger.warn("Missing troncon: {}", troncon);
             }
             assertEquals(0, missingTroncon.size());
+            // Keep only the most significant (highest leq) sound source for each unique idtroncon
+            // to reduce the computation time of the next unit tests
+            StringBuilder globalLevel = new StringBuilder();
+            for (int frequency : ProfileBuilder.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
+                if (!globalLevel.isEmpty()) {
+                    globalLevel.append('+');
+                } else {
+                    globalLevel.append("10*log(");
+                }
+                globalLevel.append("power(10,COALESCE(hzd").append(frequency).append(",0)/10)+")
+                        .append("power(10,COALESCE(hze").append(frequency).append(",0)/10)+")
+                        .append("power(10,COALESCE(hzn").append(frequency).append(",0)/10)");
+            }
+            globalLevel.append(')');
+            try (Statement statement = pgConnection.createStatement()) {
+                int deleted = statement.executeUpdate("DELETE FROM cbs_uge_output.ferroviaire_emission_hexa f WHERE f.pk NOT IN (" +
+                        "SELECT DISTINCT ON (idtroncon) pk FROM cbs_uge_output.ferroviaire_emission_hexa " +
+                        "ORDER BY idtroncon, " + globalLevel + " DESC)");
+                logger.info("Deleted {} entries", deleted);
+            }
         }
     }
 }

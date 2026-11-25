@@ -348,7 +348,7 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
                 if(isRoadUUEID(uueid)) {
                     enrichDemWithRoads(input, h2Connection, pgConnection, solProgress, posSol, "uueid = '$uueid'")
                 } else {
-                    enrichDemWithRails(input, h2Connection, pgConnection, solProgress, posSol, "uueid = '$uueid'")
+                    enrichDemWithRails(input, h2Connection, pgConnection, posSol, "uueid = '$uueid'")
                 }
                 sourcesCentroid = h2Sql.firstRow("SELECT ST_Centroid(ST_ACCUM(the_geom)) FROM LW_SOURCES")[0] as Geometry
                 fetchAtmosphericPeriodFromStations(input, pgConnection, sourcesCentroid, h2Connection, stepsProgress)
@@ -1388,7 +1388,7 @@ static enrichDemWithRoads(Map input, Connection h2Connection, Connection pgConne
     ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
 }
 
-static enrichDemWithRails(Map input, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress, String posSol, String sqlFilterCondition) {
+static enrichDemWithRails(Map input, Connection h2Connection, Connection pgConnection, String posSol, String sqlFilterCondition) {
     Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     logger.info("Adapting digital elevation model..")
 

@@ -18,9 +18,13 @@ import groovy.transform.Field
 import org.apache.sshd.scp.client.ScpClient
 import org.apache.sshd.scp.client.ScpClientCreator
 import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
+import org.h2.jdbc.JdbcSQLNonTransientConnectionException
+import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.webserver.slurm.*
 import org.noise_planet.covadis.webserver.utilities.FileUtilities
+import org.noise_planet.noisemodelling.jdbc.utils.DataBaseUtilities
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
@@ -329,9 +333,9 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
                 serverKey: res.ssl_key,
                 serverKeyType: res.ssh_key_type,
                 sbatchScriptHeader: res.sbatch_script_header)
-        exportDir = exportDatabase(connection)
-        exportDir.deleteOnExit()
     }
+    exportDir = exportDatabase(dataSource)
+    exportDir.deleteOnExit()
 
     logger.info("Connecting to slurm server {}@{}:{} with ssh key authentication", slurmConfig.user, slurmConfig.host, slurmConfig.port)
     try(SlurmSession slurmSession = new SlurmSession(slurmConfig, logger)) {
@@ -524,9 +528,21 @@ private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl)
     }
 }
 
-private static File exportDatabase(Connection connection) {
+private static File exportDatabase(DataSource dataSource) {
+    Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     def exportDir = Files.createTempDirectory(getDateString()).toFile()
-    connection.createStatement().execute("BACKUP TO '${exportDir.absolutePath}/h2database.zip'")
+
+    try(Connection connection = dataSource.getConnection()) {
+        DataBaseUtilities.parseScript("""
+        -- Ensure the backup session has no open, uncommitted writes
+        COMMIT;
+                
+        -- Force all cached in-memory changes and MVStore chunks to be flushed and synced to disk
+        CHECKPOINT SYNC;
+        
+        -- Generate database file copy
+        BACKUP TO '${exportDir.absolutePath}/h2database.zip'""", connection, new EmptyProgressVisitor(), logger)
+    }
     return exportDir
 }
 
