@@ -10,6 +10,9 @@ import org.h2.util.geometry.EWKTUtils;
 import org.h2.util.geometry.JTSUtils;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
+import org.h2gis.utilities.JDBCUtilities;
+import org.h2gis.utilities.TableLocation;
+import org.h2gis.utilities.Tuple;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
@@ -222,7 +225,7 @@ public class ScriptUtilities {
      * @param tableName           Name of the table to create in the generated script
      * @param writer              Writer receiving the SQL script
      * @param targetDbType        Database type of the target database (H2 or PostGIS)
-     * @param createTable         Insert create table statements (with drop table if exists before)
+     * @param createTable         Insert create table statements (with drop table if exists before) and add the primary key of the source table if applicable
      * @throws SQLException if an error occurs while reading the result set
      * @throws IOException  if an error occurs while writing the script
      */
@@ -244,6 +247,17 @@ public class ScriptUtilities {
             }
             insertSql.append(");\n");
             writer.write(insertSql.toString());
+        }
+        // Add primary key if applicable
+        if (createTable) {
+            List<TableLocation> fieldTableLocations = columnInfos.stream().map(PostGISUtilities.ColumnInfo::tableLocation).toList();
+            if (!fieldTableLocations.isEmpty() && !fieldTableLocations.getFirst().getTable().isEmpty() &&
+                    fieldTableLocations.stream().allMatch(t -> t.equals(fieldTableLocations.getFirst()))) {
+                Tuple<String, Integer> pkInfo = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(resultSetConnection, fieldTableLocations.getFirst());
+                if (pkInfo != null && columnInfos.stream().anyMatch(c -> c.name().equalsIgnoreCase(pkInfo.first()))) {
+                    writer.write("ALTER TABLE " + tableName + " ADD PRIMARY KEY (" + pkInfo.first() + ");\n");
+                }
+            }
         }
         writer.flush();
     }
@@ -312,23 +326,6 @@ public class ScriptUtilities {
     private static String formatGeometryLiteral(Geometry geometry, DBTypes targetDbType) {
         String ewkt = EWKTUtils.ewkb2ewkt(JTSUtils.geometry2ewkb(geometry));
         return "'"+escapeSqlLiteral(ewkt)+"'::geometry";
-//        if (targetDbType == DBTypes.POSTGIS || targetDbType == DBTypes.POSTGRESQL) {
-//            return "ST_GeomFromText('" + escapeSqlLiteral(ewkt) + "')";
-//        }
-//        int srid = geometry.getSRID();
-//        String wkt = ewkt;
-//        int sridIndex = ewkt.indexOf("SRID=");
-//        if (sridIndex == 0) {
-//            int semicolon = ewkt.indexOf(';');
-//            if (semicolon > 0) {
-//                try {
-//                    srid = Integer.parseInt(ewkt.substring(5, semicolon));
-//                } catch (NumberFormatException ignored) {
-//                }
-//                wkt = ewkt.substring(semicolon + 1);
-//            }
-//        }
-//        return "ST_GeomFromText('" + escapeSqlLiteral(wkt) + "', " + srid + ")";
     }
 
     /**

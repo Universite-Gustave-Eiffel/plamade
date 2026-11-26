@@ -18,21 +18,28 @@ import groovy.transform.Field
 import org.apache.sshd.scp.client.ScpClient
 import org.apache.sshd.scp.client.ScpClientCreator
 import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
-import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
+import org.h2gis.utilities.dbtypes.DBTypes
 import org.noise_planet.covadis.webserver.slurm.*
 import org.noise_planet.covadis.webserver.utilities.FileUtilities
-import org.noise_planet.noisemodelling.jdbc.utils.DataBaseUtilities
+import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
+import java.io.FileOutputStream
+import java.io.OutputStream
+import java.io.OutputStreamWriter
+import java.io.Writer
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
+import java.sql.ResultSet
+import java.sql.Statement
+import java.util.zip.GZIPOutputStream
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.CancellationException
@@ -425,7 +432,10 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
             }
         } finally {
             // remove remote slurm working folder
-            slurmSession.runCommand(String.format("rm -rfv %s", slurmConfig.serverWorkspaceFolder), true)
+            // some safe conditions before running this command
+            if(slurmConfig.serverWorkspaceFolder && slurmConfig.serverWorkspaceFolder.trim().length() > 4) {
+                slurmSession.runCommand(String.format("rm -rfv %s", slurmConfig.serverWorkspaceFolder), true)
+            }
         }
         return ["result": "Setup completed"]
     }
@@ -536,15 +546,17 @@ private static File exportDatabase(DataSource dataSource, Map inputs) {
             tables.add(tableName as String)
         }
     }
-    StringBuilder script = new StringBuilder()
-            .append("COMMIT;\n")
-            .append("SCRIPT NOPASSWORDS NOSETTINGS TO '").append(exportDir.absolutePath)
-            .append("/h2database.sql.gz' COMPRESSION GZIP")
-    if (!tables.isEmpty()) {
-        script.append(" TABLE ").append(tables.join(", "))
-    }
-    try(Connection connection = dataSource.getConnection()) {
-        DataBaseUtilities.parseScript(script.toString(), connection, new EmptyProgressVisitor(), logger)
+    File sqlFile = new File(exportDir, "h2database.sql.gz")
+    try (Connection connection = dataSource.getConnection();
+         OutputStream os = new GZIPOutputStream(new FileOutputStream(sqlFile));
+         Writer writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
+        for (String tableName : tables) {
+            logger.info("Export table {} to SQL script", tableName)
+            try (Statement stmt = connection.createStatement();
+                 ResultSet resultSet = stmt.executeQuery("SELECT * FROM " + tableName)) {
+                ScriptUtilities.writeResultSetAsSql(connection, resultSet, tableName, writer, DBTypes.H2GIS, true)
+            }
+        }
     }
     return exportDir
 }

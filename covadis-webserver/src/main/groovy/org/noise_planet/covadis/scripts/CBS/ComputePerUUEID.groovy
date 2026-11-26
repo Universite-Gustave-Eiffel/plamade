@@ -1464,6 +1464,14 @@ static def runSimulation(Map inputs, Map mainConfiguration, DataSource h2DataSou
     // Rename output table
     def outputTableName = getReceiversLevelsTableName(posSol)
     try(Connection h2Connection = h2DataSource.getConnection()) {
+        Sql h2Sql = new Sql(h2Connection)
+        // H2 constraint names are unique within the schema: drop the primary key constraint of the
+        // imported table so the next posSol import can re-create it
+        def primaryKeyConstraint = h2Sql.firstRow("""SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = 'PUBLIC' AND TABLE_NAME = 'RECEIVERS_LEVEL' AND CONSTRAINT_TYPE = 'PRIMARY KEY'""")
+        if(primaryKeyConstraint != null) {
+            h2Connection.createStatement().execute("ALTER TABLE RECEIVERS_LEVEL DROP CONSTRAINT ${primaryKeyConstraint.CONSTRAINT_NAME}")
+        }
         DataBaseUtilities.parseScript("""
         DROP TABLE IF EXISTS $outputTableName;
         ALTER TABLE RECEIVERS_LEVEL RENAME TO $outputTableName;

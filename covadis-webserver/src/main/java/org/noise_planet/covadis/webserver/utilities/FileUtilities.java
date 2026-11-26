@@ -25,8 +25,11 @@ public class FileUtilities {
 
     /**
      * Merges multiple .sql.gz files into a single .sql.gz file.
-     * The first file's create table instruction is preserved; later files only contribute data
-     * starting from the first "INSERT INTO" line.
+     * The first file's create table instruction is preserved along with the trailing
+     * constraint and index statements (ALTER TABLE ... ADD CONSTRAINT, CREATE INDEX);
+     * later files only contribute the data rows (batched multi-line "INSERT INTO"
+     * statements) and stop at the first trailing constraint/index statement so that
+     * they are not duplicated in the merged script.
      *
      * @param inputFiles List of paths to .sql.gz files
      * @param outputFile The destination .sql.gz file
@@ -50,25 +53,44 @@ public class FileUtilities {
                      BufferedReader reader = new BufferedReader(isr)) {
 
                     String line;
+                    boolean dataStarted = false;
                     while ((line = reader.readLine()) != null) {
-                        // Logic to identify the starting line
-                        boolean isMatch = line.startsWith("INSERT INTO") ||
-                                (fileIndex == 0 && line.startsWith("CREATE CACHED TABLE"));
-
-                        if (isMatch) {
-                            // 1. Write the first matching line
+                        if (fileIndex == 0 && line.startsWith("CREATE CACHED TABLE")) {
+                            // 1. First file: keep the whole script (table creation, data,
+                            // constraints and indexes) in one fast bulk transfer
                             writer.write(line);
                             writer.write('\n'); // Standardize on Unix newline for SQL
-
-                            // 2. FAST BULK TRANSFER:
-                            // Stop reading line-by-line and copy the remaining stream in chunks.
                             int charsRead;
                             while ((charsRead = reader.read(buffer)) != -1) {
                                 writer.write(buffer, 0, charsRead);
                             }
-
                             // Exit the line-by-line loop and proceed to the next file
                             break;
+                        }
+                        if (fileIndex == 0 && line.startsWith("INSERT INTO")) {
+                            // Fallback if the first file has no CREATE CACHED TABLE statement
+                            writer.write(line);
+                            writer.write('\n');
+                            int charsRead;
+                            while ((charsRead = reader.read(buffer)) != -1) {
+                                writer.write(buffer, 0, charsRead);
+                            }
+                            break;
+                        }
+                        if (fileIndex > 0) {
+                            // Later files contribute only the data rows. H2 SCRIPT writes them
+                            // as batched multi-line INSERT statements: a line starting with
+                            // "INSERT INTO ... VALUES" followed by one "(...)" row per line.
+                            // The trailing constraint/index statements (ALTER TABLE, CREATE
+                            // INDEX) are already provided by the first file, stop at the first
+                            // one after the data section.
+                            if (line.startsWith("INSERT INTO") || (dataStarted && line.startsWith("("))) {
+                                dataStarted = true;
+                                writer.write(line);
+                                writer.write('\n');
+                            } else if (dataStarted && !line.isBlank() && !line.startsWith("--")) {
+                                break;
+                            }
                         }
                     }
                 }

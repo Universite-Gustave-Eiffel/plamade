@@ -17,18 +17,11 @@ import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
-import org.noise_planet.noisemodelling.webserver.script.ExecutionPlan
-import org.noise_planet.noisemodelling.webserver.script.Job
-import org.noise_planet.noisemodelling.webserver.script.ScriptMetadata
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
-import java.sql.Statement
+import java.sql.*
 
 title = 'Main remote script on Slurm Cluster'
 description = 'Main remote script on Slurm Cluster to run NoiseModelling on multiple nodes'
@@ -68,8 +61,6 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
     try(Connection connection = dataSource.getConnection()) {
         Statement statement = connection.createStatement()
-        // remove alias/ index / primary key
-        dropH2GISAliases(connection)
 
         // Import the input tables exported by Noise_level_from_source
         // The database working folder (/data) contains the SQL file uploaded on the slurm cluster
