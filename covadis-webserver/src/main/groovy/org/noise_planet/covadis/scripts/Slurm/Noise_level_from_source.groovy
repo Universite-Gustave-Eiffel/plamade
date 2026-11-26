@@ -18,7 +18,6 @@ import groovy.transform.Field
 import org.apache.sshd.scp.client.ScpClient
 import org.apache.sshd.scp.client.ScpClientCreator
 import org.apache.sshd.scp.common.helpers.ScpTimestampCommandDetails
-import org.h2.jdbc.JdbcSQLNonTransientConnectionException
 import org.h2gis.api.EmptyProgressVisitor
 import org.h2gis.api.ProgressVisitor
 import org.noise_planet.covadis.webserver.slurm.*
@@ -334,7 +333,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
                 serverKeyType: res.ssh_key_type,
                 sbatchScriptHeader: res.sbatch_script_header)
     }
-    exportDir = exportDatabase(dataSource)
+    exportDir = exportDatabase(dataSource, inputs)
     exportDir.deleteOnExit()
 
     logger.info("Connecting to slurm server {}@{}:{} with ssh key authentication", slurmConfig.user, slurmConfig.host, slurmConfig.port)
@@ -348,7 +347,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
 
         try {
             logger.info("Export database..")
-            uploadFile(scpClient, new File(exportDir, "h2database.zip"), slurmConfig.serverWorkspaceFolder + "/h2database.zip")
+            uploadFile(scpClient, new File(exportDir, "h2database.sql.gz"), slurmConfig.serverWorkspaceFolder + "/h2database.sql.gz")
 
             def bashCode = generateSlurmBashScript(inputs, slurmConfig.serverWorkspaceFolder, slurmConfig.sbatchScriptHeader)
 
@@ -396,7 +395,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
                 Thread.sleep(Math.max(1000, POLL_SLURM_STATUS_TIME - (System.currentTimeMillis() - lastPullTime)))
             }
             // All the tasks are completed download results in a temporary directory
-            List<String> output = slurmSession.runCommand(String.format("find %s/*.sql.gz -type f -printf \"%%s,%%f\\n\"",
+            List<String> output = slurmSession.runCommand(String.format("find %s/RECEIVERS_LEVEL_*.sql.gz -type f -printf \"%%s,%%f\\n\"",
                     slurmConfig.serverWorkspaceFolder), false)
             List<FileAttributes> files = SlurmUtilities.parseLSCommand(output)
             List<String> remoteFiles = new ArrayList<>()
@@ -466,20 +465,15 @@ module load singularity/singularity-3.9.5
 # sbatch --array=0-11 noisemodelling_batch.sh
 
 echo "copy data to local node storage"
-unzip h2database.zip -d /scratch/job."$$SLURM_JOB_ID"/  || exit 1
+cp h2database.sql.gz /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 cp Main_Remote_Script.groovy /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 
 echo "Prepare NoiseModelling run"
 
 cd /scratch/job."$$SLURM_JOB_ID"/ || exit 1
 
-#rename the h2 database
-if [ ! -f h2gisdb.mv.db ]; then
-    mv *.mv.db h2gisdb.mv.db || exit 1
-fi
-
 echo "Run main script.."
-singularity exec --bind $workspacePath:/output --bind /scratch/job."$$SLURM_JOB_ID":/data ~/noisemodelling.sif /srv/noisemodelling/bin/ScriptRunner -w /data -s /data/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --encodedNoiseLevelFromSourceInputs "$base64Encoded" --outputFolder /output/ || exit 1
+singularity exec --bind $workspacePath:/output --bind /scratch/job."$$SLURM_JOB_ID":/data ~/noisemodelling.sif /srv/noisemodelling/bin/ScriptRunner -w /data -s /data/Main_Remote_Script.groovy -taskId "$$SLURM_ARRAY_TASK_ID" --minTaskId "$$SLURM_ARRAY_TASK_MIN" --maxTaskId "$$SLURM_ARRAY_TASK_MAX" --encodedNoiseLevelFromSourceInputs "$base64Encoded" --outputFolder /output/ --databaseDumpFile /data/h2database.sql.gz || exit 1
 /$
     return script
 }
@@ -528,20 +522,29 @@ private static void setupNoiseModelling(SlurmSession slurmSession, String nmUrl)
     }
 }
 
-private static File exportDatabase(DataSource dataSource) {
+private static File exportDatabase(DataSource dataSource, Map inputs) {
     Logger logger = LoggerFactory.getLogger(Thread.currentThread().getName())
     def exportDir = Files.createTempDirectory(getDateString()).toFile()
 
+    // Collect the tables required by this process from the input parameters
+    List<String> tables = new ArrayList<>()
+    for (String key : ["tableBuilding", "tableSources", "tableSourcesEmission", "tableReceivers",
+                       "tableDEM", "tableGroundAbs", "tableSourceDirectivity",
+                       "tablePeriodAtmosphericSettings"]) {
+        Object tableName = inputs.get(key)
+        if (tableName != null && !(tableName as String).isEmpty()) {
+            tables.add(tableName as String)
+        }
+    }
+    StringBuilder script = new StringBuilder()
+            .append("COMMIT;\n")
+            .append("SCRIPT NOPASSWORDS NOSETTINGS TO '").append(exportDir.absolutePath)
+            .append("/h2database.sql.gz' COMPRESSION GZIP")
+    if (!tables.isEmpty()) {
+        script.append(" TABLE ").append(tables.join(", "))
+    }
     try(Connection connection = dataSource.getConnection()) {
-        DataBaseUtilities.parseScript("""
-        -- Ensure the backup session has no open, uncommitted writes
-        COMMIT;
-                
-        -- Force all cached in-memory changes and MVStore chunks to be flushed and synced to disk
-        CHECKPOINT SYNC;
-        
-        -- Generate database file copy
-        BACKUP TO '${exportDir.absolutePath}/h2database.zip'""", connection, new EmptyProgressVisitor(), logger)
+        DataBaseUtilities.parseScript(script.toString(), connection, new EmptyProgressVisitor(), logger)
     }
     return exportDir
 }

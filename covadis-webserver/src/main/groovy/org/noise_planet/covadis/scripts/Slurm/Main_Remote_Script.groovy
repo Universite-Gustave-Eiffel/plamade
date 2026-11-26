@@ -53,7 +53,10 @@ inputs = [taskId                           : [name       : 'Task identifier',
                                               title      : 'Export data folder',
                                               description: 'Location to save the RECEIVERS_LEVEL table',
                                               type       : String.class],
-
+          databaseDumpFile                 : [name       : 'Database dump file',
+                                              title      : 'Database dump file',
+                                              description: 'Path of the SQL file to import (compressed with gzip)',
+                                              type       : String.class],
 ]
 
 outputs = [result: [name       : 'Result output string',
@@ -65,6 +68,12 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
     try(Connection connection = dataSource.getConnection()) {
         Statement statement = connection.createStatement()
+        // remove alias/ index / primary key
+        dropH2GISAliases(connection)
+
+        // Import the input tables exported by Noise_level_from_source
+        // The database working folder (/data) contains the SQL file uploaded on the slurm cluster
+        statement.execute("RUNSCRIPT FROM '${input.databaseDumpFile as String}' COMPRESSION GZIP")
 
         /**
          * SLURM_ARRAY_TASK_ID will be set to the job array index value.
@@ -92,12 +101,13 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
         // Run NoiseLevelFromSource with the limited set of receivers
         new org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source().exec(connection, decodedInputs, progress)
-        // remove alias/ index / primary key
-        dropH2GISAliases(connection)
+        // remove again alias/ index / primary key
         dropTableIndex(connection, "PUBLIC", "RECEIVERS_LEVEL")
 
         // Export data
         Sql sql = new Sql(connection)
+        // remove alias again in order to exclude it from the generated SCRIPT sql
+        dropH2GISAliases(connection)
         sql.execute("SCRIPT NOPASSWORDS NOSETTINGS TO '$outputFolder/RECEIVERS_LEVEL_${taskId}.sql.gz' COMPRESSION GZIP TABLE RECEIVERS_LEVEL".toString())
     }
     return ["result" : "RECEIVERS_LEVEL"]

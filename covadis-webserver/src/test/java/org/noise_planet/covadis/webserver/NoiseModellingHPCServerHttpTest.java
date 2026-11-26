@@ -267,6 +267,7 @@ public class NoiseModellingHPCServerHttpTest {
             input.put("frequencyFieldPrepend", "LW");
             input.put("confExportReceiverGeometry", false);
             input.put("confExportSourceId", true);
+            input.put("slurm_task_count", 1);
 
             new Noise_level_from_source().exec(connection, input, new EmptyProgressVisitor());
 

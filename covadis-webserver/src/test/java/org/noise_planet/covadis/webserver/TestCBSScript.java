@@ -448,11 +448,24 @@ public class TestCBSScript extends JDBCTestCase {
     @Order(5)
     public void testRunDepartment() throws SQLException {
         assumePostGISAvailable();
+        // Create SLURM Configuration
+        SlurmConfig config = NoiseModellingHPCServerHttpTest.fetchSlurmConfigFromEnv();
+
+        new Write_HPC_Settings().exec(connection,
+                Map.of("configuration_name", "local",
+                        "host" , config.host,
+                        "port", config.port,
+                        "user", config.user,
+                        "key", config.sshKeyArmoredString
+                ), new EmptyProgressVisitor());
 
         new ComputePerDepartment().exec(connection,
                 Map.of("projectionName", "hexa",
                         "department", "78",
-                        "conf", 1),
+                        "conf", 1,
+                        "configuration_name", "local",
+                        "slurm_task_count", 1,
+                        "key_password", config.sshKeyPassword),
                 new EmptyProgressVisitor());
 
         // Check cbs
