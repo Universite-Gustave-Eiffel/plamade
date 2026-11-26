@@ -178,6 +178,106 @@ public class PostGISUtilities {
     }
 
     /**
+     * Description of a result set column: its name, SQL type, nullability and source table location.
+     *
+     * @param name          Column name
+     * @param sqlType       SQL type used to build the target table
+     * @param nullable      Whether the column is nullable
+     * @param tableLocation Source table location of the column
+     */
+    public record ColumnInfo(String name, String sqlType, boolean nullable, TableLocation tableLocation) {
+    }
+
+    /**
+     * Extract the column information (name, SQL type, nullability and source table location) of a result set.
+     * Geometry columns are described with their geometry metadata and NUMERIC/DECIMAL columns keep their
+     * precision and scale to preserve decimal values in the target database.
+     *
+     * @param resultSetConnection Connection linked with the result set
+     * @param resultSet           Result set
+     * @param targetDbType        Database type of the target database, used for dialect specific type mapping
+     * @return The list of column descriptions
+     * @throws SQLException if an error occurs while reading the result set metadata
+     */
+    public static List<ColumnInfo> getColumnInfos(Connection resultSetConnection, ResultSet resultSet, DBTypes targetDbType) throws SQLException {
+        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+        DBTypes dbType = DBUtils.getDBType(resultSetConnection);
+        int columnCount = resultSetMetaData.getColumnCount();
+        List<ColumnInfo> columnInfos = new ArrayList<>();
+
+        for (int i = 1; i <= columnCount; i++) {
+            boolean nullable = resultSetMetaData.isNullable(i) != ResultSetMetaData.columnNoNulls;
+            String name = TableLocation.capsIdentifier(resultSetMetaData.getColumnLabel(i), dbType);
+
+            TableLocation tableLocation;
+            if (resultSetMetaData.isWrapperFor(PgResultSetMetaData.class)) {
+                PgResultSetMetaData pgResultSetMetaData = resultSetMetaData.unwrap(PgResultSetMetaData.class);
+                tableLocation = new TableLocation(pgResultSetMetaData.getBaseSchemaName(i),
+                        pgResultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
+            } else {
+                tableLocation = new TableLocation(resultSetMetaData.getSchemaName(i),
+                        resultSetMetaData.getTableName(i), dbType);
+            }
+
+            int dataType = resultSetMetaData.getColumnType(i);
+            String typeName = resultSetMetaData.getColumnTypeName(i);
+            String sqlType;
+
+            // 1. Handle Geometry columns
+            if (typeName.toLowerCase(Locale.ROOT).contains("geometry")) {
+                GeometryMetaData metaData =
+                        GeometryTableUtilities.getMetaData(resultSetConnection, tableLocation, resultSetMetaData.getColumnLabel(i));
+                sqlType = metaData != null ? metaData.getSQL() : typeName;
+                // 2. Handle NUMERIC / DECIMAL to preserve decimal scale
+            } else if (dataType == Types.NUMERIC || dataType == Types.DECIMAL) {
+                int precision = resultSetMetaData.getPrecision(i);
+                int scale = resultSetMetaData.getScale(i);
+
+                if (precision > 0 && scale > 0) {
+                    sqlType = typeName + "(" + precision + ", " + scale + ")";
+                } else if (precision > 0 && scale == 0) {
+                    sqlType = typeName + "(" + precision + ", 0)";
+                } else if (targetDbType == DBTypes.POSTGIS || targetDbType == DBTypes.POSTGRESQL) {
+                    sqlType = typeName;
+                } else {
+                    // Unconstrained NUMERIC (e.g. Postgres NUMERIC) defaults to scale 0 in H2.
+                    // DOUBLE PRECISION avoids the integer truncation.
+                    sqlType = "DOUBLE PRECISION";
+                }
+                // 3. Other column types
+            } else {
+                sqlType = typeName;
+            }
+            columnInfos.add(new ColumnInfo(name, sqlType, nullable, tableLocation));
+        }
+        return columnInfos;
+    }
+
+    /**
+     * Build the CREATE TABLE SQL statement for the given table name and column descriptions.
+     *
+     * @param tableName Target table name
+     * @param columns   Column descriptions
+     * @return The CREATE TABLE SQL statement
+     */
+    public static String createTableSql(String tableName, List<ColumnInfo> columns) {
+        StringBuilder createTableSql = new StringBuilder();
+        createTableSql.append("CREATE TABLE ").append(tableName).append(" (");
+        for (int i = 0; i < columns.size(); i++) {
+            ColumnInfo column = columns.get(i);
+            createTableSql.append(column.name()).append(" ").append(column.sqlType());
+            if (!column.nullable()) {
+                createTableSql.append(" NOT NULL");
+            }
+            if (i < columns.size() - 1) {
+                createTableSql.append(", ");
+            }
+        }
+        createTableSql.append(")");
+        return createTableSql.toString();
+    }
+
+    /**
      * Copy a result set content to a target database.
      *
      * @param resultSetConnection Connection linked with the result set
@@ -189,60 +289,9 @@ public class PostGISUtilities {
     public static void copyResultSetToDatabase(Connection resultSetConnection, ResultSet resultSet, Connection targetConnection,
                                                String targetTableName, boolean dropTargetTable, int batchSize) throws SQLException {
         // Collect ResultSet metadata
-        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-        DBTypes dbType = DBUtils.getDBType(resultSetConnection);
-        int columnCount = resultSetMetaData.getColumnCount();
-        List<String> columnNames = new ArrayList<>();
-        List<String> columnTypes = new ArrayList<>();
-        List<Boolean> columnNullables = new ArrayList<>();
-        List<TableLocation> fieldTableLocations = new ArrayList<>();
-
-        for (int i = 1; i <= columnCount; i++) {
-            columnNullables.add(resultSetMetaData.isNullable(i) != ResultSetMetaData.columnNoNulls);
-            columnNames.add(TableLocation.capsIdentifier(resultSetMetaData.getColumnLabel(i), dbType));
-
-            TableLocation t;
-            if (resultSetMetaData.isWrapperFor(PgResultSetMetaData.class)) {
-                PgResultSetMetaData pgResultSetMetaData = resultSetMetaData.unwrap(PgResultSetMetaData.class);
-                t = new TableLocation(pgResultSetMetaData.getBaseSchemaName(i),
-                        pgResultSetMetaData.getBaseTableName(i), DBTypes.POSTGIS);
-            } else {
-                t = new TableLocation(resultSetMetaData.getSchemaName(i),
-                        resultSetMetaData.getTableName(i), dbType);
-            }
-            fieldTableLocations.add(t);
-
-            int dataType = resultSetMetaData.getColumnType(i);
-            String typeName = resultSetMetaData.getColumnTypeName(i);
-
-            // 1. Handle Geometry columns
-            if (typeName.toLowerCase(Locale.ROOT).contains("geometry")) {
-                GeometryMetaData metaData =
-                        GeometryTableUtilities.getMetaData(resultSetConnection, t, resultSetMetaData.getColumnLabel(i));
-                if (metaData != null) {
-                    columnTypes.add(metaData.getSQL());
-                } else {
-                    columnTypes.add(typeName);
-                }
-                // 2. Handle NUMERIC / DECIMAL to preserve decimal scale
-            } else if (dataType == Types.NUMERIC || dataType == Types.DECIMAL) {
-                int precision = resultSetMetaData.getPrecision(i);
-                int scale = resultSetMetaData.getScale(i);
-
-                if (precision > 0 && scale > 0) {
-                    columnTypes.add(typeName + "(" + precision + ", " + scale + ")");
-                } else if (precision > 0 && scale == 0) {
-                    columnTypes.add(typeName + "(" + precision + ", 0)");
-                } else {
-                    // Unconstrained NUMERIC (e.g. Postgres NUMERIC) defaults to scale 0 in H2.
-                    // DOUBLE PRECISION avoids the integer truncation.
-                    columnTypes.add("DOUBLE PRECISION");
-                }
-                // 3. Other column types
-            } else {
-                columnTypes.add(typeName);
-            }
-        }
+        DBTypes targetDbType = DBUtils.getDBType(targetConnection);
+        List<ColumnInfo> columnInfos = getColumnInfos(resultSetConnection, resultSet, targetDbType);
+        List<TableLocation> fieldTableLocations = columnInfos.stream().map(ColumnInfo::tableLocation).toList();
 
         // Drop and Create target table
         if (!JDBCUtilities.tableExists(targetConnection, targetTableName) || dropTargetTable) {
@@ -251,31 +300,20 @@ public class PostGISUtilities {
                     targetConnectionStatement.execute("DROP TABLE IF EXISTS " + targetTableName);
                 }
             }
-            StringBuilder createTableSql = new StringBuilder();
-            createTableSql.append("CREATE TABLE ").append(targetTableName).append(" (");
-            for (int i = 0; i < columnNames.size(); i++) {
-                createTableSql.append(columnNames.get(i)).append(" ").append(columnTypes.get(i));
-                if (!columnNullables.get(i)) {
-                    createTableSql.append(" NOT NULL");
-                }
-                if (i < columnNames.size() - 1) {
-                    createTableSql.append(", ");
-                }
-            }
-            createTableSql.append(")");
+            String createTableSql = createTableSql(targetTableName, columnInfos);
             try (Statement targetConnectionStatement = targetConnection.createStatement()) {
-                targetConnectionStatement.execute(createTableSql.toString());
+                targetConnectionStatement.execute(createTableSql);
             } catch (SQLException e) {
-                rethrowException(e, createTableSql.toString());
+                rethrowException(e, createTableSql);
             }
         }
 
         // Insert values using batch
         StringBuilder insertSql = new StringBuilder();
         insertSql.append("INSERT INTO ").append(targetTableName).append(" VALUES (");
-        for (int i = 0; i < columnNames.size(); i++) {
+        for (int i = 0; i < columnInfos.size(); i++) {
             insertSql.append("?");
-            if (i < columnNames.size() - 1) {
+            if (i < columnInfos.size() - 1) {
                 insertSql.append(", ");
             }
         }
@@ -285,7 +323,7 @@ public class PostGISUtilities {
             int count = 0;
             boolean nonPushedBatch = false;
             while (resultSet.next()) {
-                for (int i = 1; i <= columnCount; i++) {
+                for (int i = 1; i <= columnInfos.size(); i++) {
                     final Object value = resultSet.getObject(i);
                     ps.setObject(i, value);
                 }
@@ -305,7 +343,7 @@ public class PostGISUtilities {
         if (!fieldTableLocations.isEmpty() && !fieldTableLocations.getFirst().getTable().isEmpty() &&
                 fieldTableLocations.stream().allMatch(t -> t.equals(fieldTableLocations.getFirst()))) {
             Tuple<String, Integer> pkInfo = JDBCUtilities.getIntegerPrimaryKeyNameAndIndex(resultSetConnection, fieldTableLocations.getFirst());
-            if (pkInfo != null && columnNames.stream().anyMatch(n -> n.equalsIgnoreCase(pkInfo.first()))) {
+            if (pkInfo != null && columnInfos.stream().anyMatch(c -> c.name().equalsIgnoreCase(pkInfo.first()))) {
                 String pkName = pkInfo.first();
                 try (Statement h2Stmt = targetConnection.createStatement()) {
                     h2Stmt.execute("ALTER TABLE " + targetTableName + " ADD PRIMARY KEY (" + pkName + ")");

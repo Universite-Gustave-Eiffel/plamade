@@ -10,6 +10,7 @@ import org.h2.util.geometry.EWKTUtils;
 import org.h2.util.geometry.JTSUtils;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.api.ProgressVisitor;
+import org.h2gis.utilities.dbtypes.DBTypes;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.noisemodelling.webserver.script.ExecutionPlan;
@@ -17,8 +18,10 @@ import org.noise_planet.noisemodelling.webserver.script.ScriptMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
+import java.io.IOException;
+import java.io.Writer;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -209,5 +212,150 @@ public class ScriptUtilities {
         }
 
         return table.toString();
+    }
+
+    /**
+     * Write the content of a result set as a SQL script (CREATE TABLE and INSERT statements) into a writer.
+     *
+     * @param resultSetConnection Connection linked with the result set
+     * @param resultSet           Result set (caller is responsible to close it)
+     * @param tableName           Name of the table to create in the generated script
+     * @param writer              Writer receiving the SQL script
+     * @param targetDbType        Database type of the target database (H2 or PostGIS)
+     * @param createTable         Insert create table statements (with drop table if exists before)
+     * @throws SQLException if an error occurs while reading the result set
+     * @throws IOException  if an error occurs while writing the script
+     */
+    public static void writeResultSetAsSql(Connection resultSetConnection, ResultSet resultSet, String tableName,
+                                           Writer writer, DBTypes targetDbType, boolean createTable) throws SQLException, IOException {
+        List<PostGISUtilities.ColumnInfo> columnInfos = PostGISUtilities.getColumnInfos(resultSetConnection, resultSet, targetDbType);
+        if(createTable) {
+            writer.write("DROP TABLE IF EXISTS "+tableName+";\n");
+            writer.write(PostGISUtilities.createTableSql(tableName, columnInfos));
+            writer.write(";\n");
+        }
+        while (resultSet.next()) {
+            StringBuilder insertSql = new StringBuilder("INSERT INTO ").append(tableName).append(" VALUES (");
+            for (int i = 1; i <= columnInfos.size(); i++) {
+                if (i > 1) {
+                    insertSql.append(", ");
+                }
+                insertSql.append(formatSqlValue(resultSet.getObject(i), targetDbType));
+            }
+            insertSql.append(");\n");
+            writer.write(insertSql.toString());
+        }
+        writer.flush();
+    }
+
+    /**
+     * Format a result set value as a SQL literal for the given target database type.
+     *
+     * @param value        Result set value
+     * @param targetDbType Database type of the target database
+     * @return The value as a SQL literal
+     */
+    private static String formatSqlValue(Object value, DBTypes targetDbType) {
+        if (value == null) {
+            return "NULL";
+        }
+        if (value instanceof Boolean bool) {
+            return bool ? "TRUE" : "FALSE";
+        }
+        if (value instanceof Number) {
+            return value.toString();
+        }
+        if (value instanceof byte[] bytes) {
+            return formatByteArrayLiteral(bytes, targetDbType);
+        }
+        if (value instanceof Geometry geometry) {
+            return formatGeometryLiteral(geometry, targetDbType);
+        }
+        if (value instanceof java.sql.Array array) {
+            try {
+                return formatArrayLiteral((Object[]) array.getArray(), targetDbType);
+            } catch (SQLException e) {
+                // fall through to string literal
+            }
+        } else if (value.getClass().isArray()) {
+            return formatArrayLiteral((Object[]) value, targetDbType);
+        }
+        return "'" + escapeSqlLiteral(value.toString()) + "'";
+    }
+
+    /**
+     * Format an array as a SQL array constructor.
+     *
+     * @param array        Array elements
+     * @param targetDbType Database type of the target database
+     * @return The array as a SQL ARRAY[...] constructor
+     */
+    private static String formatArrayLiteral(Object[] array, DBTypes targetDbType) {
+        StringBuilder arraySql = new StringBuilder("ARRAY[");
+        for (int i = 0; i < array.length; i++) {
+            if (i > 0) {
+                arraySql.append(", ");
+            }
+            arraySql.append(formatSqlValue(array[i], targetDbType));
+        }
+        return arraySql.append("]").toString();
+    }
+
+    /**
+     * Format a geometry as an ST_GeomFromText expression. PostGIS receives the EWKT string while H2
+     * receives the WKT string with its SRID as a second argument.
+     *
+     * @param geometry     Geometry value
+     * @param targetDbType Database type of the target database
+     * @return The geometry as an ST_GeomFromText expression
+     */
+    private static String formatGeometryLiteral(Geometry geometry, DBTypes targetDbType) {
+        String ewkt = EWKTUtils.ewkb2ewkt(JTSUtils.geometry2ewkb(geometry));
+        return "'"+escapeSqlLiteral(ewkt)+"'::geometry";
+//        if (targetDbType == DBTypes.POSTGIS || targetDbType == DBTypes.POSTGRESQL) {
+//            return "ST_GeomFromText('" + escapeSqlLiteral(ewkt) + "')";
+//        }
+//        int srid = geometry.getSRID();
+//        String wkt = ewkt;
+//        int sridIndex = ewkt.indexOf("SRID=");
+//        if (sridIndex == 0) {
+//            int semicolon = ewkt.indexOf(';');
+//            if (semicolon > 0) {
+//                try {
+//                    srid = Integer.parseInt(ewkt.substring(5, semicolon));
+//                } catch (NumberFormatException ignored) {
+//                }
+//                wkt = ewkt.substring(semicolon + 1);
+//            }
+//        }
+//        return "ST_GeomFromText('" + escapeSqlLiteral(wkt) + "', " + srid + ")";
+    }
+
+    /**
+     * Format a byte array as a hex literal.
+     *
+     * @param bytes        Byte array value
+     * @param targetDbType Database type of the target database
+     * @return The byte array as a hex literal
+     */
+    private static String formatByteArrayLiteral(byte[] bytes, DBTypes targetDbType) {
+        StringBuilder hex = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            hex.append(String.format(Locale.ROOT, "%02x", b & 0xff));
+        }
+        if (targetDbType == DBTypes.POSTGIS || targetDbType == DBTypes.POSTGRESQL) {
+            return "'\\x" + hex + "'";
+        }
+        return "X'" + hex + "'";
+    }
+
+    /**
+     * Escape a string value to be used inside a SQL string literal.
+     *
+     * @param value String value
+     * @return The escaped string value
+     */
+    private static String escapeSqlLiteral(String value) {
+        return value.replace("'", "''");
     }
 }
