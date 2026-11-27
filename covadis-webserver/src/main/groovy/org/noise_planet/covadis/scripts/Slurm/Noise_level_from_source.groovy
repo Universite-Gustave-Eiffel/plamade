@@ -615,8 +615,14 @@ private static String getDateString() {
 
 @CompileStatic
 class ReceiversQueryFilter implements FileUtilities.QueryFilter {
+    boolean createTableAlreadyDone = false
+
     @Override
     boolean accept(String statement) {
-        return statement.startsWith("INSERT INTO") || statement.startsWith("CREATE CACHED TABLE")
+        if(statement.startsWith("CREATE CACHED TABLE") && !createTableAlreadyDone) {
+            createTableAlreadyDone = true
+            return true
+        }
+        return statement.startsWith("INSERT INTO")
     }
 }

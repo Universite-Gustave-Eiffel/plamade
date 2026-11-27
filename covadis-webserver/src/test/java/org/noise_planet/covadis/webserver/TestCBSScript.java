@@ -465,7 +465,8 @@ public class TestCBSScript extends JDBCTestCase {
                         "conf", 1,
                         "configuration_name", "local",
                         "slurm_task_count", 2,
-                        "key_password", config.sshKeyPassword),
+                        "key_password", config.sshKeyPassword,
+                        "computation_sources", "Roads and Rails"),
                 new EmptyProgressVisitor());
 
         // Check cbs

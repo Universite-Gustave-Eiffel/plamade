@@ -73,6 +73,14 @@ inputs = [
                 description: 'Replace computed receiver by the provided one (WKT) and combine the RAYS table to the main connection',
                 min        : 0, max: 1,
                 type       : String.class
+        ],
+        computation_sources: [
+                name         : 'Sources for computation',
+                title        : 'Receiver rays profile',
+                description  : 'What sound sources to use',
+                allowedValues: ["Roads and Rails", "Roads", "Rails"],
+                default      : 'Roads and Rails',
+                type         : String.class
         ]
 ]
 
@@ -251,7 +259,16 @@ def computeForDepartment(String department, DataSource h2DataSource, Connection 
     }
     // Separate propagation for roads and rails but common input data
     ProgressVisitor sourceProgress = departmentProgress.subProcess(2)
-    for (def source : ["road", "rail"]) {
+
+    def sourceSources = ["road", "rail"]
+    if(input.hasProperty("computation_sources")) {
+        if(input.computation_sources == "Roads") {
+            sourceSources = ["road"]
+        } else if (input.computation_sources == "Rails") {
+            sourceSources = ["rail"]
+        }
+    }
+    for (def source : sourceSources) {
             def posSols ;
 
         if(source == "road") {
