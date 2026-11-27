@@ -17,18 +17,11 @@ import org.h2gis.utilities.JDBCUtilities
 import org.h2gis.utilities.TableLocation
 import org.h2gis.utilities.dbtypes.DBTypes
 import org.h2gis.utilities.dbtypes.DBUtils
-import org.noise_planet.noisemodelling.webserver.script.ExecutionPlan
-import org.noise_planet.noisemodelling.webserver.script.Job
-import org.noise_planet.noisemodelling.webserver.script.ScriptMetadata
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
-import java.sql.Statement
+import java.sql.*
 
 title = 'Main remote script on Slurm Cluster'
 description = 'Main remote script on Slurm Cluster to run NoiseModelling on multiple nodes'
@@ -53,7 +46,10 @@ inputs = [taskId                           : [name       : 'Task identifier',
                                               title      : 'Export data folder',
                                               description: 'Location to save the RECEIVERS_LEVEL table',
                                               type       : String.class],
-
+          databaseDumpFile                 : [name       : 'Database dump file',
+                                              title      : 'Database dump file',
+                                              description: 'Path of the SQL file to import (compressed with gzip)',
+                                              type       : String.class],
 ]
 
 outputs = [result: [name       : 'Result output string',
@@ -65,6 +61,10 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
     try(Connection connection = dataSource.getConnection()) {
         Statement statement = connection.createStatement()
+
+        // Import the input tables exported by Noise_level_from_source
+        // The database working folder (/data) contains the SQL file uploaded on the slurm cluster
+        statement.execute("RUNSCRIPT FROM '${input.databaseDumpFile as String}' COMPRESSION GZIP")
 
         /**
          * SLURM_ARRAY_TASK_ID will be set to the job array index value.
@@ -92,66 +92,13 @@ def exec(DataSource dataSource, Map input, ProgressVisitor progress) {
 
         // Run NoiseLevelFromSource with the limited set of receivers
         new org.noise_planet.noisemodelling.scripts.NoiseModelling.Noise_level_from_source().exec(connection, decodedInputs, progress)
-        // remove alias/ index / primary key
-        dropH2GISAliases(connection)
-        dropTableIndex(connection, "PUBLIC", "RECEIVERS_LEVEL")
 
         // Export data
         Sql sql = new Sql(connection)
+
         sql.execute("SCRIPT NOPASSWORDS NOSETTINGS TO '$outputFolder/RECEIVERS_LEVEL_${taskId}.sql.gz' COMPRESSION GZIP TABLE RECEIVERS_LEVEL".toString())
     }
     return ["result" : "RECEIVERS_LEVEL"]
-}
-
-static void dropTableIndex(Connection conn, String schema, String tableName) throws SQLException {
-    String findIndexSql =
-            "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.INDEXES " +
-                    "WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ? " +
-                    "AND INDEX_TYPE_NAME != 'PRIMARY KEY' LIMIT 1";
-
-    try (PreparedStatement ps = conn.prepareStatement(findIndexSql)) {
-        ps.setString(1, tableName.toUpperCase());
-        ps.setString(2, schema.toUpperCase());
-
-        try (ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                String indexName = rs.getString("INDEX_NAME");
-                try (Statement stmt = conn.createStatement()) {
-                    // Always wrap names in double quotes for safety
-                    stmt.execute("DROP INDEX \"" + schema + "\".\"" + indexName + "\"");
-                    System.out.println("Dropped index: " + indexName);
-                }
-            }
-        }
-    }
-}
-public static void dropH2GISAliases(Connection conn) throws SQLException {
-    String query = "SELECT ROUTINE_SCHEMA, ROUTINE_NAME, ROUTINE_TYPE FROM INFORMATION_SCHEMA.ROUTINES " +
-            "WHERE ROUTINE_BODY = 'EXTERNAL' AND EXTERNAL_NAME LIKE 'org.h2gis.%'";
-
-    List<String> dropCommands = new ArrayList<>();
-
-    try (Statement stmt = conn.createStatement();
-         ResultSet rs = stmt.executeQuery(query)) {
-        while (rs.next()) {
-            String schema = rs.getString("ROUTINE_SCHEMA");
-            String name = rs.getString("ROUTINE_NAME");
-            String routineType = rs.getString("ROUTINE_TYPE");
-            // Use DROP ALIAS for functions linked to Java methods
-            if(routineType == "FUNCTION" || routineType == "PROCEDURE") {
-                dropCommands.add("DROP ALIAS IF EXISTS \"" + schema + "\".\"" + name + "\"");
-            } else if(routineType == "AGGREGATE") {
-                dropCommands.add("DROP AGGREGATE IF EXISTS \"" + schema + "\".\"" + name + "\"");
-            }
-        }
-    }
-
-    // Execute the drops
-    try (Statement stmt = conn.createStatement()) {
-        for (String sql : dropCommands) {
-            stmt.execute(sql);
-        }
-    }
 }
 
 static def filterReceivers(Connection connection, int minTaskId, int maxTaskId, int taskId, String receivers_table_name) {

@@ -57,9 +57,6 @@ inputs = [
 
 outputs = [result: [name: 'Result output string', title: 'Result output string', description: 'Result table name. Can be used as input for another WPS process', type: String.class]]
 
-@Field
-int batchSize = 100
-
 def exec(Connection connection, Map input, ProgressVisitor progress) {
     Logger logger = LoggerFactory.getLogger(this.class)
 
@@ -123,100 +120,14 @@ def computeForUUEID(String uueid, DataSource h2DataSource, Connection pgConnecti
 
         def extractionEnvelopeGeometryWKT = ValueGeometry.getFromGeometry(res.geomenv as Geometry).string
 
-        fetchDem(input, uueid, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, progress)
+        ComputePerUUEID.fetchDem(input, extractionEnvelopeGeometryWKT, h2Connection, pgConnection, progress)
 
-        enrichDemWithRoads(input, uueid, h2Connection, pgConnection, progress)
-
-        int contourCount = generateContours(h2Connection, "DEM_ENRICHED", input.getOrDefault("contourInterval", 1.0) as Double)
+        int contourCount = generateContours(h2Connection, "DEM", input.getOrDefault("contourInterval", 1.0) as Double)
 
         uploadDemContours(h2Connection, pgConnection, uueid, input.projectionName as String)
 
         return contourCount
     }
-}
-
-def fetchDem(Map input, String uueid, String extractionEnvelopeGeometry, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
-    Sql pgSql = new Sql(pgConnection)
-    Logger logger = LoggerFactory.getLogger(this.class)
-    logger.info("Fetch digital elevation model..")
-    def fetchTableNamesQuery = """
-        SELECT uueid, insee_dep, bd_alti
-        FROM cbs_uge_input.nm_link_dept_infra_road_${input.projectionName} nldirh
-        WHERE nldirh.uueid = '$uueid';
-    """
-    def bdAltiTableName = new HashSet<String>()
-    pgSql.rows(fetchTableNamesQuery as String).each { row ->
-        bdAltiTableName.add(row.bd_alti as String)
-    }
-    if (bdAltiTableName.isEmpty()) {
-        throw new IllegalArgumentException("No bd_alti table referenced for the provided uueid '$uueid'")
-    }
-
-    ProgressVisitor subProgress = stepsProgress.subProcess(bdAltiTableName.size())
-
-    def xyPrecision = 2 // cm precision
-    def zPrecision = 2 // cm precision
-    bdAltiTableName.forEach { tableName ->
-        PostGISUtilities.fetchDemTable(pgConnection, h2Connection, "bd_alti.${tableName}",
-                "DEM", extractionEnvelopeGeometry, subProgress, xyPrecision, zPrecision)
-    }
-    // Enhance DEM points with orography and hydrography ruptures lines
-    def tableExt = getDeptCodeFromExt().get(input.projectionName)
-    def fetchOroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
-         FROM bd_topo.n_ligne_orographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0"""
-
-    try( Statement st = pgConnection.createStatement() ;
-         ResultSet rs = st.executeQuery(fetchOroTableQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "OROGRAPHIC", true, batchSize)
-    }
-
-
-    // Insert lines into DEM table
-    def insertOroQuery = """
-        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM OROGRAPHIC)');
-        DROP TABLE OROGRAPHIC;            
-        """
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", insertOroQuery, "outputFormat", "json"),
-            new EmptyProgressVisitor())
-
-    def fetchHydroTableQuery = """SELECT st_intersection(geom3d, '$extractionEnvelopeGeometry'::geometry) the_geom
-         FROM bd_topo.n_troncon_hydrographique_bdt_${tableExt}_2023 WHERE ST_Intersects(geom, '$extractionEnvelopeGeometry'::geometry) AND ST_ZMIN(geom3d) > 0 AND position_par_rapport_au_sol = '0'"""
-
-    try( Statement st = pgConnection.createStatement() ;
-         ResultSet rs = st.executeQuery(fetchHydroTableQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "HYDROGRAPHIC", true, batchSize)
-    }
-
-    // Insert lines into DEM table
-    def insertHydroQuery = """
-        INSERT INTO DEM (the_geom) SELECT THE_GEOM FROM ST_Explode('(SELECT ST_TOMULTIPOINT(ST_DENSIFY(the_geom, 5)) THE_GEOM FROM HYDROGRAPHIC)');
-        DROP TABLE HYDROGRAPHIC;            
-        """
-    new Execute_Query().exec(h2Connection,
-            Map.of("sqlQueries", insertHydroQuery, "outputFormat", "json"),
-            new EmptyProgressVisitor())
-
-}
-
-def enrichDemWithRoads(Map input, String uueid, Connection h2Connection, Connection pgConnection, ProgressVisitor stepsProgress) {
-    Logger logger = LoggerFactory.getLogger(this.class)
-    logger.info("Adapting digital elevation model with road platforms..")
-    ProgressVisitor demProgress = stepsProgress.subProcess(2)
-
-    // Fetch all roads of the UUEID (all pos_sol, bridges included) in order to build every road platform at once
-    def roadQuery = """SELECT geom as the_geom, largeur as width
-        FROM cbs_uge_input.n_routier_troncon_l_${input.projectionName}
-        WHERE uueid = '$uueid' and (franchisst is null or franchisst = 'Pont')"""
-    try( Statement st = pgConnection.createStatement() ;
-         ResultSet rs = st.executeQuery(roadQuery)) {
-        PostGISUtilities.copyResultSetToDatabase(pgConnection, rs, h2Connection, "ROADS", true, batchSize)
-        demProgress.endStep()
-    }
-
-    // Create a new DEM with road platforms
-    def srid = Generate_roads_sources.getSRIDFromTableExtensionName()[input.projectionName]
-    ScriptUtilities.execScript(new Enrich_DEM_with_road(), h2Connection, [inputDEM: "DEM", inputRoad: "ROADS", roadWidth : "WIDTH", outputSuffix: "ENRICHED", inputSRID: srid], demProgress)
 }
 
 /**
@@ -349,8 +260,4 @@ static int uploadDemContours(Connection h2Connection, Connection pgConnection, S
     }
 
     return JDBCUtilities.getRowCount(h2Connection, "DEM_CONTOURS")
-}
-
-static Map getDeptCodeFromExt() {
-    return  ["hexa": '000', "guad": '971', "guya": '973', "mart": '972', "reun": '974' ]
 }

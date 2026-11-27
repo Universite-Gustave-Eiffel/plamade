@@ -1,0 +1,42 @@
+flowchart TB
+    A([Début]) --> B[Opérateur : sélection des paramètres<br/>projection, configuration, HPC]
+    B --> C{"Choix du mode de calcul"}
+    C -->|Département entier| D1[ComputePerDepartment.groovy]
+    C -->|Une ou plusieurs infrastructures UUEID| D2[ComputePerUUEID.groovy]
+
+    subgraph dept["Calcul par département"]
+        D1 --> E1[Création d'une base H2 locale<br/>pour le département]
+        E1 --> F1[Enveloppe de calcul :<br/>géométrie du département + distances max]
+        F1 --> G1[Chargement : MNT, bâtiments,<br/>occupation du sol, sources]
+        G1 --> H1[Génération des récepteurs<br/>et filtrage dans le département]
+        H1 --> I1[Paramètres atmosphériques<br/>de la station la plus proche]
+    end
+
+    subgraph uueid["Calcul par infrastructure"]
+        D2 --> E2[Boucle sur les UUEID sélectionnés]
+        E2 --> F2[Création d'une base H2 locale<br/>par UUEID]
+        F2 --> G2[Enveloppe de calcul :<br/>enveloppe convexe des sources + distances max]
+        G2 --> H2[Chargement : MNT, bâtiments,<br/>occupation du sol, sources]
+        H2 --> I2[Génération des récepteurs<br/>et filtrage]
+        I2 --> J2[Paramètres atmosphériques<br/>de la station la plus proche]
+    end
+
+    I1 --> K
+    J2 --> K
+
+    K{"Boucle sur chaque pos_sol (hauteur de la source)"}
+    K --> L[Chargement des sources acoustiques<br/>routes / voies ferrées]
+    L --> M[Enrichissement du MNT<br/>avec les plateformes route/fer]
+    M --> N{"Calcul local ou HPC ?"}
+    N -->|Local| O1[NoiseModelling<br/>Noise_level_from_source]
+    N -->|HPC Slurm| O2[Orchestration sbatch<br/>du calcul distribué]
+    O1 --> P[Fusion énergétique des niveaux<br/>toutes hauteurs confondues]
+    O2 --> P
+    P --> Q[Génération des isophones CBS<br/>Lden / Lnight, types A et C]
+    Q --> R[Exposition en façade des bâtiments]
+    R --> S[Statistiques d'exposition<br/>HA, HSD, CPI, population]
+    S --> T{"Mode de calcul"}
+    T -->|Département| U1[Chargement PostGIS :<br/>CBS_DEPT, expo_dept,<br/>expo_global_dept, facade_expo_dept]
+    T -->|UUEID| U2[Chargement PostGIS :<br/>CBS, expo, expo_global,<br/>facade_expo]
+    U1 --> V([Fin])
+    U2 --> V

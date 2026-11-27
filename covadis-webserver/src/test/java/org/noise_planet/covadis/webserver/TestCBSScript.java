@@ -5,10 +5,11 @@ import com.bedatadriven.jackson.datatype.jts.JtsModule;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zaxxer.hikari.HikariDataSource;
 import groovy.sql.Sql;
 import org.h2.util.ScriptReader;
 import org.h2.util.StringUtils;
+import org.h2.util.geometry.EWKTUtils;
+import org.h2.util.geometry.JTSUtils;
 import org.h2.value.ValueBoolean;
 import org.h2gis.api.EmptyProgressVisitor;
 import org.h2gis.functions.io.shp.SHPRead;
@@ -19,13 +20,16 @@ import org.h2gis.utilities.TableLocation;
 import org.h2gis.utilities.dbtypes.DBTypes;
 import org.junit.jupiter.api.*;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.scripts.CBS.*;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
 import org.noise_planet.covadis.scripts.Slurm.Write_HPC_Settings;
 import org.noise_planet.covadis.webserver.database.PostGISUtilities;
 import org.noise_planet.covadis.webserver.slurm.SlurmConfig;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.noise_planet.noisemodelling.pathfinder.profilebuilder.ProfileBuilder;
 import org.noise_planet.noisemodelling.pathfinder.utils.geometry.CoordinateMixin;
+import org.noise_planet.noisemodelling.pathfinder.utils.profiler.RootProgressVisitor;
 import org.noise_planet.noisemodelling.propagation.cnossos.CnossosAttenuationOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -155,7 +159,6 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/c_correspond_batiment_batimentsensible_hexa.sql");
                     runSqlFile(pgConnection, "database/n_routier_protection_acoustique_hexa.sql");
                     runSqlFile(pgConnection, "database/c_naturesol_hexa.sql.zip");
-                    runSqlFile(pgConnection, "database/nm_link_dept_infra_road_hexa.sql.zip");
                     runSqlFile(pgConnection, "database/tiny_d091.sql.zip");
                     runSqlFile(pgConnection, "database/n_ligne_orographique_bdt_000_2023.sql.zip");
                     runSqlFile(pgConnection, "database/n_troncon_hydrographique_bdt_000_2023.sql.zip");
@@ -168,6 +171,7 @@ public class TestCBSScript extends JDBCTestCase {
                     runSqlFile(pgConnection, "database/n_ferroviaire_tunnel.sql");
                     runSqlFile(pgConnection, "database/n_ferroviaire_vitesse.sql.zip");
                     runSqlFile(pgConnection, "database/n_ferroviaire_protection_acoust.sql");
+                    runSqlFile(pgConnection, "database/cpi.sql.zip");
                     // Extract DEM data from tiny wkb
                     statement.execute("""
                                       INSERT INTO bd_alti.d091 (the_geom)
@@ -200,7 +204,7 @@ public class TestCBSScript extends JDBCTestCase {
 
     @Test
     @Order(2)
-    public void testGenerateSource() throws SQLException {
+    public void testGenerateRoadSource() throws SQLException {
         assumePostGISAvailable();
         ScriptUtilities.execScript(new Generate_roads_sources(), connection, Map.of("projectionName", "hexa"));
         try(Connection pgConnection = pgDataSource.getConnection()) {
@@ -341,7 +345,7 @@ public class TestCBSScript extends JDBCTestCase {
 
     @Test
     @Order(4)
-    public void testRunByUUEID() throws SQLException {
+    public void testRunRoadByUUEID() throws SQLException {
         assumePostGISAvailable();
 
        // Create SLURM Configuration
@@ -371,7 +375,7 @@ public class TestCBSScript extends JDBCTestCase {
                 "LnightGreaterThan62", "LnightGreaterThan70");
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM \"cbs_uge_output\".\"cbs_hexa\" order by noiselevel;")) {
+            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM cbs_uge_output.cbs_hexa where uueid='RD_FR_00_0781651' order by noiselevel;")) {
             for (String expectedCb : expectedCbs) {
                 assertTrue(resultSet.next());
                 assertEquals(expectedCb, resultSet.getString("noiselevel"));
@@ -381,7 +385,7 @@ public class TestCBSScript extends JDBCTestCase {
 
         try(Connection pgConnection = pgDataSource.getConnection();
             Statement statement = pgConnection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa")) {
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa where uueid='RD_FR_00_0781651'")) {
             assertTrue(resultSet.next());
             assertNotEquals(0, resultSet.getInt("CPT"));
         }
@@ -398,10 +402,52 @@ public class TestCBSScript extends JDBCTestCase {
 
 
     @Test
+    @Order(4)
+    public void testRunTrainByUUEID() throws SQLException {
+        assumePostGISAvailable();
+
+        new ComputePerUUEID().exec(connection,
+                Map.of("projectionName", "hexa",
+                        "uueid_pattern", "RL_FR_00_07800432,RL_FR_00_09100496",
+                        "conf", 1,
+                        "upload_receivers_level", true),
+                new RootProgressVisitor(1, true, 5));
+
+        // Check cbs
+        List<String> expectedCbs = Arrays.asList("Lden3539", "Lden4044", "Lden4549", "Lden5054", "Lden5559",
+                "Lden6064", "Lden6569", "Lden7074", "LdenGreaterThan68", "LdenGreaterThan75", "Lnight3034",
+                "Lnight3539", "Lnight4044", "Lnight4549", "Lnight5054", "Lnight5559", "Lnight6064", "Lnight6569",
+                "LnightGreaterThan62", "LnightGreaterThan70");
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT distinct noiselevel FROM cbs_uge_output.cbs_hexa where uueid='RL_FR_00_07800432' order by noiselevel;")) {
+            for (String expectedCb : expectedCbs) {
+                assertTrue(resultSet.next());
+                assertEquals(expectedCb, resultSet.getString("noiselevel"));
+            }
+            assertFalse(resultSet.next());
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) CPT FROM cbs_uge_output.facade_expo_hexa where uueid='RL_FR_00_07800432'")) {
+            assertTrue(resultSet.next());
+            assertNotEquals(0, resultSet.getInt("CPT"));
+        }
+
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT schools, area from cbs_uge_output.expo where pk = 'RL_FR_00_07800432_Lnight4549';")) {
+            assertTrue(resultSet.next());
+            assertEquals(1, resultSet.getInt("schools"));
+            assertTrue(resultSet.getFloat("area") > 0);
+        }
+    }
+
+    @Test
     @Order(5)
     public void testRunDepartment() throws SQLException {
         assumePostGISAvailable();
-
         // Create SLURM Configuration
         SlurmConfig config = NoiseModellingHPCServerHttpTest.fetchSlurmConfigFromEnv();
 
@@ -418,8 +464,9 @@ public class TestCBSScript extends JDBCTestCase {
                         "department", "78",
                         "conf", 1,
                         "configuration_name", "local",
-                        "slurm_task_count", 1,
-                        "key_password", config.sshKeyPassword),
+                        "slurm_task_count", 2,
+                        "key_password", config.sshKeyPassword,
+                        "computation_sources", "Roads and Rails"),
                 new EmptyProgressVisitor());
 
         // Check cbs
@@ -452,24 +499,27 @@ public class TestCBSScript extends JDBCTestCase {
             assertTrue(resultSet.getFloat("area") > 0);
         }
 
-        // TODO fix this issue, could be on NoiseModelling side ?
+        // Department noise level should be the same as UUEID noise level (there is a single UUEID for roads in the input data)
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651' and d.typesource = 'R'")) {
+            while(resultSet.next()) {
+                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format(
+                        "LDEN Department %.2f dB UUEID %.2f dB for geometry: %s",
+                        resultSet.getFloat("dep_lden"),
+                        resultSet.getFloat("uueid_lden"),
+                        EWKTUtils.ewkb2ewkt(JTSUtils.geometry2ewkb((Geometry) resultSet.getObject("the_geom")))
+                ));
+            }
+        }
 
-// Department noise level should be the same as UUEID noise level
-//        try(Connection pgConnection = pgDataSource.getConnection();
-//            Statement statement = pgConnection.createStatement();
-//            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.lden dep_lden, u.lden uueid_lden, d.lden - u.lden diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
-//            while(resultSet.next()) {
-//                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_lden"), resultSet.getFloat("uueid_lden"), resultSet.getObject("the_geom")));
-//            }
-//        }
-//
-//        try(Connection pgConnection = pgDataSource.getConnection();
-//            Statement statement = pgConnection.createStatement();
-//            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom)")) {
-//            while(resultSet.next()) {
-//                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_ln"), resultSet.getFloat("uueid_ln"), resultSet.getObject("the_geom")));
-//            }
-//        }
+        try(Connection pgConnection = pgDataSource.getConnection();
+            Statement statement = pgConnection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT d.the_geom as the_geom,d.ln dep_ln, u.ln uueid_ln, d.ln - u.ln diff from cbs_uge_output.facade_expo_dept_hexa d, cbs_uge_output.facade_expo_hexa u where ST_Intersects(ST_Expand(d.the_geom, 1, 1) , u.the_geom) and u.uueid='RD_FR_00_0781651' and d.typesource = 'R'")) {
+            while(resultSet.next()) {
+                assertEquals(0.0, resultSet.getFloat("diff"), 0.01, String.format("LN Department %.2f dB UUEID %.2f dB for geometry: %s", resultSet.getFloat("dep_ln"), resultSet.getFloat("uueid_ln"), resultSet.getObject("the_geom")));
+            }
+        }
     }
 
     /**
@@ -498,10 +548,11 @@ public class TestCBSScript extends JDBCTestCase {
                 Map.of("projectionName", "hexa",
                         "uueid_pattern", "RD_FR_00_0781651",
                         "conf", 1,
-                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                        "receiver_rays", "SRID=2154 ;Point Z (619374.6236716803 6823858.270862409 4)"),
                 new EmptyProgressVisitor());
 
         logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RECEIVERS_LEVEL", 120));
         List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
         try(Statement st = connection.createStatement();
             ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
@@ -523,10 +574,12 @@ public class TestCBSScript extends JDBCTestCase {
                 Map.of("projectionName", "hexa",
                         "department", "78",
                         "conf", 1,
-                        "receiver_rays", "SRID=2154 ;Point Z (619366.37 6826894.34 4)"),
+                        "receiver_rays", "SRID=2154 ;Point Z (619374.6236716803 6823858.270862409 4)"),
                 new EmptyProgressVisitor());
 
         logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT POS_SOL, IDRECEIVER, IDSOURCE, PERIOD, LEQ FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD", 120));
+        logger.info(ScriptUtilities.formatSqlQueryResult(new Sql(connection), "SELECT * FROM RECEIVERS_LEVEL", 120));
+
         List<CnossosAttenuationOutput> attenuationOutputs = new ArrayList<>();
         try(Statement st = connection.createStatement();
             ResultSet rs = st.executeQuery("SELECT IDSOURCE, PATH FROM RAYS ORDER BY POS_SOL, IDRECEIVER, IDSOURCE, PERIOD")) {
@@ -573,7 +626,7 @@ public class TestCBSScript extends JDBCTestCase {
 
 
     @Test
-    @Order(4)
+    @Order(2)
     public void testGenerateTrainSources() throws SQLException {
         assumePostGISAvailable();
 
@@ -605,6 +658,26 @@ public class TestCBSScript extends JDBCTestCase {
                 logger.warn("Missing troncon: {}", troncon);
             }
             assertEquals(0, missingTroncon.size());
+            // Keep only the most significant (highest leq) sound source for each unique idtroncon
+            // to reduce the computation time of the next unit tests
+            StringBuilder globalLevel = new StringBuilder();
+            for (int frequency : ProfileBuilder.DEFAULT_FREQUENCIES_THIRD_OCTAVE) {
+                if (!globalLevel.isEmpty()) {
+                    globalLevel.append('+');
+                } else {
+                    globalLevel.append("10*log(");
+                }
+                globalLevel.append("power(10,COALESCE(hzd").append(frequency).append(",0)/10)+")
+                        .append("power(10,COALESCE(hze").append(frequency).append(",0)/10)+")
+                        .append("power(10,COALESCE(hzn").append(frequency).append(",0)/10)");
+            }
+            globalLevel.append(')');
+            try (Statement statement = pgConnection.createStatement()) {
+                int deleted = statement.executeUpdate("DELETE FROM cbs_uge_output.ferroviaire_emission_hexa f WHERE f.pk NOT IN (" +
+                        "SELECT DISTINCT ON (idtroncon) pk FROM cbs_uge_output.ferroviaire_emission_hexa " +
+                        "ORDER BY idtroncon, " + globalLevel + " DESC)");
+                logger.info("Deleted {} entries", deleted);
+            }
         }
     }
 }
