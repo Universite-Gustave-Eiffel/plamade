@@ -22,30 +22,30 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Geometry;
 import org.noise_planet.covadis.scripts.CBS.ComputePerDepartment;
 import org.noise_planet.covadis.scripts.JDBCTestCase;
+import org.noise_planet.covadis.scripts.Slurm.ReceiversQueryFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.StringReader;
-import java.io.StringWriter;
-import java.io.Writer;
+import java.io.*;
 import java.math.BigDecimal;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ScriptUtilitiesTest extends JDBCTestCase {
+
+    Logger logger = LoggerFactory.getLogger(ScriptUtilitiesTest.class);
+
     @Test
     public void testFillDefaultValuesWithUnexpectedInputThrows() {
         Map inputs = new HashMap();
@@ -156,87 +156,6 @@ public class ScriptUtilitiesTest extends JDBCTestCase {
         }
     }
 
-    @Test
-    public void testMergeSqlFilesKeepsConstraintsOnce() throws Exception {
-        // The remote noisemodelling container exports RECEIVERS_LEVEL with H2 SCRIPT whose
-        // data section is made of batched multi-line INSERT statements and whose tail
-        // contains "ALTER TABLE ... ADD CONSTRAINT ... PRIMARY KEY" and "CREATE INDEX"
-        // statements, one set per task file. Only the first file must keep them; later files
-        // only contribute the data rows, otherwise RUNSCRIPT fails with
-        // 'Constraint "CONSTRAINT_B" already exists'.
-        String tableHeader =
-                "-- H2 2.5.252;\n" +
-                        ";\n" +
-                        "CREATE USER IF NOT EXISTS \"SA\" PASSWORD '' ADMIN;\n" +
-                        "CREATE CACHED TABLE \"PUBLIC\".\"RECEIVERS_LEVEL\"(\n" +
-                        "    \"IDRECEIVER\" BIGINT NOT NULL,\n" +
-                        "    \"PERIOD\" CHARACTER VARYING NOT NULL,\n" +
-                        "    \"THE_GEOM\" GEOMETRY(POINT Z, 2154),\n" +
-                        "    \"LAEQ\" REAL NOT NULL\n" +
-                        ");\n" +
-                        "-- 1 +/- SELECT COUNT(*) FROM PUBLIC.RECEIVERS_LEVEL;\n";
-        String trailing =
-                "ALTER TABLE \"PUBLIC\".\"RECEIVERS_LEVEL\" ADD CONSTRAINT \"PUBLIC\".\"CONSTRAINT_B\" PRIMARY KEY(\"IDRECEIVER\", \"PERIOD\");\n" +
-                        "CREATE INDEX \"PUBLIC\".\"RECEIVERS_LEVEL_IDX\" ON \"PUBLIC\".\"RECEIVERS_LEVEL\"(\"IDRECEIVER\", \"PERIOD\");\n";
-        File firstFile = writeGzipSql(File.createTempFile("receivers_level_1", ".sql.gz"),
-                tableHeader +
-                        "INSERT INTO \"PUBLIC\".\"RECEIVERS_LEVEL\" VALUES\n" +
-                        "(1, 'DEN', GEOMETRY X'00a00000010000086a410b483fe7821e1f4159c6cbff4be9220000000000000000', 60.0);\n" +
-                        trailing);
-        File secondFile = writeGzipSql(File.createTempFile("receivers_level_2", ".sql.gz"),
-                tableHeader +
-                        "INSERT INTO \"PUBLIC\".\"RECEIVERS_LEVEL\" VALUES\n" +
-                        "(2, 'N', GEOMETRY X'00a00000010000086a410b483fe7821e1f4159c6cbff4be9220000000000000000', 50.0),\n" +
-                        "(3, 'DEN', GEOMETRY X'00a00000010000086a410b483fe7821e1f4159c6cbff4be9220000000000000000', 45.0);\n" +
-                        "INSERT INTO \"PUBLIC\".\"RECEIVERS_LEVEL\" VALUES\n" +
-                        "(4, 'N', GEOMETRY X'00a00000010000086a410b483fe7821e1f4159c6cbff4be9220000000000000000', 40.0);\n" +
-                        trailing);
-
-        File mergedFile = File.createTempFile("RECEIVERS_LEVEL", ".sql.gz");
-        mergedFile.deleteOnExit();
-        FileUtilities.mergeSqlFiles(List.of(firstFile.getPath(), secondFile.getPath()), mergedFile, new EmptyProgressVisitor());
-
-        // Constraints and indexes must be present only once in the merged script
-        String mergedSql;
-        try (GZIPInputStream gzis = new GZIPInputStream(new FileInputStream(mergedFile))) {
-            mergedSql = new String(gzis.readAllBytes(), StandardCharsets.UTF_8);
-        }
-        assertEquals(1, countOccurrences(mergedSql, "ADD CONSTRAINT"));
-        assertEquals(1, countOccurrences(mergedSql, "CREATE INDEX"));
-
-        // The merged script must load without "constraint already exists" and keep all rows
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("DROP TABLE IF EXISTS RECEIVERS_LEVEL");
-            stmt.execute("RUNSCRIPT FROM '" + mergedFile.getAbsolutePath() + "' COMPRESSION GZIP");
-        }
-        assertEquals(4, JDBCUtilities.getRowCount(connection, "RECEIVERS_LEVEL"));
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT IDRECEIVER FROM RECEIVERS_LEVEL ORDER BY IDRECEIVER")) {
-            for (int expected : new int[]{1, 2, 3, 4}) {
-                assertTrue(rs.next());
-                assertEquals(expected, rs.getInt(1));
-            }
-        }
-    }
-
-    private static File writeGzipSql(File file, String sql) throws Exception {
-        file.deleteOnExit();
-        try (OutputStream os = new GZIPOutputStream(new FileOutputStream(file))) {
-            os.write(sql.getBytes(StandardCharsets.UTF_8));
-        }
-        return file;
-    }
-
-    private static int countOccurrences(String haystack, String needle) {
-        int count = 0;
-        int index = 0;
-        while ((index = haystack.indexOf(needle, index)) != -1) {
-            count++;
-            index += needle.length();
-        }
-        return count;
-    }
-
     private void executeScript(Connection connection, String script) throws Exception {
         ScriptReader scriptReader = new ScriptReader(new StringReader(script));
         scriptReader.setSkipRemarks(true);
@@ -247,5 +166,18 @@ public class ScriptUtilitiesTest extends JDBCTestCase {
                 statement = scriptReader.readStatement();
             }
         }
+    }
+
+    @Test
+    public void testParseDumpScript() throws SQLException, IOException {
+        URL resource = ScriptUtilitiesTest.class.getResource("sql_dump.sql.gz");
+        assertNotNull(resource);
+        FileUtilities.runSqlDump(Collections.singletonList(resource.getPath()), connection, new EmptyProgressVisitor(),
+                false, logger, new ReceiversQueryFilter());
+
+        // Check if the table exists
+        assertTrue(JDBCUtilities.tableExists(connection, "RECEIVERS_LEVEL"));
+        assertEquals(39, JDBCUtilities.getRowCount(connection, "RECEIVERS_LEVEL"));
+
     }
 }

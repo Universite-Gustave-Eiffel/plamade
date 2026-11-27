@@ -23,14 +23,11 @@ import org.h2gis.utilities.dbtypes.DBTypes
 import org.noise_planet.covadis.webserver.slurm.*
 import org.noise_planet.covadis.webserver.utilities.FileUtilities
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities
+import org.noise_planet.noisemodelling.jdbc.NoiseMapDatabaseParameters
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import javax.sql.DataSource
-import java.io.FileOutputStream
-import java.io.OutputStream
-import java.io.OutputStreamWriter
-import java.io.Writer
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -39,12 +36,12 @@ import java.nio.file.attribute.PosixFilePermissions
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Statement
-import java.util.zip.GZIPOutputStream
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicLong
 import java.util.regex.Matcher
+import java.util.zip.GZIPOutputStream
 
 title = 'Computes the propagation from the sounds sources to the receivers'
 description = '&#10145;&#65039; Computes the propagation from the sounds sources to the receivers location using the noise emission table on a remote HPC cluster using Slurm for job management.' +
@@ -417,18 +414,15 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
             for (FileAttributes file : files) {
                 filesToImport.add(new File(temporaryDataDir.toFile(), file.fileName).getPath())
             }
-            // Use GZIPOutputStream to create the compressed output file
-            def mergedFile = new File(temporaryDataDir.toFile(), "RECEIVERS_LEVEL.sql.gz")
-            logger.info("Merge sql files to ${mergedFile.path}..")
-            FileUtilities.mergeSqlFiles(filesToImport, mergedFile, progress)
-
             // Transfer results into a single table
             try (Connection connection = dataSource.connection) {
                 // Drop current output table if it already exists
-                connection.createStatement().execute("DROP TABLE IF EXISTS RECEIVERS_LEVEL")
+                connection.createStatement().execute("DROP TABLE IF EXISTS ${NoiseMapDatabaseParameters.DEFAULT_RECEIVERS_LEVEL_TABLE_NAME}")
                 // Import the first file as usual
                 logger.info("Load SQL file")
-                connection.createStatement().execute("RUNSCRIPT FROM '${mergedFile.path}' COMPRESSION GZIP")
+                FileUtilities.runSqlDump(filesToImport, connection, progress, true, logger, new ReceiversQueryFilter())
+                // Create the primary key
+                connection.createStatement().execute("ALTER TABLE ${NoiseMapDatabaseParameters.DEFAULT_RECEIVERS_LEVEL_TABLE_NAME} ADD PRIMARY KEY(IDRECEIVER, PERIOD);")
             }
         } finally {
             // remove remote slurm working folder
@@ -437,7 +431,7 @@ def exec(DataSource dataSource, Map inputs, ProgressVisitor mainProgress) {
                 slurmSession.runCommand(String.format("rm -rfv %s", slurmConfig.serverWorkspaceFolder), true)
             }
         }
-        return ["result": "Setup completed"]
+        return ["result": NoiseMapDatabaseParameters.DEFAULT_RECEIVERS_LEVEL_TABLE_NAME]
     }
 }
 
@@ -619,3 +613,10 @@ private static String getDateString() {
     "${now.year}_${now.monthValue}_${now.dayOfMonth}.${now.hour}.${now.toEpochSecond(ZoneOffset.UTC)}"
 }
 
+@CompileStatic
+class ReceiversQueryFilter implements FileUtilities.QueryFilter {
+    @Override
+    boolean accept(String statement) {
+        return statement.startsWith("INSERT INTO") || statement.startsWith("CREATE CACHED TABLE")
+    }
+}

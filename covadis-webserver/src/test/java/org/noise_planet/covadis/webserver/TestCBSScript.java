@@ -464,7 +464,7 @@ public class TestCBSScript extends JDBCTestCase {
                         "department", "78",
                         "conf", 1,
                         "configuration_name", "local",
-                        "slurm_task_count", 1,
+                        "slurm_task_count", 2,
                         "key_password", config.sshKeyPassword),
                 new EmptyProgressVisitor());
 
