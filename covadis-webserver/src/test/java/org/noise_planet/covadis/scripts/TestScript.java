@@ -1,18 +1,25 @@
 package org.noise_planet.covadis.scripts;
 
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.noise_planet.covadis.scripts.CBS.Generate_train_sources;
 import org.noise_planet.covadis.scripts.Slurm.Main_Remote_Script;
 import org.noise_planet.covadis.webserver.NoiseModellingHPCServerHttpTest;
 import org.noise_planet.covadis.webserver.utilities.ScriptUtilities;
+import org.noise_planet.noisemodelling.emission.railway.Railway;
 import org.noise_planet.noisemodelling.scripts.Database_Manager.Table_Visualization_Data;
 import org.noise_planet.noisemodelling.scripts.Import_and_Export.Import_File;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestScript extends JDBCTestCase {
     @Test
@@ -41,5 +48,30 @@ public class TestScript extends JDBCTestCase {
         assertTrue(res.contains("The total number of rows is 830"));
         assertTrue(res.contains("The srid of the table is 2154"));
         assertTrue(res.contains("POINT Z(223495.9880411485 6757167.98900822 0)"));
+    }
+
+    @Test
+    public void testTrainProfiles() throws IOException {
+
+        Railway railway = new Railway();
+        railway.setTrainSetDataFile(Generate_train_sources.RailwayTrainsets);
+        railway.setVehicleDataFile(Generate_train_sources.RailwayVehicles);
+
+        try(InputStream inputStream = TestScript.class.getResourceAsStream("CBS/plamade_engmoteur.json")) {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode node = mapper.readTree(inputStream).get("engmoteur");
+            // Check correspondence
+            List<String> matchIssues = new ArrayList<>();
+            node.forEach(
+                    (jsonNode) -> {
+                        if (railway.getTrainsetData().get(jsonNode.get("engmoteur").textValue()) == null) {
+                            matchIssues.add(jsonNode.get("engmoteur").textValue());
+                        }
+                    }
+            );
+            assertTrue(matchIssues.isEmpty(),
+                    "Theses database traintype does not belong to the internal train sets json documents :\n"
+                            + String.join(",\n", matchIssues));
+        }
     }
 }

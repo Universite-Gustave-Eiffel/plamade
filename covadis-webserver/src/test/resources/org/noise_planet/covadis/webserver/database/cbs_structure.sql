@@ -538,23 +538,24 @@ CREATE TABLE cbs_uge_input.n_ferroviaire_protection_acoust (
 CREATE INDEX n_ferroviaire_protection_acoust_geom ON cbs_uge_input.n_ferroviaire_protection_acoust USING gist (geom);
 
 CREATE TABLE cbs_uge_input.n_ferroviaire_trafic (
-	idtrafic varchar(32) NULL,
-	annee varchar(4) NULL,
-	codedept varchar NULL,
-	refprod varchar(9) NULL,
-	idtroncon varchar(32) NULL,
-	categorie varchar(10) NULL,
-	engmoteur varchar(20) NULL,
-	typvoitwag varchar(12) NULL,
-	lgem numeric NULL,
-	nbvoitwag numeric NULL,
-	lguvoitwag numeric NULL,
-	lgtottrain numeric NULL,
-	vmax numeric NULL,
-	tdiurne numeric NULL,
-	tsoir numeric NULL,
-	tnuit numeric NULL,
-	tmjatot numeric NULL
+    idtrafic varchar(32) NULL,
+    annee varchar(4) NULL,
+    codedept varchar NULL,
+    refprod varchar(9) NULL,
+    idtroncon varchar(32) NULL,
+    categorie varchar(10) NULL,
+    engmoteur varchar(20) NULL,
+    typvoitwag varchar(12) NULL,
+    lgem numeric NULL,
+    nbvoitwag numeric NULL,
+    lguvoitwag numeric NULL,
+    lgtottrain numeric NULL,
+    vmax numeric NULL,
+    tdiurne numeric NULL,
+    tsoir numeric NULL,
+    tnuit numeric NULL,
+    tmjatot numeric NULL,
+    lgtvoitwag numeric NULL
 );
 
 CREATE TABLE cbs_uge_input.n_ferroviaire_troncon_l (

@@ -45,6 +45,12 @@ outputs = [result: [name: 'Result output string', title: 'Result output string',
 @Field
 static final int batchSize = 100
 
+@Field
+public static final String RailwayTrainsets = "/org/noise_planet/covadis/scripts/CBS/RailwayTrainsets.json"
+
+@Field
+public static final String RailwayVehicles = "/org/noise_planet/covadis/scripts/CBS/RailwayVehiclesCnossos.json"
+
 def exec(Connection connection, Map input, ProgressVisitor progress) {
 
         Logger logger = LoggerFactory.getLogger(this.class)
@@ -158,8 +164,8 @@ static convertTrafficToNoiseSources(Connection connection) {
         ScriptUtilities.execScript(new Railway_Emission_from_Traffic(), connection, [
                 tableRailwayTraffic: "RAILWAY_TRAFFIC",
                 tableRailwayTrack: "RAILWAY_TRACK",
-                trainSetDataFile : "/org/noise_planet/covadis/scripts/CBS/RailwayTrainsets.json",
-                vehicleDataFile : "/org/noise_planet/covadis/scripts/CBS/RailwayVehiclesCnossos.json"
+                trainSetDataFile : RailwayTrainsets,
+                vehicleDataFile : RailwayVehicles
                 ]
         )
 
